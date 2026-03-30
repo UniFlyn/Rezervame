@@ -1,0 +1,10 @@
+[
+  {
+    "id": "sub1",
+    "businessId": "b1",
+    "planId": "premium",
+    "status": "active",
+    "startDate": "2026-01-01",
+    "endDate": "2026-12-31"
+  }
+]

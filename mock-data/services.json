@@ -1,0 +1,34 @@
+[
+  {
+    "id": "s1",
+    "businessId": "b1",
+    "name": "Classic Haircut",
+    "duration": 30,
+    "price": 25.0,
+    "description": "Standard men's haircut with styling."
+  },
+  {
+    "id": "s2",
+    "businessId": "b1",
+    "name": "Beard Trim",
+    "duration": 15,
+    "price": 15.0,
+    "description": "Precision beard trimming and shaping."
+  },
+  {
+    "id": "s3",
+    "businessId": "b1",
+    "name": "Haircut & Beard Combo",
+    "duration": 45,
+    "price": 35.0,
+    "description": "Full grooming package for hair and beard."
+  },
+  {
+    "id": "s4",
+    "businessId": "b2",
+    "name": "Women's Wash & Cut",
+    "duration": 60,
+    "price": 45.0,
+    "description": "Shampoo, cut, and blow-dry styling."
+  }
+]

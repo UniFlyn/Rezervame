@@ -1,0 +1,30 @@
+[
+  {
+    "id": "b1",
+    "ownerId": "u3",
+    "name": "Elite Barbershop",
+    "description": "Premium grooming experiences for the modern gentleman.",
+    "category": "Barbershop",
+    "address": "123 Main St, Panama City",
+    "rating": 4.8,
+    "reviewCount": 124,
+    "images": [
+      "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&q=80"
+    ],
+    "isOpen": true
+  },
+  {
+    "id": "b2",
+    "ownerId": "u3",
+    "name": "Glow Beauty Salon",
+    "description": "Professional styling, coloring, and treatments.",
+    "category": "Salon",
+    "address": "456 Fashion Ave, Panama City",
+    "rating": 4.9,
+    "reviewCount": 89,
+    "images": [
+      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80"
+    ],
+    "isOpen": true
+  }
+]

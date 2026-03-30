@@ -1,0 +1,18 @@
+[
+  {
+    "id": "r1",
+    "businessId": "b1",
+    "userId": "u1",
+    "rating": 5,
+    "comment": "Best haircut I've had in years! Highly recommended.",
+    "date": "2026-03-20"
+  },
+  {
+    "id": "r2",
+    "businessId": "b2",
+    "userId": "u1",
+    "rating": 4,
+    "comment": "Great service, but had to wait a bit.",
+    "date": "2026-03-15"
+  }
+]

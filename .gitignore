@@ -1,0 +1,47 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+bin/
+obj/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Flutter/Mobile specific
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+android/app/build/
+ios/Pods/
+ios/.generated/
+*.app
+*.ipa
+*.apk
+*.bak
+
+# Large Design Files
+*.fig
+Requirments/

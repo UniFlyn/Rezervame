@@ -1,0 +1,23 @@
+[
+  {
+    "id": "u1",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "customer",
+    "avatar": "https://i.pravatar.cc/150?u=u1"
+  },
+  {
+    "id": "u2",
+    "name": "Admin User",
+    "email": "admin@rezervame.com",
+    "role": "admin",
+    "avatar": "https://i.pravatar.cc/150?u=u2"
+  },
+  {
+    "id": "u3",
+    "name": "Jane Smith",
+    "email": "jane.smith@barber.com",
+    "role": "business_owner",
+    "avatar": "https://i.pravatar.cc/150?u=u3"
+  }
+]
