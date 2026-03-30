@@ -121,15 +121,19 @@ class BookingConfirmationScreen extends StatelessWidget {
 
   Widget _buildDetailRow(String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.between,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
           style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
         ),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          ),
         ),
       ],
     );

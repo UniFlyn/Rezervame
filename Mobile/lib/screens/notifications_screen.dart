@@ -1,4 +1,6 @@
-import 'package:barber/widgets/notification_card.dart';
+import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:rezervame_mobile/widgets/notification_card.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -8,7 +10,7 @@ class NotificationsScreen extends StatelessWidget {
     final notifications = [
       {
         'title': 'bookingConfirmed'.tr(),
-        'body': 'Your appointment at Luxe Hair Studio is confirmed for today at 3:00 PM.',
+        'body': 'notifBodyBookingConfirmed1'.tr(),
         'time': '2 min ago',
         'isRead': false,
         'icon': Icons.calendar_today,
@@ -16,7 +18,7 @@ class NotificationsScreen extends StatelessWidget {
       },
       {
         'title': 'specialOffer'.tr(),
-        'body': 'Get 20% off on your next manicure at Nail Society!',
+        'body': 'notifBodySpecialOffer1'.tr(),
         'time': '1 hour ago',
         'isRead': true,
         'icon': Icons.local_offer,
@@ -24,11 +26,107 @@ class NotificationsScreen extends StatelessWidget {
       },
       {
         'title': 'reminder'.tr(),
-        'body': 'Don\'t forget to rate your experience at Bliss Beauty.',
+        'body': 'notifBodyReminder1'.tr(),
         'time': 'Yesterday',
         'isRead': true,
         'icon': Icons.star,
         'color': Colors.blue,
+      },
+      {
+        'title': 'systemUpdate'.tr(),
+        'body': 'notifBodySystemUpdate1'.tr(),
+        'time': '2 days ago',
+        'isRead': true,
+        'icon': Icons.system_update,
+        'color': Colors.grey,
+      },
+      {
+        'title': 'paymentSuccess'.tr(),
+        'body': 'notifBodyPaymentSuccess1'.tr(),
+        'time': 'Mar 28',
+        'isRead': true,
+        'icon': Icons.check_circle,
+        'color': Colors.green,
+      },
+      {
+        'title': 'newPromotion'.tr(),
+        'body': 'notifBodyNewPromotion1'.tr(),
+        'time': 'Mar 25',
+        'isRead': true,
+        'icon': Icons.new_releases,
+        'color': Colors.purple,
+      },
+      {
+        'title': 'bookingConfirmed'.tr(),
+        'body': 'notifBodyBookingConfirmed2'.tr(),
+        'time': 'Mar 22',
+        'isRead': true,
+        'icon': Icons.calendar_today,
+        'color': const Color(0xFFff5a5f),
+      },
+      {
+        'title': 'reviewRequest'.tr(),
+        'body': 'notifBodyReviewRequest1'.tr(),
+        'time': 'Mar 20',
+        'isRead': true,
+        'icon': Icons.rate_review,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'specialOffer'.tr(),
+        'body': 'notifBodySpecialOffer2'.tr(),
+        'time': 'Mar 18',
+        'isRead': true,
+        'icon': Icons.local_offer,
+        'color': Colors.amber,
+      },
+      {
+        'title': 'reminder'.tr(),
+        'body': 'notifBodyReminder2'.tr(),
+        'time': 'Mar 15',
+        'isRead': true,
+        'icon': Icons.notifications_active,
+        'color': Colors.red,
+      },
+      {
+        'title': 'systemUpdate'.tr(),
+        'body': 'notifBodySystemUpdate2'.tr(),
+        'time': 'Mar 12',
+        'isRead': true,
+        'icon': Icons.warning,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'paymentSuccess'.tr(),
+        'body': 'notifBodyPaymentSuccess2'.tr(),
+        'time': 'Mar 10',
+        'isRead': true,
+        'icon': Icons.receipt,
+        'color': Colors.green,
+      },
+      {
+        'title': 'newPromotion'.tr(),
+        'body': 'notifBodyNewPromotion2'.tr(),
+        'time': 'Mar 08',
+        'isRead': true,
+        'icon': Icons.people,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'bookingConfirmed'.tr(),
+        'body': 'notifBodyBookingConfirmed3'.tr(),
+        'time': 'Mar 05',
+        'isRead': true,
+        'icon': Icons.assignment_turned_in,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'reminder'.tr(),
+        'body': 'notifBodyReminder3'.tr(),
+        'time': 'Mar 01',
+        'isRead': true,
+        'icon': Icons.view_list,
+        'color': Colors.indigo,
       },
     ];
 

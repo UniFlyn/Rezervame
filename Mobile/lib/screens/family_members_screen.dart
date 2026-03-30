@@ -10,8 +10,8 @@ class FamilyMembersScreen extends StatefulWidget {
 
 class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   final List<Map<String, dynamic>> _familyMembers = [
-    {'id': '1', 'name': 'Sofia Kumar', 'age': '8', 'gender': 'Female'},
-    {'id': '2', 'name': 'Arjun Kumar', 'age': '5', 'gender': 'Male'},
+    {'id': '1', 'name': 'Sofia Kumar', 'age': '8', 'gender': 'genderFemale'},
+    {'id': '2', 'name': 'Arjun Kumar', 'age': '5', 'gender': 'genderMale'},
   ];
 
   void _addMember(String name, String age, String gender) {
@@ -34,7 +34,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   void _showAddMemberModal() {
     String name = '';
     String age = '';
-    String gender = 'Male';
+    String gender = 'genderMale';
 
     showModalBottomSheet(
       context: context,
@@ -86,7 +86,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                         labelText: 'gender'.tr(),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                      items: ['genderMale', 'genderFemale', 'genderOther'].map((g) => DropdownMenuItem(value: g, child: Text(g.tr()))).toList(),
                       onChanged: (val) => setModalState(() => gender = val!),
                     ),
                   ),
@@ -164,7 +164,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(member['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                          Text('${member['age']} years • ${member['gender']}', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 13)),
+                          Text('${member['age']} ${'years'.tr()} • ${member['gender'].toString().tr()}', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 13)),
                         ],
                       ),
                     ),

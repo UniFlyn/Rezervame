@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../widgets/booking_bottom_sheet.dart';
+import 'write_review_screen.dart';
 
 class VenueDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> venue;
@@ -12,19 +14,71 @@ class VenueDetailsScreen extends StatefulWidget {
 class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
+  final List<int> _selectedServices = [];
+  bool _isFavorite = false;
 
-  final List<Map<String, dynamic>> _mockServices = [
-    { 'id': 1, 'name': 'Corte de cabello para mujer', 'desc': 'Corte y peinado profesional adaptado a tus preferencias', 'time': '60 min', 'price': '\$65.00', 'tag': 'Todos' },
-    { 'id': 2, 'name': 'Corte de cabello para hombre', 'desc': 'Corte clásico o moderno, realizado con precisión', 'time': '45 min', 'price': '\$35.00', 'tag': 'Más vendidos' },
-    { 'id': 3, 'name': 'Coloración de cabello', 'desc': 'Servicio completo de color con productos de alta gama', 'time': '3-4 h', 'price': '\$120.00', 'tag': 'Promociones' },
-    { 'id': 4, 'name': 'Highlights', 'desc': 'Reflejos parciales para aportar dimensión', 'time': '2 h', 'price': '\$140.00', 'tag': 'Todos' },
+  void _showShareSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 24),
+            Text('shareThisVenue'.tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildShareOption(Icons.message_rounded, 'WhatsApp', const Color(0xFF25D366)),
+                _buildShareOption(Icons.camera_alt_rounded, 'Instagram', const Color(0xFFE1306C)),
+                _buildShareOption(Icons.facebook_rounded, 'Facebook', const Color(0xFF1877F2)),
+                _buildShareOption(Icons.link_rounded, 'copyLink'.tr(), Colors.grey.shade700),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShareOption(IconData icon, String label, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 56, height: 56,
+          decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, color: color, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey)),
+      ],
+    );
+  }
+
+  List<Map<String, dynamic>> get _mockServices => [
+    { 'id': 1, 'name': 'servWomenCut'.tr(), 'desc': 'servWomenCutDesc'.tr(), 'time': '60 min', 'price': '\$65.00', 'tag': 'Todos' },
+    { 'id': 2, 'name': 'servMenCut'.tr(), 'desc': 'servMenCutDesc'.tr(), 'time': '45 min', 'price': '\$35.00', 'tag': 'Más vendidos' },
+    { 'id': 3, 'name': 'servColor'.tr(), 'desc': 'servColorDesc'.tr(), 'time': '3-4 h', 'price': '\$120.00', 'tag': 'Promociones' },
+    { 'id': 4, 'name': 'servHighlights'.tr(), 'desc': 'servHighlightsDesc'.tr(), 'time': '2 h', 'price': '\$140.00', 'tag': 'Todos' },
   ];
 
-  final List<Map<String, dynamic>> _mockTeam = [
-    { 'id': 1, 'name': 'Mateo Ríos', 'role': 'Estilista Senior', 'rating': '4.8', 'img': '1503951914875-452162b0f3f1' },
-    { 'id': 2, 'name': 'Mateo Ríos', 'role': 'Estilista Senior', 'rating': '4.9', 'img': '1503951914875-452162b0f3f1' },
-    { 'id': 3, 'name': 'Mateo Ríos', 'role': 'Estilista Senior', 'rating': '4.5', 'img': '1503951914875-452162b0f3f1' },
-    { 'id': 4, 'name': 'Mateo Ríos', 'role': 'Estilista Senior', 'rating': '4.2', 'img': '1503951914875-452162b0f3f1' },
+  List<Map<String, dynamic>> get _mockTeam => [
+    { 'id': 1, 'name': 'Mateo Ríos', 'role': 'roleSenior'.tr(), 'rating': '4.8', 'img': '1503951914875-452162b0f3f1' },
+    { 'id': 2, 'name': 'Sofia Lara', 'role': 'roleColorist'.tr(), 'rating': '4.9', 'img': '1494790108377-be9c29b29330' },
+    { 'id': 3, 'name': 'Daniel Vera', 'role': 'roleMaster'.tr(), 'rating': '4.5', 'img': '1500648767791-00dcc994a43e' },
+    { 'id': 4, 'name': 'Elena Soler', 'role': 'roleManicurist'.tr(), 'rating': '4.2', 'img': '1522337660859-02fbefca4702' },
   ];
 
   @override
@@ -54,16 +108,16 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
             delegate: _SliverAppBarDelegate(
               TabBar(
                 controller: _tabController,
-                labelColor: Colors.black,
+                labelColor: const Color(0xFFff5a5f),
                 unselectedLabelColor: Colors.grey,
                 indicatorColor: const Color(0xFFff5a5f),
                 indicatorWeight: 3,
                 labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
                 tabs: [
-                  Tab(text: 'venueServicios'.tr()),
-                  Tab(text: 'venueEquipo'.tr()),
-                  Tab(text: 'venueReseñas'.tr()),
-                  Tab(text: 'venueAmenidades'.tr()),
+                  Tab(text: 'venueServicios'.tr().toUpperCase()),
+                  Tab(text: 'venueEquipo'.tr().toUpperCase()),
+                  Tab(text: 'venueReseñas'.tr().toUpperCase()),
+                  Tab(text: 'venueAmenidades'.tr().toUpperCase()),
                 ],
               ),
             ),
@@ -89,28 +143,45 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
     return SliverAppBar(
       expandedHeight: 250,
       pinned: true,
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0f2e4a),
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.share_outlined, color: Colors.white), 
+          onPressed: _showShareSheet
+        ),
+        IconButton(
+          icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border, color: _isFavorite ? const Color(0xFFff5a5f) : Colors.white), 
+          onPressed: () => setState(() => _isFavorite = !_isFavorite)
+        ),
+      ],
       flexibleSpace: FlexibleSpaceBar(
+        title: Text(widget.venue['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
         background: Stack(
           fit: StackFit.expand,
           children: [
             Image.network(
-              'https://images.unsplash.com/photo-${widget.venue['img']}?q=80&w=800&fit=crop',
+              widget.venue['img'] != null 
+                ? 'https://images.unsplash.com/photo-${widget.venue['img']}?q=80&w=1000&fit=crop'
+                : 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1000&fit=crop',
               fit: BoxFit.cover,
             ),
-            Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.4), Colors.transparent, Colors.black.withOpacity(0.4)]))),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black.withValues(alpha: 0.4), Colors.transparent, Colors.black.withValues(alpha: 0.4)],
+                ),
+              ),
+            ),
           ],
         ),
       ),
-      actions: [
-        IconButton(icon: const Icon(Icons.share_outlined, color: Colors.white), onPressed: () {}),
-        IconButton(icon: const Icon(Icons.favorite_border, color: Colors.white), onPressed: () {}),
-      ],
     );
   }
 
@@ -120,16 +191,6 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFff5a5f).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                child: const Text('NUEVO', style: TextStyle(color: Color(0xFFff5a5f), fontSize: 10, fontWeight: FontWeight.w900)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           Text(widget.venue['name'], style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           Row(
@@ -138,7 +199,7 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
               const SizedBox(width: 4),
               const Text('4.9', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
               const SizedBox(width: 4),
-              Text('(217 reseñas)', style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w700, fontSize: 13)),
+              Text('venueReviewStats'.tr(namedArgs: {'count': '217'}), style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w700, fontSize: 13)),
               const Spacer(),
               const Icon(Icons.location_on_outlined, color: Colors.grey, size: 18),
               const SizedBox(width: 4),
@@ -190,14 +251,22 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
                   Text(s['time'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.grey)),
                   const Spacer(),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      setState(() {
+                        if (_selectedServices.contains(s['id'])) {
+                          _selectedServices.remove(s['id']);
+                        } else {
+                          _selectedServices.add(s['id']);
+                        }
+                      });
+                    },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFff5a5f),
+                      backgroundColor: _selectedServices.contains(s['id']) ? const Color(0xFF1e293b) : const Color(0xFFff5a5f),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
-                    child: Text('bookBtn'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white)),
+                    child: Text(_selectedServices.contains(s['id']) ? 'venueAdded'.tr() : 'venueAdd'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white)),
                   )
                 ],
               )
@@ -213,7 +282,7 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
       padding: const EdgeInsets.all(20),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.7,
+        childAspectRatio: 0.75,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -239,9 +308,9 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    Text(m['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                    Text(m['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14), overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    Text(m['role'], style: const TextStyle(color: Color(0xFFff5a5f), fontSize: 10, fontWeight: FontWeight.w900)),
+                    Text(m['role'], style: const TextStyle(color: Color(0xFFff5a5f), fontSize: 10, fontWeight: FontWeight.w900), overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -277,17 +346,24 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
                   children: List.generate(5, (i) => const Icon(Icons.star, color: Colors.amber, size: 16)),
                 ),
                 const SizedBox(height: 4),
-                Text('basado en 217 reseñas', style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.w700)),
+                Text('venueReviewStats'.tr(namedArgs: {'count': '217'}), style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.w700)),
               ],
             ),
             OutlinedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => WriteReviewScreen(venue: widget.venue),
+                  ),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFF1e293b), width: 2),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-              child: const Text('ESCRIBIR RESEÑA', style: TextStyle(color: Color(0xFF1e293b), fontWeight: FontWeight.w900, fontSize: 11)),
+              child: Text('venueWriteReview'.tr(), style: const TextStyle(color: Color(0xFF1e293b), fontWeight: FontWeight.w900, fontSize: 11)),
             ),
           ],
         ),
@@ -330,12 +406,12 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
 
   Widget _buildAmenitiesTab() {
     final amenities = [
-      {'icon': Icons.wifi, 'label': 'Wi-Fi Gratis'},
-      {'icon': Icons.local_parking, 'label': 'Estacionamiento'},
-      {'icon': Icons.coffee, 'label': 'Café y Bebidas'},
-      {'icon': Icons.ac_unit, 'label': 'Aire Acondicionado'},
-      {'icon': Icons.credit_card, 'label': 'Acepta Tarjetas'},
-      {'icon': Icons.child_care, 'label': 'Área para Niños'},
+      {'icon': Icons.wifi, 'label': 'amWifi'.tr()},
+      {'icon': Icons.local_parking, 'label': 'amParking'.tr()},
+      {'icon': Icons.coffee, 'label': 'amCoffee'.tr()},
+      {'icon': Icons.ac_unit, 'label': 'amAC'.tr()},
+      {'icon': Icons.credit_card, 'label': 'amCards'.tr()},
+      {'icon': Icons.child_care, 'label': 'amKids'.tr()},
     ];
 
     return GridView.builder(
@@ -381,14 +457,29 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
-            onPressed: () {},
+            onPressed: _selectedServices.isEmpty ? null : () {
+              final services = _mockServices.where((s) => _selectedServices.contains(s['id'])).toList();
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => BookingBottomSheet(
+                  selectedServices: services,
+                  teamMembers: _mockTeam,
+                  venue: widget.venue,
+                ),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFff5a5f),
+              disabledBackgroundColor: Colors.grey.shade300,
+              disabledForegroundColor: Colors.white,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 8,
-              shadowColor: const Color(0xFFff5a5f).withOpacity(0.4),
+              elevation: _selectedServices.isEmpty ? 0 : 8,
+              shadowColor: _selectedServices.isEmpty ? Colors.transparent : const Color(0xFFff5a5f).withOpacity(0.4),
             ),
-            child: const Text('RESERVAR AHORA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+            child: Text('venueReserveNow'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
           ),
         ),
       ),

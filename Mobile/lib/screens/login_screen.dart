@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../utils/mock_auth.dart';
+import 'main_navigation.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -14,7 +15,14 @@ class LoginScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            mainNavigationNotifier.value = 3; // Set to Profile tab
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const MainNavigation()),
+              (route) => false,
+            );
+          },
         ),
       ),
       body: SingleChildScrollView(
@@ -120,7 +128,12 @@ class LoginScreen extends StatelessWidget {
                 ),
                 onPressed: () {
                   mockAuthNotifier.value = true;
-                  Navigator.pop(context);
+                  mainNavigationNotifier.value = 0; // Default to Home after login
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const MainNavigation()),
+                    (route) => false,
+                  );
                 },
                 child: Text('btnSignIn'.tr(), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),

@@ -12,7 +12,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
   int _currentStep = 0;
   final PageController _pageController = PageController();
 
-  final List<String> _steps = ['Identification', 'Contact', 'Location', 'Services'];
+  final List<String> _steps = ['stepIdentification', 'stepContact', 'stepLocation', 'stepServices'];
 
   @override
   Widget build(BuildContext context) {
@@ -114,15 +114,15 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Tell us about your business', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegTellUs'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
           const SizedBox(height: 8),
-          Text('Enter your primary professional details.', style: TextStyle(color: Colors.grey.shade500, fontSize: 14, fontWeight: FontWeight.w500)),
+          Text('bizRegTellUsSub'.tr(), style: TextStyle(color: Colors.grey.shade500, fontSize: 14, fontWeight: FontWeight.w500)),
           const SizedBox(height: 32),
-          _buildField('Business Name', 'e.g. Luxe Barbershop'),
+          _buildField('bizRegName'.tr(), 'bizRegNameHint'.tr()),
           const SizedBox(height: 16),
-          _buildField('Legal Entity ID', 'e.g. 8-123-456'),
+          _buildField('bizRegEntityId'.tr(), 'bizRegEntityIdHint'.tr()),
           const SizedBox(height: 16),
-          _buildField('Industry', 'e.g. Barberia / Spa'),
+          _buildField('bizRegIndustry'.tr(), 'bizRegIndustryHint'.tr()),
         ],
       ),
     );
@@ -134,13 +134,13 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('How can clients reach you?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegReachYou'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
           const SizedBox(height: 32),
-          _buildField('Business Email', 'hello@luxe.com'),
+          _buildField('bizRegEmail'.tr(), 'hello@luxe.com'),
           const SizedBox(height: 16),
-          _buildField('Phone Number', '+507 ...'),
+          _buildField('bizRegPhone'.tr(), '+507 ...'),
           const SizedBox(height: 16),
-          _buildField('Instagram (Optional)', '@luxe_barber'),
+          _buildField('bizRegInstagram'.tr(), '@luxe_barber'),
         ],
       ),
     );
@@ -152,11 +152,11 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Where is your business located?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegLocation'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
           const SizedBox(height: 32),
-          _buildField('Address Line 1', 'Avenida Balboa...'),
+          _buildField('bizRegAddress'.tr(), 'bizRegAddressHint'.tr()),
           const SizedBox(height: 16),
-          _buildField('City', 'Panama City'),
+          _buildField('bizRegCity'.tr(), 'bizRegCityHint'.tr()),
           const SizedBox(height: 32),
           Container(
             height: 200,
@@ -179,14 +179,18 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Services you offer', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegServices'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
           const SizedBox(height: 32),
           _buildServiceCheck('Corte de Cabello', true),
           _buildServiceCheck('Afeitado de Barba', false),
           _buildServiceCheck('Manicura / Pedicura', true),
           _buildServiceCheck('Tintado / Coloración', false),
           const SizedBox(height: 24),
-          TextButton.icon(onPressed: () {}, icon: const Icon(Icons.add), label: const Text('Add Custom Service', style: TextStyle(fontWeight: FontWeight.w800))),
+          TextButton.icon(
+            onPressed: () {}, 
+            icon: const Icon(Icons.add), 
+            label: Text('bizRegAddCustom'.tr(), style: const TextStyle(fontWeight: FontWeight.w800))
+          ),
         ],
       ),
     );
@@ -242,9 +246,9 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
           children: [
             const Icon(Icons.check_circle, color: Colors.green, size: 80),
             const SizedBox(height: 24),
-            const Text('Welcome to the platform!', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            Text('bizRegWelcome'.tr(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
-            Text('Your business application is being reviewed. We will contact you shortly.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+            Text('bizRegReviewing'.tr(), textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
@@ -258,7 +262,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
                   backgroundColor: Colors.black,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('Back to Home', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                child: Text('backToHome'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
               ),
             ),
             const SizedBox(height: 8),

@@ -5,6 +5,14 @@ import 'my_favorites_screen.dart';
 import 'my_reservations_screen.dart';
 import 'business_registration_flow.dart';
 import 'static_info_screen.dart';
+import 'events_screen.dart';
+import 'jobs_screen.dart';
+import 'pricing_screen.dart';
+import 'how_it_works_screen.dart';
+import 'customer_service_screen.dart';
+import 'edit_profile_screen.dart';
+import 'login_screen.dart';
+import '../utils/mock_auth.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -53,10 +61,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(color: Color(0xFFff5a5f), shape: BoxShape.circle),
-                        child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                      GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen())),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(color: Color(0xFFff5a5f), shape: BoxShape.circle),
+                          child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                        ),
                       ),
                     ],
                   ),
@@ -77,12 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSectionHeader('account'.tr()),
             _buildMenuItem(
               icon: Icons.calendar_today_rounded, 
-              title: 'myBookings'.tr(), 
+              title: 'reservations'.tr(), 
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MyReservationsScreen())),
             ),
             _buildMenuItem(
               icon: Icons.people_alt_rounded, 
-              title: 'familyMembers'.tr(), 
+              title: 'familyFriends'.tr(), 
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FamilyMembersScreen())),
             ),
             _buildMenuItem(
@@ -91,10 +102,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MyFavoritesScreen())),
             ),
             _buildMenuItem(
+              icon: Icons.person_outline_rounded, 
+              title: 'editProfile'.tr(), 
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen())),
+            ),
+            _buildMenuItem(
               icon: Icons.lock_outline_rounded, 
               title: 'changePassword'.tr(), 
               onTap: () => _showChangePasswordModal(),
             ),
+            _buildLanguageToggle(),
 
             const SizedBox(height: 24),
             _buildSectionHeader('business'.tr()),
@@ -106,38 +123,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildMenuItem(
               icon: Icons.help_outline_rounded, 
               title: 'businessSupport'.tr(), 
-              onTap: () => _navigateToStatic('Business Support', 'How can we help your business grow? Contact our partner success team.'),
+              onTap: () => _navigateToStatic('businessSupport'.tr(), [
+                StaticSection(title: 'businessSupport'.tr(), content: 'businessSupportContent'.tr()),
+              ]),
+            ),
+            _buildMenuItem(
+              icon: Icons.payments_outlined, 
+              title: 'pricingTitle'.tr(), 
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PricingScreen())),
+            ),
+
+            const SizedBox(height: 24),
+            _buildSectionHeader('community'.tr()),
+            _buildMenuItem(
+              icon: Icons.event_note_rounded, 
+              title: 'eventsTitle'.tr(), 
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EventsScreen())),
+            ),
+            _buildMenuItem(
+              icon: Icons.work_outline_rounded, 
+              title: 'jobsTitle'.tr(), 
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const JobsScreen())),
             ),
 
             const SizedBox(height: 24),
             _buildSectionHeader('legal_support'.tr()),
             _buildMenuItem(
               icon: Icons.info_outline_rounded, 
+              title: 'howItWorksTitle'.tr(), 
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HowItWorksScreen())),
+            ),
+            _buildMenuItem(
+              icon: Icons.support_agent_rounded, 
+              title: 'customerServiceTitle'.tr(), 
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CustomerServiceScreen())),
+            ),
+            _buildMenuItem(
+              icon: Icons.group_outlined, 
               title: 'aboutUs'.tr(), 
-              onTap: () => _navigateToStatic('About Us', 'REZERVAME is the leading platform for beauty and wellness services.'),
+              onTap: () => _navigateToStatic('aboutUs'.tr(), [
+                StaticSection(title: 'aboutMissionTitle'.tr(), content: 'aboutMissionDesc'.tr()),
+                StaticSection(title: 'aboutVisionTitle'.tr(), content: 'aboutVisionDesc'.tr()),
+                StaticSection(title: 'aboutValuesTitle'.tr(), content: 'aboutValues'.tr()),
+              ]),
             ),
             _buildMenuItem(
               icon: Icons.privacy_tip_outlined, 
               title: 'privacyPolicy'.tr(), 
-              onTap: () => _navigateToStatic('Privacy Policy', 'Your data is safe with us. Read our full policy here.'),
+              onTap: () => _navigateToStatic('privacyPolicy'.tr(), [
+                StaticSection(title: 'privacyTitle1'.tr(), content: 'privacyDesc1'.tr()),
+                StaticSection(title: 'privacyTitle2'.tr(), content: 'privacyDesc2'.tr()),
+                StaticSection(title: 'privacyTitle3'.tr(), content: 'privacyDesc3'.tr()),
+                StaticSection(title: 'privacyTitle4'.tr(), content: 'privacyDesc4'.tr()),
+              ]),
             ),
             _buildMenuItem(
               icon: Icons.description_outlined, 
-              title: 'termsOfService'.tr(), 
-              onTap: () => _navigateToStatic('Terms of Service', 'By using our platform, you agree to these terms.'),
+              title: 'termsConditions'.tr(), 
+              onTap: () => _navigateToStatic('termsConditions'.tr(), [
+                StaticSection(title: 'termsTitle1'.tr(), content: 'termsDesc1'.tr()),
+                StaticSection(title: 'termsTitle2'.tr(), content: 'termsDesc2'.tr()),
+                StaticSection(title: 'termsTitle3'.tr(), content: 'termsDesc3'.tr()),
+                StaticSection(title: 'termsTitle4'.tr(), content: 'termsDesc4'.tr()),
+              ]),
             ),
             
             const SizedBox(height: 40),
             Center(
               child: TextButton(
-                onPressed: () {},
-                child: const Text('Log Out / Salir', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800, fontSize: 16)),
+                onPressed: () {
+                  mockAuthNotifier.value = false;
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                },
+                child: Text('logout'.tr(), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w800, fontSize: 16)),
               ),
             ),
             const SizedBox(height: 12),
             Center(
               child: Text(
-                'Version 1.0.4 (Build 42)',
+                '${'version'.tr()} 1.0.4 (Build 42)',
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.w600),
               ),
             ),
@@ -176,11 +244,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _navigateToStatic(String title, String content) {
+  void _navigateToStatic(String title, List<StaticSection> sections) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => StaticInfoScreen(title: title, content: content),
+        builder: (context) => StaticInfoScreen(title: title, sections: sections),
+      ),
+    );
+  }
+
+  Widget _buildLanguageToggle() {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: const Color(0xFFff5a5f).withOpacity(0.05), borderRadius: BorderRadius.circular(14)),
+        child: const Icon(Icons.language, color: Color(0xFFff5a5f), size: 22),
+      ),
+      title: Text('language'.tr(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+      trailing: DropdownButton<String>(
+        value: context.locale.languageCode,
+        underline: const SizedBox(),
+        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
+        items: const [
+          DropdownMenuItem(value: 'en', child: Text('EN', style: TextStyle(fontWeight: FontWeight.w800))),
+          DropdownMenuItem(value: 'es', child: Text('ES', style: TextStyle(fontWeight: FontWeight.w800))),
+        ],
+        onChanged: (String? newValue) {
+          if (newValue != null) {
+            context.setLocale(Locale(newValue));
+          }
+        },
       ),
     );
   }
@@ -203,13 +297,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('changePassword'.tr(), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            Text('changePassword'.tr(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
             const SizedBox(height: 24),
-            _buildField('Current Password', '••••••••'),
+            _buildField('currentPassword'.tr(), '••••••••'),
             const SizedBox(height: 16),
-            _buildField('New Password', '••••••••'),
+            _buildField('newPassword'.tr(), '••••••••'),
             const SizedBox(height: 16),
-            _buildField('Confirm New Password', '••••••••'),
+            _buildField('confirmNewPassword'.tr(), '••••••••'),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,

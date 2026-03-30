@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'main_navigation.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -58,12 +59,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Expanded(
                      child: Align(
                        alignment: Alignment.centerLeft,
-                       child: Image.asset('assets/logo.png', height: 26, fit: BoxFit.contain),
+                        child: Image.asset('assets/logo_wide.png', height: 18, fit: BoxFit.contain),
                      ),
                   ),
                   GestureDetector(
                     onTap: _skip,
-                    child: Text('Skip', style: GoogleFonts.outfit(color: _red, fontWeight: FontWeight.bold, fontSize: 15)),
+                    child: Text('skip'.tr(), style: GoogleFonts.outfit(color: _red, fontWeight: FontWeight.bold, fontSize: 15)),
                   ),
                 ],
               ),
@@ -100,38 +101,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     _buildCenterSlide(
                       stepIndex: 1,
                       imgUrl: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?q=80&w=600&fit=crop', // Fixed URL
-                      stepTitle: 'STEP 01',
-                      title: 'Descubre',
-                      subBold: 'Find your next treatment...',
-                      sub: 'Discover and book the most exclusive wellness experiences in your city with seamless ease.',
+                      stepTitle: 'onboardingStep1Title'.tr(),
+                      title: 'onboardingSlide1Title'.tr(),
+                      subBold: 'onboardingSlide1SubBold'.tr(),
+                      sub: 'onboardingSlide1Sub'.tr(),
                     ),
                     _buildCenterSlide(
                       stepIndex: 2,
                       imgUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&fit=crop', 
-                      stepTitle: 'STEP 02: BOOKING',
-                      title: 'Rezerva',
+                      stepTitle: 'onboardingStep2Title'.tr(),
+                      title: 'onboardingSlide2Title'.tr(),
                       subBold: '',
-                      sub: 'Select your service and a time that works for you. Your favorite beauty experts... just a tap away.',
-                      bottomText: 'PERSONALIZED BEAUTY EXPERIENCES TAILORED TO YOU',
+                      sub: 'onboardingSlide2Sub'.tr(),
+                      bottomText: 'onboardingSlide2Bottom'.tr(),
                     ),
                     _buildCenterSlide(
                       stepIndex: 3,
                       imgUrl: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=600&fit=crop', 
-                      stepTitle: 'STEP 03: CONFIRM',
-                      title: 'Everything is set!',
+                      stepTitle: 'onboardingStep3Title'.tr(),
+                      title: 'onboardingSlide3Title'.tr(),
                       subBold: '',
-                      sub: 'Receive instant confirmation and get ready to be pampered in our curated spaces.',
-                      bottomText: 'STEP 03 / 04',
+                      sub: 'onboardingSlide3Sub'.tr(),
+                      bottomText: 'onboardingSlide3Bottom'.tr(),
                     ),
                     _buildCenterSlide(
                       stepIndex: 4,
                       imgUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=600&fit=crop', 
-                      stepTitle: 'STEP 4: DISFRUTA',
-                      title: 'Pure Bliss Awaits.',
+                      stepTitle: 'onboardingStep4Title'.tr(),
+                      title: 'onboardingSlide4Title'.tr(),
                       titleIsRich: true,
                       subBold: '',
-                      sub: 'The best part—showing up and enjoying your treatment. No stress, just pure relaxation.',
-                      bottomText: 'WELCOME TO THE CURATED SANCTUARY OF PERSONAL CARE',
+                      sub: 'onboardingSlide4Sub'.tr(),
+                      bottomText: 'onboardingSlide4Bottom'.tr(),
                     ),
                   ]
                 )
@@ -151,7 +152,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(isLast ? 'Get Started' : 'Next', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                      Text(isLast ? 'getStarted'.tr() : 'next'.tr(), style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                       const SizedBox(width: 12),
                       const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
                     ],
@@ -219,8 +220,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Confirma', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
-                                    Text('Booking Secured', style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey.shade600))
+                                    Text('onboardingConfirmPill'.tr(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                                    Text('onboardingSecured'.tr(), style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey.shade600))
                                   ],
                                )
                             ],
@@ -334,9 +335,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Curated Excellence', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('onboardingCuratedTitle'.tr(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
                       const SizedBox(height: 2),
-                      Text('Top-tier treatments nearby', style: GoogleFonts.outfit(color: Colors.grey.shade600, fontSize: 12)),
+                      Text('onboardingCuratedSub'.tr(), style: GoogleFonts.outfit(color: Colors.grey.shade600, fontSize: 12)),
                     ],
                   ),
                 )
@@ -350,7 +351,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           right: 24,
           child: GestureDetector(
             onTap: _skip,
-            child: Text('SKIP', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
+            child: Text('skip'.tr().toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
           ),
         ),
         // Bottom Content
@@ -362,7 +363,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40),
             child: Column(
               children: [
-                Image.asset('assets/logo.png', height: 28, fit: BoxFit.contain),
+                Image.asset('assets/logo_wide.png', height: 28, fit: BoxFit.contain),
                 const SizedBox(height: 24),
                 RichText(
                   textAlign: TextAlign.center,
@@ -377,7 +378,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Discover and book the most exclusive wellness experiences in your city with seamless ease.',
+                  'onboardingWelcomeSub'.tr(),
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(fontSize: 15, color: Colors.grey.shade700, height: 1.5),
                 ),
@@ -396,7 +397,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Get Started', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text('getStarted'.tr(), style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                         const SizedBox(width: 12),
                         const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
                       ],
