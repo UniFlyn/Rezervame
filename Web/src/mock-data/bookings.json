@@ -1,0 +1,72 @@
+[
+  {
+    "id": "bk-1",
+    "userId": "usr-1",
+    "customerName": "Alice Walker",
+    "serviceId": "srv-1",
+    "staffId": "emp-1",
+    "date": "2026-04-01T10:00:00Z",
+    "status": "Pending",
+    "price": 35
+  },
+  {
+    "id": "bk-2",
+    "userId": "usr-2",
+    "customerName": "Roberto Gómez",
+    "serviceId": "srv-2",
+    "staffId": "emp-1",
+    "date": "2026-04-01T11:00:00Z",
+    "status": "Approved",
+    "price": 20
+  },
+  {
+    "id": "bk-3",
+    "userId": "usr-3",
+    "customerName": "Elena Torres",
+    "serviceId": "srv-3",
+    "staffId": "emp-2",
+    "date": "2026-04-02T09:00:00Z",
+    "status": "Completed",
+    "price": 75
+  },
+  {
+    "id": "bk-4",
+    "userId": "usr-4",
+    "customerName": "Carlos Ruiz",
+    "serviceId": "srv-1",
+    "staffId": "emp-4",
+    "date": "2026-04-02T14:30:00Z",
+    "status": "Approved",
+    "price": 35
+  },
+  {
+    "id": "bk-5",
+    "userId": "usr-5",
+    "customerName": "Lucía Méndez",
+    "serviceId": "srv-4",
+    "staffId": "emp-3",
+    "date": "2026-04-03T16:00:00Z",
+    "status": "Pending",
+    "price": 25
+  },
+  {
+    "id": "bk-6",
+    "userId": "usr-6",
+    "customerName": "Fernando León",
+    "serviceId": "srv-1",
+    "staffId": "emp-1",
+    "date": "2026-03-31T09:00:00Z",
+    "status": "Completed",
+    "price": 35
+  },
+  {
+    "id": "bk-7",
+    "userId": "usr-7",
+    "customerName": "Sofía Morales",
+    "serviceId": "srv-5",
+    "staffId": "emp-5",
+    "date": "2026-03-31T10:30:00Z",
+    "status": "Completed",
+    "price": 60
+  }
+]

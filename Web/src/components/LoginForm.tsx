@@ -4,18 +4,30 @@ import Image from "next/image";
 import { useI18n } from "./I18nProvider";
 import { useAuth } from "./AuthProvider";
 
-export const LoginForm = () => {
+export const LoginForm = ({ 
+  onSuccess,
+  title,
+  subtitle
+}: { 
+  onSuccess?: () => void,
+  title?: string,
+  subtitle?: string
+}) => {
   const { t } = useI18n();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const displayTitle = title || "REZERVAME";
+  const displaySubtitle = subtitle || t('signupSub');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       await login(email, password);
+      if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Login failed", error);
     } finally {
@@ -29,8 +41,8 @@ export const LoginForm = () => {
         <div className="p-10 text-center">
           {/* Logo / Title */}
           <div className="mb-10 text-center">
-            <h1 className="text-4xl font-black text-slate-800 tracking-tighter mb-2">REZERVAME</h1>
-            <p className="text-slate-400 font-medium text-sm">{t('signupSub')}</p>
+            <h1 className="text-4xl font-black text-slate-800 tracking-tighter mb-2 uppercase italic italic shadow-primary/20">{displayTitle}</h1>
+            <p className="text-slate-400 font-medium text-sm">{displaySubtitle}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

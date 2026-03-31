@@ -1,0 +1,87 @@
+[
+  {
+    "id": "BUS-001",
+    "name": "The Modern Barber",
+    "owner": "John Smith",
+    "email": "john@modernbarber.com",
+    "status": "active",
+    "revenue": 15200.50,
+    "joinedDate": "2024-01-15T10:00:00Z",
+    "phone": "+1 (555) 012-3456",
+    "address": "123 Style Ave, Fashion District, NY 10001",
+    "taxId": "TX-99882211",
+    "description": "Premium grooming services for the modern gentleman.",
+    "services": ["Haircut", "Beard Trim", "Hot Towel Shave"],
+    "documents": {
+      "id_verified": true,
+      "license_verified": true,
+      "insurance_verified": true
+    }
+  },
+  {
+    "id": "BUS-002",
+    "name": "Zen Spa & Wellness",
+    "owner": "Sarah Wilson",
+    "email": "sarah@zenspa.com",
+    "status": "pending",
+    "revenue": 0,
+    "joinedDate": "2024-03-28T14:30:00Z",
+    "phone": "+1 (555) 987-6543",
+    "address": "456 Calm St, Serenity Bay, CA 94025",
+    "taxId": "TX-11223344",
+    "description": "A peaceful retreat for body and soul.",
+    "services": ["Massage", "Facial", "Aromatherapy"],
+    "documents": {
+      "id_verified": true,
+      "license_verified": false,
+      "insurance_verified": true
+    },
+    "history": [
+      { "date": "2024-03-28", "action": "applied", "note": "Initial registration" }
+    ]
+  },
+  {
+    "id": "BUS-003",
+    "name": "Urban Kicks Store",
+    "owner": "Mike Ross",
+    "email": "mike@urbankicks.com",
+    "status": "suspended",
+    "revenue": 8400.00,
+    "joinedDate": "2023-11-20T09:15:00Z",
+    "phone": "+1 (555) 444-5555",
+    "address": "789 Streetwear Blvd, Brooklyn, NY 11211",
+    "taxId": "TX-55667788",
+    "description": "Exclusive sneaker boutique.",
+    "services": ["Retail Sales", "Shoe Cleaning"],
+    "documents": {
+      "id_verified": true,
+      "license_verified": true,
+      "insurance_verified": false
+    },
+    "rejectionReason": "Insurance document expired on 2024-03-01. Please upload a renewed policy."
+  },
+  {
+    "id": "BUS-004",
+    "name": "Glow Beauty Bar",
+    "owner": "Elena Gilbert",
+    "email": "elena@glowbeauty.com",
+    "status": "pending",
+    "revenue": 0,
+    "joinedDate": "2024-03-30T11:00:00Z",
+    "phone": "+1 (555) 222-3333",
+    "address": "101 Radiance Pkwy, Miami, FL 33101",
+    "taxId": "TX-44332211",
+    "description": "Full-service beauty and skincare salon.",
+    "services": ["Manicure", "Pedicure", "Waxing"],
+    "documents": {
+      "id_verified": true,
+      "license_verified": true,
+      "insurance_verified": true
+    },
+    "isReApprovable": true,
+    "history": [
+      { "date": "2024-03-25", "action": "rejected", "note": "Missing business license" },
+      { "date": "2024-03-30", "action": "re-applied", "note": "License uploaded" }
+    ]
+  }
+]

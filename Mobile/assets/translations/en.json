@@ -176,8 +176,8 @@
   "totalLabel": "Total",
   "ticketId": "TICKET ID",
   "showCodeAtVenue": "Show this code at the venue to confirm your arrival",
-  "editBooking": "Edit Reservation",
-  "cancelAppointment": "Cancel Appointment",
+  "editBooking": "Edit",
+  "cancelAppointment": "Cancel",
   "servicesContracted": "Services Contracted",
   "viewOnMap": "View on map",
   "lastUpdate": "Last update",
@@ -426,5 +426,7 @@
   "commentHint": "Share your thoughts with the community...",
   "addPhotosLabel": "Add Photos",
   "postReview": "POST REVIEW",
-  "reviewSuccess": "Review published successfully!"
+  "reviewSuccess": "Review published successfully!",
+  "addFamilyMember": "Add Family Member",
+  "age": "Age"
 }

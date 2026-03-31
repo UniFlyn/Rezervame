@@ -2,13 +2,14 @@
 import React, { useState } from "react";
 import { useI18n } from "./I18nProvider";
 import { useAuth } from "./AuthProvider";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { CheckCircle, Heart, Bell, Search, MapPin, User as UserIcon } from "lucide-react";
 
 export const Header = () => {
   const { t, language } = useI18n();
   const { isLoggedIn, user, setIsLoginModalOpen } = useAuth() as any;
   const router = useRouter();
+  const pathname = usePathname();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [mounted, setMounted] = React.useState(false);
@@ -16,6 +17,8 @@ export const Header = () => {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  if (pathname.startsWith('/business')) return null;
 
   const notifications = [
     { id: 1, title: language === "en" ? "Booking Confirmed" : "Reserva Confirmada", desc: "Tu cita en The Grooming Room ha sido confirmada.", time: "2 min ago", icon: <CheckCircle size={16} className="text-green-500" /> },

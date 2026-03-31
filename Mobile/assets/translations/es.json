@@ -177,8 +177,8 @@
   "totalLabel": "Total",
   "ticketId": "ID DEL TICKET",
   "showCodeAtVenue": "Muestra este código en el local para confirmar tu llegada",
-  "editBooking": "Editar Reserva",
-  "cancelAppointment": "Cancelar Cita",
+  "editBooking": "Editar",
+  "cancelAppointment": "Cancelar",
   "servicesContracted": "Servicios Contratados",
   "termsTitle1": "1. Aceptación de los Términos",
   "termsDesc1": "Al acceder o utilizar REZERVAME, aceptas cumplir con estos términos y todas las leyes y regulaciones aplicables.",
@@ -386,5 +386,7 @@
   "commentHint": "Comparte tus pensamientos con la comunidad...",
   "addPhotosLabel": "Agregar Fotos",
   "postReview": "PUBLICAR RESEÑA",
-  "reviewSuccess": "¡Reseña publicada con éxito!"
+  "reviewSuccess": "¡Reseña publicada con éxito!",
+  "addFamilyMember": "Agregar Familiar",
+  "age": "Edad"
 }

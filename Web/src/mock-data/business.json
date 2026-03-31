@@ -1,0 +1,14 @@
+[
+  {
+    "id": "biz-1",
+    "name": "REZERVAME",
+    "logo": "/logo.png",
+    "banner": "",
+    "description": "Plataforma de belleza y bienestar líder.",
+    "category": "Beauty & Wellness",
+    "location": "New York, NY",
+    "contactEmail": "admin@rezervame.com",
+    "contactPhone": "555-0199",
+    "balance": 1500.50
+  }
+]

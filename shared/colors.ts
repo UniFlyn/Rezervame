@@ -1,8 +1,8 @@
 export const colors = {
   primary: {
-    DEFAULT: '#2563eb', // blue-600
-    dark: '#1d4ed8',
-    light: '#60a5fa',
+    DEFAULT: '#ff5a5f', // Brand color
+    dark: '#e0484d',
+    light: '#ff8a8d',
   },
   secondary: {
     DEFAULT: '#475569', // slate-600

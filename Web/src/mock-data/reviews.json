@@ -1,0 +1,59 @@
+[
+  {
+    "id": "rev-1",
+    "customerName": "Maria Gonzalez",
+    "avatar": "https://i.pravatar.cc/150?u=maria",
+    "rating": 5,
+    "comment": "Increíble servicio. El corte de cabello quedó perfecto y la atención de Richard fue excepcional.",
+    "date": "2026-03-28T14:30:00Z",
+    "serviceName": "Corte de Cabello Premium",
+    "staffName": "Richard Lucas",
+    "reply": "Gracias por tu amable reseña, Maria. ¡Fue un placer atenderte!",
+    "status": "Replied"
+  },
+  {
+    "id": "rev-2",
+    "customerName": "Carlos Mendoza",
+    "avatar": "https://i.pravatar.cc/150?u=carlos",
+    "rating": 4,
+    "comment": "Muy buen lugar, ambiente agradable. El masaje fue relajante aunque empezó 5 minutos tarde.",
+    "date": "2026-03-27T10:15:00Z",
+    "serviceName": "Masaje Descontracturante",
+    "staffName": "Ana Sofia",
+    "status": "Pending"
+  },
+  {
+    "id": "rev-3",
+    "customerName": "Lucía Torres",
+    "avatar": "https://i.pravatar.cc/150?u=lucia",
+    "rating": 5,
+    "comment": "La manicura quedó impecable. Recomiendo mucho a este salón.",
+    "date": "2026-03-25T16:45:00Z",
+    "serviceName": "Manicura Spa",
+    "staffName": "Elena Martinez",
+    "status": "Pending"
+  },
+  {
+    "id": "rev-4",
+    "customerName": "Juan Perez",
+    "avatar": "https://i.pravatar.cc/150?u=juan",
+    "rating": 3,
+    "comment": "El local estaba un poco ruidoso hoy, pero el servicio fue aceptable.",
+    "date": "2026-03-24T11:20:00Z",
+    "serviceName": "Afeitado Tradicional",
+    "staffName": "David Smith",
+    "status": "Pending"
+  },
+  {
+    "id": "rev-5",
+    "customerName": "Sofia Ramirez",
+    "avatar": "https://i.pravatar.cc/150?u=sofia",
+    "rating": 5,
+    "comment": "Excelente atención y resultados. Mi piel se siente renovada después del facial.",
+    "date": "2026-03-22T09:00:00Z",
+    "serviceName": "Tratamiento Facial",
+    "staffName": "Ana Sofia",
+    "reply": "Nos alegra mucho saber que disfrutaste de tu tratamiento facial. ¡Te esperamos pronto!",
+    "status": "Replied"
+  }
+]

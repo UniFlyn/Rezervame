@@ -1,0 +1,5 @@
+[
+  { "id": "1", "name": "John Doe", "email": "john@example.com", "status": "active", "bookings": 12, "joinedDate": "2023-12-01" },
+  { "id": "2", "name": "Jane Smith", "email": "jane@example.com", "status": "active", "bookings": 8, "joinedDate": "2024-01-15" },
+  { "id": "3", "name": "Mike Jenkins", "email": "mike@example.com", "status": "blocked", "bookings": 2, "joinedDate": "2024-02-20" }
+]

@@ -2,9 +2,13 @@
 import React from "react";
 import { useI18n } from "./I18nProvider";
 import { Facebook, Linkedin, Instagram } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export const Footer = () => {
   const { t } = useI18n();
+  const pathname = usePathname();
+
+  if (pathname.startsWith('/business')) return null;
 
   return (
     <footer className="bg-[#ff5a5f] text-white pt-16 pb-12 px-10">
@@ -41,12 +45,12 @@ export const Footer = () => {
         </div>
         
         <div className="md:col-span-3">
-          <h4 className="font-bold text-[15px] mb-6 tracking-wide">Para Negocios</h4>
+          <h4 className="font-bold text-[15px] mb-6 tracking-wide">{t('footerForBusiness')}</h4>
           <ul className="space-y-4 text-[13px] font-bold opacity-90">
-             <li><a href="/business/join" className="hover:underline opacity-90">Únete a REZERVAME</a></li>
-             <li><a href="/download" className="hover:underline opacity-90">App para negocios</a></li>
-             <li><a href="/pricing" className="hover:underline opacity-90">Precios</a></li>
-             <li><a href="/business/support" className="hover:underline opacity-90">Soporte para Negocios</a></li>
+             <li><a href="/business/join" className="hover:underline opacity-90">{t('footerJoin')}</a></li>
+             <li><a href="/business/login" className="hover:underline opacity-90">{t('footerApp')}</a></li>
+             <li><a href="/pricing" className="hover:underline opacity-90">{t('footerPrices')}</a></li>
+             <li><a href="/business/support" className="hover:underline opacity-90">{t('footerSupportBiz')}</a></li>
           </ul>
         </div>
         

@@ -7,13 +7,24 @@ import {
   ShieldCheck, ArrowRight, Sparkles
 } from "lucide-react";
 import { useI18n } from "../../../components/I18nProvider";
+import { useBusinessStore } from "../../../store/businessStore";
+import { useRouter } from "next/navigation";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
 export default function BusinessJoinPage() {
   const { language } = useI18n();
+  const router = useRouter();
+  const loginBusiness = useBusinessStore((state) => state.login);
+  const [isLoginMode, setIsLoginMode] = useState(true); // Default to login to resolve the redirect easily
   const [step, setStep] = useState<Step>(1);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loginBusiness();
+    router.push('/business/dashboard');
+  };
 
   const nextStep = () => setStep((prev) => (prev + 1) as Step);
   const prevStep = () => setStep((prev) => (prev - 1) as Step);
@@ -69,6 +80,45 @@ export default function BusinessJoinPage() {
 
       <div className="max-w-[1100px] mx-auto flex flex-col lg:flex-row gap-16 relative z-10 w-full">
         
+        {isLoginMode ? (
+          <div className="w-full max-w-md mx-auto">
+            <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-xl shadow-slate-200/40 relative">
+              <div className="text-center mb-10">
+                <span className="bg-[#ff5a5f] text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-6 inline-block shadow-lg shadow-[#ff5a5f]/20">Business Login</span>
+                <h1 className="text-4xl font-black text-slate-900 mt-2 uppercase tracking-tight leading-tight">
+                  Welcome Back
+                </h1>
+                <p className="text-slate-400 font-bold mt-4">Manage your appointments and customers.</p>
+              </div>
+
+              <form onSubmit={handleLoginSubmit} className="space-y-6">
+                <div className="space-y-3">
+                   <label className="text-xs font-black text-slate-400 uppercase tracking-[0.15em] ml-2">Email</label>
+                   <div className="relative">
+                     <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
+                     <input type="email" placeholder="admin@business.com" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
+                   </div>
+                </div>
+                <div className="space-y-3">
+                   <label className="text-xs font-black text-slate-400 uppercase tracking-[0.15em] ml-2">Password</label>
+                   <div className="relative">
+                     <ShieldCheck className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
+                     <input type="password" placeholder="••••••••" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
+                   </div>
+                </div>
+                <button type="submit" className="w-full bg-slate-900 text-white px-12 py-5 rounded-[24px] font-black text-sm uppercase tracking-widest hover:bg-[#ff5a5f] transition-all transform hover:-translate-y-1 shadow-2xl flex items-center justify-center gap-3">
+                   Login
+                </button>
+              </form>
+              <div className="mt-8 text-center">
+                 <button onClick={() => setIsLoginMode(false)} className="text-sm font-bold text-slate-500 hover:text-[#ff5a5f] transition-colors">
+                   Don't have an account? Register your business
+                 </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Sidebar / Progress */}
         <aside className="w-full lg:w-[380px] shrink-0">
            <div className="mb-12">
@@ -76,9 +126,12 @@ export default function BusinessJoinPage() {
              <h1 className="text-4xl font-black text-slate-900 mt-2 uppercase tracking-tight leading-tight">
                Haz crecer tu negocio con <span className="text-[#ff5a5f]">REZERVAME</span>
              </h1>
-             <p className="text-slate-400 font-bold text-lg mt-6 leading-relaxed">
+             <p className="text-slate-400 font-bold text-lg mt-6 leading-relaxed mb-4">
                Únete a la plataforma líder de reservas y gestiona tus clientes de forma profesional.
              </p>
+             <button onClick={() => setIsLoginMode(true)} className="text-[#ff5a5f] font-bold text-sm uppercase tracking-widest hover:text-slate-900 transition-colors">
+               Already have an account? Login
+             </button>
            </div>
 
            <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-xl shadow-slate-200/40 relative">
@@ -130,7 +183,7 @@ export default function BusinessJoinPage() {
                            <label className="text-xs font-black text-slate-400 uppercase tracking-[0.15em] ml-2">Nombre Comercial</label>
                            <div className="relative">
                              <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                             <input type="text" placeholder="Ej: Blackbeard Barbershop" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white focus:shadow-xl focus:shadow-[#ff5a5f]/5" required />
+                             <input type="text" placeholder="Ej: REZERVAME Beauty" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white focus:shadow-xl focus:shadow-[#ff5a5f]/5" required />
                            </div>
                         </div>
 
@@ -250,8 +303,8 @@ export default function BusinessJoinPage() {
                      <div className="bg-slate-50/50 border border-slate-100 rounded-[40px] p-10 space-y-8 shadow-inner">
                         <div className="flex justify-between items-start pb-8 border-b border-white">
                            <div>
-                              <h4 className="text-2xl font-black text-slate-800">Blackbeard Barbershop</h4>
-                              <p className="text-sm font-bold text-[#ff5a5f] uppercase tracking-widest mt-1">Negocio de Barbería</p>
+                              <h4 className="text-2xl font-black text-slate-800">REZERVAME Studio</h4>
+                              <p className="text-sm font-bold text-[#ff5a5f] uppercase tracking-widest mt-1">Negocio de Estética</p>
                            </div>
                            <button type="button" onClick={() => setStep(1)} className="text-[10px] font-black text-slate-400 hover:text-slate-800 uppercase tracking-widest border-2 border-slate-200 px-4 py-2 rounded-xl transition-all">Editar</button>
                         </div>
@@ -304,6 +357,8 @@ export default function BusinessJoinPage() {
               </form>
            </div>
         </div>
+          </>
+        )}
 
       </div>
     </main>

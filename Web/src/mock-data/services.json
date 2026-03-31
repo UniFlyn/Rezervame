@@ -1,0 +1,50 @@
+[
+  {
+    "id": "srv-1",
+    "name": "Corte de Cabello Premium",
+    "price": 35,
+    "duration": 45,
+    "category": "Cabello",
+    "staff": ["emp-1", "emp-2", "emp-3", "emp-4"]
+  },
+  {
+    "id": "srv-2",
+    "name": "Perfilado de Barba",
+    "price": 20,
+    "duration": 30,
+    "category": "Barba",
+    "staff": ["emp-1", "emp-5"]
+  },
+  {
+    "id": "srv-3",
+    "name": "Coloración Completa",
+    "price": 75,
+    "duration": 120,
+    "category": "Color",
+    "staff": ["emp-2", "emp-4"]
+  },
+  {
+    "id": "srv-4",
+    "name": "Manicura Spa",
+    "price": 25,
+    "duration": 40,
+    "category": "Uñas",
+    "staff": ["emp-3", "emp-6"]
+  },
+  {
+    "id": "srv-5",
+    "name": "Tratamiento Facial Rejuvenecedor",
+    "price": 60,
+    "duration": 60,
+    "category": "Piel",
+    "staff": ["emp-6"]
+  },
+  {
+    "id": "srv-6",
+    "name": "Masaje Descontracturante",
+    "price": 50,
+    "duration": 60,
+    "category": "Masaje",
+    "staff": ["emp-7"]
+  }
+]
