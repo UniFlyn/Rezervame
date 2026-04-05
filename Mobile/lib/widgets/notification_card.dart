@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class NotificationCard extends StatelessWidget {
   final String title;
@@ -15,7 +17,7 @@ class NotificationCard extends StatelessWidget {
     required this.time,
     this.isRead = false,
     this.icon = Icons.notifications,
-    this.iconColor = const Color(0xFFff5a5f),
+    this.iconColor = AppColors.primary500,
   });
 
   @override
@@ -24,10 +26,10 @@ class NotificationCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isRead ? Colors.white : iconColor.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
+        color: isRead ? AppColors.white : iconColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isRead ? Colors.grey.shade100 : iconColor.withOpacity(0.1),
+          color: isRead ? AppColors.grey50 : iconColor.withOpacity(0.1),
         ),
       ),
       child: Row(
@@ -36,13 +38,13 @@ class NotificationCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isRead ? Colors.grey.shade50 : iconColor.withOpacity(0.1),
+              color: isRead ? AppColors.grey25 : iconColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
               size: 20,
-              color: isRead ? Colors.grey.shade600 : iconColor,
+              color: isRead ? AppColors.grey400 : iconColor,
             ),
           ),
           const SizedBox(width: 16),
@@ -53,33 +55,25 @@ class NotificationCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: isRead ? FontWeight.w700 : FontWeight.w900,
-                        color: Colors.black87,
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: (isRead ? AppTypography.body200 : AppTypography.heading300).copyWith(color: AppColors.grey900),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       time,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade500,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTypography.body100.copyWith(color: AppColors.grey400),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade600,
-                    height: 1.4,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: AppTypography.body100.copyWith(color: AppColors.grey500, height: 1.4),
                 ),
               ],
             ),

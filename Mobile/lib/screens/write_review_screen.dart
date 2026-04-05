@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class WriteReviewScreen extends StatefulWidget {
   final Map<String, dynamic> venue;
@@ -22,17 +24,17 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
+          icon: const Icon(Icons.close, color: AppColors.grey900),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'writeReviewTitle'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 18),
+          style: AppTypography.heading400.copyWith(color: AppColors.grey900),
         ),
         centerTitle: true,
       ),
@@ -45,8 +47,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(20),
+                color: AppColors.grey25,
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 children: [
@@ -62,9 +64,9 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(widget.venue['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                        Text(widget.venue['name'], style: AppTypography.heading300),
                         const SizedBox(height: 2),
-                        Text('beautySalon'.tr(), style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 12)),
+                        Text('beautySalon'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey400)),
                       ],
                     ),
                   ),
@@ -76,7 +78,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             // Rating Section
             Text(
               'ratingPrompt'.tr(),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1e293b)),
+              style: AppTypography.heading600.copyWith(color: AppColors.grey900),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -89,7 +91,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Icon(
                       index < _rating ? Icons.star_rounded : Icons.star_outline_rounded,
-                      color: index < _rating ? Colors.amber : Colors.grey.shade300,
+                      color: index < _rating ? Colors.amber : AppColors.grey200,
                       size: 48,
                     ),
                   ),
@@ -105,8 +107,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('venueReseñas'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                    Text('${_commentController.text.length}/500', style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text('venueReseñas'.tr(), style: AppTypography.heading200),
+                    Text('${_commentController.text.length}/500', style: AppTypography.body100.copyWith(color: AppColors.grey400)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -117,12 +119,12 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                   onChanged: (v) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'commentHint'.tr(),
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w500),
+                    hintStyle: AppTypography.body100.copyWith(color: AppColors.grey300),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: AppColors.grey25,
                     counterText: "",
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.all(20),
@@ -136,7 +138,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('addPhotosLabel'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                Text('addPhotosLabel'.tr(), style: AppTypography.heading200),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -156,15 +158,15 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                   ? () => _submitReview() 
                   : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFff5a5f),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.primary500,
+                  foregroundColor: AppColors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  disabledBackgroundColor: Colors.grey.shade200,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  disabledBackgroundColor: AppColors.grey100,
                 ),
                 child: Text(
                   'postReview'.tr(),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                  style: AppTypography.heading400.copyWith(color: AppColors.white),
                 ),
               ),
             ),
@@ -180,29 +182,24 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
       width: 80,
       height: 80,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200, width: 2, style: BorderStyle.none), // Simplified
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey100, width: 1.5, style: BorderStyle.solid),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200, width: 2),
-        ),
-        child: Icon(Icons.add_a_photo_outlined, color: Colors.grey.shade400),
-      ),
+      child: const Icon(Icons.add_a_photo_outlined, color: AppColors.grey300),
     );
   }
 
   void _submitReview() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('reviewSuccess'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.green,
+        content: Text('reviewSuccess'.tr(), style: AppTypography.heading300.copyWith(color: AppColors.white)),
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+
     Future.delayed(const Duration(seconds: 1), () {
        Navigator.pop(context);
     });

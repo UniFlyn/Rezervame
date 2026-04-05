@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class HowItWorksScreen extends StatelessWidget {
   const HowItWorksScreen({super.key});
@@ -7,17 +9,17 @@ class HowItWorksScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.grey900, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'howItWorksTitle'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+          style: AppTypography.heading300.copyWith(color: AppColors.grey900),
         ),
       ),
       body: SingleChildScrollView(
@@ -27,7 +29,7 @@ class HowItWorksScreen extends StatelessWidget {
           children: [
             Text(
               'howItWorksSub'.tr(),
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600, fontWeight: FontWeight.w500, height: 1.4),
+              style: AppTypography.body200.copyWith(color: AppColors.grey500, height: 1.4),
             ),
             const SizedBox(height: 48),
             _buildStep(
@@ -36,8 +38,8 @@ class HowItWorksScreen extends StatelessWidget {
               'howItWorksStep1Title'.tr(),
               'howItWorksStep1Desc'.tr(),
               Icons.search_rounded,
-              const Color(0xFFff5a5f),
-              const Color(0xFFff5a5f).withOpacity(0.2),
+              AppColors.primary500,
+              AppColors.primary500.withOpacity(0.2),
             ),
             _buildStep(
               context,
@@ -45,8 +47,8 @@ class HowItWorksScreen extends StatelessWidget {
               'howItWorksStep2Title'.tr(),
               'howItWorksStep2Desc'.tr(),
               Icons.calendar_today_rounded,
-              const Color(0xFF0F172A),
-              Colors.black.withOpacity(0.1),
+              AppColors.grey900,
+              AppColors.grey900.withOpacity(0.1),
             ),
             _buildStep(
               context,
@@ -54,8 +56,8 @@ class HowItWorksScreen extends StatelessWidget {
               'howItWorksStep3Title'.tr(),
               'howItWorksStep3Desc'.tr(),
               Icons.check_circle_outline_rounded,
-              const Color(0xFF10B981),
-              const Color(0xFF10B981).withOpacity(0.2),
+              AppColors.success,
+              AppColors.success.withOpacity(0.2),
             ),
             const SizedBox(height: 16),
             Container(
@@ -71,7 +73,7 @@ class HowItWorksScreen extends StatelessWidget {
                 children: [
                   Text(
                     'howItWorksBenefitsTitle'.tr().toUpperCase(),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: 1.5),
+                    style: AppTypography.heading100.copyWith(color: AppColors.grey900, letterSpacing: 1.5),
                   ),
                   const SizedBox(height: 24),
                   _buildBenefit('howItWorksBenefit1'.tr()),
@@ -116,12 +118,12 @@ class HowItWorksScreen extends StatelessWidget {
               children: [
                 Text(
                   '$num. $title'.toUpperCase(),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.5),
+                  style: AppTypography.heading300.copyWith(color: AppColors.grey900, letterSpacing: -0.5),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   desc,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w600, height: 1.6),
+                  style: AppTypography.body100.copyWith(color: AppColors.grey500, height: 1.6),
                 ),
               ],
             ),
@@ -146,7 +148,7 @@ class HowItWorksScreen extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.grey.shade700, height: 1.4),
+              style: AppTypography.body100.copyWith(fontWeight: FontWeight.w800, color: AppColors.grey700, height: 1.4),
             ),
           ),
         ],

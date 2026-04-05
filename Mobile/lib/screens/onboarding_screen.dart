@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import 'main_navigation.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -14,8 +15,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _controller = PageController();
   int _currentIndex = 0;
 
-  final Color _red = const Color(0xFFE5414C);
-  final Color _bg = const Color(0xFFFDF6F5);
+  final Color _primary = AppColors.primary500;
+  final Color _bg = AppColors.white;
 
   void _nextPage() {
     if (_currentIndex == 4) {
@@ -64,7 +65,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   GestureDetector(
                     onTap: _skip,
-                    child: Text('skip'.tr(), style: GoogleFonts.outfit(color: _red, fontWeight: FontWeight.bold, fontSize: 15)),
+                    child: Text('skip'.tr(), style: AppTypography.heading300.copyWith(color: _primary)),
                   ),
                 ],
               ),
@@ -78,7 +79,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       margin: EdgeInsets.only(right: index == 3 ? 0 : 8),
                       height: 4,
                       decoration: BoxDecoration(
-                        color: isActive ? _red : _red.withOpacity(0.15),
+                        color: isActive ? _primary : _primary.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -100,7 +101,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   children: [
                     _buildCenterSlide(
                       stepIndex: 1,
-                      imgUrl: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?q=80&w=600&fit=crop', // Fixed URL
+                      imgUrl: 'assets/family_illustration.png', 
+                      isLocal: true,
                       stepTitle: 'onboardingStep1Title'.tr(),
                       title: 'onboardingSlide1Title'.tr(),
                       subBold: 'onboardingSlide1SubBold'.tr(),
@@ -145,14 +147,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: ElevatedButton(
                   onPressed: _nextPage,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _red,
+                    backgroundColor: _primary,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(isLast ? 'getStarted'.tr() : 'next'.tr(), style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                      Text(isLast ? 'getStarted'.tr() : 'next'.tr(), style: AppTypography.heading400.copyWith(color: Colors.white)),
                       const SizedBox(width: 12),
                       const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
                     ],
@@ -173,22 +175,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     bool titleIsRich = false,
     required String subBold,
     required String sub,
+    bool isLocal = false,
     String? bottomText,
   }) {
-      return Column(
-          children: [
-            // Image Card
-            Expanded(
-              flex: 12,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: ConstrainedBox(
-                       constraints: const BoxConstraints.expand(),
-                       child: Image.network(imgUrl, fit: BoxFit.cover),
-                    ),
-                  ),
+    final imageWidget = isLocal
+        ? Image.asset(imgUrl, fit: BoxFit.cover)
+        : Image.network(imgUrl, fit: BoxFit.cover);
+
+    return Column(
+      children: [
+        // Image Card
+        Expanded(
+          flex: 12,
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints.expand(),
+                  child: imageWidget,
+                ),
+              ),
                   if (stepIndex == 2 || stepIndex == 4)
                     Positioned(
                       bottom: 20,
@@ -198,9 +205,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(20)),
                         child: Row(
                           children: [
-                            Icon(stepIndex == 2 ? Icons.calendar_month : Icons.verified, color: _red, size: 16),
+                            Icon(stepIndex == 2 ? Icons.calendar_month : Icons.verified, color: _primary, size: 16),
                             const SizedBox(width: 8),
-                            Text(stepTitle, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1)),
+                            Text(stepTitle, style: AppTypography.heading200.copyWith(fontSize: 11, letterSpacing: 1)),
                           ],
                         ),
                       ),
@@ -215,13 +222,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
                          child: Row(
                             children: [
-                               CircleAvatar(backgroundColor: _red, radius: 16, child: const Icon(Icons.check, color: Colors.white, size: 18)),
+                               CircleAvatar(backgroundColor: _primary, radius: 16, child: const Icon(Icons.check, color: Colors.white, size: 18)),
                                const SizedBox(width: 12),
                                Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('onboardingConfirmPill'.tr(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
-                                    Text('onboardingSecured'.tr(), style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey.shade600))
+                                    Text('onboardingConfirmPill'.tr(), style: AppTypography.heading300),
+                                    Text('onboardingSecured'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey500))
                                   ],
                                )
                             ],
@@ -238,39 +245,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 children: [
                   if (stepIndex == 1) ...[
-                    Align(alignment: Alignment.centerLeft, child: Text(stepTitle, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.grey.shade600, letterSpacing: 1, fontSize: 13))),
+                    Align(alignment: Alignment.centerLeft, child: Text(stepTitle, style: AppTypography.body100.copyWith(fontWeight: FontWeight.bold, color: AppColors.grey500, letterSpacing: 1))),
                     const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text(title, style: GoogleFonts.outfit(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.1)),
+                      child: Text(title, style: AppTypography.heading900.copyWith(fontSize: 36, height: 1.1)),
                     ),
                     const SizedBox(height: 24),
-                    if (subBold.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Text(subBold, style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.normal, color: Colors.black87))),
+                    if (subBold.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Text(subBold, style: AppTypography.heading400)),
                     const SizedBox(height: 16),
-                    Align(alignment: Alignment.centerLeft, child: Text(sub, style: GoogleFonts.outfit(fontSize: 15, color: Colors.grey.shade700, height: 1.5))),
+                    Align(alignment: Alignment.centerLeft, child: Text(sub, style: AppTypography.body200.copyWith(height: 1.6, color: AppColors.grey500))),
                   ] else ...[
-                    if (stepIndex == 2) Text(stepTitle.split(':')[0], style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.grey.shade600, letterSpacing: 1, fontSize: 13)),
+                    if (stepIndex == 2) Text(stepTitle.split(':')[0], style: AppTypography.body100.copyWith(fontWeight: FontWeight.bold, color: AppColors.grey500, letterSpacing: 1)),
                     const SizedBox(height: 12),
                     if (titleIsRich)
                       RichText(
                         textAlign: TextAlign.center,
                         text: TextSpan(
-                          style: GoogleFonts.outfit(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.1),
+                          style: AppTypography.heading900.copyWith(fontSize: 36, height: 1.1),
                           children: [
                             const TextSpan(text: 'Pure '),
-                            TextSpan(text: 'Bliss ', style: GoogleFonts.playfairDisplay(fontStyle: FontStyle.italic, color: _red)),
+                            TextSpan(text: 'Bliss ', style: TextStyle(fontStyle: FontStyle.italic, color: _primary)),
                             const TextSpan(text: 'Awaits.'),
                           ],
                         ),
                       )
                     else
-                      Text(title, style: GoogleFonts.outfit(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.1), textAlign: TextAlign.center),
+                    Text(title, style: AppTypography.heading900.copyWith(fontSize: 36, height: 1.1), textAlign: TextAlign.center),
                     const SizedBox(height: 24),
-                    Text(sub, textAlign: TextAlign.center, style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey.shade700, height: 1.5)),
+                    Text(sub, textAlign: TextAlign.center, style: AppTypography.body200.copyWith(height: 1.6, color: AppColors.grey500)),
                   ],
                   const Spacer(),
                   if (bottomText != null) ...[
-                    Text(bottomText, style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey.shade500, letterSpacing: 0.5)),
+                    Text(bottomText, style: AppTypography.body100.copyWith(color: AppColors.grey400, letterSpacing: 0.5)),
                     const SizedBox(height: 16),
                   ]
                 ],
@@ -327,17 +334,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 Container(
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(color: _red.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-                  child: Icon(Icons.auto_awesome, color: _red),
+                  decoration: BoxDecoration(color: _primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(Icons.auto_awesome, color: _primary),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('onboardingCuratedTitle'.tr(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('onboardingCuratedTitle'.tr(), style: AppTypography.heading300),
                       const SizedBox(height: 2),
-                      Text('onboardingCuratedSub'.tr(), style: GoogleFonts.outfit(color: Colors.grey.shade600, fontSize: 12)),
+                      Text('onboardingCuratedSub'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                     ],
                   ),
                 )
@@ -351,7 +358,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           right: 24,
           child: GestureDetector(
             onTap: _skip,
-            child: Text('skip'.tr().toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
+            child: Text('skip'.tr().toUpperCase(), style: AppTypography.heading200.copyWith(letterSpacing: 1.2, color: AppColors.grey900)),
           ),
         ),
         // Bottom Content
@@ -368,10 +375,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
-                    style: GoogleFonts.outfit(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.1),
+                    style: AppTypography.heading900.copyWith(fontSize: 42, height: 1.1),
                     children: [
                       const TextSpan(text: 'Your Beauty\n'),
-                      TextSpan(text: 'Journey ', style: GoogleFonts.playfairDisplay(fontStyle: FontStyle.italic, color: _red)),
+                      TextSpan(text: 'Journey ', style: TextStyle(fontStyle: FontStyle.italic, color: _primary)),
                       const TextSpan(text: 'Starts Here'),
                     ],
                   ),
@@ -380,7 +387,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 Text(
                   'onboardingWelcomeSub'.tr(),
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(fontSize: 15, color: Colors.grey.shade700, height: 1.5),
+                  style: AppTypography.body200.copyWith(height: 1.5),
                 ),
                 const SizedBox(height: 32),
                 SizedBox(
@@ -389,15 +396,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: ElevatedButton(
                     onPressed: _nextPage,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _red,
+                      backgroundColor: _primary,
                       elevation: 4,
-                      shadowColor: _red.withOpacity(0.5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                      shadowColor: _primary.withOpacity(0.3),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('getStarted'.tr(), style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text('getStarted'.tr(), style: AppTypography.heading400.copyWith(color: Colors.white)),
                         const SizedBox(width: 12),
                         const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
                       ],

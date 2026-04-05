@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class ReservationDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> reservation;
@@ -10,17 +12,17 @@ class ReservationDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black, size: 24),
+          icon: const Icon(Icons.close, color: AppColors.grey900, size: 24),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'viewDetails'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 18),
+          style: AppTypography.heading400.copyWith(color: AppColors.grey900),
         ),
         centerTitle: true,
       ),
@@ -49,16 +51,14 @@ class ReservationDetailsScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.white,
                       borderRadius: BorderRadius.circular(100),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+                      boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.1), blurRadius: 10)],
                     ),
                     child: Text(
                       reservation['status'] == 'Confirmed' ? 'resConfirmed'.tr() : 'resUpcoming'.tr(),
-                      style: TextStyle(
-                        color: reservation['status'] == 'Confirmed' ? Colors.green : Colors.blue,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 10,
+                      style: AppTypography.heading100.copyWith(
+                        color: reservation['status'] == 'Confirmed' ? AppColors.success : AppColors.primary500,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -71,12 +71,12 @@ class ReservationDetailsScreen extends StatelessWidget {
             // Venue Name & Service
             Text(
               reservation['venueName'],
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF1e293b)),
+              style: AppTypography.heading700,
             ),
             const SizedBox(height: 8),
             Text(
               reservation['service'],
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+              style: AppTypography.body200.copyWith(color: AppColors.grey500),
             ),
             const SizedBox(height: 32),
 
@@ -97,28 +97,28 @@ class ReservationDetailsScreen extends StatelessWidget {
             // Services & Total
             Text(
               'servicesContracted'.tr().toUpperCase(),
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1.2),
+              style: AppTypography.heading100.copyWith(color: AppColors.grey400, letterSpacing: 1.2),
             ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(reservation['service'], style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                Text(reservation['price'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                Text(reservation['service'], style: AppTypography.heading300),
+                Text(reservation['price'], style: AppTypography.heading400),
               ],
             ),
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(20),
+                color: AppColors.grey25,
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('totalLabel'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-                  Text(reservation['price'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: Color(0xFFff5a5f))),
+                  Text('totalLabel'.tr(), style: AppTypography.heading500),
+                  Text(reservation['price'], style: AppTypography.heading700.copyWith(color: AppColors.primary500)),
                 ],
               ),
             ),
@@ -131,10 +131,10 @@ class ReservationDetailsScreen extends StatelessWidget {
                 children: [
                   Text(
                     'ticketId'.tr().toUpperCase(),
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1.2),
+                    style: AppTypography.heading100.copyWith(color: AppColors.grey400, letterSpacing: 1.2),
                   ),
                   const SizedBox(height: 8),
-                  const Text('RZV-982-XKL', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  Text('RZV-982-XKL', style: AppTypography.heading600),
                   const SizedBox(height: 32),
                   QrImageView(
                     data: 'RZV-982-XKL',
@@ -147,7 +147,7 @@ class ReservationDetailsScreen extends StatelessWidget {
                   Text(
                     'showCodeAtVenue'.tr(),
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+                    style: AppTypography.body100.copyWith(color: AppColors.grey500),
                   ),
                 ],
               ),
@@ -163,10 +163,10 @@ class ReservationDetailsScreen extends StatelessWidget {
                     onPressed: () {},
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: BorderSide(color: Colors.grey.shade300),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      side: const BorderSide(color: AppColors.error),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: Text('cancelAppointment'.tr(), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+                    child: Text('cancelAppointment'.tr(), style: AppTypography.heading300.copyWith(color: AppColors.error)),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -175,12 +175,12 @@ class ReservationDetailsScreen extends StatelessWidget {
                     onPressed: () {},
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.grey900,
+                      foregroundColor: AppColors.white,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: Text('editBooking'.tr(), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    child: Text('editBooking'.tr(), style: AppTypography.heading300.copyWith(color: AppColors.white)),
                   ),
                 ),
               ],
@@ -198,8 +198,8 @@ class ReservationDetailsScreen extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, size: 20, color: Colors.black87),
+          decoration: BoxDecoration(color: AppColors.grey25, borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, size: 20, color: AppColors.grey900),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -208,12 +208,12 @@ class ReservationDetailsScreen extends StatelessWidget {
             children: [
               Text(
                 label.toUpperCase(),
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey.shade500, letterSpacing: 1.2),
+                style: AppTypography.heading100.copyWith(color: AppColors.grey400, letterSpacing: 1.2),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1e293b)),
+                style: AppTypography.body200.copyWith(color: AppColors.grey900, fontWeight: FontWeight.bold),
               ),
             ],
           ),

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class BookingConfirmationScreen extends StatelessWidget {
   final Map<String, dynamic> bookingDetails;
@@ -11,7 +14,7 @@ class BookingConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -25,42 +28,33 @@ class BookingConfirmationScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFff5a5f).withOpacity(0.1),
+                        color: AppColors.primary500.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
                         Icons.check_circle,
                         size: 80,
-                        color: Color(0xFFff5a5f),
+                        color: AppColors.primary500,
                       ),
                     ),
                     const SizedBox(height: 40),
-                    const Text(
-                      'Booking Confirmed!',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1,
-                      ),
+                    Text(
+                      'bookingConfirmed'.tr(),
+                      style: AppTypography.heading700.copyWith(color: AppColors.grey900),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Your appointment at ${bookingDetails['venueName']} has been successfully scheduled.',
+                      'bookingSuccessMsg'.tr(namedArgs: {'venue': bookingDetails['venueName']}),
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                        height: 1.5,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: AppTypography.body200.copyWith(color: AppColors.grey500, height: 1.5),
                     ),
                     const SizedBox(height: 48),
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.grey.shade100),
+                        color: AppColors.grey25,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.grey50),
                       ),
                       child: Column(
                         children: [
@@ -86,28 +80,28 @@ class BookingConfirmationScreen extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+                      backgroundColor: AppColors.primary500,
+                      foregroundColor: AppColors.white,
                       minimumSize: const Size(double.infinity, 56),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
                     ),
-                    child: const Text(
-                      'Go to Home',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    child: Text(
+                      'goToHome'.tr(),
+                      style: AppTypography.heading400.copyWith(color: AppColors.white),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: () {
-                      // Navigate to My Reservations (Tab 2)
                       Navigator.of(context).popUntil((route) => route.isFirst);
-                      // This would normally trigger a tab switch in a real app
                     },
                     style: TextButton.styleFrom(
                       minimumSize: const Size(double.infinity, 56),
                     ),
-                    child: const Text(
-                      'View Booking Details',
-                      style: TextStyle(color: Color(0xFFff5a5f), fontWeight: FontWeight.bold, fontSize: 16),
+                    child: Text(
+                      'viewBookingDetails'.tr(),
+                      style: AppTypography.heading400.copyWith(color: AppColors.grey900),
                     ),
                   ),
                 ],
@@ -125,14 +119,14 @@ class BookingConfirmationScreen extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 13),
+          style: AppTypography.body100.copyWith(color: AppColors.grey400, fontWeight: FontWeight.bold),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+            style: AppTypography.heading300.copyWith(color: AppColors.grey900),
           ),
         ),
       ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import 'venue_details_screen.dart';
 
 class MyFavoritesScreen extends StatefulWidget {
@@ -62,7 +64,7 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
       'rating': '4.8',
       'reviews': '(77)',
       'price': '\$120.00',
-      'img': '1564832486372-f628308223a7',
+      'img': '1487412947147-5cebf100ffc2',
       'category': 'beautyService'.tr(),
     },
     {
@@ -157,22 +159,22 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
-        title: Text('myFavorites'.tr(), style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 20)),
+        title: Text('myFavorites'.tr(), style: AppTypography.heading500.copyWith(color: AppColors.grey900)),
         centerTitle: false,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppColors.grey900), onPressed: () => Navigator.pop(context)),
       ),
       body: _favorites.isEmpty
         ? Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.favorite_border, size: 80, color: Colors.grey.shade200),
+                Icon(Icons.favorite_border, size: 80, color: AppColors.grey100),
                 const SizedBox(height: 16),
-                Text('noFavorites'.tr(), style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w700)),
+                Text('noFavorites'.tr(), style: AppTypography.body200.copyWith(color: AppColors.grey300)),
               ],
             ),
           )
@@ -188,10 +190,10 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.grey.shade100),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.grey50),
+                    boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
                   ),
                   child: Row(
                     children: [
@@ -199,7 +201,7 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(23)),
+                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(15)),
                           image: DecorationImage(
                             image: NetworkImage('https://images.unsplash.com/photo-${fav['img']}?q=80&w=250&fit=crop'),
                             fit: BoxFit.cover,
@@ -211,24 +213,24 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(fav['name'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                            Text(fav['name'] as String, style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
                             const SizedBox(height: 2),
-                            Text(fav['category'] as String, style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 12)),
+                            Text(fav['category'] as String, style: AppTypography.body100.copyWith(color: AppColors.grey400)),
                             const SizedBox(height: 8),
                             Row(
                               children: [
                                 const Icon(Icons.star, color: Colors.amber, size: 14),
                                 const SizedBox(width: 4),
-                                Text(fav['rating'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                                Text(fav['rating'] as String, style: AppTypography.heading200),
                                 const SizedBox(width: 4),
-                                Text(fav['reviews'] as String, style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w600, fontSize: 12)),
+                                Text(fav['reviews'] as String, style: AppTypography.body100.copyWith(color: AppColors.grey400)),
                               ],
                             ),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.favorite, color: Color(0xFFff5a5f)),
+                        icon: const Icon(Icons.favorite, color: AppColors.primary500),
                         onPressed: () => _removeFavorite(fav['id'] as int),
                       ),
                       const SizedBox(width: 8),

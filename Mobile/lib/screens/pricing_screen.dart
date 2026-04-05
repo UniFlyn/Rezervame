@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class PricingScreen extends StatelessWidget {
   const PricingScreen({super.key});
@@ -7,17 +9,17 @@ class PricingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.grey900, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'pricingTitle'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+          style: AppTypography.heading300.copyWith(color: AppColors.grey900),
         ),
       ),
       body: SingleChildScrollView(
@@ -27,7 +29,7 @@ class PricingScreen extends StatelessWidget {
           children: [
             Text(
               'pricingSub'.tr(),
-              style: TextStyle(fontSize: 15, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+              style: AppTypography.body100.copyWith(color: AppColors.grey500),
             ),
             const SizedBox(height: 48),
             _buildPricingCard(
@@ -70,15 +72,15 @@ class PricingScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: isFeatured ? Colors.white : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(40),
+        color: isFeatured ? AppColors.white : AppColors.grey25,
+        borderRadius: BorderRadius.circular(32),
         border: Border.all(
-          color: isFeatured ? const Color(0xFFff5a5f) : const Color(0xFFF1F5F9),
-          width: isFeatured ? 3 : 1,
+          color: isFeatured ? AppColors.primary500 : AppColors.grey50,
+          width: isFeatured ? 2 : 1,
         ),
         boxShadow: isFeatured ? [
           BoxShadow(
-            color: const Color(0xFFff5a5f).withOpacity(0.12),
+            color: AppColors.primary500.withOpacity(0.12),
             blurRadius: 30,
             offset: const Offset(0, 15),
           )
@@ -96,12 +98,12 @@ class PricingScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFff5a5f),
+                    color: AppColors.primary500,
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
                     'mostPopular'.tr(),
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                    style: AppTypography.heading100.copyWith(color: AppColors.white, letterSpacing: 1.2),
                   ),
                 ),
               ),
@@ -111,7 +113,7 @@ class PricingScreen extends StatelessWidget {
             children: [
               Text(
                 title.toUpperCase(),
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFff5a5f), letterSpacing: 1.5),
+                style: AppTypography.heading100.copyWith(color: AppColors.primary500, letterSpacing: 1.5),
               ),
               const SizedBox(height: 12),
               Row(
@@ -119,13 +121,13 @@ class PricingScreen extends StatelessWidget {
                 children: [
                   Text(
                     price,
-                    style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -1),
+                    style: AppTypography.heading700.copyWith(color: AppColors.grey900, fontSize: 48, letterSpacing: -1),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8, left: 4),
                     child: Text(
                       period,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.grey.shade400),
+                      style: AppTypography.heading100.copyWith(color: AppColors.grey400),
                     ),
                   ),
                 ],
@@ -139,14 +141,14 @@ class PricingScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isFeatured ? const Color(0xFFff5a5f) : const Color(0xFF0F172A),
-                    foregroundColor: Colors.white,
+                    backgroundColor: isFeatured ? AppColors.primary500 : AppColors.grey900,
+                    foregroundColor: AppColors.white,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(
                     btnText,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                    style: AppTypography.heading200.copyWith(color: AppColors.white, letterSpacing: 1.2),
                   ),
                 ),
               ),
@@ -165,24 +167,20 @@ class PricingScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: isFeatured ? const Color(0xFFff5a5f).withOpacity(0.1) : Colors.green.withOpacity(0.1),
+              color: isFeatured ? AppColors.primary500.withOpacity(0.1) : Colors.green.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.check,
               size: 14,
-              color: isFeatured ? const Color(0xFFff5a5f) : Colors.green,
+              color: isFeatured ? AppColors.primary500 : Colors.green,
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: Colors.grey.shade600,
-              ),
+              style: AppTypography.body100.copyWith(fontWeight: FontWeight.w800, color: AppColors.grey600),
             ),
           ),
         ],

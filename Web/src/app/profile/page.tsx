@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-type Tab = "bookings" | "family" | "settings" | "favorites";
+type Tab = "bookings" | "family" | "settings" | "favorites" | "invoices";
 
 interface FamilyMember {
   id: string;
@@ -56,7 +56,7 @@ function ProfileContent() {
     }
     
     const tab = searchParams.get("tab") as Tab;
-    if (tab && ["bookings", "family", "settings", "favorites"].includes(tab)) {
+    if (tab && ["bookings", "family", "settings", "favorites", "invoices"].includes(tab)) {
       setActiveTab(tab);
     }
   }, [isLoggedIn, setIsLoginModalOpen, router, searchParams]);
@@ -88,6 +88,7 @@ function ProfileContent() {
 
   const menuItems = [
     { id: "bookings", label: language === "en" ? "My Reservations" : "Mis Reservas", icon: <Calendar size={20} /> },
+    { id: "invoices", label: language === "en" ? "My Invoices" : "Mis Facturas", icon: <Download size={20} /> },
     { id: "family", label: language === "en" ? "Family & Friends" : "Familia y Amigos", icon: <Users size={20} /> },
     { id: "settings", label: language === "en" ? "Profile & Settings" : "Perfil y configuración", icon: <UserIcon size={20} /> },
     { id: "favorites", label: language === "en" ? "My Favorites" : "Mis Favoritos", icon: <Heart size={20} /> }
@@ -518,6 +519,78 @@ function ProfileContent() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: INVOICES */}
+          {activeTab === "invoices" && (
+            <div className="animate-in fade-in duration-500">
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
+                <div>
+                  <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">
+                    {language === "en" ? "My Invoices" : "Mis Facturas"}
+                  </h1>
+                  <p className="text-slate-400 font-bold text-sm">Download and preview your transaction history</p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-[40px] overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50/50">
+                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice ID</th>
+                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Business</th>
+                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                        {reservations.map((inv) => (
+                        <tr key={inv.id} className="group hover:bg-slate-50/50 transition duration-300">
+                            <td className="px-8 py-6">
+                            <span className="font-black text-slate-800 text-sm">#{inv.id}</span>
+                            </td>
+                            <td className="px-8 py-6 text-sm font-bold text-slate-500">{inv.date}</td>
+                            <td className="px-8 py-6">
+                            <span className="font-bold text-slate-800">{inv.venueName}</span>
+                            </td>
+                            <td className="px-8 py-6">
+                            <span className="font-black text-[#ff5a5f]">{inv.price}</span>
+                            </td>
+                            <td className="px-8 py-6">
+                            <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                inv.status === 'completed' 
+                                ? 'bg-green-50 text-green-500 border-green-100' 
+                                : 'bg-amber-50 text-amber-500 border-amber-100'
+                            }`}>
+                                {inv.status === 'completed' ? 'Paid' : 'Pending'}
+                            </span>
+                            </td>
+                            <td className="px-8 py-6">
+                            <div className="flex items-center justify-center gap-3">
+                                <button 
+                                onClick={() => { setSelectedRes(inv); setIsResModalOpen(true); }}
+                                className="p-3 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-2xl transition group-hover:bg-white border border-transparent group-hover:border-slate-100 shadow-sm"
+                                >
+                                <Clock size={18} />
+                                </button>
+                                <button 
+                                onClick={() => handleDownloadInvoice(inv.id)}
+                                className="p-3 text-slate-400 hover:text-white hover:bg-[#ff5a5f] bg-slate-50 rounded-2xl transition group-hover:shadow-lg group-hover:shadow-[#ff5a5f]/20"
+                                >
+                                <Download size={18} />
+                                </button>
+                            </div>
+                            </td>
+                        </tr>
+                        ))}
+                    </tbody>
+                    </table>
+                </div>
               </div>
             </div>
           )}

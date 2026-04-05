@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class EventsScreen extends StatelessWidget {
   const EventsScreen({super.key});
@@ -26,17 +28,17 @@ class EventsScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.grey900, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'eventsTitle'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+          style: AppTypography.heading300.copyWith(color: AppColors.grey900),
         ),
       ),
       body: ListView(
@@ -44,7 +46,7 @@ class EventsScreen extends StatelessWidget {
         children: [
           Text(
             'eventsSub'.tr(),
-            style: TextStyle(fontSize: 15, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            style: AppTypography.body100.copyWith(color: AppColors.grey500),
           ),
           const SizedBox(height: 32),
           ...events.map((event) => _buildEventCard(context, event)).toList(),
@@ -57,9 +59,9 @@ class EventsScreen extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 32),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        color: AppColors.grey25,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.grey50),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,7 +70,7 @@ class EventsScreen extends StatelessWidget {
             height: 200,
             width: double.infinity,
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               image: DecorationImage(
                 image: NetworkImage('https://images.unsplash.com/photo-${event['img']}?q=80&w=600&fit=crop'),
                 fit: BoxFit.cover,
@@ -82,27 +84,18 @@ class EventsScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFFff5a5f)),
+                    Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.primary500),
                     const SizedBox(width: 8),
                     Text(
                       event['date'].toString(),
-                      style: const TextStyle(
-                        color: Color(0xFFff5a5f),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                      ),
+                      style: AppTypography.heading100.copyWith(color: AppColors.primary500, letterSpacing: 1),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
                   event['title'].toString().toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                  ),
+                  style: AppTypography.heading400.copyWith(color: AppColors.grey900),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -125,23 +118,18 @@ class EventsScreen extends StatelessWidget {
                   children: [
                     Text(
                       event['price'].toString(),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
-                      ),
+                      style: AppTypography.heading400.copyWith(color: AppColors.grey900),
                     ),
                     ElevatedButton.icon(
                       onPressed: () {},
                       icon: const Icon(Icons.confirmation_num_outlined, size: 16),
                       label: Text('eventGetTicket'.tr()),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.grey900,
+                        foregroundColor: AppColors.white,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ],

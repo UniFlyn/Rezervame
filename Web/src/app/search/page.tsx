@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useI18n } from "../../components/I18nProvider";
 import { Search, Map as MapIcon, List, LayoutGrid, Star, Clock, Heart, Filter, ChevronDown, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -46,7 +46,7 @@ const MOCK_RESULTS = [
   { id: 29, name: "Refresh Spa", category: "Spa y Bienestar", rating: 4.9, reviews: 198, price: 135, img: "1544161515-4ab6ce6db874", lat: 75, lng: 75, popular: true },
 ];
 
-export default function SearchPage() {
+function SearchContent() {
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -461,5 +461,13 @@ export default function SearchPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SearchContent />
+    </Suspense>
   );
 }

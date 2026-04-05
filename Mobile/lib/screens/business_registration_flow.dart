@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class BusinessRegistrationFlow extends StatefulWidget {
   const BusinessRegistrationFlow({super.key});
@@ -27,7 +29,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
         ),
         title: Column(
           children: [
-            Text('registerBusiness'.tr(), style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
+            Text('registerBusiness'.tr(), style: AppTypography.heading300.copyWith(color: AppColors.grey900)),
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -36,7 +38,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
                 height: 4,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
-                  color: index <= _currentStep ? const Color(0xFFff5a5f) : Colors.grey.shade200,
+                  color: index <= _currentStep ? AppColors.primary500 : AppColors.grey100,
                   borderRadius: BorderRadius.circular(2),
                 ),
               )),
@@ -57,8 +59,8 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade100)),
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.grey50)),
         ),
         child: Row(
           children: [
@@ -72,11 +74,11 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
                       _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
                     },
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey.shade300),
+                      side: BorderSide(color: AppColors.grey100),
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: Text('back'.tr(), style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
+                    child: Text('back'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
                   ),
                 ),
               ),
@@ -92,13 +94,13 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFff5a5f),
+                  backgroundColor: AppColors.primary500,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: Text(
                   _currentStep == _steps.length - 1 ? 'finish'.tr() : 'next'.tr(),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                  style: AppTypography.heading400.copyWith(color: AppColors.white),
                 ),
               ),
             ),
@@ -114,9 +116,9 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('bizRegTellUs'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegTellUs'.tr(), style: AppTypography.heading700.copyWith(color: AppColors.grey900)),
           const SizedBox(height: 8),
-          Text('bizRegTellUsSub'.tr(), style: TextStyle(color: Colors.grey.shade500, fontSize: 14, fontWeight: FontWeight.w500)),
+          Text('bizRegTellUsSub'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey500)),
           const SizedBox(height: 32),
           _buildField('bizRegName'.tr(), 'bizRegNameHint'.tr()),
           const SizedBox(height: 16),
@@ -134,7 +136,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('bizRegReachYou'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegReachYou'.tr(), style: AppTypography.heading700.copyWith(color: AppColors.grey900)),
           const SizedBox(height: 32),
           _buildField('bizRegEmail'.tr(), 'hello@luxe.com'),
           const SizedBox(height: 16),
@@ -152,7 +154,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('bizRegLocation'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegLocation'.tr(), style: AppTypography.heading700.copyWith(color: AppColors.grey900)),
           const SizedBox(height: 32),
           _buildField('bizRegAddress'.tr(), 'bizRegAddressHint'.tr()),
           const SizedBox(height: 16),
@@ -179,7 +181,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('bizRegServices'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.2)),
+          Text('bizRegServices'.tr(), style: AppTypography.heading700.copyWith(color: AppColors.grey900)),
           const SizedBox(height: 32),
           _buildServiceCheck('Corte de Cabello', true),
           _buildServiceCheck('Afeitado de Barba', false),
@@ -200,15 +202,15 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.black87)),
+        Text(label, style: AppTypography.heading100.copyWith(color: AppColors.grey900)),
         const SizedBox(height: 8),
         TextField(
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+            hintStyle: AppTypography.body100.copyWith(color: AppColors.grey300),
             filled: true,
-            fillColor: Colors.grey.shade50,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+            fillColor: AppColors.grey25,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
@@ -221,15 +223,15 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: val ? const Color(0xFFff5a5f).withOpacity(0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: val ? const Color(0xFFff5a5f).withOpacity(0.2) : Colors.grey.shade100),
+        color: val ? AppColors.primary500.withOpacity(0.05) : AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: val ? AppColors.primary500.withOpacity(0.2) : AppColors.grey50),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: TextStyle(fontWeight: val ? FontWeight.w900 : FontWeight.w700, color: val ? const Color(0xFFff5a5f) : Colors.black)),
-          Checkbox(value: val, onChanged: (v) {}, activeColor: const Color(0xFFff5a5f)),
+          Text(title, style: AppTypography.heading200.copyWith(color: val ? AppColors.primary500 : AppColors.grey900)),
+          Checkbox(value: val, onChanged: (v) {}, activeColor: AppColors.primary500),
         ],
       ),
     );
@@ -259,10 +261,10 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
                   Navigator.pop(context); // Close flow
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  backgroundColor: AppColors.grey900,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: Text('backToHome'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                child: Text('backToHome'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.white)),
               ),
             ),
             const SizedBox(height: 8),

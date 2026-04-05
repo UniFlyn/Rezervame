@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import '../widgets/booking_bottom_sheet.dart';
 import 'write_review_screen.dart';
 
@@ -97,7 +99,7 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
@@ -108,11 +110,12 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
             delegate: _SliverAppBarDelegate(
               TabBar(
                 controller: _tabController,
-                labelColor: const Color(0xFFff5a5f),
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: const Color(0xFFff5a5f),
+                labelColor: AppColors.primary500,
+                unselectedLabelColor: AppColors.grey400,
+                indicatorColor: AppColors.primary500,
                 indicatorWeight: 3,
-                labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
+                labelStyle: AppTypography.heading200.copyWith(letterSpacing: 0.5),
+                unselectedLabelStyle: AppTypography.heading200,
                 tabs: [
                   Tab(text: 'venueServicios'.tr().toUpperCase()),
                   Tab(text: 'venueEquipo'.tr().toUpperCase()),
@@ -143,24 +146,24 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
     return SliverAppBar(
       expandedHeight: 250,
       pinned: true,
-      backgroundColor: const Color(0xFF0f2e4a),
+      backgroundColor: AppColors.grey900,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        icon: const Icon(Icons.arrow_back, color: AppColors.white),
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.share_outlined, color: Colors.white), 
+          icon: const Icon(Icons.share_outlined, color: AppColors.white), 
           onPressed: _showShareSheet
         ),
         IconButton(
-          icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border, color: _isFavorite ? const Color(0xFFff5a5f) : Colors.white), 
+          icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border, color: _isFavorite ? AppColors.primary500 : AppColors.white), 
           onPressed: () => setState(() => _isFavorite = !_isFavorite)
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        title: Text(widget.venue['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+        title: Text(widget.venue['name'], style: AppTypography.heading300.copyWith(color: AppColors.white)),
         background: Stack(
           fit: StackFit.expand,
           children: [
@@ -191,25 +194,25 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.venue['name'], style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+          Text(widget.venue['name'], style: AppTypography.heading600),
           const SizedBox(height: 8),
           Row(
             children: [
               const Icon(Icons.star, color: Colors.amber, size: 18),
               const SizedBox(width: 4),
-              const Text('4.9', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+              Text('4.9', style: AppTypography.heading300),
               const SizedBox(width: 4),
-              Text('venueReviewStats'.tr(namedArgs: {'count': '217'}), style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w700, fontSize: 13)),
+              Text('venueReviewStats'.tr(namedArgs: {'count': '217'}), style: AppTypography.body100.copyWith(color: AppColors.grey400)),
               const Spacer(),
-              const Icon(Icons.location_on_outlined, color: Colors.grey, size: 18),
+              const Icon(Icons.location_on_outlined, color: AppColors.grey300, size: 18),
               const SizedBox(width: 4),
-              const Text('0.5 km', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              Text('0.5 km', style: AppTypography.body200.copyWith(color: AppColors.grey900)),
             ],
           ),
           const SizedBox(height: 16),
           Text(
             'Nuestro salón de belleza combina diseño moderno y servicios premium en el corazón de la ciudad.',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 13, height: 1.5, fontWeight: FontWeight.w600),
+            style: AppTypography.body200.copyWith(color: AppColors.grey600, height: 1.5),
           ),
         ],
       ),
@@ -226,10 +229,10 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.grey.shade100),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.grey50),
+            boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,18 +240,18 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(child: Text(s['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
-                  Text(s['price'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFFff5a5f))),
+                  Expanded(child: Text(s['name'], style: AppTypography.heading400)),
+                  Text(s['price'], style: AppTypography.heading500.copyWith(color: AppColors.primary500)),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(s['desc'], style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(s['desc'], style: AppTypography.body100.copyWith(color: AppColors.grey400)),
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Icon(Icons.access_time, size: 14, color: Colors.grey.shade300),
+                  const Icon(Icons.access_time, size: 14, color: AppColors.grey300),
                   const SizedBox(width: 6),
-                  Text(s['time'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.grey)),
+                  Text(s['time'], style: AppTypography.body100.copyWith(color: AppColors.grey400)),
                   const Spacer(),
                   ElevatedButton(
                     onPressed: () {
@@ -261,12 +264,12 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
                       });
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _selectedServices.contains(s['id']) ? const Color(0xFF1e293b) : const Color(0xFFff5a5f),
+                      backgroundColor: _selectedServices.contains(s['id']) ? AppColors.grey900 : AppColors.primary500,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
-                    child: Text(_selectedServices.contains(s['id']) ? 'venueAdded'.tr() : 'venueAdd'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white)),
+                    child: Text(_selectedServices.contains(s['id']) ? 'venueAdded'.tr() : 'venueAdd'.tr(), style: AppTypography.heading100.copyWith(color: AppColors.white)),
                   )
                 ],
               )
@@ -291,16 +294,16 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
         final m = _mockTeam[index];
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.grey.shade100),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.grey50),
+            boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           child: Column(
             children: [
               Expanded(
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   child: Image.network('https://images.unsplash.com/photo-${m['img']}?q=80&w=400&fit=crop', width: double.infinity, fit: BoxFit.cover),
                 ),
               ),
@@ -308,16 +311,16 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
-                    Text(m['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14), overflow: TextOverflow.ellipsis),
+                    Text(m['name'], style: AppTypography.heading300, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
-                    Text(m['role'], style: const TextStyle(color: Color(0xFFff5a5f), fontSize: 10, fontWeight: FontWeight.w900), overflow: TextOverflow.ellipsis),
+                    Text(m['role'], style: AppTypography.heading100.copyWith(color: AppColors.primary500), overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(Icons.star, color: Colors.amber, size: 12),
                         const SizedBox(width: 4),
-                        Text(m['rating'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                        Text(m['rating'], style: AppTypography.heading200),
                       ],
                     )
                   ],
@@ -340,13 +343,13 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('4.9 / 5.0', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF1e293b))),
+                Text('4.9 / 5.0', style: AppTypography.heading700),
                 const SizedBox(height: 4),
                 Row(
                   children: List.generate(5, (i) => const Icon(Icons.star, color: Colors.amber, size: 16)),
                 ),
                 const SizedBox(height: 4),
-                Text('venueReviewStats'.tr(namedArgs: {'count': '217'}), style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.w700)),
+                Text('venueReviewStats'.tr(namedArgs: {'count': '217'}), style: AppTypography.body100.copyWith(color: AppColors.grey400)),
               ],
             ),
             OutlinedButton(
@@ -359,11 +362,11 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
                 );
               },
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF1e293b), width: 2),
+                side: const BorderSide(color: AppColors.grey900, width: 2),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-              child: Text('venueWriteReview'.tr(), style: const TextStyle(color: Color(0xFF1e293b), fontWeight: FontWeight.w900, fontSize: 11)),
+              child: Text('venueWriteReview'.tr(), style: AppTypography.heading100.copyWith(color: AppColors.grey900)),
             ),
           ],
         ),
@@ -380,8 +383,8 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFf8fafc),
-        borderRadius: BorderRadius.circular(24),
+        color: AppColors.grey25,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,17 +430,17 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
         final a = amenities[index];
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.grey.shade100),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.grey50),
+            boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              Icon(a['icon'] as IconData, color: const Color(0xFFff5a5f), size: 18),
+              Icon(a['icon'] as IconData, color: AppColors.primary500, size: 18),
               const SizedBox(width: 12),
-              Expanded(child: Text(a['label'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: -0.2))),
+              Expanded(child: Text(a['label'] as String, style: AppTypography.heading100.copyWith(color: AppColors.grey900))),
             ],
           ),
         );
@@ -449,8 +452,8 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -5))],
+        color: AppColors.white,
+        boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -5))],
       ),
       child: SafeArea(
         child: SizedBox(
@@ -471,15 +474,15 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> with SingleTick
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFff5a5f),
-              disabledBackgroundColor: Colors.grey.shade300,
-              disabledForegroundColor: Colors.white,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: AppColors.primary500,
+              disabledBackgroundColor: AppColors.grey200,
+              disabledForegroundColor: AppColors.white,
+              foregroundColor: AppColors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: _selectedServices.isEmpty ? 0 : 8,
-              shadowColor: _selectedServices.isEmpty ? Colors.transparent : const Color(0xFFff5a5f).withOpacity(0.4),
+              shadowColor: _selectedServices.isEmpty ? Colors.transparent : AppColors.primary500.withOpacity(0.4),
             ),
-            child: Text('venueReserveNow'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            child: Text('venueReserveNow'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.white)),
           ),
         ),
       ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import '../utils/mock_auth.dart';
 import 'login_screen.dart';
 import 'main_navigation.dart';
@@ -16,36 +18,22 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         centerTitle: false,
-        title: Row(
-          children: [
-            const Text(
-               'rez',
-               style: TextStyle(color: Color(0xFFff5a5f), fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -1),
-            ),
-            Stack(
-               alignment: Alignment.center,
-               children: const [
-                 Icon(Icons.access_time_filled, color: Color(0xFFff5a5f), size: 24),
-                 Icon(Icons.check, color: Color(0xFF0f2e4a), size: 14),
-               ],
-            ),
-            const Text(
-               'rvame',
-               style: TextStyle(color: Color(0xFFff5a5f), fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -1),
-            ),
-          ],
+        title: Image.asset(
+          'assets/logo_wide.png',
+          height: 22,
+          fit: BoxFit.contain,
         ),
         actions: [
           IconButton(
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen()));
             },
-            icon: const Icon(Icons.notifications_none_rounded, color: Colors.black, size: 26),
+            icon: const Icon(Icons.notifications_none_rounded, color: AppColors.grey900, size: 26),
           ),
           TextButton(
              onPressed: () {
@@ -57,7 +45,7 @@ class HomeScreen extends StatelessWidget {
              },
              child: Text(
                context.locale.languageCode == 'en' ? 'ES' : 'EN',
-               style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+               style: AppTypography.heading300.copyWith(color: AppColors.grey500),
              ),
           ),
           const SizedBox(width: 8),
@@ -92,20 +80,20 @@ class HomeScreen extends StatelessWidget {
                         const SizedBox(height: 20),
                         Text(
                           'heroTitle'.tr(),
-                          style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900, height: 1.1),
+                          style: AppTypography.heading700.copyWith(color: AppColors.white, height: 1.1),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'heroSubtitle'.tr(),
-                          style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                          style: AppTypography.body200.copyWith(color: AppColors.white.withOpacity(0.8)),
                         ),
                         const SizedBox(height: 24),
                         Container(
                           height: 52,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppColors.white,
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+                            boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: InkWell(
@@ -114,13 +102,13 @@ class HomeScreen extends StatelessWidget {
                             },
                             child: Row(
                               children: [
-                                const Icon(Icons.search, color: Colors.grey, size: 20),
+                                const Icon(Icons.search, color: AppColors.grey400, size: 20),
                                 const SizedBox(width: 12),
-                                Expanded(child: Text('searchPlaceholder'.tr(), style: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500))),
+                                Expanded(child: Text('searchPlaceholder'.tr(), style: AppTypography.body200.copyWith(color: AppColors.grey400))),
                                 Container(
                                   width: 34, height: 34,
-                                  decoration: const BoxDecoration(color: Color(0xFFff5a5f), shape: BoxShape.circle),
-                                  child: const Icon(Icons.tune, color: Colors.white, size: 16),
+                                  decoration: const BoxDecoration(color: AppColors.primary500, shape: BoxShape.circle),
+                                  child: const Icon(Icons.tune, color: AppColors.white, size: 16),
                                 )
                               ],
                             ),
@@ -140,9 +128,9 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('chooseCategory'.tr(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                  Text('chooseCategory'.tr(), style: AppTypography.heading600),
                   const SizedBox(height: 4),
-                  Text('chooseCategorySub'.tr(), style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                  Text('chooseCategorySub'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                 ],
               ),
             ),
@@ -176,16 +164,16 @@ class HomeScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('featuredServicesTitle'.tr(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                          Text('featuredServicesTitle'.tr(), style: AppTypography.heading600),
                           const SizedBox(height: 4),
-                          Text('featuredServicesSub2'.tr(), style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                          Text('featuredServicesSub2'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                         ],
                       ),
                       TextButton(
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (context) => const SearchResultsScreen(onlyFeatured: true)));
                         },
-                        child: Text('viewAllFeatured'.tr(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFff5a5f))),
+                        child: Text('viewAllFeatured'.tr(), style: AppTypography.heading200.copyWith(color: AppColors.primary500, fontSize: 12)),
                       )
                     ],
                   ),
@@ -217,12 +205,12 @@ class HomeScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('upcomingEvents'.tr(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                      Text('upcomingEvents'.tr(), style: AppTypography.heading600),
                       TextButton(
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (context) => EventsScreen()));
                         },
-                        child: Text('viewAllFeatured'.tr(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFFff5a5f))),
+                        child: Text('viewAllFeatured'.tr(), style: AppTypography.heading200.copyWith(color: AppColors.primary500, fontSize: 12)),
                       )
                     ],
                   ),
@@ -272,9 +260,9 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('bestNear'.tr(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5), maxLines: 2),
+                  Text('bestNear'.tr(), style: AppTypography.heading500.copyWith(color: AppColors.grey900)),
                   const SizedBox(height: 4),
-                  Text('bestNearSub'.tr(), style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                  Text('bestNearSub'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                   const SizedBox(height: 24),
                   Column(
                     children: [
@@ -319,7 +307,7 @@ class HomeScreen extends StatelessWidget {
                         'rating': '4.8',
                         'reviews': '77',
                         'price': '\$120.00',
-                        'img': '1564832486372-f628308223a7',
+                        'img': '1487412947147-5cebf100ffc2',
                         'tags': ['tagSkin'.tr(), 'tagLaser'.tr(), 'tagPeeling'.tr()],
                         'id': 5
                       },
@@ -433,9 +421,9 @@ class HomeScreen extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                           Text('viewAllBiz'.tr(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black)),
+                           Text('viewAllBiz'.tr(), style: AppTypography.heading300.copyWith(color: AppColors.grey900)),
                            const SizedBox(width: 4),
-                           const Icon(Icons.arrow_forward, size: 14, color: Colors.black),
+                           Icon(Icons.arrow_forward, size: 14, color: AppColors.grey900),
                         ],
                       ),
                     ),
@@ -463,8 +451,8 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFff5a5f), Color(0xFFff9a9e)]),
-                boxShadow: [BoxShadow(color: const Color(0xFFff5a5f).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
+                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.primary500, Color(0xFFFFA5A1)]),
+                boxShadow: [BoxShadow(color: AppColors.primary500.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
               ),
               child: Container(
                 width: 80,
@@ -477,9 +465,9 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF1e293b))),
+            Text(title, style: AppTypography.heading300.copyWith(color: AppColors.grey900)),
             const SizedBox(height: 2),
-            Text(stat, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade500)),
+            Text(stat, style: AppTypography.body100.copyWith(color: AppColors.grey500)),
           ],
         ),
       ),
@@ -495,10 +483,10 @@ class HomeScreen extends StatelessWidget {
         width: 200,
         margin: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.grey50),
+          boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -507,7 +495,7 @@ class HomeScreen extends StatelessWidget {
             Container(
               height: 110,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 image: DecorationImage(image: NetworkImage('https://images.unsplash.com/photo-$imgId?q=80&w=400&fit=crop'), fit: BoxFit.cover),
               ),
               child: Stack(
@@ -516,13 +504,13 @@ class HomeScreen extends StatelessWidget {
                     top: 8, left: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.black.withOpacity(0.85), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: AppColors.black.withOpacity(0.85), borderRadius: BorderRadius.circular(8)),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.star, color: Colors.amber, size: 12),
                           const SizedBox(width: 4),
-                          Text(rating, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+                          Text(rating, style: AppTypography.heading200.copyWith(color: AppColors.white, fontSize: 10)),
                         ],
                       ),
                     ),
@@ -534,28 +522,28 @@ class HomeScreen extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(title, style: AppTypography.heading400.copyWith(height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: const Color(0xFFff5a5f).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                  child: Text(price, style: const TextStyle(color: Color(0xFFff5a5f), fontSize: 11, fontWeight: FontWeight.w900)),
+                  decoration: BoxDecoration(color: AppColors.primary500.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                  child: Text(price, style: AppTypography.heading300.copyWith(color: AppColors.primary500, fontSize: 11)),
                 )
               ],
             ),
             const Spacer(),
             Container(
               padding: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade100))),
+              decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.grey50))),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(child: Text(salon, style: TextStyle(color: Colors.grey.shade600, fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                  Expanded(child: Text(salon, style: AppTypography.body100.copyWith(color: AppColors.grey500), overflow: TextOverflow.ellipsis)),
                   Row(
                     children: [
-                      Icon(Icons.access_time, size: 12, color: Colors.grey.shade400),
+                      const Icon(Icons.access_time, size: 12, color: AppColors.grey300),
                       const SizedBox(width: 4),
-                      Text(duration, style: TextStyle(color: Colors.grey.shade600, fontSize: 11, fontWeight: FontWeight.w600)),
+                      Text(duration, style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                     ],
                   )
                 ],
@@ -575,10 +563,10 @@ class HomeScreen extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 8))],
+          border: Border.all(color: AppColors.grey50),
+          boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 8))],
         ),
         padding: const EdgeInsets.all(8),
         child: Column(
@@ -596,8 +584,8 @@ class HomeScreen extends StatelessWidget {
                     top: 12, right: 12,
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                      child: const Icon(Icons.favorite_border, color: Color(0xFFff5a5f), size: 20),
+                      decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
+                      child: const Icon(Icons.favorite_border, color: AppColors.primary500, size: 20),
                     ),
                   ),
                 ],
@@ -611,13 +599,13 @@ class HomeScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1e293b))),
+                      Text(name, style: AppTypography.heading500.copyWith(color: AppColors.grey900)),
                       Row(
                         children: [
                           const Icon(Icons.star, color: Colors.amber, size: 18),
                           const SizedBox(width: 4),
-                          Text(rating, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                          Text(' ($reviews)', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w600)),
+                          Text(rating, style: AppTypography.heading300),
+                          Text(' ($reviews)', style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                         ],
                       ),
                     ],
@@ -625,11 +613,11 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, size: 18, color: Colors.grey.shade400),
+                      const Icon(Icons.location_on_outlined, size: 18, color: AppColors.grey300),
                       const SizedBox(width: 4),
-                      Text('Avenida Balboa', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 13)),
+                      Text('Avenida Balboa', style: AppTypography.body200.copyWith(color: AppColors.grey500)),
                       const Spacer(),
-                      Text('• 0.5 km', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 13)),
+                      Text('• 0.5 km', style: AppTypography.body200.copyWith(color: AppColors.grey500)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -638,26 +626,26 @@ class HomeScreen extends StatelessWidget {
                     runSpacing: 8,
                     children: tags.map((tag) => Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade100)),
-                      child: Text(tag, style: TextStyle(color: Colors.grey.shade700, fontSize: 10, fontWeight: FontWeight.w800)),
+                      decoration: BoxDecoration(color: AppColors.grey25, borderRadius: BorderRadius.circular(6), border: Border.all(color: AppColors.grey50)),
+                      child: Text(tag, style: AppTypography.body100.copyWith(color: AppColors.grey500, fontWeight: FontWeight.bold)),
                     )).toList(),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Divider(color: Colors.grey.shade100, thickness: 1.5),
+                    child: Divider(color: AppColors.grey50, thickness: 1.5),
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.schedule, size: 18, color: Colors.grey.shade400),
+                          const Icon(Icons.schedule, size: 18, color: AppColors.grey300),
                           const SizedBox(width: 6),
-                          Text('${'nextAppt'.tr()} ', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w600)),
-                          Text('${'today'.tr()} 3:00 PM', style: const TextStyle(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.w800)),
+                          Text('${'nextAppt'.tr()} ', style: AppTypography.body100.copyWith(color: AppColors.grey500)),
+                          Text('${'today'.tr()} 3:00 PM', style: AppTypography.heading300),
                         ],
                       ),
-                      Text(price, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black)),
+                      Text(price, style: AppTypography.heading600),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -669,13 +657,13 @@ class HomeScreen extends StatelessWidget {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => VenueDetailsScreen(venue: {'id': id, 'name': name, 'img': imgId})));
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFfd5b60), 
-                        foregroundColor: Colors.white, 
+                        backgroundColor: AppColors.primary500, 
+                        foregroundColor: AppColors.white, 
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        shadowColor: const Color(0xFFfd5b60).withOpacity(0.3),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shadowColor: AppColors.primary500.withOpacity(0.3),
                       ),
-                      child: Text('bookBtn'.tr(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                      child: Text('bookBtn'.tr(), style: AppTypography.heading400.copyWith(color: Colors.white)),
                     ),
                   ),
                 ],

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -16,17 +18,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          icon: const Icon(Icons.arrow_back, color: AppColors.grey900),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'editProfile'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 18),
+          style: AppTypography.heading400.copyWith(color: AppColors.grey900),
         ),
         centerTitle: true,
       ),
@@ -44,7 +46,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     height: 120,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.shade100, width: 4),
+                      border: Border.all(color: AppColors.grey50, width: 4),
                       image: const DecorationImage(
                         image: NetworkImage('https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=300&fit=crop'),
                         fit: BoxFit.cover,
@@ -53,7 +55,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Color(0xFFff5a5f), shape: BoxShape.circle),
+                    decoration: const BoxDecoration(color: AppColors.primary500, shape: BoxShape.circle),
                     child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
                   ),
                 ],
@@ -72,12 +74,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFff5a5f),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.primary500,
+                  foregroundColor: AppColors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: Text('saveChanges'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                child: Text('saveChanges'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.white)),
               ),
             ),
           ],
@@ -92,22 +94,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       children: [
         Text(
           label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            color: Colors.grey.shade500,
-            letterSpacing: 1.2,
-          ),
+          style: AppTypography.heading100.copyWith(color: AppColors.grey400, letterSpacing: 1.2),
         ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          style: AppTypography.body200.copyWith(color: AppColors.grey900, fontWeight: FontWeight.w700),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.grey.shade50,
+            fillColor: AppColors.grey25,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

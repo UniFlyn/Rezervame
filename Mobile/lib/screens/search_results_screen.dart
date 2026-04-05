@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import 'venue_details_screen.dart';
 
 class SearchResultsScreen extends StatefulWidget {
@@ -65,19 +67,19 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         toolbarHeight: 80,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppColors.grey900),
           onPressed: () => Navigator.pop(context),
         ),
         title: Container(
           height: 45,
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
+            color: AppColors.grey25,
             borderRadius: BorderRadius.circular(12),
           ),
           child: TextField(
@@ -85,20 +87,20 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
             onChanged: (val) => _applyFilter(),
             decoration: InputDecoration(
               hintText: 'searchPlaceholder'.tr(),
-              prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
+              prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.grey400),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            style: AppTypography.body200,
           ),
         ),
         actions: [
           IconButton(
-            icon: Icon(_isMapView ? Icons.list : Icons.map_outlined, color: Colors.black),
+            icon: Icon(_isMapView ? Icons.list : Icons.map_outlined, color: AppColors.grey900),
             onPressed: () => setState(() => _isMapView = !_isMapView),
           ),
           IconButton(
-            icon: const Icon(Icons.tune, color: Colors.black),
+            icon: const Icon(Icons.tune, color: AppColors.grey900),
             onPressed: () => _showFilterSheet(context),
           ),
           const SizedBox(width: 8),
@@ -107,9 +109,9 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       body: _isMapView ? _buildMapView() : _buildListView(),
       floatingActionButton: !_isMapView ? FloatingActionButton.extended(
         onPressed: () => setState(() => _isMapView = true),
-        backgroundColor: const Color(0xFF0f2e4a),
-        icon: const Icon(Icons.map, size: 18),
-        label: Text('map'.tr().toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.white)),
+        backgroundColor: AppColors.grey900,
+        icon: const Icon(Icons.map, size: 18, color: Colors.white),
+        label: Text('map'.tr().toUpperCase(), style: AppTypography.heading200.copyWith(color: AppColors.white, letterSpacing: 1)),
       ) : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
@@ -193,17 +195,17 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                            child: Column(
                              crossAxisAlignment: CrossAxisAlignment.start,
                              children: [
-                               Text(_filteredResults[0]['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                               Text(_filteredResults[0]['name'], style: AppTypography.heading400),
                                const SizedBox(height: 4),
                                Row(
                                  children: [
                                    const Icon(Icons.star, color: Colors.amber, size: 14),
                                    const SizedBox(width: 4),
-                                   Text(_filteredResults[0]['rating'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                   Text(_filteredResults[0]['rating'], style: AppTypography.body100.copyWith(fontWeight: FontWeight.bold)),
                                  ],
                                 ),
                                const Spacer(),
-                               Text(_filteredResults[0]['price'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFFff5a5f))),
+                               Text(_filteredResults[0]['price'], style: AppTypography.heading500.copyWith(color: AppColors.primary500)),
                              ],
                            ),
                          ),
@@ -239,13 +241,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFff5a5f), width: 1.5),
+          border: Border.all(color: AppColors.primary500, width: 1.5),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)],
         ),
         child: Center(
-          child: Text(price, style: const TextStyle(color: Color(0xFFff5a5f), fontWeight: FontWeight.w900, fontSize: 11)),
+          child: Text(price, style: AppTypography.heading200.copyWith(color: AppColors.primary500)),
         ),
       ),
     );
@@ -264,10 +266,10 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border.all(color: AppColors.grey50),
+          boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(
           children: [
@@ -281,8 +283,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                   top: 12, right: 12,
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: const Icon(Icons.favorite_border, color: Color(0xFFff5a5f), size: 18),
+                    decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
+                    child: const Icon(Icons.favorite_border, color: AppColors.primary500, size: 18),
                   ),
                 ),
               ],
@@ -292,33 +294,33 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(res['category'].toString().tr().toUpperCase(), style: const TextStyle(color: Color(0xFFff5a5f), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                      Text(res['category'].toString().tr().toUpperCase(), style: AppTypography.heading100.copyWith(color: AppColors.primary500, letterSpacing: 1)),
                       Row(
                         children: [
                           const Icon(Icons.star, color: Colors.amber, size: 14),
                           const SizedBox(width: 4),
-                          Text(res['rating'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                          Text(res['rating'], style: AppTypography.heading300),
                         ],
                       )
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(res['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                  Text(res['name'], style: AppTypography.heading500),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, size: 16, color: Colors.grey.shade400),
+                      const Icon(Icons.location_on_outlined, size: 16, color: AppColors.grey300),
                       const SizedBox(width: 4),
-                      Text('Avenida Balboa • 0.5 km', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w600)),
+                      Text('Avenida Balboa • 0.5 km', style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                       const Spacer(),
-                      Text(res['price'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                      Text(res['price'], style: AppTypography.heading600),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  SizedBox(
+                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
@@ -331,12 +333,12 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFff5a5f),
-                        foregroundColor: Colors.white,
+                        backgroundColor: AppColors.primary500,
+                        foregroundColor: AppColors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: Text('bookBtn'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                      child: Text('bookBtn'.tr(), style: AppTypography.heading400.copyWith(color: Colors.white)),
                     ),
                   )
                 ],
@@ -384,11 +386,11 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               height: 56,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0f2e4a),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.grey900,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
                 child: Text('applyFilters'.tr().toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900)),
               ),
             )
@@ -413,11 +415,11 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: opt.contains('All') || opt.contains('Todos') ? const Color(0xFFff5a5f).withOpacity(0.1) : Colors.white,
+                color: opt.contains('All') || opt.contains('Todos') ? AppColors.primary500.withOpacity(0.1) : AppColors.white,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: opt.contains('All') || opt.contains('Todos') ? const Color(0xFFff5a5f) : Colors.grey.shade200),
+                border: Border.all(color: opt.contains('All') || opt.contains('Todos') ? AppColors.primary500 : AppColors.grey100),
               ),
-              child: Text(opt, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: opt.contains('All') || opt.contains('Todos') ? const Color(0xFFff5a5f) : Colors.black)),
+              child: Text(opt, style: AppTypography.heading200.copyWith(color: opt.contains('All') || opt.contains('Todos') ? AppColors.primary500 : AppColors.grey900)),
             ),
           )).toList(),
         ),

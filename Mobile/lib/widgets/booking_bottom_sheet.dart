@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import '../screens/booking_confirmation_screen.dart';
 
 enum BookingStep { schedule, summary, staffList, professionalDetail, paymentWarning, checkout }
@@ -66,17 +68,18 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
   void _showDiscardModal() {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: AppColors.white,
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('bookingDiscardTitle'.tr(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)), textAlign: TextAlign.center),
+              Text('bookingDiscardTitle'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.grey900), textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              Text('bookingDiscardSub'.tr(), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              Text('bookingDiscardSub'.tr(), style: AppTypography.body100.copyWith(color: AppColors.grey500), textAlign: TextAlign.center),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -84,10 +87,10 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFff5a5f),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    backgroundColor: AppColors.primary500,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: Text('continue'.tr().toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white, letterSpacing: 1.5)),
+                  child: Text('continue'.tr().toUpperCase(), style: AppTypography.heading100.copyWith(color: AppColors.white, letterSpacing: 1.5)),
                 ),
               ),
               const SizedBox(height: 12),
@@ -99,7 +102,7 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                     Navigator.pop(context);
                     Navigator.pop(this.context);
                   },
-                  child: Text('yesDiscard'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Color(0xFF0F172A), letterSpacing: 1)),
+                  child: Text('yesDiscard'.tr(), style: AppTypography.heading100.copyWith(color: AppColors.grey900, letterSpacing: 1)),
                 ),
               ),
             ],
@@ -135,17 +138,17 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                         width: 55,
                         height: 75,
                         decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFFff5a5f) : Colors.white,
-                          border: Border.all(color: isSelected ? const Color(0xFFff5a5f) : Colors.grey.shade200),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: isSelected ? [BoxShadow(color: const Color(0xFFff5a5f).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
+                          color: isSelected ? AppColors.primary500 : AppColors.white,
+                          border: Border.all(color: isSelected ? AppColors.primary500 : AppColors.grey200),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: isSelected ? [BoxShadow(color: AppColors.primary500.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(dayName.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isSelected ? Colors.white : Colors.grey, letterSpacing: 1)),
                             const SizedBox(height: 4),
-                            Text(day.toString(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: isSelected ? Colors.white : const Color(0xFF0F172A))),
+                            Text(day.toString(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: isSelected ? AppColors.white : AppColors.grey900)),
                           ],
                         ),
                       ),
@@ -179,7 +182,7 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : [],
                   ),
-                  child: Text(p['label']!.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isSelected ? const Color(0xFF0F172A) : Colors.grey, letterSpacing: 1)),
+                  child: Text(p['label']!.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isSelected ? AppColors.grey900 : AppColors.grey400, letterSpacing: 1)),
                 ),
               );
             }).toList(),
@@ -198,11 +201,11 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFff5a5f).withOpacity(0.05) : Colors.white,
-                  border: Border.all(color: isSelected ? const Color(0xFFff5a5f) : Colors.grey.shade200, width: 2),
+                  color: isSelected ? AppColors.primary500.withOpacity(0.05) : AppColors.white,
+                  border: Border.all(color: isSelected ? AppColors.primary500 : AppColors.grey200, width: 2),
                   borderRadius: BorderRadius.circular(30),
                 ),
-                child: Text(t, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isSelected ? const Color(0xFFff5a5f) : Colors.grey.shade600)),
+                child: Text(t, style: AppTypography.body200.copyWith(fontWeight: FontWeight.w900, color: isSelected ? AppColors.primary500 : AppColors.grey500)),
               ),
             );
           }).toList(),
@@ -214,11 +217,11 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
           child: ElevatedButton(
             onPressed: () => setState(() => _step = BookingStep.summary),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFff5a5f),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: AppColors.primary500,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 4,
             ),
-            child: const Text('CONTINUAR', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
+            child: Text('CONTINUAR', style: AppTypography.heading200.copyWith(color: AppColors.white, letterSpacing: 2)),
           ),
         ),
       ],
@@ -228,7 +231,7 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
   Widget _buildSummary() {
     return Column(
       children: [
-        Text('bookingSummaryTitle'.tr(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+        Text('bookingSummaryTitle'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
         const SizedBox(height: 24),
         Expanded(
           child: ListView.builder(
@@ -242,9 +245,9 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.grey.shade200),
+                  color: AppColors.grey25,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.grey200),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,13 +259,13 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(service['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                              Text(service['name'], style: AppTypography.heading200.copyWith(color: AppColors.grey900)),
                               const SizedBox(height: 4),
-                              Text('$_selectedDate Nov • $_selectedTime', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                              Text('$_selectedDate Nov • $_selectedTime', style: AppTypography.heading100.copyWith(color: AppColors.grey500, letterSpacing: 1)),
                             ],
                           ),
                         ),
-                        Text(service['price'].toString(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                        Text(service['price'].toString(), style: AppTypography.heading300.copyWith(color: AppColors.grey900)),
                       ],
                     ),
                     const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
@@ -285,12 +288,12 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('bookingProfessionalLabel'.tr(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
+                                  Text('bookingProfessionalLabel'.tr(), style: AppTypography.heading100.copyWith(fontSize: 9, color: AppColors.grey500, letterSpacing: 1)),
                                   Row(
                                     children: [
-                                      Text(pro['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                                      Text(pro['name'], style: AppTypography.heading100.copyWith(fontSize: 12, color: AppColors.grey900)),
                                       const SizedBox(width: 8),
-                                      Text('bookingAvailable'.tr(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.green)),
+                                      Text('bookingAvailable'.tr(), style: AppTypography.heading100.copyWith(fontSize: 9, color: Colors.green)),
                                     ],
                                   ),
                                 ],
@@ -307,11 +310,11 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                             });
                           },
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFff5a5f),
-                            side: const BorderSide(color: Colors.grey),
+                            foregroundColor: AppColors.primary500,
+                            side: BorderSide(color: AppColors.grey200),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Text('bookingChange'.tr(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                          child: Text('bookingChange'.tr(), style: AppTypography.heading100.copyWith(fontSize: 10, letterSpacing: 1)),
                         ),
                       ],
                     ),
@@ -328,19 +331,19 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${'total'.tr().toUpperCase()}:', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
-                Text('\$${_totalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+                Text('${'total'.tr().toUpperCase()}:', style: AppTypography.heading100.copyWith(fontSize: 10, color: AppColors.grey500, letterSpacing: 1)),
+                Text('\$${_totalPrice.toStringAsFixed(2)}', style: AppTypography.heading600.copyWith(color: AppColors.grey900)),
               ],
             ),
             ElevatedButton(
               onPressed: () => setState(() => _step = BookingStep.paymentWarning),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFff5a5f),
+                backgroundColor: AppColors.primary500,
                 padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 4,
               ),
-              child: Text('continue'.tr().toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
+              child: Text('continue'.tr().toUpperCase(), style: AppTypography.heading200.copyWith(color: AppColors.white, letterSpacing: 2)),
             ),
           ],
         ),
@@ -356,14 +359,14 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
           onTap: () => setState(() => _step = BookingStep.summary),
           child: Row(
             children: [
-              const Icon(Icons.chevron_left, color: Colors.grey, size: 20),
+              Icon(Icons.chevron_left, color: AppColors.grey500, size: 20),
               const SizedBox(width: 4),
-              Text('bookingBackToSummary'.tr(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
+              Text('bookingBackToSummary'.tr(), style: AppTypography.heading100.copyWith(fontSize: 10, color: AppColors.grey500, letterSpacing: 1)),
             ],
           ),
         ),
         const SizedBox(height: 24),
-        Text('bookingSelectProfessional'.tr(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+        Text('bookingSelectProfessional'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
         const SizedBox(height: 24),
         Expanded(
           child: ListView.builder(
@@ -385,8 +388,8 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFff5a5f).withOpacity(0.05) : Colors.grey.shade50,
-                    border: Border.all(color: isSelected ? const Color(0xFFff5a5f) : Colors.grey.shade200, width: 2),
+                    color: isSelected ? AppColors.primary500.withOpacity(0.05) : AppColors.grey25,
+                    border: Border.all(color: isSelected ? AppColors.primary500 : AppColors.grey100, width: 2),
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Row(
@@ -443,9 +446,9 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
               onTap: () => setState(() => _step = BookingStep.summary),
               child: Row(
                 children: [
-                  const Icon(Icons.chevron_left, color: Colors.grey, size: 20),
+                   Icon(Icons.chevron_left, color: AppColors.grey500, size: 20),
                   const SizedBox(width: 4),
-                  Text('bookingBackToSummary'.tr(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
+                  Text('bookingBackToSummary'.tr(), style: AppTypography.heading100.copyWith(fontSize: 10, color: AppColors.grey500, letterSpacing: 1)),
                 ],
               ),
             ),
@@ -460,8 +463,8 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
                 radius: 50,
               ),
               const SizedBox(height: 16),
-              Text(_selectedProfForDetail!['name'], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-              Text(_selectedProfForDetail!['role'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFFff5a5f), letterSpacing: 2)),
+              Text(_selectedProfForDetail!['name'], style: AppTypography.heading600.copyWith(color: AppColors.grey900)),
+              Text(_selectedProfForDetail!['role'], style: AppTypography.heading100.copyWith(fontSize: 12, color: AppColors.primary500, letterSpacing: 2)),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -480,10 +483,10 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
           child: ElevatedButton(
             onPressed: () => setState(() => _step = BookingStep.summary),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: AppColors.grey900,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: Text('bookingSelectProfButton'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
+            child: Text('bookingSelectProfButton'.tr(), style: AppTypography.heading200.copyWith(color: AppColors.white, letterSpacing: 2)),
           ),
         ),
       ],
@@ -493,8 +496,8 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
   Widget _buildStat(String val, String label) {
     return Column(
       children: [
-        Text(val, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-        Text(label.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
+        Text(val, style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
+        Text(label.toUpperCase(), style: AppTypography.heading100.copyWith(fontSize: 9, color: AppColors.grey500, letterSpacing: 1)),
       ],
     );
   }
@@ -507,16 +510,16 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
         Container(
           width: 80,
           height: 80,
-          decoration: BoxDecoration(color: const Color(0xFFff5a5f).withOpacity(0.1), borderRadius: BorderRadius.circular(24)),
-          child: const Icon(Icons.info_outline, color: Color(0xFFff5a5f), size: 40),
+          decoration: BoxDecoration(color: AppColors.primary500.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
+          child:  Icon(Icons.info_outline, color: AppColors.primary500, size: 40),
         ),
         const SizedBox(height: 24),
-        Text('bookingImportant'.tr(), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+        Text('bookingImportant'.tr(), style: AppTypography.heading600.copyWith(color: AppColors.grey900)),
         const SizedBox(height: 16),
         RichText(
           textAlign: TextAlign.center,
           text: TextSpan(
-            style: const TextStyle(color: Colors.grey, fontSize: 14, height: 1.5, fontWeight: FontWeight.bold),
+            style: AppTypography.body100.copyWith(color: AppColors.grey500, height: 1.5, fontWeight: FontWeight.bold),
             children: [
               TextSpan(text: 'bookingPaymentWarning'.tr(args: ['\$${_totalPrice.toStringAsFixed(2)} USD'])),
             ],
@@ -529,17 +532,17 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
           child: ElevatedButton(
             onPressed: () => setState(() => _step = BookingStep.checkout),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFff5a5f),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: AppColors.primary500,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 4,
             ),
-            child: Text('bookingContinuePay'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
+            child: Text('bookingContinuePay'.tr(), style: AppTypography.heading200.copyWith(color: AppColors.white, letterSpacing: 2)),
           ),
         ),
         const SizedBox(height: 16),
         TextButton(
           onPressed: () => setState(() => _step = BookingStep.summary),
-          child: Text('cancel'.tr().toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.grey, letterSpacing: 2)),
+          child: Text('cancel'.tr().toUpperCase(), style: AppTypography.heading200.copyWith(fontSize: 13, color: AppColors.grey500, letterSpacing: 2)),
         ),
       ],
     );
@@ -549,28 +552,28 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('bookingSecurePayment'.tr(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+        Text('bookingSecurePayment'.tr(), style: AppTypography.heading500.copyWith(color: AppColors.grey900)),
         const SizedBox(height: 24),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+          decoration: BoxDecoration(color: AppColors.grey25, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.grey200)),
           child: Row(
             children: [
-              const Icon(Icons.credit_card, color: Color(0xFFff5a5f)),
+               Icon(Icons.credit_card, color: AppColors.primary500),
               const SizedBox(width: 12),
-              Text('bookingCreditDebit'.tr(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+              Text('bookingCreditDebit'.tr(), style: AppTypography.heading200.copyWith(fontSize: 14, color: AppColors.grey900)),
             ],
           ),
         ),
         const SizedBox(height: 24),
-        Text('cardNumber'.tr(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
+        Text('cardNumber'.tr(), style: AppTypography.heading100.copyWith(fontSize: 10, color: AppColors.grey500, letterSpacing: 1)),
         const SizedBox(height: 8),
         TextField(
           decoration: InputDecoration(
             hintText: '1234 5678 9012 3456',
             filled: true,
-            fillColor: Colors.grey.shade50,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+            fillColor: AppColors.grey25,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           ),
         ),
         const SizedBox(height: 16),
@@ -580,14 +583,14 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('expiryDate'.tr(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
+                  Text('expiryDate'.tr(), style: AppTypography.heading100.copyWith(fontSize: 10, color: AppColors.grey500, letterSpacing: 1)),
                   const SizedBox(height: 8),
                   TextField(
                     decoration: InputDecoration(
                       hintText: 'MM/YY',
                       filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      fillColor: AppColors.grey25,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
                   ),
                 ],
@@ -598,14 +601,14 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('cvv'.tr(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1)),
+                  Text('cvv'.tr(), style: AppTypography.heading100.copyWith(fontSize: 10, color: AppColors.grey500, letterSpacing: 1)),
                   const SizedBox(height: 8),
                   TextField(
                     decoration: InputDecoration(
                       hintText: '123',
                       filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      fillColor: AppColors.grey25,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
                   ),
                 ],
@@ -636,13 +639,13 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
               });
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFff5a5f),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: AppColors.primary500,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 4,
             ),
             child: _isProcessing 
               ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : Text('payAmount'.tr(args: ['\$${_totalPrice.toStringAsFixed(2)}']), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
+              : Text('payAmount'.tr(args: ['\$${_totalPrice.toStringAsFixed(2)}']), style: AppTypography.heading200.copyWith(color: AppColors.white, letterSpacing: 2)),
           ),
         ),
       ],
@@ -655,9 +658,9 @@ class _BookingBottomSheetState extends State<BookingBottomSheet> {
       backgroundColor: Colors.transparent,
       body: Container(
         margin: const EdgeInsets.only(top: 100),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
         ),
         padding: const EdgeInsets.all(24),
         child: Column(

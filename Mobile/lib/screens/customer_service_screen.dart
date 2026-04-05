@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class CustomerServiceScreen extends StatelessWidget {
   const CustomerServiceScreen({super.key});
@@ -7,17 +9,17 @@ class CustomerServiceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.grey900, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'customerServiceTitle'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+          style: AppTypography.heading300.copyWith(color: AppColors.grey900),
         ),
       ),
       body: SingleChildScrollView(
@@ -27,20 +29,20 @@ class CustomerServiceScreen extends StatelessWidget {
           children: [
             Text(
               'customerServiceSub'.tr(),
-              style: TextStyle(fontSize: 15, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+              style: AppTypography.body100.copyWith(color: AppColors.grey500),
             ),
             const SizedBox(height: 32),
             Row(
               children: [
-                Expanded(child: _buildContactCard(context, 'chatSupport'.tr(), Icons.message_rounded, const Color(0xFFff5a5f))),
+                Expanded(child: _buildContactCard(context, 'chatSupport'.tr(), Icons.message_rounded, AppColors.primary500)),
                 const SizedBox(width: 16),
-                Expanded(child: _buildContactCard(context, 'callUs'.tr(), Icons.phone_rounded, const Color(0xFF0F172A))),
+                Expanded(child: _buildContactCard(context, 'callUs'.tr(), Icons.phone_rounded, AppColors.grey900)),
               ],
             ),
             const SizedBox(height: 48),
             Text(
               'faqTitle'.tr(),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+              style: AppTypography.heading400.copyWith(color: AppColors.grey900),
             ),
             const SizedBox(height: 24),
             _buildFaqItem('faq1Question'.tr(), 'faq1Answer'.tr()),
@@ -56,9 +58,9 @@ class CustomerServiceScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        color: AppColors.grey25,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.grey50),
       ),
       child: Column(
         children: [
@@ -68,7 +70,7 @@ class CustomerServiceScreen extends StatelessWidget {
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+          Text(title, style: AppTypography.heading100.copyWith(color: AppColors.grey900)),
         ],
       ),
     );
@@ -83,12 +85,12 @@ class CustomerServiceScreen extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF1F5F9)),
       ),
       child: ExpansionTile(
-        title: Text(question, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
-        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        expandedAlignment: Alignment.topLeft,
-        shape: const RoundedRectangleBorder(side: BorderSide.none),
+        title: Text(question, style: AppTypography.heading200.copyWith(color: AppColors.grey900)),
         children: [
-          Text(answer, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey, height: 1.5)),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(answer, style: AppTypography.body100.copyWith(color: AppColors.grey500)),
+          ),
         ],
       ),
     );

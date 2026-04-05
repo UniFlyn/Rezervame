@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import 'home.dart';
 import 'search_results_screen.dart';
 import 'my_reservations_screen.dart';
@@ -60,11 +62,11 @@ class _MainNavigationState extends State<MainNavigation> {
           currentIndex: mainNavigationNotifier.value,
           onTap: (i) => mainNavigationNotifier.value = i,
           type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: const Color(0xFFff5a5f),
-          unselectedItemColor: Colors.grey.shade400,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+          backgroundColor: AppColors.white,
+          selectedItemColor: AppColors.primary500,
+          unselectedItemColor: AppColors.grey400,
+          selectedLabelStyle: AppTypography.heading100.copyWith(color: AppColors.primary500),
+          unselectedLabelStyle: AppTypography.body100.copyWith(color: AppColors.grey400),
           elevation: 0,
           items: [
             BottomNavigationBarItem(

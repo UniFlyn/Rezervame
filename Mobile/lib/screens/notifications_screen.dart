@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import 'package:rezervame_mobile/widgets/notification_card.dart';
 
 class NotificationsScreen extends StatelessWidget {
@@ -14,7 +16,7 @@ class NotificationsScreen extends StatelessWidget {
         'time': '2 min ago',
         'isRead': false,
         'icon': Icons.calendar_today,
-        'color': const Color(0xFFff5a5f),
+        'color': AppColors.primary500,
       },
       {
         'title': 'specialOffer'.tr(),
@@ -62,7 +64,7 @@ class NotificationsScreen extends StatelessWidget {
         'time': 'Mar 22',
         'isRead': true,
         'icon': Icons.calendar_today,
-        'color': const Color(0xFFff5a5f),
+        'color': AppColors.primary500,
       },
       {
         'title': 'reviewRequest'.tr(),
@@ -131,16 +133,16 @@ class NotificationsScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         title: Text(
           'notifications'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 20),
+          style: AppTypography.heading500.copyWith(color: AppColors.grey900),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: AppColors.grey900),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
@@ -148,7 +150,7 @@ class NotificationsScreen extends StatelessWidget {
             onPressed: () {},
             child: Text(
               'markAsRead'.tr(),
-              style: const TextStyle(color: Color(0xFFff5a5f), fontWeight: FontWeight.w800, fontSize: 13),
+              style: AppTypography.heading200.copyWith(color: AppColors.primary500),
             ),
           ),
           const SizedBox(width: 8),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class JobsScreen extends StatelessWidget {
   const JobsScreen({super.key});
@@ -7,17 +9,17 @@ class JobsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.grey900, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'jobsTitle'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+          style: AppTypography.heading300.copyWith(color: AppColors.grey900),
         ),
       ),
       body: SingleChildScrollView(
@@ -29,15 +31,15 @@ class JobsScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                gradient: LinearGradient(
+                  colors: [AppColors.grey900, AppColors.grey800],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(32),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0F172A).withOpacity(0.2),
+                    color: AppColors.grey900.withOpacity(0.2),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -61,7 +63,7 @@ class JobsScreen extends StatelessWidget {
             const SizedBox(height: 48),
             Text(
               'jobsOpenPositions'.tr().toUpperCase(),
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFFff5a5f), letterSpacing: 1.5),
+              style: AppTypography.heading100.copyWith(color: AppColors.primary500, letterSpacing: 1.5),
             ),
             const SizedBox(height: 24),
             _buildJobCard(context, 'jobTitle1'.tr(), 'jobInfo1'.tr()),
@@ -79,12 +81,12 @@ class JobsScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.grey50, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: AppColors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -99,16 +101,16 @@ class JobsScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.2),
+                  style: AppTypography.heading300.copyWith(color: AppColors.grey900),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                    Icon(Icons.location_on_outlined, size: 14, color: AppColors.grey300),
                     const SizedBox(width: 4),
                     Text(
                       meta,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey),
+                      style: AppTypography.body100.copyWith(color: AppColors.grey500),
                     ),
                   ],
                 ),
@@ -123,12 +125,7 @@ class JobsScreen extends StatelessWidget {
             ),
             child: Text(
               'jobApply'.tr(),
-              style: const TextStyle(
-                color: Color(0xFFff5a5f),
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
-              ),
+              style: AppTypography.heading100.copyWith(color: AppColors.primary500, letterSpacing: 1),
             ),
           ),
         ],

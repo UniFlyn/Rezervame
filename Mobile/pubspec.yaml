@@ -19,6 +19,7 @@ dependencies:
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
   qr_flutter: ^4.1.0
+  flutter_svg: ^2.0.10+1
 
 dev_dependencies:
   flutter_test:
@@ -42,3 +43,6 @@ flutter:
   assets:
     - assets/
     - assets/translations/
+    - assets/icons/
+    - assets/images/
+    - assets/illustrations/

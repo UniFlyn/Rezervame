@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "rezerveme-1fce5"
+  },
+  "targets": {
+    "rezerveme-1fce5": {
+      "hosting": {
+        "web": [
+          "rezervame-web"
+        ],
+        "admin": [
+          "rezervame-admin"
+        ]
+      }
+    }
+  }
+}

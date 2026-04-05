@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class FamilyMembersScreen extends StatefulWidget {
   const FamilyMembersScreen({super.key});
@@ -46,22 +48,24 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
             bottom: MediaQuery.of(context).viewInsets.bottom,
             top: 20, left: 24, right: 24,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.grey100, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 24),
-              Text('addFamilyMember'.tr(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              Text('addFamilyMember'.tr(), style: AppTypography.heading600.copyWith(color: AppColors.grey900)),
               const SizedBox(height: 24),
               TextField(
                 decoration: InputDecoration(
                   labelText: 'fullName'.tr(),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  filled: true,
+                  fillColor: AppColors.grey25,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 ),
                 onChanged: (val) => name = val,
               ),
@@ -72,7 +76,9 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                     child: TextField(
                       decoration: InputDecoration(
                         labelText: 'age'.tr(),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                        filled: true,
+                        fillColor: AppColors.grey25,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                       keyboardType: TextInputType.number,
                       onChanged: (val) => age = val,
@@ -84,7 +90,9 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                       value: gender,
                       decoration: InputDecoration(
                         labelText: 'gender'.tr(),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                        filled: true,
+                        fillColor: AppColors.grey25,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                       items: ['genderMale', 'genderFemale', 'genderOther'].map((g) => DropdownMenuItem(value: g, child: Text(g.tr()))).toList(),
                       onChanged: (val) => setModalState(() => gender = val!),
@@ -104,10 +112,11 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFff5a5f),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    backgroundColor: AppColors.primary500,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
                   ),
-                  child: Text('save'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                  child: Text('save'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.white)),
                 ),
               ),
               const SizedBox(height: 40),
@@ -121,21 +130,21 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
-        title: Text('familyMembers'.tr(), style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
+        title: Text('familyMembers'.tr(), style: AppTypography.heading300.copyWith(color: AppColors.grey900)),
+        leading: IconButton(icon: Icon(Icons.arrow_back, color: AppColors.grey900), onPressed: () => Navigator.pop(context)),
       ),
       body: _familyMembers.isEmpty 
         ? Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.people_alt_outlined, size: 80, color: Colors.grey.shade300),
+                Icon(Icons.people_alt_outlined, size: 80, color: AppColors.grey100),
                 const SizedBox(height: 16),
-                Text('noFamilyMembers'.tr(), style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w700)),
+                Text('noFamilyMembers'.tr(), style: AppTypography.heading200.copyWith(color: AppColors.grey400)),
               ],
             ),
           )
@@ -148,23 +157,23 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade100),
+                  color: AppColors.grey25,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.grey50),
                 ),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: const Color(0xFFff5a5f).withOpacity(0.1),
-                      child: Text(member['name'][0], style: const TextStyle(color: Color(0xFFff5a5f), fontWeight: FontWeight.bold)),
+                      backgroundColor: AppColors.primary500.withOpacity(0.1),
+                      child: Text(member['name'][0], style: AppTypography.heading200.copyWith(color: AppColors.primary500)),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(member['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                          Text('${member['age']} ${'years'.tr()} • ${member['gender'].toString().tr()}', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 13)),
+                          Text(member['name'], style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
+                          Text('${member['age']} ${'years'.tr()} • ${member['gender'].toString().tr()}', style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                         ],
                       ),
                     ),
@@ -179,8 +188,9 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
           ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddMemberModal,
-        backgroundColor: const Color(0xFFff5a5f),
-        child: const Icon(Icons.add, color: Colors.white),
+        backgroundColor: AppColors.primary500,
+        elevation: 4,
+        child: const Icon(Icons.add, color: AppColors.white),
       ),
     );
   }

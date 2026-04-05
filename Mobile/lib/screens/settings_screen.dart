@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import 'family_members_screen.dart';
 import 'my_favorites_screen.dart';
 import 'my_reservations_screen.dart';
@@ -25,13 +27,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         title: Text(
           'tabProfile'.tr(),
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+          style: AppTypography.heading500.copyWith(color: AppColors.grey900),
         ),
         centerTitle: false,
       ),
@@ -54,7 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         height: 80,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey.shade100, width: 2),
+                          border: Border.all(color: AppColors.grey50, width: 2),
                           image: const DecorationImage(
                             image: NetworkImage('https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=200&fit=crop'),
                             fit: BoxFit.cover,
@@ -65,19 +67,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen())),
                         child: Container(
                           padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(color: Color(0xFFff5a5f), shape: BoxShape.circle),
+                          decoration: const BoxDecoration(color: AppColors.primary500, shape: BoxShape.circle),
                           child: const Icon(Icons.edit, color: Colors.white, size: 14),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(width: 20),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Richard Lucas', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1e293b))),
-                      SizedBox(height: 4),
-                      Text('richard.lucas@example.com', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w600)),
+                      Text('Richard Lucas', style: AppTypography.heading600.copyWith(color: AppColors.grey900)),
+                      const SizedBox(height: 4),
+                      Text('richard.lucas@example.com', style: AppTypography.body100.copyWith(color: AppColors.grey400)),
                     ],
                   )
                 ],
@@ -199,14 +201,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     (route) => false,
                   );
                 },
-                child: Text('logout'.tr(), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w800, fontSize: 16)),
+                child: Text('logout'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.error)),
               ),
             ),
             const SizedBox(height: 12),
             Center(
               child: Text(
                 '${'version'.tr()} 1.0.4 (Build 42)',
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.w600),
+                style: AppTypography.body100.copyWith(color: AppColors.grey300),
               ),
             ),
           ],
@@ -220,12 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          color: Colors.grey,
-          letterSpacing: 1.2,
-        ),
+        style: AppTypography.heading100.copyWith(color: AppColors.grey400, letterSpacing: 1.2),
       ),
     );
   }
@@ -236,11 +233,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
       leading: Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFFff5a5f).withOpacity(0.05), borderRadius: BorderRadius.circular(14)),
-        child: Icon(icon, color: const Color(0xFFff5a5f), size: 22),
+        decoration: BoxDecoration(color: AppColors.primary500.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+        child: Icon(icon, color: AppColors.primary500, size: 22),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+      title: Text(title, style: AppTypography.heading300),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.grey300),
     );
   }
 
@@ -258,17 +255,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
       leading: Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFFff5a5f).withOpacity(0.05), borderRadius: BorderRadius.circular(14)),
-        child: const Icon(Icons.language, color: Color(0xFFff5a5f), size: 22),
+        decoration: BoxDecoration(color: AppColors.primary500.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+        child: const Icon(Icons.language, color: AppColors.primary500, size: 22),
       ),
-      title: Text('language'.tr(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+      title: Text('language'.tr(), style: AppTypography.heading300),
       trailing: DropdownButton<String>(
         value: context.locale.languageCode,
         underline: const SizedBox(),
-        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-        items: const [
-          DropdownMenuItem(value: 'en', child: Text('EN', style: TextStyle(fontWeight: FontWeight.w800))),
-          DropdownMenuItem(value: 'es', child: Text('ES', style: TextStyle(fontWeight: FontWeight.w800))),
+        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.grey300),
+        items: [
+          DropdownMenuItem(value: 'en', child: Text('EN', style: AppTypography.heading200)),
+          DropdownMenuItem(value: 'es', child: Text('ES', style: AppTypography.heading200)),
         ],
         onChanged: (String? newValue) {
           if (newValue != null) {
@@ -290,14 +287,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           top: 24, left: 24, right: 24,
         ),
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('changePassword'.tr(), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            Text('changePassword'.tr(), style: AppTypography.heading600),
             const SizedBox(height: 24),
             _buildField('currentPassword'.tr(), '••••••••'),
             const SizedBox(height: 16),
@@ -311,10 +308,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFff5a5f),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  backgroundColor: AppColors.primary500,
+                  foregroundColor: AppColors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: Text('updatePassword'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+                child: Text('updatePassword'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.white)),
               ),
             ),
             const SizedBox(height: 40),
@@ -328,15 +326,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.black87)),
+        Text(label, style: AppTypography.heading100.copyWith(color: AppColors.grey900)),
         const SizedBox(height: 8),
         TextField(
           obscureText: true,
           decoration: InputDecoration(
             hintText: hint,
             filled: true,
-            fillColor: Colors.grey.shade50,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+            fillColor: AppColors.grey25,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),

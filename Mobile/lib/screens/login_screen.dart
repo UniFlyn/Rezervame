@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import '../utils/mock_auth.dart';
 import 'main_navigation.dart';
 
@@ -9,9 +11,9 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.scaffoldBackground,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.black),
@@ -29,35 +31,31 @@ class LoginScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('rez', style: TextStyle(color: Color(0xFFff5a5f), fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1)),
-                Stack(alignment: Alignment.center, children: const [
-                  Icon(Icons.access_time_filled, color: Color(0xFFff5a5f), size: 28),
-                  Icon(Icons.check, color: Color(0xFF0f2e4a), size: 16),
-                ]),
-                const Text('rvame', style: TextStyle(color: Color(0xFFff5a5f), fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1)),
-              ],
+            Center(
+              child: Image.asset(
+                'assets/logo.png',
+                height: 120,
+                fit: BoxFit.contain,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'signupSub'.tr(),
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w500),
+              style: AppTypography.body100.copyWith(color: AppColors.grey500),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 40),
-            Text('btnSignIn'.tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            Text('btnSignIn'.tr(), style: AppTypography.heading600),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 48,
               child: OutlinedButton.icon(
                 icon: Image.network('https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-09-512.png', width: 20),
-                label: Text('contGoogle'.tr(), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                label: Text('contGoogle'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  side: const BorderSide(color: AppColors.grey100),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {},
               ),
@@ -68,10 +66,10 @@ class LoginScreen extends StatelessWidget {
               height: 48,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.facebook, color: Colors.blue),
-                label: Text('contFacebook'.tr(), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                label: Text('contFacebook'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.grey900)),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  side: const BorderSide(color: AppColors.grey100),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {},
               ),
@@ -82,19 +80,15 @@ class LoginScreen extends StatelessWidget {
                 Expanded(child: Divider(color: Colors.grey.shade300)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('o', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                  child: Text('o', style: AppTypography.body100.copyWith(color: AppColors.grey300)),
                 ),
-                Expanded(child: Divider(color: Colors.grey.shade300)),
+                Expanded(child: Divider(color: AppColors.grey100)),
               ],
             ),
             const SizedBox(height: 24),
             TextField(
               decoration: InputDecoration(
                 hintText: 'email'.tr(),
-                hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w500),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
               ),
             ),
             const SizedBox(height: 16),
@@ -102,10 +96,6 @@ class LoginScreen extends StatelessWidget {
               obscureText: true,
               decoration: InputDecoration(
                 hintText: 'password'.tr(),
-                hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w500),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
               ),
             ),
             const SizedBox(height: 12),
@@ -113,7 +103,7 @@ class LoginScreen extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: Text(
                 'forgotPass'.tr(),
-                style: const TextStyle(color: Color(0xFFff5a5f), fontWeight: FontWeight.w600, fontSize: 13),
+                style: AppTypography.heading300.copyWith(color: AppColors.primary500),
               ),
             ),
             const SizedBox(height: 24),
@@ -122,8 +112,8 @@ class LoginScreen extends StatelessWidget {
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFff5a5f),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  backgroundColor: AppColors.primary500,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 onPressed: () {
@@ -135,14 +125,14 @@ class LoginScreen extends StatelessWidget {
                     (route) => false,
                   );
                 },
-                child: Text('btnSignIn'.tr(), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                child: Text('btnSignIn'.tr(), style: AppTypography.heading400.copyWith(color: AppColors.white)),
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'termsAgree'.tr(),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500, height: 1.5),
+              style: AppTypography.body100.copyWith(color: AppColors.grey400, height: 1.5),
             )
           ],
         ),

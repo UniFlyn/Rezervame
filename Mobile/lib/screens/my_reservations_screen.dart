@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 import 'reservation_details_screen.dart';
 
 class MyReservationsScreen extends StatelessWidget {
@@ -66,7 +68,7 @@ class MyReservationsScreen extends StatelessWidget {
         'time': '09:00 AM',
         'status': 'resUpcoming',
         'price': '\$120.00',
-        'img': '1564832486372-f628308223a7',
+        'img': '1487412947147-5cebf100ffc2',
       },
       {
         'id': 7,
@@ -161,17 +163,17 @@ class MyReservationsScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          icon: const Icon(Icons.arrow_back, color: AppColors.grey900),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'reservations'.tr(), 
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 20),
+          style: AppTypography.heading500.copyWith(color: AppColors.grey900),
         ),
         centerTitle: false,
       ),
@@ -189,12 +191,12 @@ class MyReservationsScreen extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 20),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.grey.shade100),
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.grey50),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
+                    color: AppColors.black.withOpacity(0.03),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   )
@@ -223,37 +225,35 @@ class MyReservationsScreen extends StatelessWidget {
                           children: [
                             Text(
                               res['status'].toString().tr(),
-                              style: TextStyle(
-                                color: (res['status'] == 'resConfirmed') ? Colors.green : (res['status'] == 'resCancelled' ? Colors.red : Colors.blue),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
+                              style: AppTypography.heading100.copyWith(
+                                color: (res['status'] == 'resConfirmed') ? AppColors.success : (res['status'] == 'resCancelled' ? AppColors.error : AppColors.primary500),
                                 letterSpacing: 0.5,
                               ),
                             ),
                             Text(
                               res['price'] as String,
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                              style: AppTypography.heading300,
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
                           res['venueName'] as String,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF1e293b)),
+                          style: AppTypography.heading400.copyWith(color: AppColors.grey900),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           res['service'] as String,
-                          style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 13),
+                          style: AppTypography.body100.copyWith(color: AppColors.grey400),
                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(Icons.calendar_today_rounded, size: 12, color: Colors.grey.shade400),
+                            const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.grey300),
                             const SizedBox(width: 6),
                             Text(
                               '${res['date']} • ${res['time']}',
-                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w700),
+                              style: AppTypography.body100.copyWith(color: AppColors.grey500, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),

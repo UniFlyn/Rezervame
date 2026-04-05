@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../utils/app_colors.dart';
+import '../utils/app_typography.dart';
 
 class StaticSection {
   final String title;
@@ -20,13 +22,13 @@ class StaticInfoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
-        title: Text(title, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 18)),
+        title: Text(title, style: AppTypography.heading300.copyWith(color: AppColors.grey900)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20), 
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.grey900, size: 20), 
           onPressed: () => Navigator.pop(context)
         ),
       ),
@@ -37,7 +39,7 @@ class StaticInfoScreen extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1.2, color: Color(0xFF0F172A)),
+              style: AppTypography.heading800.copyWith(color: AppColors.grey900),
             ),
             const SizedBox(height: 32),
             ...sections.map((section) => Padding(
@@ -47,17 +49,12 @@ class StaticInfoScreen extends StatelessWidget {
                 children: [
                   Text(
                     section.title.toUpperCase(),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFFff5a5f), letterSpacing: 1.2),
+                    style: AppTypography.heading100.copyWith(color: AppColors.primary500, letterSpacing: 1.2),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     section.content,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey.shade700,
-                      height: 1.6,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: AppTypography.body200.copyWith(color: AppColors.grey700),
                   ),
                 ],
               ),
@@ -66,23 +63,23 @@ class StaticInfoScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: const Color(0xFFF1F5F9)),
+                color: AppColors.grey25,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.grey50),
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.support_agent_rounded, color: Color(0xFFff5a5f), size: 32),
+                   Icon(Icons.support_agent_rounded, color: AppColors.primary500, size: 32),
                   const SizedBox(height: 16),
                   Text(
                     'staticNeedHelpTitle'.tr(),
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    style: AppTypography.heading400.copyWith(color: AppColors.grey900),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'staticNeedHelpDesc'.tr(),
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600, fontSize: 13),
+                    style: AppTypography.body100.copyWith(color: AppColors.grey500),
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -91,11 +88,11 @@ class StaticInfoScreen extends StatelessWidget {
                     child: ElevatedButton(
                       onPressed: () {},
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        backgroundColor: AppColors.grey900,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      child: Text('staticContactSupportBtn'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                      child: Text('staticContactSupportBtn'.tr(), style: AppTypography.heading200.copyWith(color: AppColors.white)),
                     ),
                   )
                 ],
