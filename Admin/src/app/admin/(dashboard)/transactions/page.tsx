@@ -1,18 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { 
   Download, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Search, 
-  Filter,
   CheckCircle2,
+  Clock,
   XCircle,
-  Clock
+  X
 } from "lucide-react";
 import financeData from "@/mock-data/admin-finance.json";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import FilterToolbar from "@/components/admin/FilterToolbar";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -29,7 +27,56 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 export default function TransactionsPage() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedTransaction, setSelectedTransaction] = useState<(typeof financeData.transactions)[number] | null>(null);
   const { transactions } = financeData;
+
+  const filteredTransactions = useMemo(
+    () =>
+      transactions.filter((transaction) => {
+        const normalized = searchTerm.toLowerCase();
+        const matchesSearch =
+          transaction.id.toLowerCase().includes(normalized) ||
+          transaction.business.toLowerCase().includes(normalized);
+        const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      }),
+    [searchTerm, statusFilter, transactions],
+  );
+
+  const statusKpis = useMemo(() => {
+    const total = transactions.length;
+    const completed = transactions.filter((tx) => tx.status === "completed").length;
+    const pending = transactions.filter((tx) => tx.status === "pending").length;
+    const failed = transactions.filter((tx) => tx.status === "failed").length;
+    return [
+      {
+        label: "Completed",
+        value: completed,
+        icon: CheckCircle2,
+        tone: "text-emerald-600 bg-emerald-50 border-emerald-200",
+      },
+      {
+        label: "Pending",
+        value: pending,
+        icon: Clock,
+        tone: "text-amber-600 bg-amber-50 border-amber-200",
+      },
+      {
+        label: "Failed",
+        value: failed,
+        icon: XCircle,
+        tone: "text-rose-600 bg-rose-50 border-rose-200",
+      },
+      {
+        label: "Total",
+        value: total,
+        icon: TrendingUp,
+        tone: "text-blue-600 bg-blue-50 border-blue-200",
+      },
+    ];
+  }, [transactions]);
 
   return (
     <div className="space-y-8 animate-in slide-in-from-top-4 duration-500">
@@ -44,31 +91,39 @@ export default function TransactionsPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Total Volume</p>
-          <div className="flex items-center justify-between mt-2">
-            <h3 className="text-2xl font-bold text-slate-900">$125,400.00</h3>
-            <span className="text-emerald-500 font-bold text-xs flex items-center gap-1">+15% <TrendingUp className="w-3 h-3" /></span>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        {statusKpis.map((item) => (
+          <div key={item.label} className={cn("rounded-2xl border p-4", item.tone)}>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide">{item.label}</p>
+              <item.icon className="h-4 w-4" />
+            </div>
+            <p className="mt-2 text-2xl font-semibold">{item.value}</p>
           </div>
-        </div>
-        {/* Placeholder for other stats if needed */}
+        ))}
       </div>
 
+      <FilterToolbar
+        searchPlaceholder="Search by transaction id or business..."
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        filterGroups={[
+          {
+            key: "transaction-status",
+            label: "Status",
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { label: "All", value: "all" },
+              { label: "Completed", value: "completed" },
+              { label: "Pending", value: "pending" },
+              { label: "Failed", value: "failed" },
+            ],
+          },
+        ]}
+      />
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-           <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search by ID or business..." 
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
-            />
-          </div>
-          <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
-            <Filter className="w-5 h-5" />
-          </button>
-        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -83,7 +138,7 @@ export default function TransactionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {transactions.map((tx) => (
+              {filteredTransactions.map((tx) => (
                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <p className="font-mono text-xs font-bold text-slate-600">{tx.id}</p>
@@ -103,14 +158,57 @@ export default function TransactionsPage() {
                     <StatusBadge status={tx.status} />
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="text-xs font-bold text-blue-600 hover:underline">Details</button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTransaction(tx)}
+                      className="text-xs font-bold text-blue-600 hover:underline"
+                    >
+                      Details
+                    </button>
                   </td>
                 </tr>
               ))}
+              {filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500">
+                    No transactions found for current filters.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
       </div>
+
+      {selectedTransaction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Transaction Details</h2>
+                <p className="text-xs text-slate-500">Transaction: {selectedTransaction.id}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTransaction(null)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3 p-6">
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-sm text-slate-700">Business: {selectedTransaction.business}</p>
+                <p className="text-sm text-slate-700">Date: {formatDate(selectedTransaction.date)}</p>
+                <p className="text-sm text-slate-700">Amount: {formatCurrency(selectedTransaction.amount)}</p>
+                <p className="mt-2">
+                  <StatusBadge status={selectedTransaction.status} />
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

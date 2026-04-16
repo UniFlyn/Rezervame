@@ -5,7 +5,7 @@
     { "id": "TX-9003", "business": "Elite Cuts", "amount": 200.00, "status": "failed", "date": "2024-05-18" }
   ],
   "withdrawals": [
-    { "id": "WD-5001", "business": "Barber Pro", "amount": 1500.00, "status": "pending", "balance": 4500.00, "date": "2024-05-20" },
-    { "id": "WD-5002", "business": "Elite Cuts", "amount": 800.00, "status": "approved", "balance": 1200.00, "date": "2024-05-18" }
+    { "id": "WD-5001", "businessId": "BUS-001", "business": "Barber Pro", "amount": 1500.00, "status": "pending", "balance": 4500.00, "date": "2024-05-20", "processedDate": null },
+    { "id": "WD-5002", "businessId": "BUS-003", "business": "Elite Cuts", "amount": 800.00, "status": "approved", "balance": 1200.00, "date": "2024-05-18", "processedDate": "2024-05-19" }
   ]
 }

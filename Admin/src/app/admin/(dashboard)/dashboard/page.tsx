@@ -1,16 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { 
   Users, 
   Store, 
   CalendarCheck, 
   DollarSign, 
-  Clock,
+  UserPlus,
+  Repeat,
   ArrowUpRight,
   ArrowDownRight,
-  TrendingUp,
-  Activity
+  TrendingUp
 } from "lucide-react";
 import { 
   BarChart, 
@@ -26,7 +26,17 @@ import {
 import dashboardData from "@/mock-data/admin-dashboard.json";
 import { formatCurrency } from "@/lib/utils";
 
-const StatCard = ({ title, value, change, icon: Icon, color }: any) => {
+type TimeRange = "day" | "week" | "month";
+
+type KpiCardProps = {
+  title: string;
+  value: string;
+  change: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+};
+
+const StatCard = ({ title, value, change, icon: Icon, color }: KpiCardProps) => {
   const isPositive = change.startsWith("+");
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
@@ -54,52 +64,134 @@ function cn(...classes: string[]) {
 
 export default function Dashboard() {
   const { stats, charts, recentActivities } = dashboardData;
+  const [timeRange, setTimeRange] = useState<TimeRange>("week");
+  const scale = timeRange === "day" ? 0.2 : timeRange === "week" ? 1 : 4;
+
+  const businessKpis = useMemo(
+    () => [
+      {
+        title: "Total Businesses",
+        value: Math.round(stats.businesses * scale).toLocaleString(),
+        change: "+5.2%",
+        icon: Store,
+        color: "bg-purple-500",
+      },
+      {
+        title: "Business Bookings",
+        value: Math.round(stats.bookings * scale).toLocaleString(),
+        change: "+10.9%",
+        icon: CalendarCheck,
+        color: "bg-orange-500",
+      },
+      {
+        title: "Business Revenue",
+        value: formatCurrency(stats.revenue * scale),
+        change: "+8.7%",
+        icon: DollarSign,
+        color: "bg-emerald-500",
+      },
+      {
+        title: "YTD Revenue",
+        value: formatCurrency(stats.revenue * 1.32),
+        change: "+19.1%",
+        icon: TrendingUp,
+        color: "bg-sky-500",
+      },
+      {
+        title: "YTD vs Last YTD",
+        value: "+14.8%",
+        change: "+2.4%",
+        icon: Repeat,
+        color: "bg-indigo-500",
+      },
+    ],
+    [scale, stats.bookings, stats.businesses, stats.revenue],
+  );
+
+  const customerKpis = useMemo(
+    () => [
+      {
+        title: "Total Customers",
+        value: Math.round(stats.users * scale).toLocaleString(),
+        change: "+12.5%",
+        icon: Users,
+        color: "bg-blue-500",
+      },
+      {
+        title: "New Signups",
+        value: Math.round(stats.users * 0.07 * scale).toLocaleString(),
+        change: "+6.0%",
+        icon: UserPlus,
+        color: "bg-cyan-500",
+      },
+      {
+        title: "Customer Bookings",
+        value: Math.round(stats.bookings * 0.78 * scale).toLocaleString(),
+        change: "+11.2%",
+        icon: CalendarCheck,
+        color: "bg-violet-500",
+      },
+      {
+        title: "YTD Customer Spend",
+        value: formatCurrency(stats.revenue * 0.78 * 1.24),
+        change: "+16.0%",
+        icon: DollarSign,
+        color: "bg-teal-500",
+      },
+      {
+        title: "YTD vs Last YTD",
+        value: "+12.3%",
+        change: "+1.8%",
+        icon: Repeat,
+        color: "bg-fuchsia-500",
+      },
+    ],
+    [scale, stats.bookings, stats.revenue, stats.users],
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
-      <div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Overview</h1>
-        <p className="text-slate-500 text-sm mt-1">Monitor platform performance and key metrics.</p>
+        <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1">
+          {(["day", "week", "month"] as TimeRange[]).map((range) => (
+            <button
+              key={range}
+              type="button"
+              onClick={() => setTimeRange(range)}
+              className={cn(
+                "rounded-lg px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition",
+                timeRange === range
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-600 hover:bg-slate-100",
+              )}
+            >
+              {range}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <StatCard 
-          title="Total Users" 
-          value={stats.users.toLocaleString()} 
-          change="+12.5%" 
-          icon={Users} 
-          color="bg-blue-500" 
-        />
-        <StatCard 
-          title="Businesses" 
-          value={stats.businesses.toLocaleString()} 
-          change="+5.2%" 
-          icon={Store} 
-          color="bg-purple-500" 
-        />
-        <StatCard 
-          title="Total Bookings" 
-          value={stats.bookings.toLocaleString()} 
-          change="+24.8%" 
-          icon={CalendarCheck} 
-          color="bg-orange-500" 
-        />
-        <StatCard 
-          title="Revenue" 
-          value={formatCurrency(stats.revenue)} 
-          change="+18.3%" 
-          icon={DollarSign} 
-          color="bg-emerald-500" 
-        />
-        <StatCard 
-          title="Pending Approvals" 
-          value={stats.pendingApprovals.toString()} 
-          change="-2.1%" 
-          icon={Clock} 
-          color="bg-amber-500" 
-        />
+      <div>
+        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Business KPIs
+        </p>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
+          {businessKpis.map((kpi) => (
+            <StatCard key={kpi.title} {...kpi} />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Customer KPIs
+        </p>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
+          {customerKpis.map((kpi) => (
+            <StatCard key={kpi.title} {...kpi} />
+          ))}
+        </div>
       </div>
 
       {/* Charts Section */}
@@ -161,10 +253,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent Activities */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-purple-600" />
+          <TrendingUp className="w-5 h-5 text-purple-600" />
           Recent Platform Activity
         </h3>
         <div className="space-y-4">

@@ -2,17 +2,13 @@
 
 import React, { useState } from "react";
 import { 
-  Search, 
-  Calendar, 
-  Filter, 
-  CheckCircle, 
-  XCircle, 
   Clock,
-  ChevronRight,
-  Eye
+  Eye,
+  X
 } from "lucide-react";
 import bookingsData from "@/mock-data/admin-bookings.json";
 import { formatDate, formatCurrency, cn } from "@/lib/utils";
+import FilterToolbar from "@/components/admin/FilterToolbar";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -28,47 +24,47 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 export default function BookingsPage() {
+  const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedBooking, setSelectedBooking] = useState<(typeof bookingsData)[number] | null>(null);
 
-  const filteredBookings = bookingsData.filter(booking => 
-    filterStatus === "all" || booking.status === filterStatus
-  );
+  const filteredBookings = bookingsData.filter((booking) => {
+    const normalized = searchTerm.toLowerCase();
+    const matchesSearch =
+      booking.id.toLowerCase().includes(normalized) ||
+      booking.user.toLowerCase().includes(normalized) ||
+      booking.email.toLowerCase().includes(normalized) ||
+      booking.business.toLowerCase().includes(normalized);
+    const matchesStatus = filterStatus === "all" || booking.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <div className="space-y-8 animate-in zoom-in-95 duration-500">
+    <div className="space-y-6 animate-in zoom-in-95 duration-500">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Booking Management</h1>
         <p className="text-slate-500 text-sm mt-1">Monitor and manage all service appointments across the platform.</p>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="flex items-center gap-2 bg-white p-1 rounded-2xl border border-slate-200 shadow-sm w-full md:w-auto">
-          {["all", "confirmed", "pending", "cancelled"].map((status) => (
-            <button 
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
-                filterStatus === status 
-                  ? "bg-blue-600 text-white shadow-md" 
-                  : "text-slate-500 hover:bg-slate-50"
-              )}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
-        
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition shadow-sm w-full md:w-auto">
-            <Calendar className="w-4 h-4" />
-            Pick Date Range
-          </button>
-          <button className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition shadow-sm">
-            <Filter className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
+      <FilterToolbar
+        searchPlaceholder="Search by booking id, customer, email, or business..."
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        filterGroups={[
+          {
+            key: "booking-status",
+            label: "Status",
+            value: filterStatus,
+            onChange: setFilterStatus,
+            options: [
+              { label: "All", value: "all" },
+              { label: "Confirmed", value: "confirmed" },
+              { label: "Pending", value: "pending" },
+              { label: "Cancelled", value: "cancelled" },
+            ],
+          },
+        ]}
+      />
 
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -77,6 +73,7 @@ export default function BookingsPage() {
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-6 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Booking ID</th>
                 <th className="px-6 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Customer</th>
+                <th className="px-6 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Customer Email</th>
                 <th className="px-6 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Business</th>
                 <th className="px-6 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Date</th>
                 <th className="px-6 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Amount</th>
@@ -94,6 +91,9 @@ export default function BookingsPage() {
                     <p className="text-sm font-bold text-slate-800">{booking.user}</p>
                   </td>
                   <td className="px-6 py-4">
+                    <p className="text-sm text-slate-600">{booking.email}</p>
+                  </td>
+                  <td className="px-6 py-4">
                     <p className="text-sm font-medium text-slate-600">{booking.business}</p>
                   </td>
                   <td className="px-6 py-4">
@@ -109,16 +109,63 @@ export default function BookingsPage() {
                     <StatusBadge status={booking.status} />
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition shadow-sm border border-transparent hover:border-blue-100">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBooking(booking)}
+                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition shadow-sm border border-transparent hover:border-blue-100"
+                    >
                       <Eye className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>
               ))}
+              {filteredBookings.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-sm text-slate-500">
+                    No bookings match the current filters.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
       </div>
+
+      {selectedBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Booking Details</h2>
+                <p className="text-xs text-slate-500">Reference: {selectedBooking.id}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBooking(null)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3 p-6">
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Customer</p>
+                <p className="text-sm font-semibold text-slate-900">{selectedBooking.user}</p>
+                <p className="text-sm text-slate-600">{selectedBooking.email}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Appointment</p>
+                <p className="text-sm text-slate-700">Business: {selectedBooking.business}</p>
+                <p className="text-sm text-slate-700">Date: {formatDate(selectedBooking.date)}</p>
+                <p className="text-sm text-slate-700">Amount: {formatCurrency(selectedBooking.amount)}</p>
+                <p className="mt-2">
+                  <StatusBadge status={selectedBooking.status} />
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
