@@ -12,6 +12,11 @@ export interface Business {
   location: string;
   contactEmail: string;
   contactPhone: string;
+  /** Full profile URLs (https://…) */
+  socialYoutube?: string;
+  socialInstagram?: string;
+  socialX?: string;
+  socialTiktok?: string;
   balance: number;
 }
 

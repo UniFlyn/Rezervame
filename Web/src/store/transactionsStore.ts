@@ -5,6 +5,9 @@ import transactionsData from '../mock-data/transactions.json';
 export interface Transaction {
   id: string;
   bookingId?: string;
+  /** Shown for earnings; ties payout to a booking / service. */
+  customerEmail?: string;
+  staffMember?: string;
   amount: number;
   status: string;
   date: string;

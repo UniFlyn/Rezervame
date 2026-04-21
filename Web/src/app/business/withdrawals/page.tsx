@@ -3,16 +3,28 @@
 import { useState } from 'react';
 import { useBusinessStore } from '../../../store/businessStore';
 import { useTransactionsStore } from '../../../store/transactionsStore';
-import { Wallet, ArrowRight } from 'lucide-react';
+import { useBankChangeRequestsStore } from '../../../store/bankChangeRequestsStore';
+import { Wallet, ArrowRight, Building2 } from 'lucide-react';
 
 export default function WithdrawalsPage() {
   const business = useBusinessStore((state) => state.business);
   const deductBalance = useBusinessStore((state) => state.deductBalance);
   const addTransaction = useTransactionsStore((state) => state.addTransaction);
-  
+  const bankRequests = useBankChangeRequestsStore((s) => s.requests);
+  const submitBankChange = useBankChangeRequestsStore((s) => s.submitRequest);
+
   const [amount, setAmount] = useState<string>('');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  const [bankForm, setBankForm] = useState({
+    bankName: '',
+    accountHolder: '',
+    accountLast4: '',
+    routingOrIban: '',
+    notes: '',
+  });
+  const [bankSubmitOk, setBankSubmitOk] = useState(false);
 
   const transactions = useTransactionsStore((state) => state.transactions);
   const withdrawals = transactions.filter(t => t.type === 'Withdrawal');
@@ -40,6 +52,23 @@ export default function WithdrawalsPage() {
     setSuccess(true);
     setAmount('');
     setTimeout(() => setSuccess(false), 3000);
+  };
+
+  const handleBankChangeRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bankForm.bankName.trim() || !bankForm.accountHolder.trim() || !bankForm.accountLast4.trim()) {
+      return;
+    }
+    submitBankChange({
+      bankName: bankForm.bankName.trim(),
+      accountHolder: bankForm.accountHolder.trim(),
+      accountLast4: bankForm.accountLast4.trim(),
+      routingOrIban: bankForm.routingOrIban.trim(),
+      notes: bankForm.notes.trim() || undefined,
+    });
+    setBankSubmitOk(true);
+    setBankForm({ bankName: '', accountHolder: '', accountLast4: '', routingOrIban: '', notes: '' });
+    setTimeout(() => setBankSubmitOk(false), 4000);
   };
 
   return (
@@ -106,7 +135,132 @@ export default function WithdrawalsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-[40px] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden mt-12">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <form
+          onSubmit={handleBankChangeRequest}
+          className="rounded-[32px] border border-slate-100 bg-white p-10 shadow-xl shadow-slate-200/50"
+        >
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Building2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Cambio de cuenta bancaria</h3>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                Solicitud revisada por el equipo Rezervame
+              </p>
+            </div>
+          </div>
+          {bankSubmitOk && (
+            <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-xs font-bold text-emerald-700">
+              Solicitud enviada. Te notificaremos cuando sea evaluada.
+            </div>
+          )}
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Banco
+              </label>
+              <input
+                required
+                value={bankForm.bankName}
+                onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
+                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                placeholder="Nombre del banco"
+              />
+            </div>
+            <div>
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Titular de la cuenta
+              </label>
+              <input
+                required
+                value={bankForm.accountHolder}
+                onChange={(e) => setBankForm({ ...bankForm, accountHolder: e.target.value })}
+                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Últimos 4 dígitos
+                </label>
+                <input
+                  required
+                  maxLength={4}
+                  value={bankForm.accountLast4}
+                  onChange={(e) => setBankForm({ ...bankForm, accountLast4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                  className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Routing / IBAN (opcional)
+                </label>
+                <input
+                  value={bankForm.routingOrIban}
+                  onChange={(e) => setBankForm({ ...bankForm, routingOrIban: e.target.value })}
+                  className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Notas
+              </label>
+              <textarea
+                value={bankForm.notes}
+                onChange={(e) => setBankForm({ ...bankForm, notes: e.target.value })}
+                rows={3}
+                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                placeholder="Motivo del cambio…"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-slate-900 py-4 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-primary"
+            >
+              Enviar solicitud
+            </button>
+          </div>
+        </form>
+
+        <div className="rounded-[32px] border border-slate-100 bg-white p-10 shadow-xl shadow-slate-200/50">
+          <h3 className="mb-2 text-lg font-black uppercase tracking-tight text-slate-900">Solicitudes recientes</h3>
+          <p className="mb-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Estado frente al equipo Rezervame
+          </p>
+          <ul className="max-h-80 space-y-4 overflow-y-auto">
+            {bankRequests.length === 0 ? (
+              <li className="text-sm font-bold text-slate-400">Aún no hay solicitudes.</li>
+            ) : (
+              bankRequests.map((r) => (
+                <li key={r.id} className="rounded-2xl border border-slate-50 bg-slate-50/80 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black text-slate-900">{r.bankName}</span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest ${
+                        r.status === 'Pending'
+                          ? 'bg-amber-50 text-amber-700'
+                          : r.status === 'Approved'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-rose-50 text-rose-700'
+                      }`}
+                    >
+                      {r.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    {new Date(r.submittedAt).toLocaleString()} · ****{r.accountLast4}
+                  </p>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <div className="mt-12 overflow-hidden rounded-[40px] border border-slate-100 bg-white shadow-2xl shadow-slate-200/50">
         <div className="px-10 py-8 border-b border-slate-50 flex justify-between items-center bg-white">
           <div>
             <h3 className="font-black text-slate-800 uppercase tracking-tight text-xl">Withdrawal History</h3>

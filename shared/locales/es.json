@@ -21,6 +21,7 @@
   "subscriptionPlanSub": "Gestiona tu facturación y detalles del plan",
   "activeUntil": "Activo hasta el 30 de Abril, 2026",
   "changePlan": "Cambiar Plan",
+  "notifications": "Notificaciones",
   "notificationsSub": "Controla las alertas del sistema",
   "apptAlerts": "Alertas de Citas",
   "apptAlertsDesc": "Notificación instantánea por cada reserva.",

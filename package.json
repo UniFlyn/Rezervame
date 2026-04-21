@@ -1,0 +1,10 @@
+{
+  "name": "rezervame-monorepo",
+  "private": true,
+  "scripts": {
+    "build:web": "npm run build --prefix Web",
+    "deploy:web": "npm run build:web && firebase deploy --only hosting:web --project rezerveme-1fce5",
+    "build:admin": "npm run build --prefix Admin",
+    "deploy:admin": "npm run build:admin && firebase deploy --only hosting:admin --project rezerveme-1fce5"
+  }
+}

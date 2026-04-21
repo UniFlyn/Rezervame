@@ -2,6 +2,8 @@
   {
     "id": "tx-1",
     "bookingId": "bk-6",
+    "customerEmail": "alice.walker@email.com",
+    "staffMember": "Mateo Ríos",
     "amount": 35,
     "status": "Completed",
     "date": "2026-03-31T09:00:00Z",
@@ -10,6 +12,8 @@
   {
     "id": "tx-2",
     "bookingId": "bk-7",
+    "customerEmail": "roberto.gomez@email.com",
+    "staffMember": "Mateo Ríos",
     "amount": 60,
     "status": "Completed",
     "date": "2026-03-31T10:30:00Z",
@@ -18,6 +22,8 @@
   {
     "id": "tx-3",
     "bookingId": "bk-hist-1",
+    "customerEmail": "elena.torres@email.com",
+    "staffMember": "Sofia Lara",
     "amount": 120,
     "status": "Completed",
     "date": "2026-03-30T14:00:00Z",
@@ -26,6 +32,8 @@
   {
     "id": "tx-4",
     "bookingId": "bk-hist-2",
+    "customerEmail": "carlos.ruiz@email.com",
+    "staffMember": "Daniel Vera",
     "amount": 45,
     "status": "Completed",
     "date": "2026-03-30T16:30:00Z",

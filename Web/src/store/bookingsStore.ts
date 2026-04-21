@@ -11,6 +11,12 @@ export interface Booking {
   date: string;
   status: 'Pending' | 'Approved' | 'Rejected' | 'Completed';
   price: number;
+  /** Walk-in (no prior reservation) */
+  walkIn?: boolean;
+  /** Part of a recurring series */
+  recurring?: boolean;
+  /** Locked from edits in UI */
+  locked?: boolean;
 }
 
 interface BookingsState {
