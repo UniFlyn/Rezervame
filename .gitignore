@@ -4,6 +4,9 @@ jspm_packages/
 .pnp
 .pnp.js
 
+# Firebase local cache / deploy artifacts
+.firebase/
+
 # Build outputs
 dist/
 build/

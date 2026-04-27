@@ -5,30 +5,30 @@ import Link from "next/link";
 
 export default function BookingConfirmationPage() {
   return (
-    <main className="flex-1 flex items-center justify-center py-24 px-8 bg-slate-50 min-h-[80vh] animate-in fade-in duration-1000">
-      <div className="max-w-[650px] w-full bg-white rounded-[56px] shadow-2xl p-12 sm:p-20 text-center relative overflow-hidden border border-slate-100">
+    <main className="flex-1 flex items-center justify-center py-10 sm:py-14 px-4 sm:px-8 bg-slate-50 min-h-[70vh] animate-in fade-in duration-1000">
+      <div className="max-w-[540px] w-full max-h-[85vh] overflow-y-auto bg-white rounded-[36px] sm:rounded-[44px] shadow-2xl p-8 sm:p-12 text-center relative overflow-hidden border border-slate-100 custom-scrollbar">
         
         {/* Background Decorative Elements */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#ff5a5f]/5 rounded-full blur-3xl"></div>
         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-green-500/5 rounded-full blur-3xl"></div>
 
-        <div className="mb-10 flex justify-center relative">
-          <div className="w-28 h-28 bg-green-50 rounded-full flex items-center justify-center animate-in zoom-in duration-700 delay-300 shadow-inner">
-            <CheckCircle size={56} className="text-green-500" strokeWidth={1.5} />
+        <div className="mb-8 flex justify-center relative">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-50 rounded-full flex items-center justify-center animate-in zoom-in duration-700 delay-300 shadow-inner p-5">
+            <CheckCircle size={48} className="text-green-500" strokeWidth={1.5} />
           </div>
           <div className="absolute -top-2 -right-2 bg-[#ff5a5f] p-3 rounded-2xl text-white shadow-xl animate-bounce">
              <Zap size={20} fill="white" />
           </div>
         </div>
         
-        <h1 className="text-4xl sm:text-5xl font-black text-slate-900 mb-6 uppercase tracking-tighter leading-none">
+        <h1 className="text-3xl sm:text-4xl font-black text-slate-900 mb-4 uppercase tracking-tight leading-tight">
           ¡Reserva <span className="text-[#ff5a5f]">Exitosa</span>!
         </h1>
-        <p className="text-slate-500 text-lg font-bold mb-14 max-w-md mx-auto leading-relaxed">
+        <p className="text-slate-500 text-base font-bold mb-10 max-w-md mx-auto leading-snug px-2">
           Tu cita ha sido programada. Prepárate para una experiencia de primer nivel.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
            <div className="bg-slate-50 rounded-[32px] p-6 border border-slate-100 hover:border-[#ff5a5f]/30 transition-colors group">
               <div className="flex items-center gap-4 text-slate-700">
                  <div className="p-3 bg-white rounded-2xl shadow-sm text-[#ff5a5f]">

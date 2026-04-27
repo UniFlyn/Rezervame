@@ -5,6 +5,8 @@ import { useAuth } from "./AuthProvider";
 import { useRouter, usePathname } from "next/navigation";
 import { CheckCircle, Heart, Bell, Search, MapPin, User as UserIcon } from "lucide-react";
 
+const HOME_SEARCH_SCROLL_PX = 260;
+
 export const Header = () => {
   const { t, language } = useI18n();
   const { isLoggedIn, user, setIsLoginModalOpen } = useAuth() as any;
@@ -12,11 +14,18 @@ export const Header = () => {
   const pathname = usePathname();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [mounted, setMounted] = React.useState(false);
+  const [showHeaderSearch, setShowHeaderSearch] = useState(() => pathname !== "/");
 
   React.useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (pathname !== "/") {
+      setShowHeaderSearch(true);
+      return;
+    }
+    const onScroll = () => setShowHeaderSearch(typeof window !== "undefined" && window.scrollY > HOME_SEARCH_SCROLL_PX);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [pathname]);
 
   if (pathname.startsWith('/business')) return null;
 
@@ -47,17 +56,25 @@ export const Header = () => {
       </div>
       
       <div className="flex items-center space-x-8">
-        <div className="hidden lg:flex bg-slate-50 border border-slate-200 rounded-2xl py-2 px-5 items-center w-[450px] shadow-inner focus-within:border-[#ff5a5f] transition-all">
+        {(pathname !== "/" || showHeaderSearch) && (
+        <div className="hidden lg:flex bg-slate-50 border border-slate-200 rounded-2xl py-2 px-5 items-center w-[450px] shadow-inner focus-within:border-[#ff5a5f] transition-all animate-in fade-in slide-in-from-top-2 duration-300">
            <div className="flex-1 flex items-center border-r border-slate-200 pr-4 mr-4">
-              <Search className="w-4 h-4 text-slate-400 mr-3" />
+              <Search className="w-4 h-4 text-slate-400 mr-3 shrink-0" />
               <input type="text" placeholder={t('searchPlaceholder')} className="bg-transparent text-xs outline-none w-full font-bold text-slate-700 placeholder:text-slate-300" />
            </div>
-           <div className="flex-1 flex items-center">
-              <MapPin className="w-4 h-4 text-slate-400 mr-3" />
+           <div className="flex-1 flex items-center min-w-0">
+              <MapPin className="w-4 h-4 text-slate-400 mr-3 shrink-0" />
               <input type="text" placeholder={t('locationPlaceholder')} className="bg-transparent text-xs outline-none w-full font-bold text-slate-700 placeholder:text-slate-300" />
            </div>
-           <button className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-2 rounded-xl ml-2 hover:bg-slate-800 transition shadow-lg">{t('searchBtn')}</button>
+           <button
+             type="button"
+             onClick={() => router.push("/search")}
+             className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl ml-2 hover:bg-slate-800 transition shadow-lg shrink-0"
+           >
+             {t('searchBtn')}
+           </button>
         </div>
+        )}
 
         <div className="flex items-center space-x-6">
           <div className="relative">

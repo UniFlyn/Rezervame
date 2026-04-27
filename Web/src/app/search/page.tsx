@@ -115,7 +115,7 @@ function SearchContent() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col font-outfit">
+    <div className="min-h-screen bg-white flex flex-col">
       {/* SECONDARY SEARCH BAR */}
       <div className="border-b border-slate-100 bg-white sticky top-[72px] z-20 px-6 py-4">
         <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row gap-4 items-center">
@@ -394,27 +394,33 @@ function SearchContent() {
                 ></iframe>
                 
                 <div className="absolute inset-0 pointer-events-none">
-                    {paginatedResults.map((res, i) => (
+                    {filteredAndSortedResults.map((res) => {
+                      const isActive = activeMarkerId === res.id;
+                      return (
                         <div 
                             key={res.id} 
                             onClick={() => {
                                 setActiveMarkerId(res.id === activeMarkerId ? null : res.id);
                             }}
-                            className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${activeMarkerId === res.id ? 'z-50' : 'z-10'}`}
+                            className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${
+                              isActive ? 'z-50' : activeMarkerId != null ? 'z-10 opacity-35 scale-[0.92]' : 'z-10 opacity-90'
+                            }`}
                             style={{ top: `${(res.lat / 100) * 80 + 10}%`, left: `${(res.lng / 100) * 80 + 10}%` }}
                         >
-                            <div className={`border-[3px] rounded-2xl px-4 py-2 font-black text-sm shadow-2xl transition-all cursor-pointer hover:scale-110 whitespace-nowrap flex items-center gap-2 group/pin ${activeMarkerId === res.id ? 'bg-slate-900 border-slate-900 text-white scale-110' : 'bg-white border-[#ff5a5f] text-slate-900'}`}>
-                                <span className={`w-2 h-2 rounded-full transition-colors ${activeMarkerId === res.id ? 'bg-white' : 'bg-[#ff5a5f]'}`}></span>
+                            <div className={`border-2 rounded-xl px-2.5 py-1 font-black text-[11px] shadow-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${isActive ? 'bg-slate-900 border-white text-white scale-110 ring-2 ring-white/90' : 'bg-white/95 border-slate-200 text-slate-700 scale-95 saturate-75'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-[#ff5a5f]' : 'bg-[#ff5a5f]'}`}></span>
                                 ${res.price}
                             </div>
-                            <div className={`w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] mx-auto -mt-0.5 filter drop-shadow-lg ${activeMarkerId === res.id ? 'border-t-slate-900' : 'border-t-[#ff5a5f]'}`}></div>
+                            <div className={`w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] mx-auto -mt-px filter drop-shadow-lg ${isActive ? 'border-t-slate-900 opacity-100' : 'border-t-slate-300 opacity-60'}`}></div>
                         </div>
-                    ))}
+                      );
+                    })}
                 </div>
 
-                {/* POPUP CARD */}
+                {/* Bottom sheet — full-width card */}
                 {activeVenue && (
-                    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[320px] bg-white rounded-[32px] p-4 shadow-2xl border border-slate-100 flex items-center gap-4 animate-in slide-in-from-bottom-6 duration-500 pointer-events-auto">
+                    <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 pointer-events-none z-[60]">
+                    <div className="pointer-events-auto mx-auto max-w-lg w-full bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 flex items-center gap-4 animate-in slide-in-from-bottom-4 duration-300">
                         <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0">
                             <img 
                                src={`https://images.unsplash.com/photo-${activeVenue.img}?q=80&w=300&fit=crop`} 
@@ -445,6 +451,7 @@ function SearchContent() {
                                 {t('viewDetails')}
                             </button>
                         </div>
+                    </div>
                     </div>
                 )}
               </div>

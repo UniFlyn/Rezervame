@@ -41,13 +41,20 @@ function ProfileContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("bookings");
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
-    { id: "1", name: "Sofia Lucas", age: 12, gender: "Female" },
-    { id: "2", name: "Mateo Lucas", age: 8, gender: "Male" }
+    { id: "1", name: "Sofia Lucas", age: 12, gender: "Femenino" },
+    { id: "2", name: "Mateo Lucas", age: 8, gender: "Masculino" }
   ]);
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
   const [isResModalOpen, setIsResModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [notifySms, setNotifySms] = useState(true);
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
+  const [linkedGoogle, setLinkedGoogle] = useState(true);
+  const [linkedFacebook, setLinkedFacebook] = useState(false);
+  const [linkedInstagram, setLinkedInstagram] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -83,7 +90,12 @@ function ProfileContent() {
   };
 
   const handleDownloadInvoice = (id: string) => {
-    alert(`Downloading invoice for reservation ${id}...`);
+    const msg =
+      language === "en"
+        ? `Invoice ${id} download started`
+        : `Descarga de factura ${id} iniciada`;
+    setToastMessage(msg);
+    window.setTimeout(() => setToastMessage(null), 3800);
   };
 
   const menuItems = [
@@ -203,27 +215,24 @@ function ProfileContent() {
               </div>
               
               <div className="mb-12">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">{language === "en" ? "NEXT RESERVATION" : "PRÓXIMA RESERVA"}</h3>
-                <div className="bg-[#ff5a5f] rounded-[48px] p-10 text-white shadow-2xl shadow-[#ff5a5f]/30 flex flex-col md:flex-row justify-between items-center group cursor-pointer hover:scale-[1.01] transition-all relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-10 opacity-10">
-                     <Calendar size={180} />
-                  </div>
-                  <div className="flex items-start space-x-10 relative z-10">
-                    <div className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-[32px] flex flex-col items-center justify-center font-black border border-white/30">
-                       <span className="text-sm opacity-80 uppercase">Oct</span>
-                       <span className="text-4xl leading-none">24</span>
+                <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest mb-4">{language === "en" ? "NEXT RESERVATION" : "PRÓXIMA RESERVA"}</h3>
+                <div className="bg-white border-2 border-[#ff5a5f] rounded-3xl p-6 md:p-8 text-slate-900 shadow-md flex flex-col md:flex-row justify-between items-center group cursor-pointer hover:shadow-lg transition-all relative overflow-hidden ring-1 ring-[#ff5a5f]/10">
+                  <div className="flex items-start gap-6 md:gap-8 relative z-10 w-full md:w-auto">
+                    <div className="w-20 h-20 bg-[#ff5a5f]/10 rounded-2xl flex flex-col items-center justify-center font-black border border-[#ff5a5f]/25 shrink-0">
+                       <span className="text-[11px] font-bold uppercase text-[#ff5a5f]">Oct</span>
+                       <span className="text-3xl leading-none text-slate-900">24</span>
                     </div>
-                    <div>
-                      <h4 className="font-black text-3xl">Corte de Cabello Premium</h4>
-                      <p className="text-lg font-bold opacity-90 mt-2">Luxe Hair Studio • 3:00 PM</p>
-                      <div className="flex items-center space-x-3 mt-6">
-                         <span className="bg-white/20 px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-wider border border-white/20">{language === "en" ? "Confirmed" : "Confirmada"}</span>
-                         <span className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider"><Phone size={14} /> Llamar local</span>
+                    <div className="text-left min-w-0 flex-1">
+                      <h4 className="font-black text-xl md:text-2xl leading-tight text-slate-900">Corte de Cabello Premium</h4>
+                      <p className="text-sm font-bold text-slate-600 mt-2">Luxe Hair Studio • 3:00 PM</p>
+                      <div className="flex flex-wrap items-center gap-3 mt-4">
+                         <span className="bg-[#ff5a5f]/10 text-[#ff5a5f] px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-[#ff5a5f]/25">{language === "en" ? "Confirmed" : "Confirmada"}</span>
+                         <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide"><Phone size={14} className="text-[#ff5a5f]" /> Llamar local</span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right mt-8 md:mt-0 relative z-10 w-full md:w-auto">
-                     <div className="text-5xl font-black mb-4">$45.00</div>
+                  <div className="text-right mt-6 md:mt-0 relative z-10 w-full md:w-auto shrink-0">
+                     <div className="text-3xl md:text-4xl font-black text-slate-900 mb-3">$45.00</div>
                      <button 
                       onClick={() => {
                         setSelectedRes({
@@ -244,7 +253,7 @@ function ProfileContent() {
                         });
                         setIsResModalOpen(true);
                       }}
-                      className="text-xs font-black uppercase tracking-widest bg-white text-[#ff5a5f] px-10 py-4 rounded-[24px] hover:bg-slate-50 transition-colors shadow-lg shadow-white/20"
+                      className="text-xs font-black uppercase tracking-widest bg-[#ff5a5f] text-white px-8 py-3 rounded-2xl hover:bg-[#e0484d] transition-colors shadow-md"
                      >
                        {language === "en" ? "See Details" : "Ver detalles"}
                      </button>
@@ -461,6 +470,85 @@ function ProfileContent() {
                   </div>
                 </div>
               </div>
+
+                <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm space-y-8">
+                  <div>
+                    <h3 className="font-black text-slate-900 text-lg mb-1">
+                      {language === "en" ? "Account connections" : "Conexión de cuentas"}
+                    </h3>
+                    <p className="text-slate-500 font-bold text-sm">
+                      {language === "en"
+                        ? "Link or unlink social accounts for faster sign-in."
+                        : "Vincula o desvincula redes para iniciar sesión más rápido."}
+                    </p>
+                  </div>
+                  <div className="space-y-4">
+                    {[
+                      { id: "google", label: "Google", connected: linkedGoogle, set: setLinkedGoogle },
+                      { id: "facebook", label: "Facebook", connected: linkedFacebook, set: setLinkedFacebook },
+                      { id: "instagram", label: "Instagram", connected: linkedInstagram, set: setLinkedInstagram },
+                    ].map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/50"
+                      >
+                        <span className="font-bold text-slate-800">{row.label}</span>
+                        <button
+                          type="button"
+                          onClick={() => row.set(!row.connected)}
+                          className={`text-[11px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl border-2 transition-colors ${
+                            row.connected
+                              ? "border-slate-200 text-slate-600 hover:border-red-200 hover:text-red-600"
+                              : "border-[#ff5a5f] bg-[#ff5a5f] text-white hover:bg-[#e0484d]"
+                          }`}
+                        >
+                          {row.connected
+                            ? language === "en"
+                              ? "Disconnect"
+                              : "Desconectar"
+                            : language === "en"
+                              ? "Connect"
+                              : "Conectar"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm space-y-8">
+                  <div>
+                    <h3 className="font-black text-slate-900 text-lg mb-1">
+                      {language === "en" ? "Notifications" : "Notificaciones"}
+                    </h3>
+                    <p className="text-slate-500 font-bold text-sm">
+                      {language === "en"
+                        ? "Choose how you want to receive alerts."
+                        : "Elige cómo quieres recibir las alertas."}
+                    </p>
+                  </div>
+                  <div className="space-y-5">
+                    {[
+                      { label: "SMS", on: notifySms, set: setNotifySms },
+                      { label: language === "en" ? "Email" : "Correo", on: notifyEmail, set: setNotifyEmail },
+                      { label: "WhatsApp", on: notifyWhatsapp, set: setNotifyWhatsapp },
+                    ].map((row) => (
+                      <div key={row.label} className="flex items-center justify-between gap-4 border-b border-slate-100 pb-5 last:border-0 last:pb-0">
+                        <span className="font-bold text-slate-800">{row.label}</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={row.on}
+                          onClick={() => row.set(!row.on)}
+                          className={`relative w-12 h-7 rounded-full transition-colors ${row.on ? "bg-slate-900" : "bg-slate-200"}`}
+                        >
+                          <span
+                            className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${row.on ? "translate-x-5" : "translate-x-0"}`}
+                          />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
             </div>
           )}
 
@@ -531,7 +619,11 @@ function ProfileContent() {
                   <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">
                     {language === "en" ? "My Invoices" : "Mis Facturas"}
                   </h1>
-                  <p className="text-slate-400 font-bold text-sm">Download and preview your transaction history</p>
+                  <p className="text-slate-500 font-bold text-sm tracking-normal">
+                    {language === "en"
+                      ? "Download and preview your transaction history"
+                      : "Descarga y revisa tu historial de transacciones"}
+                  </p>
                 </div>
               </div>
 
@@ -539,13 +631,13 @@ function ProfileContent() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50/50">
-                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice ID</th>
-                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Business</th>
-                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="px-8 py-5 text-[11px] font-black text-slate-700 uppercase tracking-wide">{language === "en" ? "Invoice ID" : "Factura"}</th>
+                        <th className="px-8 py-5 text-[11px] font-black text-slate-700 uppercase tracking-wide">{language === "en" ? "Date" : "Fecha"}</th>
+                        <th className="px-8 py-5 text-[11px] font-black text-slate-700 uppercase tracking-wide">{language === "en" ? "Business" : "Negocio"}</th>
+                        <th className="px-8 py-5 text-[11px] font-black text-slate-700 uppercase tracking-wide">{language === "en" ? "Amount" : "Importe"}</th>
+                        <th className="px-8 py-5 text-[11px] font-black text-slate-700 uppercase tracking-wide">{language === "en" ? "Status" : "Estado"}</th>
+                        <th className="px-8 py-5 text-[11px] font-black text-slate-700 uppercase tracking-wide text-center">{language === "en" ? "Actions" : "Acciones"}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -567,7 +659,9 @@ function ProfileContent() {
                                 ? 'bg-green-50 text-green-500 border-green-100' 
                                 : 'bg-amber-50 text-amber-500 border-amber-100'
                             }`}>
-                                {inv.status === 'completed' ? 'Paid' : 'Pending'}
+                                {inv.status === 'completed'
+                                  ? (language === 'en' ? 'Paid' : 'Pagada')
+                                  : (language === 'en' ? 'Pending' : 'Pendiente')}
                             </span>
                             </td>
                             <td className="px-8 py-6">
@@ -601,78 +695,72 @@ function ProfileContent() {
       {isFamilyModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsFamilyModalOpen(false)}></div>
-          <div className="bg-white w-full max-w-[480px] rounded-[48px] shadow-2xl relative z-10 p-12 animate-in zoom-in-95 duration-500 overflow-hidden border border-white/20">
-            <div className="absolute top-0 left-0 w-full h-2 bg-[#ff5a5f]"></div>
-            <button onClick={() => setIsFamilyModalOpen(false)} className="absolute top-8 right-8 p-3 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-2xl transition"><X size={24} /></button>
-            <h3 className="text-3xl font-black text-slate-900 mb-2">{editingMember ? "Edit Member" : "New member"}</h3>
-            <p className="text-slate-400 text-base font-bold mb-10 tracking-tight">Enter the data to schedule services for them.</p>
+          <div className="bg-white w-full max-w-[440px] rounded-3xl shadow-2xl relative z-10 p-8 sm:p-10 animate-in zoom-in-95 duration-500 overflow-hidden border border-slate-100">
+            <button onClick={() => setIsFamilyModalOpen(false)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition"><X size={22} /></button>
+            <h3 className="text-2xl font-black text-slate-900 mb-2">{editingMember ? "Editar miembro" : "Agregar miembro"}</h3>
+            <p className="text-slate-500 text-sm font-bold mb-8 tracking-normal">Introduce los datos para agendar servicios en su nombre.</p>
             
-            <form onSubmit={handleAddFamily} className="space-y-10">
-               <div className="space-y-3">
-                  <label className="text-[12px] font-bold text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+            <form onSubmit={handleAddFamily} className="space-y-6">
+               <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Nombre completo</label>
                   <div className="relative group">
-                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#ff5a5f] transition-colors">
-                      <UserIcon size={22} />
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#ff5a5f] transition-colors">
+                      <UserIcon size={18} />
                     </div>
                     <input 
                       name="name" 
                       type="text" 
                       defaultValue={editingMember?.name} 
                       required 
-                      placeholder="Example: Juan Pérez" 
-                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] py-5 pl-14 pr-6 font-bold text-slate-800 focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all shadow-sm placeholder:text-slate-300 placeholder:font-bold" 
+                      placeholder="Ej. Juan Pérez" 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" 
                     />
                   </div>
                </div>
-               <div className="grid grid-cols-2 gap-8">
-                 <div className="space-y-3">
-                    <label className="text-[12px] font-bold text-slate-500 uppercase tracking-widest ml-1">Age</label>
-                    <div className="relative group">
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Edad</label>
                        <input 
                         name="age" 
                         type="number" 
                         defaultValue={editingMember?.age} 
                         required 
-                        placeholder="Years" 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] py-5 px-6 font-bold text-slate-800 focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all shadow-sm placeholder:text-slate-300 placeholder:font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                        placeholder="Años" 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
                        />
-                       <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 font-bold opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none">
-                          Years
-                       </div>
-                    </div>
                  </div>
-                 <div className="space-y-3">
-                    <label className="text-[12px] font-bold text-slate-500 uppercase tracking-widest ml-1">Gender</label>
+                 <div className="space-y-2">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Género</label>
                     <div className="relative group">
                       <select 
                         name="gender" 
-                        defaultValue={editingMember?.gender || "Male"} 
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] py-5 px-6 font-bold text-slate-800 focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all shadow-sm appearance-none cursor-pointer"
+                        defaultValue={editingMember?.gender || "Masculino"} 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all appearance-none cursor-pointer"
                       >
-                         <option>Male</option>
-                         <option>Female</option>
-                         <option>Other</option>
+                         <option>Masculino</option>
+                         <option>Femenino</option>
+                         <option>Otro</option>
                       </select>
-                      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300 group-focus-within:text-[#ff5a5f] transition-colors">
-                         <ChevronRight size={22} className="rotate-90" />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300 group-focus-within:text-[#ff5a5f] transition-colors">
+                         <ChevronRight size={18} className="rotate-90" />
                       </div>
                     </div>
                  </div>
                </div>
-               <button type="submit" className="w-full bg-[#ff5a5f] text-white font-black py-6 rounded-[32px] shadow-2xl shadow-[#ff5a5f]/40 hover:bg-[#e0484d] hover:scale-[1.02] active:scale-95 transition-all mt-4 text-sm uppercase tracking-[0.2em]">
-                  {editingMember ? "SAVE CHANGES" : "ADD TO FAMILY"}
+               <button type="submit" className="w-full bg-[#ff5a5f] text-white font-black py-3.5 rounded-xl shadow-lg shadow-[#ff5a5f]/25 hover:bg-[#e0484d] active:scale-[0.99] transition-all text-xs uppercase tracking-[0.15em]">
+                  {editingMember ? "Guardar cambios" : "Agregar a la familia"}
                </button>
             </form>
           </div>
         </div>
       )}
        {/* RESERVATION DETAIL MODAL */}
-      {isResModalOpen && selectedRes && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-0">
+       {isResModalOpen && selectedRes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl" onClick={() => setIsResModalOpen(false)}></div>
-          <div className="bg-white w-full max-w-[550px] rounded-[48px] shadow-2xl relative z-10 animate-in zoom-in-95 duration-500 overflow-hidden border border-white/20">
+          <div className="bg-white w-full max-w-[550px] max-h-[min(92dvh,760px)] flex flex-col rounded-[32px] shadow-2xl relative z-10 animate-in zoom-in-95 duration-500 overflow-hidden border border-slate-100">
             {/* Header Image */}
-            <div className="h-48 relative">
+            <div className="h-40 sm:h-44 relative shrink-0">
                 <img 
                   src={`https://images.unsplash.com/photo-${selectedRes.img}?q=80&w=800&fit=crop`} 
                   className="w-full h-full object-cover" 
@@ -694,7 +782,7 @@ function ProfileContent() {
                 </div>
             </div>
 
-            <div className="p-10">
+            <div className="p-6 sm:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
                <div className="grid grid-cols-2 gap-8 mb-10 border-b border-slate-100 pb-10">
                   <div className="flex items-center gap-4">
                      <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-[#ff5a5f]">
@@ -785,6 +873,13 @@ function ProfileContent() {
                   </button>
                </div>
             </div>
+          </div>
+        </div>
+      )}
+      {toastMessage && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] max-w-md w-[calc(100%-2rem)] animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-slate-900 text-white text-sm font-bold px-6 py-4 rounded-2xl shadow-2xl border border-slate-700 text-center">
+            {toastMessage}
           </div>
         </div>
       )}

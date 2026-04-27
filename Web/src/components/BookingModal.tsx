@@ -141,15 +141,15 @@ export const BookingModal = ({ isOpen, onClose, selectedServiceIds, venueData }:
       <div className="space-y-6">
           <h2 className="text-xl font-black text-slate-900 mb-8 text-center">Resumen de reserva</h2>
           
-          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {selectedServices.map((service: any) => {
+          <div className="space-y-4 max-h-[min(42vh,340px)] overflow-y-auto overflow-x-visible pr-3 pt-2 custom-scrollbar">
+              {selectedServices.map((service: any, idx: number) => {
                   const proId = assignments[service.id];
                   const pro = venueData.team.find((p: any) => p.id === proId) || venueData.team[0];
                   
                   return (
-                      <div key={service.id} className="bg-slate-50/50 p-6 rounded-[32px] border-2 border-slate-100 relative group">
-                          <button className="absolute -top-2 -right-2 w-7 h-7 bg-white border-2 border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors shadow-sm">
-                              <X size={14} />
+                      <div key={`${service.id}-${idx}`} className="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 relative group">
+                          <button type="button" aria-label="Quitar servicio" className="absolute top-3 right-3 z-[1] w-8 h-8 box-border bg-white border-2 border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:border-red-200 transition-colors shadow-sm ring-2 ring-white">
+                              <X size={14} strokeWidth={2.5} />
                           </button>
                           
                           <div className="flex justify-between items-start mb-4">
@@ -284,7 +284,7 @@ export const BookingModal = ({ isOpen, onClose, selectedServiceIds, venueData }:
           
           <h2 className="text-xl font-black text-slate-900 mb-8">Selecciona un profesional</h2>
           
-          <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-4 max-h-[min(42vh,340px)] overflow-y-auto pr-2 custom-scrollbar">
               {venueData.team.map((pro: any) => (
                   <div 
                     key={pro.id}
@@ -419,22 +419,24 @@ export const BookingModal = ({ isOpen, onClose, selectedServiceIds, venueData }:
 
   return (
     <>
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-in fade-in duration-500">
-            <div className="bg-white rounded-[50px] w-full max-w-[650px] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-500 p-12">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-500">
+            <div className="bg-white rounded-[28px] sm:rounded-[40px] w-full max-w-[650px] max-h-[min(92dvh,900px)] shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
                 {/* Close Button */}
                 <button 
                     onClick={handleCloseAttempt}
-                    className="absolute top-8 right-8 text-slate-300 hover:text-slate-900 transition p-2 bg-slate-50 rounded-2xl"
+                    className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 text-slate-400 hover:text-slate-900 transition p-2 bg-white/90 rounded-2xl border border-slate-100 shadow-sm"
                 >
-                    <X size={24} strokeWidth={2.5} />
+                    <X size={22} strokeWidth={2.5} />
                 </button>
 
-                {step === "SCHEDULE" && renderSchedule()}
-                {step === "SUMMARY" && renderSummary()}
-                {step === "STAFF_LIST" && renderStaffList()}
-                {step === "PROFESSIONAL_DETAIL" && renderProfessionalDetail()}
-                {step === "PAYMENT_WARNING" && renderPaymentWarning()}
-                {step === "CHECKOUT" && renderCheckout()}
+                <div className="overflow-y-auto flex-1 min-h-0 px-6 sm:px-10 pt-14 pb-8 sm:pb-10 custom-scrollbar">
+                  {step === "SCHEDULE" && renderSchedule()}
+                  {step === "SUMMARY" && renderSummary()}
+                  {step === "STAFF_LIST" && renderStaffList()}
+                  {step === "PROFESSIONAL_DETAIL" && renderProfessionalDetail()}
+                  {step === "PAYMENT_WARNING" && renderPaymentWarning()}
+                  {step === "CHECKOUT" && renderCheckout()}
+                </div>
             </div>
         </div>
 

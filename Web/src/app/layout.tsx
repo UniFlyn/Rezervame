@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 import React from "react";
 import { I18nProvider } from "../components/I18nProvider";
@@ -8,7 +8,12 @@ import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import { LoginModal } from "../components/LoginModal";
 
-const inter = Inter({ subsets: ["latin"] });
+/** Display sans; swap for licensed Cocogoose files via localFont when available */
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-outfit",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Rezervame - Reserva citas de belleza al instante",
@@ -22,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={inter.className}>
+      <body className={`${outfit.variable} font-sans antialiased`}>
         <AuthProvider>
           <I18nProvider>
             <div className="flex flex-col min-h-screen">
