@@ -3,7 +3,7 @@ services:
     name: rezervame-backend
     plan: free
     runtime: node
-    buildCommand: cd Backend && npm install && npm run build && npx prisma generate
+    buildCommand: cd Backend && npm install --production=false && npm run build && npx prisma generate
     startCommand: cd Backend && node dist/src/main
     envVars:
       - key: DATABASE_URL
