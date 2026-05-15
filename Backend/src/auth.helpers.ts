@@ -52,7 +52,7 @@ export async function isBusinessPubliclyVisible(
   business: { status: string; email: string },
   authorization?: string,
 ): Promise<boolean> {
-  if (business.status === 'active') return true;
+  if (business.status.toLowerCase() === 'active') return true;
   const user = await getUserFromAuth(prisma, authorization);
   if (!user) return false;
   if (user.role === Role.ADMIN) return true;
