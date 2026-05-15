@@ -1327,9 +1327,15 @@ export class AppController {
     @Query('userLat') userLat?: string,
     @Query('userLng') userLng?: string,
   ) {
+    console.log('[GET /business/:id] id=', id);
     const b = await this.prisma.business.findUnique({ where: { id } });
-    if (!b) throw new NotFoundException('Business not found');
-    if (!(await isBusinessPubliclyVisible(this.prisma, b, authorization))) throw new NotFoundException('Business not found');
+    if (!b) {
+      console.log('[GET /business/:id] Not found in DB:', id);
+      return null;
+    }
+    const visible = await isBusinessPubliclyVisible(this.prisma, b, authorization);
+    console.log('[GET /business/:id] visible=', visible, 'status=', b.status);
+    if (!visible) return null;
     const base = mapBusiness(b);
     const keys = (b.amenityKeys ?? []).filter(Boolean);
     const rows =
