@@ -506,9 +506,9 @@ export class AppController {
         revenue: b.balance, // Using balance as a proxy or if there's a totalRevenue field
         joinedDate: b.joinedDate,
         rejectionReason: b.rejectionReason,
-        idDocumentImage: b.idDocumentImage,
-        licenseDocumentImage: b.licenseDocumentImage,
-        insuranceDocumentImage: b.insuranceDocumentImage,
+        idDocumentImage: safeImageUrl(b.idDocumentImage),
+        licenseDocumentImage: safeImageUrl(b.licenseDocumentImage),
+        insuranceDocumentImage: safeImageUrl(b.insuranceDocumentImage),
         documents: {
           id_verified: b.idVerified,
           license_verified: b.licenseVerified,
