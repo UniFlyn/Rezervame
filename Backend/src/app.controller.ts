@@ -1335,7 +1335,7 @@ export class AppController {
     }
     const visible = await isBusinessPubliclyVisible(this.prisma, b, authorization);
     console.log('[GET /business/:id] visible=', visible, 'status=', b.status);
-    if (!visible) return null;
+    if (!visible) throw new NotFoundException(`Business not visible (Status: ${b.status})`);
     const base = mapBusiness(b);
     const keys = (b.amenityKeys ?? []).filter(Boolean);
     const rows =
