@@ -3,8 +3,8 @@ services:
     name: rezervame-backend
     plan: free
     runtime: node
-    buildCommand: npm install && npm run build --prefix Backend && npx prisma generate --schema=Backend/prisma/schema.prisma
-    startCommand: npm run start --prefix Backend
+    buildCommand: cd Backend && npm install && npm run build && npx prisma generate
+    startCommand: cd Backend && node dist/src/main
     envVars:
       - key: DATABASE_URL
         sync: false # User will provide this in the Render dashboard
