@@ -89,13 +89,13 @@ function displayCategoryLabels(b: Business): string[] {
 }
 
 /** Web business panel shape (Prisma uses address/email/phone). */
-function safeImageUrl(url: string | null): string | null {
-  if (!url) return null;
+function safeImageUrl(url: any): string | null {
+  if (typeof url !== "string") return null;
   const s = url.trim();
   if (!s) return null;
   // If it's a data URI and larger than ~300KB, it's too risky for our current DB-based storage.
   // We return null to prevent crashing the JSON response, forcing the user to re-upload a smaller one.
-  if (s.startsWith('data:') && s.length > 300000) {
+  if (s.startsWith("data:") && s.length > 300000) {
     return null;
   }
   return s;
