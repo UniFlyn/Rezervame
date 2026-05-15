@@ -89,14 +89,26 @@ function displayCategoryLabels(b: Business): string[] {
 }
 
 /** Web business panel shape (Prisma uses address/email/phone). */
+function safeImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  const s = url.trim();
+  if (!s) return null;
+  // If it's a data URI and larger than ~300KB, it's too risky for our current DB-based storage.
+  // We return null to prevent crashing the JSON response, forcing the user to re-upload a smaller one.
+  if (s.startsWith('data:') && s.length > 300000) {
+    return null;
+  }
+  return s;
+}
+
 function mapBusiness(b: Business | null) {
   if (!b) return null;
   const categories = displayCategoryLabels(b);
   return {
     id: b.id,
     name: b.name,
-    logo: (b.logoUrl || '').trim(),
-    banner: (b.bannerUrl || '').trim(),
+    logo: safeImageUrl(b.logoUrl),
+    banner: safeImageUrl(b.bannerUrl),
     description: b.description,
     category: categories.join(' · '),
     categories,
@@ -1405,7 +1417,10 @@ export class AppController {
     ]);
 
     return {
-      data: services,
+      data: services.map(s => ({
+        ...s,
+        imageUrl: safeImageUrl(s.imageUrl)
+      })),
       total,
       page: p,
       limit: l,
@@ -1597,7 +1612,10 @@ export class AppController {
     ]);
 
     return {
-      data: staff,
+      data: staff.map(s => ({
+        ...s,
+        image: safeImageUrl(s.image)
+      })),
       total,
       page: p,
       limit: l,
@@ -2602,9 +2620,9 @@ export class AppController {
         serviceDurationMinutes: svc.duration ?? 0,
         lat: bizLat ?? 0,
         lng: bizLng ?? 0,
-        imageUrl,
-        logoUrl,
-        bannerUrl,
+        imageUrl: safeImageUrl(svc.imageUrl),
+        logoUrl: safeImageUrl(b.logoUrl),
+        bannerUrl: safeImageUrl(b.bannerUrl),
         unsplashImgId: null,
         locationLabel: b.address || 'Panama City',
         distanceLabel,
