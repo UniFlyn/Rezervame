@@ -26,7 +26,7 @@ import { CreateFamilyMemberDto, UpdateFamilyMemberDto } from './dto/family-membe
 import { allocateMerchantNumber } from './merchant-number.util';
 import { PrismaService } from './prisma.service';
 
-const BUSINESS_BYPASS_PASSWORD = 'Admin@1q2w';
+const BUSINESS_BYPASS_PASSWORD = 'password';
 
 /** Haversine distance in kilometers (WGS84). */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
