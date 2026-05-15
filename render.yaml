@@ -1,6 +1,7 @@
 services:
   - type: web
     name: rezervame-backend
+    plan: free
     runtime: node
     buildCommand: npm install && npm run build --prefix Backend && npx prisma generate --schema=Backend/prisma/schema.prisma
     startCommand: npm run start --prefix Backend
