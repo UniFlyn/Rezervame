@@ -5,7 +5,16 @@ import { apiGet, apiPost } from "@/lib/api";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 
 export default function BookClient({ params }: { params: { id: string } }) {
-  const businessId = params.id;
+  const [businessId, setBusinessId] = useState(params.id);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const parts = window.location.pathname.split('/');
+      // The path is /business/[id]/book
+      if (parts.length >= 3 && parts[1] === 'business' && parts[2] !== 'default') {
+        setBusinessId(parts[2]);
+      }
+    }
+  }, []);
   const [services, setServices] = useState<{ id: string; name: string; price: number }[]>([]);
   const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
   const [serviceId, setServiceId] = useState("");
@@ -16,6 +25,10 @@ export default function BookClient({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (businessId === 'default') {
+      setLoading(false);
+      return;
+    }
     void Promise.all([
       apiGet<{ id: string; name: string; price: number }[]>(`/business/${businessId}/services`),
       apiGet<{ id: string; name: string }[]>(`/business/${businessId}/staff`),

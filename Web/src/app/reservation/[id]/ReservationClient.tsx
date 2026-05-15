@@ -114,7 +114,16 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
 }
 
 export default function ReservationClient() {
-  const { id } = useParams();
+  const params = useParams();
+  const [id, setId] = useState(params.id);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const parts = window.location.pathname.split('/');
+      if (parts.length >= 3 && parts[1] === 'reservation' && parts[2] !== 'default') {
+        setId(parts[2]);
+      }
+    }
+  }, []);
   const router = useRouter();
   const { language } = useI18n();
   const { isLoggedIn, isHydrated } = useAuth() as any;
@@ -144,6 +153,10 @@ export default function ReservationClient() {
   async function loadGroup() {
     setLoading(true);
     try {
+      if (id === 'default') {
+        setLoading(false);
+        return;
+      }
       const data = await apiGet(`/mobile/bookings/${id}/group`, "USER");
       if (Array.isArray(data) && data.length > 0) {
         setRes(mapUserBookingGroup(data, language));

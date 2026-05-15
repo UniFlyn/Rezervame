@@ -49,9 +49,15 @@ export default function Home() {
   );
 
   const featuredVenueCards = useMemo(
-    () =>
-      [...venues]
+    () => {
+      const seen = new Set<string>();
+      return [...venues]
         .sort((a, b) => b.rating - a.rating)
+        .filter((v) => {
+          if (seen.has(v.businessId)) return false;
+          seen.add(v.businessId);
+          return true;
+        })
         .slice(0, 4)
         .map((v) => ({
           businessId: v.businessId,
@@ -61,7 +67,8 @@ export default function Home() {
           rating: v.rating,
           durationMin: v.serviceDurationMinutes || 0,
           imgSrc: businessBannerHeroSrc(v),
-        })),
+        }));
+    },
     [venues],
   );
 
@@ -87,17 +94,26 @@ export default function Home() {
   }, [venues]);
 
   const dynamicBestBusinesses = useMemo(
-    () =>
-      venues.slice(0, 5).map((v) => ({
-        n: v.name,
-        rat: Number(v.rating).toFixed(1),
-        rts: `(${v.reviews} ${t("reviews")})`,
-        s: [v.category],
-        p: `$${v.price.toFixed(2)}`,
-        id: v.businessId,
-        location: v.locationLabel,
-        imgSrc: businessListingImageSrc(v),
-      })),
+    () => {
+      const seen = new Set<string>();
+      return venues
+        .filter((v) => {
+          if (seen.has(v.businessId)) return false;
+          seen.add(v.businessId);
+          return true;
+        })
+        .slice(0, 5)
+        .map((v) => ({
+          n: v.name,
+          rat: Number(v.rating).toFixed(1),
+          rts: `(${v.reviews} ${t("reviews")})`,
+          s: [v.category],
+          p: `$${v.price.toFixed(2)}`,
+          id: v.businessId,
+          location: v.locationLabel,
+          imgSrc: businessListingImageSrc(v),
+        }));
+    },
     [venues, t],
   );
 

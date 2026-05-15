@@ -290,7 +290,7 @@ export default function ServicesPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-[40px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+          <div className="bg-white rounded-[40px] w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="p-8 border-b border-slate-50 flex justify-between items-center relative">
               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight text-center w-full">
                 {modalTitle}
@@ -530,7 +530,7 @@ export default function ServicesPage() {
 
       {promoModal.open && promoModal.service && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-[40px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+          <div className="bg-white rounded-[40px] w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="p-8 border-b border-slate-50 flex justify-between items-center relative">
               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight text-center w-full">
                 Promote Service

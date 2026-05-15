@@ -1,6 +1,6 @@
 import { PLACEHOLDER_IMAGE_DATA_URI } from "./placeholderImage";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api";
+const API_BASE = 'https://rezervame-backend.onrender.com/api';
 
 export type ApiVenue = {
   id: number;

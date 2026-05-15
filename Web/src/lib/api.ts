@@ -1,7 +1,7 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+const API_BASE = 'https://rezervame-backend.onrender.com/api';
 
 /** Prevents the UI hanging indefinitely when the API is down or unreachable (browser fetch has no default timeout). */
-const DEFAULT_FETCH_TIMEOUT_MS = 25_000;
+const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
 
 async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
@@ -15,9 +15,9 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
       'name' in err &&
       (err as { name: string }).name === 'AbortError';
     if (aborted) {
-      const origin = API_BASE.replace(/\/api\/?$/, '');
+      const origin = 'https://rezervame-backend.onrender.com/api'.replace(/\/api\/?$/, '');
       throw new Error(
-        `Request timed out after ${DEFAULT_FETCH_TIMEOUT_MS / 1000}s. Start the backend (e.g. port 4000) or set NEXT_PUBLIC_API_BASE_URL. Expected API: ${origin}`,
+        `Request timed out after ${DEFAULT_FETCH_TIMEOUT_MS / 1000}s. Start the backend or wait for cold-start (up to 50s). Expected API: ${origin}`,
       );
     }
     throw err;
@@ -55,7 +55,15 @@ export async function apiGet<T>(path: string, role?: 'ADMIN' | 'BUSINESS' | 'USE
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await errorMessage(res));
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    throw new Error(`Empty response from server at ${path}`);
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    throw new Error(`Invalid JSON from ${path}: ${text.slice(0, 100)}...`);
+  }
 }
 
 export async function apiPost<T>(path: string, body: unknown, role?: 'ADMIN' | 'BUSINESS' | 'USER'): Promise<T> {
@@ -65,7 +73,13 @@ export async function apiPost<T>(path: string, body: unknown, role?: 'ADMIN' | '
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await errorMessage(res));
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text || !text.trim()) throw new Error(`Empty response from server at ${path}`);
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    throw new Error(`Invalid JSON from ${path}: ${text.slice(0, 100)}...`);
+  }
 }
 
 export async function apiPostOptional<T>(
@@ -79,7 +93,13 @@ export async function apiPostOptional<T>(
     body: JSON.stringify(body),
   });
   if (!res.ok) return null;
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text || !text.trim()) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    return null;
+  }
 }
 
 export async function apiPatch<T>(path: string, body: unknown, role?: 'ADMIN' | 'BUSINESS' | 'USER'): Promise<T> {
@@ -89,7 +109,13 @@ export async function apiPatch<T>(path: string, body: unknown, role?: 'ADMIN' | 
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await errorMessage(res));
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text || !text.trim()) throw new Error(`Empty response from server at ${path}`);
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    throw new Error(`Invalid JSON from ${path}: ${text.slice(0, 100)}...`);
+  }
 }
 
 export async function apiDelete(path: string, role?: 'ADMIN' | 'BUSINESS' | 'USER'): Promise<void> {

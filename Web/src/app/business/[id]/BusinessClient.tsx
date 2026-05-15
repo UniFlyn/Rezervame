@@ -9,7 +9,15 @@ import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 type ServiceRow = { id: string; name: string; duration: number; price: number; category: string };
 
 export default function BusinessClient({ params }: { params: { id: string } }) {
-  const id = params.id;
+  const [id, setId] = useState(params.id);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const parts = window.location.pathname.split('/');
+      if (parts.length >= 3 && parts[1] === 'business' && parts[2] !== 'default') {
+        setId(parts[2]);
+      }
+    }
+  }, []);
   const [name, setName] = useState("—");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
@@ -21,6 +29,7 @@ export default function BusinessClient({ params }: { params: { id: string } }) {
     const run = async () => {
       setLoadError(null);
       try {
+        if (id === 'default') return;
         const business = await apiGet<Record<string, unknown> | null>(`/business/${id}`);
         if (!business) {
           const msg = "Negocio no encontrado o no disponible.";

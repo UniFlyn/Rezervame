@@ -96,7 +96,15 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const { t, language } = useI18n();
   const router = useRouter();
   const { isLoggedIn, setIsLoginModalOpen, setPendingAfterLogin } = useAuth();
-  const venueId = businessId;
+  const [venueId, setVenueId] = useState(businessId);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const parts = window.location.pathname.split('/');
+      if (parts.length >= 3 && parts[1] === 'venue' && parts[2] !== 'default') {
+        setVenueId(parts[2]);
+      }
+    }
+  }, []);
   const [venueData, setVenueData] = useState<VenueState>(() => emptyVenue(venueId));
   const [reviewRows, setReviewRows] = useState<
     Array<{
@@ -217,6 +225,11 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
       setVenueLoading(true);
       const base = emptyVenue(venueId);
       try {
+        if (venueId === 'default') {
+          setVenueData(emptyVenue(venueId));
+          setVenueLoading(false);
+          return;
+        }
         const business = await apiGet<Record<string, unknown> | null>(`/business/${venueId}`);
         if (!business) {
           if (!cancelled) {

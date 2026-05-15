@@ -202,7 +202,7 @@ export default function StaffPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md fade-in duration-300">
-          <div className="animate-in zoom-in-95 w-full max-w-md overflow-hidden rounded-[40px] bg-white shadow-2xl duration-300">
+          <div className="animate-in zoom-in-95 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-[40px] bg-white shadow-2xl duration-300">
             <div className="relative flex items-center justify-between border-b border-slate-50 p-8">
               <h3 className="w-full text-center text-xl font-black uppercase tracking-tight text-slate-800">{editingId ? 'Edit staff member' : 'New staff member'}</h3>
               <button type="button" onClick={closeModal} className="absolute right-8 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-50"><X size={20} /></button>
