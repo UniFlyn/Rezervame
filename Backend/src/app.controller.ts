@@ -1750,6 +1750,65 @@ export class AppController {
     });
   }
 
+  @Post('business/:id/bookings/pay-group')
+  async payBusinessBookingGroup(
+    @Param('id') id: string,
+    @Body() body: { bookingIds: string[]; paymentMethod?: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireBusinessOwner(this.prisma, authorization, id);
+    if (!Array.isArray(body.bookingIds) || body.bookingIds.length === 0) {
+      throw new BadRequestException('bookingIds must be a non-empty array');
+    }
+
+    const bookings = await this.prisma.booking.findMany({
+      where: { id: { in: body.bookingIds }, businessId: id },
+      include: { staff: true, service: true, user: true },
+    });
+    if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
+
+    const payableBookings = bookings.filter(
+      (b) => b.status !== 'Cancelled' && b.status !== 'Rejected' && b.status !== 'Completed',
+    );
+    if (payableBookings.length === 0) throw new BadRequestException('All bookings are already completed or cancelled');
+
+    const totalAmount = payableBookings.reduce((sum, b) => sum + b.price, 0);
+    const totalTax = payableBookings.reduce((sum, b) => sum + (b.taxAmount || 0), 0);
+    const staffNames = [...new Set(payableBookings.map((b) => b.staff?.name).filter(Boolean))].join(', ');
+    const serviceNames = payableBookings.map((b) => b.service?.name || 'Service').join(', ');
+    const method = body.paymentMethod || 'Cash';
+
+    // Mark all as Completed
+    await this.prisma.booking.updateMany({
+      where: { id: { in: payableBookings.map(b => b.id) } },
+      data: { status: 'Completed' },
+    });
+
+    const transaction = await this.prisma.transaction.create({
+      data: {
+        bookingId: payableBookings[0].id,
+        businessId: id,
+        amount: totalAmount,
+        taxAmount: totalTax,
+        status: 'Completed',
+        paymentMethod: method,
+        description: serviceNames,
+        customerEmail: payableBookings[0].user?.email || null,
+        staffMember: staffNames || null,
+        bookings: {
+          connect: payableBookings.map(b => ({ id: b.id }))
+        }
+      },
+    });
+
+    await this.prisma.business.update({
+      where: { id },
+      data: { revenue: { increment: totalAmount } },
+    });
+
+    return { ok: true, transactionId: transaction.id, total: totalAmount };
+  }
+
   @Patch('bookings/:id')
   async updateBooking(
     @Param('id') id: string,
@@ -1848,6 +1907,59 @@ export class AppController {
     });
 
     return review;
+  }
+
+  @Post('mobile/reviews/group')
+  async createMobileReviewGroup(
+    @Body() body: { 
+      businessRating: number; 
+      comment: string;
+      services: { bookingId: string; serviceRating: number; staffRating: number; comment?: string }[]
+    },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    if (!Array.isArray(body.services) || body.services.length === 0) {
+      throw new BadRequestException('services must be a non-empty array');
+    }
+
+    const reviews = [];
+    for (let i = 0; i < body.services.length; i++) {
+      const s = body.services[i];
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: s.bookingId },
+        include: { service: true, staff: true },
+      });
+      if (!booking || booking.userId !== user.id) continue;
+      if (booking.status !== 'Completed' || booking.isReviewed) continue;
+
+      const review = await this.prisma.review.create({
+        data: {
+          userId: user.id,
+          businessId: booking.businessId,
+          bookingId: booking.id,
+          staffId: booking.staffId,
+          customerName: user.name,
+          avatar: user.avatar,
+          staffRating: s.staffRating,
+          // Only store business rating and top-level comment on the first review to avoid duplication in venue list
+          businessRating: i === 0 ? body.businessRating : null,
+          rating: s.serviceRating, 
+          comment: i === 0 ? body.comment : (s.comment || ''),
+          serviceName: booking.service?.name || 'Service',
+          staffName: booking.staff?.name || 'Staff',
+          status: 'Pending',
+        },
+      });
+
+      await this.prisma.booking.update({
+        where: { id: booking.id },
+        data: { isReviewed: true },
+      });
+      reviews.push(review);
+    }
+
+    return { ok: true, count: reviews.length };
   }
 
   @Patch('reviews/:id')

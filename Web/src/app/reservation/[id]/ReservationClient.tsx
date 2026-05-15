@@ -8,7 +8,7 @@ import { apiGet, apiPost } from '@/lib/api';
 import { 
   Calendar, Clock, X, CheckCircle2, ChevronLeft, 
   MapPin, Phone, CreditCard, Banknote, Shield,
-  FileText, Download, Star, Loader2, Heart
+  FileText, Download, Star, Loader2, Heart, Check
 } from 'lucide-react';
 import { toastError, toastSuccess } from '@/lib/toast';
 
@@ -31,6 +31,7 @@ interface Reservation {
   taxAmount: number;
   address: string;
   phone?: string;
+  isReviewed?: boolean;
   businessId?: string;
   items: { 
     id: string; 
@@ -106,6 +107,7 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
     img: b.service?.imageUrl || b.business?.bannerUrl || b.business?.logoUrl || PLACEHOLDER_IMAGE_DATA_URI,
     subtotal,
     taxAmount,
+    isReviewed: items.every(i => i.isReviewed),
     address: b.business?.address || "",
     phone: b.business?.phone,
     items,
@@ -139,6 +141,8 @@ export default function ReservationClient() {
   const [businessRating, setBusinessRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [serviceRatings, setServiceRatings] = useState<Record<string, number>>({});
+  const [staffRatings, setStaffRatings] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (isHydrated && !isLoggedIn) {
@@ -219,24 +223,43 @@ export default function ReservationClient() {
     setStaffRating(5);
     setBusinessRating(5);
     setReviewComment("");
+    
+    // Initialize grouped ratings
+    const initialService: Record<string, number> = {};
+    const initialStaff: Record<string, number> = {};
+    res?.items.forEach(item => {
+      if (item.status === 'completed' && !item.isReviewed) {
+        initialService[item.id] = 5;
+        initialStaff[item.id] = 5;
+      }
+    });
+    setServiceRatings(initialService);
+    setStaffRatings(initialStaff);
+    
     setIsRateModalOpen(true);
   };
 
   const handleSubmitReview = async () => {
-    if (!ratingBookingId) return;
+    if (!res) return;
     setIsSubmittingReview(true);
     try {
-      await apiPost("/mobile/reviews", {
-          bookingId: ratingBookingId,
-          staffRating,
-          businessRating,
-          comment: reviewComment
+      const services = Object.keys(serviceRatings).map(id => ({
+        bookingId: id,
+        serviceRating: serviceRatings[id],
+        staffRating: staffRatings[id],
+      }));
+
+      await apiPost("/mobile/reviews/group", {
+        businessRating,
+        comment: reviewComment,
+        services,
       }, "USER");
-      toastSuccess("Thank you for your review!");
+
+      toastSuccess(language === "en" ? "Reviews Submitted" : "Reseñas enviadas");
       setIsRateModalOpen(false);
       loadGroup(); // Refresh
-    } catch (e) {
-      toastError("Review failed", "Could not submit your review.");
+    } catch (err) {
+      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Could not submit review");
     } finally {
       setIsSubmittingReview(false);
     }
@@ -465,41 +488,87 @@ export default function ReservationClient() {
       {isRateModalOpen && (
          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setIsRateModalOpen(false)} />
-           <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95">
+           <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-black text-slate-900 mb-8">{language === "en" ? "Rate Experience" : "Califica tu experiencia"}</h3>
-              <div className="space-y-8">
+              <div className="space-y-10">
+                 {/* Venue Rating */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Staff Rating" : "Calificación del Personal"}</label>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Common Venue Rating" : "Calificación General del Local"}</label>
                     <div className="flex gap-3">
                        {[1,2,3,4,5].map((star) => (
-                         <button key={star} onClick={() => setStaffRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${staffRating >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-slate-50 text-slate-300"}`}>
-                           <Star size={24} fill={staffRating >= star ? "currentColor" : "none"} />
-                         </button>
-                       ))}
-                    </div>
-                 </div>
-                 <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Venue Rating" : "Calificación del Local"}</label>
-                    <div className="flex gap-3">
-                       {[1,2,3,4,5].map((star) => (
-                         <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-slate-50 text-slate-300"}`}>
+                         <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5a5f]/10 text-[#ff5a5f] shadow-sm" : "bg-slate-50 text-slate-300"}`}>
                            <Star size={24} fill={businessRating >= star ? "currentColor" : "none"} />
                          </button>
                        ))}
                     </div>
                  </div>
-                 <textarea 
-                   className="w-full h-32 p-6 bg-slate-50 border border-slate-100 rounded-3xl focus:outline-none focus:border-primary transition-all text-sm font-medium"
-                   placeholder={language === "en" ? "Share your feedback..." : "Comparte tu opinión..."}
-                   value={reviewComment}
-                   onChange={(e) => setReviewComment(e.target.value)}
-                 />
+
+                 <div className="h-px bg-slate-100" />
+
+                 {/* Individual Services */}
+                 <div className="space-y-8">
+                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Individual Service Ratings" : "Calificaciones por Servicio"}</h4>
+                   {res?.items.filter(i => i.status === 'completed' && !i.isReviewed).map((item) => (
+                     <div key={item.id} className="p-6 bg-slate-50 rounded-3xl space-y-6">
+                        <div className="flex justify-between items-start">
+                           <div>
+                              <p className="font-black text-slate-900 text-sm">{item.name}</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.staffName}</p>
+                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6">
+                           <div className="space-y-3">
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Service Quality" : "Calidad del Servicio"}</p>
+                              <div className="flex gap-2">
+                                {[1,2,3,4,5].map((star) => (
+                                  <button 
+                                    key={star} 
+                                    onClick={() => setServiceRatings(prev => ({ ...prev, [item.id]: star }))} 
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (serviceRatings[item.id] || 5) >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-white text-slate-200 border border-slate-100"}`}
+                                  >
+                                    <Star size={18} fill={(serviceRatings[item.id] || 5) >= star ? "currentColor" : "none"} />
+                                  </button>
+                                ))}
+                              </div>
+                           </div>
+
+                           <div className="space-y-3">
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Staff Rating" : "Calificación del Personal"}</p>
+                              <div className="flex gap-2">
+                                {[1,2,3,4,5].map((star) => (
+                                  <button 
+                                    key={star} 
+                                    onClick={() => setStaffRatings(prev => ({ ...prev, [item.id]: star }))} 
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (staffRatings[item.id] || 5) >= star ? "bg-cyan-100 text-cyan-600 shadow-sm" : "bg-white text-slate-200 border border-slate-100"}`}
+                                  >
+                                    <Star size={18} fill={(staffRatings[item.id] || 5) >= star ? "currentColor" : "none"} />
+                                  </button>
+                                ))}
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                   ))}
+                 </div>
+
+                 <div className="space-y-4">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Review Comment (Common)" : "Comentario de la Reseña (Común)"}</label>
+                    <textarea 
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      placeholder={language === "en" ? "Tell us more about your visit..." : "Cuéntanos más sobre tu visita..."}
+                      className="w-full h-32 bg-slate-50 border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                    />
+                 </div>
+
                  <button 
                    onClick={handleSubmitReview}
                    disabled={isSubmittingReview}
-                   className="w-full py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-primary/20 transition-all disabled:opacity-50"
+                   className="w-full bg-slate-900 text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 hover:bg-[#ff5a5f] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                  >
-                   {isSubmittingReview ? "..." : (language === "en" ? "Submit Review" : "Enviar Calificación")}
+                    {isSubmittingReview ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} strokeWidth={3} />}
+                    {isSubmittingReview ? (language === "en" ? "Submitting..." : "Enviando...") : (language === "en" ? "Submit All Ratings" : "Enviar todas las calificaciones")}
                  </button>
               </div>
            </div>
