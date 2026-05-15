@@ -1,0 +1,497 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/components/AuthProvider';
+import { useI18n } from '@/components/I18nProvider';
+import { apiGet, apiPost } from '@/lib/api';
+import { 
+  Calendar, Clock, X, CheckCircle2, ChevronLeft, 
+  MapPin, Phone, CreditCard, Banknote, Shield,
+  FileText, Download, Star, Loader2, Heart
+} from 'lucide-react';
+import { toastError, toastSuccess } from '@/lib/toast';
+
+const PLACEHOLDER_IMAGE_DATA_URI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f5f9'/%3E%3Cpath d='M50 40c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm0 16c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z' fill='%23cbd5e1'/%3E%3C/svg%3E";
+
+interface Reservation {
+  id: string;
+  refNumber: string;
+  venueName: string;
+  serviceName: string;
+  customerName: string;
+  staffName?: string;
+  date: string;
+  time: string;
+  price: string;
+  totalPrice: number;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  img: string;
+  subtotal: number;
+  taxAmount: number;
+  address: string;
+  phone?: string;
+  businessId?: string;
+  items: { 
+    id: string; 
+    name: string; 
+    price: string; 
+    customerName?: string; 
+    staffName?: string;
+    status: "pending" | "confirmed" | "completed" | "cancelled";
+    isReviewed?: boolean;
+    taxAmount?: number;
+  }[];
+}
+
+function mapUserBookingGroup(group: any[], language: string): Reservation {
+  if (!group || group.length === 0) {
+    throw new Error("Empty booking group");
+  }
+  const b = group[0] || {};
+  const d = new Date(b.date);
+  
+  let refNumber = "00000";
+  if (b.id) {
+    const hashStr = String(b.id);
+    let hash = 0;
+    for (let i = 0; i < hashStr.length; i++) {
+        hash = ((hash << 5) - hash) + hashStr.charCodeAt(i);
+        hash |= 0; 
+    }
+    refNumber = String(Math.abs(hash % 90000) + 10000);
+  }
+
+  const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(language === "en" ? "en-US" : "es-PA", { year: "numeric", month: "long", day: "numeric" });
+  const timeStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString(language === "en" ? "en-US" : "es-PA", { hour: "numeric", minute: "2-digit" });
+
+  const subtotal = group.reduce((sum, item) => sum + Number(item?.price || 0), 0);
+  const taxAmount = group.reduce((sum, item) => {
+    const storedTax = Number(item?.taxAmount || 0);
+    if (storedTax > 0) return sum + storedTax;
+    const currentTax = (Number(item?.price || 0) * (b.business?.taxPercentage || 0)) / 100;
+    return sum + currentTax;
+  }, 0);
+  const totalPrice = subtotal + taxAmount;
+  
+  const items = group.map(item => {
+    const st = (item?.status || "").toLowerCase();
+    const status: Reservation["status"] = st === "completed" ? "completed" : st === "cancelled" || st === "rejected" ? "cancelled" : st === "pending" ? "pending" : "confirmed";
+    
+    return {
+        id: item?.id || Math.random().toString(),
+        name: item?.service?.name || "Service",
+        price: Number(item?.price || 0).toFixed(2),
+        customerName: item?.customer?.name || item?.customerName || "Customer",
+        staffName: item?.staff?.name || item?.staffName,
+        status,
+        isReviewed: item?.isReviewed || false,
+    };
+  });
+
+  const mainStatus: Reservation["status"] = items.every(i => i.status === "completed") ? "completed" : items.some(i => i.status === "cancelled") ? "cancelled" : items.every(i => i.status === "pending") ? "pending" : "confirmed";
+
+  return {
+    id: b.id || "unknown",
+    refNumber,
+    venueName: b.business?.name || "—",
+    serviceName: group.length > 1 ? `${group.length} Services` : (b.service?.name || "—"),
+    customerName: b.customer?.name || b.customerName || "Customer",
+    staffName: b.staff?.name || b.staffName,
+    date: dateStr,
+    time: timeStr,
+    price: `$${totalPrice.toFixed(2)}`,
+    totalPrice,
+    status: mainStatus,
+    img: b.service?.imageUrl || b.business?.bannerUrl || b.business?.logoUrl || PLACEHOLDER_IMAGE_DATA_URI,
+    subtotal,
+    taxAmount,
+    address: b.business?.address || "",
+    phone: b.business?.phone,
+    items,
+    businessId: b.businessId,
+  };
+}
+
+export default function ReservationClient() {
+  const { id } = useParams();
+  const router = useRouter();
+  const { language } = useI18n();
+  const { isLoggedIn, isHydrated } = useAuth() as any;
+  const [loading, setLoading] = useState(true);
+  const [res, setRes] = useState<Reservation | null>(null);
+  const [paymentView, setPaymentView] = useState<"none" | "select" | "done">("none");
+  const [payingLoading, setPayingLoading] = useState(false);
+
+  // For Rating
+  const [isRateModalOpen, setIsRateModalOpen] = useState(false);
+  const [ratingBookingId, setRatingBookingId] = useState<string | null>(null);
+  const [staffRating, setStaffRating] = useState(5);
+  const [businessRating, setBusinessRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    if (isHydrated && !isLoggedIn) {
+      router.push("/");
+      return;
+    }
+    if (isHydrated && isLoggedIn && id) {
+      loadGroup();
+    }
+  }, [isHydrated, isLoggedIn, id]);
+
+  async function loadGroup() {
+    setLoading(true);
+    try {
+      const data = await apiGet(`/mobile/bookings/${id}/group`, "USER");
+      if (Array.isArray(data) && data.length > 0) {
+        setRes(mapUserBookingGroup(data, language));
+      } else {
+        toastError("Not found", "Reservation not found.");
+        router.push("/profile?tab=bookings");
+      }
+    } catch (e) {
+      console.error("Failed to load reservation:", e);
+      toastError("Error", e instanceof Error ? e.message : "Could not load reservation details.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePayNow() {
+    if (!res) return;
+    setPayingLoading(true);
+    try {
+      await apiPost("/mobile/bookings/pay-group", {
+        bookingIds: res.items.map(i => i.id),
+        paymentMethod: "Online"
+      }, "USER");
+      setPaymentView("done");
+      toastSuccess("Payment successful");
+      loadGroup(); // Refresh data to show paid status
+    } catch (e) {
+      toastError("Payment failed", e instanceof Error ? e.message : "Try again.");
+    } finally {
+      setPayingLoading(false);
+    }
+  }
+
+  async function handleCancelReservation(bookingId: string) {
+    if (!confirm(language === "en" ? "Are you sure you want to cancel this service?" : "¿Estás seguro de que deseas cancelar este servicio?")) return;
+    try {
+      await apiPost(`/mobile/bookings/${bookingId}/cancel`, {}, "USER");
+      toastSuccess("Service cancelled");
+      loadGroup();
+    } catch (e) {
+      toastError("Cancellation failed", "Please try again later.");
+    }
+  }
+
+  async function handleCancelAllInGroup(group: Reservation) {
+    if (!confirm(language === "en" ? "Are you sure you want to cancel ALL services in this reservation?" : "¿Estás seguro de que deseas cancelar TODOS los servicios de esta reserva?")) return;
+    try {
+      await apiPost("/mobile/bookings/cancel-group", {
+        bookingIds: group.items.map(i => i.id)
+      }, "USER");
+      toastSuccess("All services cancelled");
+      loadGroup();
+    } catch (e) {
+      toastError("Cancellation failed", "Please try again later.");
+    }
+  }
+
+  const handleOpenRateModal = (bookingId: string) => {
+    setRatingBookingId(bookingId);
+    setStaffRating(5);
+    setBusinessRating(5);
+    setReviewComment("");
+    setIsRateModalOpen(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!ratingBookingId) return;
+    setIsSubmittingReview(true);
+    try {
+      await apiPost("/mobile/reviews", {
+          bookingId: ratingBookingId,
+          staffRating,
+          businessRating,
+          comment: reviewComment
+      }, "USER");
+      toastSuccess("Thank you for your review!");
+      setIsRateModalOpen(false);
+      loadGroup(); // Refresh
+    } catch (e) {
+      toastError("Review failed", "Could not submit your review.");
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="animate-spin text-primary" size={40} />
+      </div>
+    );
+  }
+
+  if (!res) return null;
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-20">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
+          <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition">
+            <ChevronLeft size={20} />
+            {language === "en" ? "Back" : "Volver"}
+          </button>
+          <div className="flex flex-col items-center">
+             <h1 className="text-sm font-black text-slate-900 uppercase tracking-widest">{res.venueName}</h1>
+             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">#{res.refNumber}</span>
+          </div>
+          <div className="w-10" /> {/* Spacer */}
+        </div>
+      </div>
+
+      <main className="max-w-4xl mx-auto px-6 mt-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          
+          {/* LEFT: Details */}
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm">
+              <div className="h-56 relative">
+                <img src={res.img} className="w-full h-full object-cover" alt="" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <div className="absolute bottom-6 left-8">
+                   <h2 className="text-2xl font-black text-white">{res.venueName}</h2>
+                   <p className="text-white/80 font-bold text-sm flex items-center gap-2 mt-1">
+                      <MapPin size={14} />
+                      {res.address}
+                   </p>
+                </div>
+              </div>
+
+              <div className="p-10 space-y-8">
+                 <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm">
+                          <Calendar size={24} />
+                       </div>
+                       <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Date & Time" : "Fecha y Hora"}</p>
+                          <p className="font-black text-slate-800">{res.date} at {res.time}</p>
+                       </div>
+                    </div>
+                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      res.status === 'confirmed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                      res.status === 'completed' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                      'bg-amber-50 text-amber-600 border border-amber-100'
+                    }`}>
+                      {res.status}
+                    </div>
+                 </div>
+
+                 <div>
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{language === "en" ? "Service Details" : "Detalles del Servicio"}</h3>
+                    <div className="space-y-4">
+                       {res.items.map((item) => (
+                         <div key={item.id} className="flex justify-between items-center p-6 rounded-3xl bg-white border border-slate-100 hover:border-primary/20 transition-all shadow-sm">
+                            <div className="flex items-center gap-4">
+                               <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-primary font-black text-lg border border-slate-100">
+                                  {item.name.charAt(0)}
+                               </div>
+                               <div>
+                                  <h4 className="font-black text-slate-800">{item.name}</h4>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                     {item.customerName} • {item.staffName || "Staff"}
+                                  </p>
+                               </div>
+                            </div>
+                            <div className="flex items-center gap-6">
+                               <span className="font-black text-slate-900">${item.price}</span>
+                               {item.status === 'confirmed' && (
+                                 <button 
+                                   onClick={() => handleCancelReservation(item.id)}
+                                   className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-600 transition"
+                                 >
+                                    {language === "en" ? "Cancel" : "Cancelar"}
+                                 </button>
+                               )}
+                               {item.status === 'completed' && !item.isReviewed && (
+                                  <button 
+                                    onClick={() => handleOpenRateModal(item.id)}
+                                    className="bg-primary hover:bg-primary/90 text-white font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 transition"
+                                  >
+                                     {language === "en" ? "Rate" : "Calificar"}
+                                  </button>
+                                )}
+                                {item.status === 'completed' && item.isReviewed && (
+                                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
+                                     <CheckCircle2 size={12} />
+                                     {language === "en" ? "Reviewed" : "Calificado"}
+                                  </span>
+                                )}
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Summary & Payment */}
+          <div className="space-y-6">
+             <div className="bg-white rounded-[40px] border border-slate-200 p-8 shadow-sm">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{language === "en" ? "Payment Summary" : "Resumen de Pago"}</h3>
+                
+                <div className="space-y-3">
+                   <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-400">{language === "en" ? "Subtotal" : "Subtotal"}</span>
+                      <span className="text-sm font-black text-slate-600">${res.subtotal.toFixed(2)}</span>
+                   </div>
+                   <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-400">{language === "en" ? "Tax" : "Impuesto"}</span>
+                      <span className="text-sm font-black text-slate-600">${res.taxAmount.toFixed(2)}</span>
+                   </div>
+                   <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
+                      <span className="text-lg font-black text-slate-900">{language === "en" ? "Total" : "Total"}</span>
+                      <span className="text-3xl font-black text-primary">${res.totalPrice.toFixed(2)}</span>
+                   </div>
+                </div>
+
+                {paymentView === "none" && res.status === "confirmed" && (
+                  <div className="mt-8 space-y-4">
+                     <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">{language === "en" ? "Pending Payment" : "Pago Pendiente"}</p>
+                        <p className="text-amber-700 text-[10px] font-medium">{language === "en" ? "Please pay online to confirm your spot." : "Por favor paga online para confirmar tu cupo."}</p>
+                     </div>
+                     <button 
+                       onClick={() => setPaymentView("select")}
+                       className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all transform active:scale-95"
+                     >
+                       {language === "en" ? "Pay Online Now" : "Pagar Online Ahora"}
+                     </button>
+                  </div>
+                )}
+
+                {paymentView === "select" && (
+                   <div className="mt-8 space-y-4 animate-in fade-in slide-in-from-bottom-4">
+                      <div className="p-5 border-2 border-primary bg-primary/5 rounded-2xl flex flex-col items-center gap-2">
+                         <CreditCard className="text-primary" size={24} />
+                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">{language === "en" ? "Card Payment" : "Pago con Tarjeta"}</span>
+                      </div>
+                      
+                      <button 
+                        onClick={handlePayNow}
+                        disabled={payingLoading}
+                        className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                      >
+                         {payingLoading ? <Loader2 className="animate-spin" size={16} /> : <Shield size={16} />}
+                         {payingLoading ? (language === "en" ? "Processing..." : "Procesando...") : (language === "en" ? "Confirm & Pay" : "Confirmar y Pagar")}
+                      </button>
+
+                      <div className="flex gap-4">
+                      {res.status === 'confirmed' && (
+                        <button 
+                          onClick={() => handleCancelAllInGroup(res)}
+                          className="flex-1 bg-red-50 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100"
+                        >
+                           {language === "en" ? "Cancel All" : "Cancelar Todo"}
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => setPaymentView("none")}
+                        className="flex-1 bg-white border-2 border-slate-100 text-slate-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-slate-50 transition"
+                      >
+                         {language === "en" ? "Back" : "Volver"}
+                      </button>
+                   </div>
+                   </div>
+                )}
+
+                {paymentView === "done" && (
+                   <div className="mt-8 p-6 bg-emerald-50 border border-emerald-100 rounded-3xl text-center animate-in zoom-in-95">
+                      <CheckCircle2 size={32} className="text-emerald-500 mx-auto mb-3" />
+                      <p className="font-black text-emerald-900 text-sm">{language === "en" ? "Paid Successfully!" : "¡Pago Exitoso!"}</p>
+                      <button 
+                        onClick={() => router.push("/profile?tab=invoices")}
+                        className="mt-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest underline decoration-2 underline-offset-4"
+                      >
+                         {language === "en" ? "View Invoices" : "Ver Facturas"}
+                      </button>
+                   </div>
+                )}
+             </div>
+
+             <div className="bg-slate-900 rounded-[40px] p-8 text-white shadow-xl shadow-slate-200">
+                <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-6">{language === "en" ? "Safety & Policy" : "Seguridad y Políticas"}</h3>
+                <div className="space-y-6">
+                   <div className="flex gap-4">
+                      <Shield className="text-primary flex-shrink-0" size={20} />
+                      <p className="text-xs font-medium text-white/80 leading-relaxed">
+                         {language === "en" ? "Secure encrypted payments powered by Rezervame." : "Pagos seguros y encriptados por Rezervame."}
+                      </p>
+                   </div>
+                   <div className="flex gap-4">
+                      <Clock className="text-primary flex-shrink-0" size={20} />
+                      <p className="text-xs font-medium text-white/80 leading-relaxed">
+                         {language === "en" ? "Cancellations must be done 24h before." : "Cancelaciones deben hacerse 24h antes."}
+                      </p>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Rate Modal (Reused) */}
+      {isRateModalOpen && (
+         <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setIsRateModalOpen(false)} />
+           <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95">
+              <h3 className="text-2xl font-black text-slate-900 mb-8">{language === "en" ? "Rate Experience" : "Califica tu experiencia"}</h3>
+              <div className="space-y-8">
+                 <div className="space-y-4">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Staff Rating" : "Calificación del Personal"}</label>
+                    <div className="flex gap-3">
+                       {[1,2,3,4,5].map((star) => (
+                         <button key={star} onClick={() => setStaffRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${staffRating >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-slate-50 text-slate-300"}`}>
+                           <Star size={24} fill={staffRating >= star ? "currentColor" : "none"} />
+                         </button>
+                       ))}
+                    </div>
+                 </div>
+                 <div className="space-y-4">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Venue Rating" : "Calificación del Local"}</label>
+                    <div className="flex gap-3">
+                       {[1,2,3,4,5].map((star) => (
+                         <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-slate-50 text-slate-300"}`}>
+                           <Star size={24} fill={businessRating >= star ? "currentColor" : "none"} />
+                         </button>
+                       ))}
+                    </div>
+                 </div>
+                 <textarea 
+                   className="w-full h-32 p-6 bg-slate-50 border border-slate-100 rounded-3xl focus:outline-none focus:border-primary transition-all text-sm font-medium"
+                   placeholder={language === "en" ? "Share your feedback..." : "Comparte tu opinión..."}
+                   value={reviewComment}
+                   onChange={(e) => setReviewComment(e.target.value)}
+                 />
+                 <button 
+                   onClick={handleSubmitReview}
+                   disabled={isSubmittingReview}
+                   className="w-full py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-primary/20 transition-all disabled:opacity-50"
+                 >
+                   {isSubmittingReview ? "..." : (language === "en" ? "Submit Review" : "Enviar Calificación")}
+                 </button>
+              </div>
+           </div>
+         </div>
+      )}
+    </div>
+  );
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { 
   Settings, 
   Percent, 
@@ -17,7 +18,15 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("general");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && ["general", "security", "notifications", "platform"].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   const tabs = [
     { id: 'general', name: 'General', icon: Settings },

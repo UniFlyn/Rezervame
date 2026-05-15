@@ -1,87 +1,202 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBusinessStore } from '../../../store/businessStore';
-import { ToggleRight, BellOff } from 'lucide-react';
-import { useI18n } from '../../../components/I18nProvider';
+import clsx from 'clsx';
+import { toastError, toastSuccess } from '@/lib/toast';
 
 export default function SettingsPage() {
   const business = useBusinessStore((state) => state.business);
-  const { language, setLanguage, t } = useI18n();
+  const updateBusiness = useBusinessStore((state) => state.updateBusiness);
+  const [pending, setPending] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const notifyBooking = business?.notifyBookingEmail ?? true;
+  const notifyCancellation = business?.notifyCancellationEmail ?? true;
+  const notifyDaily = business?.notifyDailySummary ?? false;
+
+  async function savePatch(patch: Partial<Parameters<typeof updateBusiness>[0]>, key: string) {
+    setPending(key);
+    setBanner(null);
+    try {
+      await updateBusiness(patch);
+      setBanner({ type: 'success', text: 'Settings saved.' });
+      toastSuccess('Settings saved');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Save failed.';
+      setBanner({ type: 'error', text: msg });
+      toastError('Save failed', msg);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function toggle(
+    key:
+      | 'notifyBookingEmail'
+      | 'notifyCancellationEmail'
+      | 'notifyDailySummary',
+    value: boolean,
+  ) {
+    await savePatch({ [key]: value }, key);
+  }
 
   return (
-    <div className="space-y-10 max-w-2xl mx-auto pb-20">
-      <h2 className="text-3xl font-black tracking-tight text-gray-900 uppercase">{t('settingsTitle' as any)}</h2>
-      
-      <div className="space-y-8">
-        {/* Language Selection */}
-        <div className="bg-white p-10 rounded-[40px] shadow-xl shadow-slate-200/50 border border-slate-100">
-          <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">{t('panelLanguage' as any)}</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8">{t('panelLanguageSub' as any)}</p>
-          
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { id: 'en', label: 'English', flag: '🇺🇸' },
-              { id: 'es', label: 'Español', flag: '🇪🇸' }
-            ].map((l) => (
-              <button
-                key={l.id}
-                onClick={() => setLanguage(l.id as any)}
-                className={`flex items-center justify-between p-6 rounded-3xl border-4 transition-all ${language === l.id ? 'border-primary bg-primary/5 ring-4 ring-primary/10' : 'border-slate-50 hover:border-slate-200 bg-slate-50'}`}
-              >
-                <div className="flex items-center space-x-4">
-                  <span className="text-2xl">{l.flag}</span>
-                  <span className={`font-black uppercase tracking-widest text-sm ${language === l.id ? 'text-primary' : 'text-slate-500'}`}>{l.label}</span>
-                </div>
-                {language === l.id && <div className="w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-                  <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M0 11l2-2 5 5L18 3l2 2L7 18z"/></svg>
-                </div>}
-              </button>
-            ))}
+    <div className="mx-auto max-w-2xl space-y-10 pb-20">
+      <h2 className="text-3xl font-black tracking-tight text-gray-900 uppercase">Settings</h2>
+
+      {banner ? (
+        <div
+          className={clsx(
+            'rounded-2xl border px-4 py-3 text-sm font-semibold',
+            banner.type === 'success' &&
+              'border-emerald-200 bg-emerald-50 text-emerald-900',
+            banner.type === 'error' &&
+              'border-rose-200 bg-rose-50 text-rose-900',
+          )}
+        >
+          {banner.text}
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-[40px] border border-gray-100 bg-white shadow-xl shadow-slate-200/50">
+        <div className="border-b border-gray-100 p-10">
+          <h3 className="mb-2 text-xl font-black uppercase tracking-tight text-slate-800">Notifications</h3>
+          <p className="mb-8 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Choose what we email you about. Changes apply immediately.
+          </p>
+
+          <ul className="space-y-6">
+            <li className="-mx-4 flex cursor-default items-center justify-between rounded-2xl border-b border-slate-50 px-4 py-4 last:border-0 hover:bg-slate-50">
+              <div>
+                <p className="text-sm font-black uppercase tracking-tight text-slate-800">Booking alerts</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  New appointments and confirmations
+                </p>
+              </div>
+              <Toggle
+                pressed={notifyBooking}
+                disabled={pending === 'notifyBookingEmail'}
+                onToggle={() =>
+                  toggle('notifyBookingEmail', !notifyBooking)
+                }
+              />
+            </li>
+            <li className="-mx-4 flex cursor-default items-center justify-between rounded-2xl border-b border-slate-50 px-4 py-4 last:border-0 hover:bg-slate-50">
+              <div>
+                <p className="text-sm font-black uppercase tracking-tight text-slate-800">Cancellations</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  When a client cancels or reschedules
+                </p>
+              </div>
+              <Toggle
+                pressed={notifyCancellation}
+                disabled={pending === 'notifyCancellationEmail'}
+                onToggle={() =>
+                  toggle('notifyCancellationEmail', !notifyCancellation)
+                }
+              />
+            </li>
+            <li className="-mx-4 flex cursor-default items-center justify-between rounded-2xl px-4 py-4 hover:bg-slate-50">
+              <div>
+                <p className="text-sm font-black uppercase tracking-tight text-slate-800">Daily summary</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  End-of-day digest of bookings
+                </p>
+              </div>
+              <Toggle
+                pressed={notifyDaily}
+                disabled={pending === 'notifyDailySummary'}
+                onToggle={() =>
+                  toggle('notifyDailySummary', !notifyDaily)
+                }
+              />
+            </li>
+          </ul>
+        </div>
+
+        <div className="p-10">
+          <h3 className="mb-2 text-xl font-black uppercase tracking-tight text-slate-800">Tax Settings</h3>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6">
+            Set the tax percentage applied to your services.
+          </p>
+          <div className="flex items-center gap-4 max-w-xs">
+            <TaxInput 
+              initialValue={business?.taxPercentage ?? 0} 
+              onSave={(val) => savePatch({ taxPercentage: val }, 'taxPercentage')} 
+            />
+            <span className="text-xl font-black text-slate-400">%</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-[40px] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
-          <div className="p-10 border-b border-gray-100">
-            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">{t('subscriptionPlan' as any)}</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8">{t('subscriptionPlanSub' as any)}</p>
-            
-            <div className="bg-slate-900 rounded-3xl p-8 flex items-center justify-between shadow-2xl shadow-slate-900/20">
-              <div>
-                <p className="font-black text-white text-2xl uppercase tracking-tight italic">Premium Pro</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{t('activeUntil' as any)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-black text-primary">$49.00<span className="text-xs text-slate-400 font-bold">/mes</span></p>
-                <button className="mt-2 text-[10px] font-black text-white hover:text-primary uppercase tracking-widest transition-colors">{t('changePlan' as any)}</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-10">
-            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">{t('notifications' as any)}</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8">{t('notificationsSub' as any)}</p>
-            
-            <ul className="space-y-6">
-              {[
-                { label: t('apptAlerts' as any), desc: t('apptAlertsDesc' as any) },
-                { label: t('cancellations' as any), desc: t('cancellationsDesc' as any) },
-                { label: t('dailySummary' as any), desc: t('dailySummaryDesc' as any) },
-              ].map((item, i) => (
-                <li key={i} className="flex justify-between items-center py-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors -mx-4 px-4 rounded-2xl">
-                  <div>
-                    <p className="font-black text-slate-800 uppercase tracking-tight text-sm">{item.label}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.desc}</p>
-                  </div>
-                  <div className="cursor-pointer">
-                    <ToggleRight className={`h-10 w-10 transition-colors ${i !== 2 ? 'text-primary' : 'text-slate-200'}`} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+        <div className="p-10 border-t border-gray-100">
+          <h3 className="mb-2 text-xl font-black uppercase tracking-tight text-slate-800">Public profile hints</h3>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Your brand name appears on receipts and confirmations.
+          </p>
+          <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-6 text-sm text-slate-600">
+            <span className="font-black text-slate-900">{business?.name}</span>
+          </p>
+          <p className="mt-4 text-[10px] font-bold uppercase text-slate-400">
+            Manage address and contacts from Profile.
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+function Toggle(props: {
+  pressed: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={props.disabled}
+      onClick={() => props.onToggle()}
+      className={clsx(
+        'relative h-9 w-[52px] shrink-0 rounded-full border transition-colors',
+        props.pressed
+          ? 'border-primary bg-primary'
+          : 'border-slate-200 bg-slate-100',
+        props.disabled ? 'opacity-50' : 'cursor-pointer hover:brightness-105',
+      )}
+      aria-pressed={props.pressed}
+    >
+      <span
+        className={clsx(
+          'absolute top-1 inline-block h-7 w-7 rounded-full bg-white shadow transition-[left]',
+          props.pressed ? 'left-8' : 'left-1',
+        )}
+      />
+    </button>
+  );
+}
+
+function TaxInput({ initialValue, onSave }: { initialValue: number; onSave: (val: number) => void }) {
+  const [localValue, setLocalValue] = useState(String(initialValue));
+
+  useEffect(() => {
+    setLocalValue(String(initialValue));
+  }, [initialValue]);
+
+  return (
+    <input
+      type="number"
+      min="0"
+      max="100"
+      step="0.1"
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={() => {
+        const val = parseFloat(localValue) || 0;
+        if (val !== initialValue) {
+          onSave(val);
+        }
+      }}
+      className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+    />
   );
 }

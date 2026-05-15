@@ -1,9 +1,9 @@
 import VenueClient from "./VenueClient";
 
-export function generateStaticParams() {
-  return [{ id: "1" }];
+export async function generateStaticParams() {
+  return [{ id: "default" }];
 }
 
-export default function VenuePage() {
-  return <VenueClient />;
+export default function VenuePage({ params }: { params: { id: string } }) {
+  return <VenueClient businessId={params.id} />;
 }

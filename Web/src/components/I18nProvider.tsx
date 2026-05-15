@@ -6,7 +6,8 @@ import es from "../../../shared/locales/es.json";
 type Language = "en" | "es";
 type Translations = typeof en;
 
-const STORAGE_KEY = "rezervame_panel_language";
+/** Customer web app language (separate from business panel `rezervame_panel_language`). */
+const STORAGE_KEY = "rezervame_web_language";
 
 interface I18nContextType {
   language: Language;
@@ -15,13 +16,13 @@ interface I18nContextType {
 }
 
 const I18nContext = createContext<I18nContextType>({
-  language: "es",
-  t: (key) => es[key] ?? String(key),
+  language: "en",
+  t: (key) => en[key] ?? String(key),
   setLanguage: () => {},
 });
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguageState] = useState<Language>("es");
+  const [language, setLanguageState] = useState<Language>("en");
 
   useEffect(() => {
     try {

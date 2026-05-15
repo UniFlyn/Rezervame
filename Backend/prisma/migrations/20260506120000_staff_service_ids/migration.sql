@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Staff" ADD COLUMN "serviceIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

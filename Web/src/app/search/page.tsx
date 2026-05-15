@@ -1,53 +1,21 @@
 "use client";
 import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useI18n } from "../../components/I18nProvider";
-import { Search, Map as MapIcon, List, LayoutGrid, Star, Clock, Heart, Filter, ChevronDown, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Map as MapIcon, List, LayoutGrid, Star, Heart, Filter, ChevronDown, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-
-const CATEGORIES = [
-  "Servicios para el cabello",
-  "Spa y Bienestar",
-  "Cuidado de las Uñas",
-  "Servicios de Belleza",
-  "Barbershop",
-  "Depilación"
-];
-
-const MOCK_RESULTS = [
-  { id: 1, name: "Luxe Hair Studio", category: "Servicios para el cabello", rating: 4.9, reviews: 120, price: 45, img: "1560066984-138dadb4c035", lat: 25, lng: 25, popular: true },
-  { id: 2, name: "Bliss Beauty", category: "Spa y Bienestar", rating: 4.8, reviews: 89, price: 65, img: "1544161515-4ab6ce6db874", lat: 30, lng: 30, popular: false },
-  { id: 3, name: "Nail Society", category: "Cuidado de las Uñas", rating: 4.7, reviews: 62, price: 30, img: "1522337660859-02fbefca4702", lat: 20, lng: 40, popular: true },
-  { id: 4, name: "Brow Studio", category: "Servicios de Belleza", rating: 4.9, reviews: 194, price: 32, img: "1487412947147-5cebf100ffc2", lat: 40, lng: 20, popular: false },
-  { id: 5, name: "LUMI Hair Studio", category: "Servicios para el cabello", rating: 4.7, reviews: 145, price: 50, img: "1585747860715-2ba37e788b70", lat: 15, lng: 60, popular: true },
-  { id: 6, name: "Nova Hair Atelier", category: "Servicios para el cabello", rating: 4.8, reviews: 76, price: 35, img: "1560066984-138dadb4c035", lat: 50, lng: 50, popular: false },
-  { id: 7, name: "Zen Spa", category: "Spa y Bienestar", rating: 4.6, reviews: 45, price: 80, img: "1544161515-4ab6ce6db874", lat: 45, lng: 15, popular: true },
-  { id: 8, name: "Glow Parlor", category: "Servicios de Belleza", rating: 4.5, reviews: 32, price: 25, img: "1487412947147-5cebf100ffc2", lat: 10, lng: 10, popular: false },
-  { id: 9, name: "The Man Cave", category: "Barbershop", rating: 4.9, reviews: 210, price: 28, img: "1621605815891-2b97b0c03ffc", lat: 60, lng: 15, popular: true },
-  { id: 10, name: "Urban Cuts", category: "Barbershop", rating: 4.7, reviews: 123, price: 22, img: "1622286332618-f28020ee72ad", lat: 15, lng: 15, popular: false },
-  { id: 11, name: "Elite Beauty", category: "Servicios de Belleza", rating: 4.8, reviews: 88, price: 55, img: "1616394584738-c6b64f94c968", lat: 70, lng: 30, popular: true },
-  { id: 12, name: "Pristine Nails", category: "Cuidado de las Uñas", rating: 4.6, reviews: 54, price: 20, img: "1604072366580-c0d12b495146", lat: 80, lng: 40, popular: false },
-  { id: 13, name: "Serenity Wellness", category: "Spa y Bienestar", rating: 4.9, reviews: 167, price: 120, img: "1540555700478-422899bcafeb", lat: 25, lng: 80, popular: true },
-  { id: 14, name: "The Gentleman", category: "Barbershop", rating: 4.8, reviews: 92, price: 30, img: "1503951914875-452162b0f3f1", lat: 10, lng: 90, popular: false },
-  { id: 15, name: "Velvet Lashes", category: "Servicios de Belleza", rating: 4.7, reviews: 110, price: 40, img: "1487412947147-5cebf100ffc2", lat: 90, lng: 10, popular: true },
-  { id: 16, name: "Radiance Skin", category: "Spa y Bienestar", rating: 4.5, reviews: 78, price: 95, img: "1570172619624-2900c97eb242", lat: 65, lng: 65, popular: false },
-  { id: 17, name: "Modern Edge", category: "Servicios para el cabello", rating: 4.6, reviews: 134, price: 42, img: "1560066984-138dadb4c035", lat: 35, lng: 35, popular: true },
-  { id: 18, name: "Pure Elements", category: "Spa y Bienestar", rating: 4.8, reviews: 205, price: 150, img: "1544161515-4ab6ce6db874", lat: 85, lng: 85, popular: true },
-  { id: 19, name: "Smooth Skin Center", category: "Depilación", rating: 4.4, reviews: 42, price: 50, img: "1487412947147-5cebf100ffc2", lat: 5, lng: 5, popular: false },
-  { id: 20, name: "Wax & Go", category: "Depilación", rating: 4.9, reviews: 88, price: 35, img: "1487412947147-5cebf100ffc2", lat: 95, lng: 95, popular: true },
-  { id: 21, name: "Cali Cuts", category: "Barbershop", rating: 4.5, reviews: 67, price: 25, img: "1621605815891-2b97b0c03ffc", lat: 55, lng: 55, popular: false },
-  { id: 22, name: "Crystal Nails", category: "Cuidado de las Uñas", rating: 4.7, reviews: 142, price: 28, img: "1522337660859-02fbefca4702", lat: 45, lng: 45, popular: true },
-  { id: 23, name: "Heavenly Hands", category: "Spa y Bienestar", rating: 4.8, reviews: 99, price: 110, img: "1544161515-4ab6ce6db874", lat: 10, lng: 85, popular: false },
-  { id: 24, name: "Style Bar", category: "Servicios para el cabello", rating: 4.9, reviews: 310, price: 60, img: "1585747860715-2ba37e788b70", lat: 85, lng: 10, popular: true },
-  { id: 25, name: "Chic Beauty", category: "Servicios de Belleza", rating: 4.6, reviews: 56, price: 48, img: "1616394584738-c6b64f94c968", lat: 40, lng: 80, popular: false },
-  { id: 26, name: "Golden Scissors", category: "Servicios para el cabello", rating: 4.7, reviews: 65, price: 38, img: "1560066984-138dadb4c035", lat: 30, lng: 70, popular: false },
-  { id: 27, name: "The Beauty Hub", category: "Servicios de Belleza", rating: 4.8, reviews: 112, price: 52, img: "1487412947147-5cebf100ffc2", lat: 20, lng: 20, popular: true },
-  { id: 28, name: "Nail Art Studio", category: "Cuidado de las Uñas", rating: 4.5, reviews: 45, price: 25, img: "1522337660859-02fbefca4702", lat: 50, lng: 90, popular: false },
-  { id: 29, name: "Refresh Spa", category: "Spa y Bienestar", rating: 4.9, reviews: 198, price: 135, img: "1544161515-4ab6ce6db874", lat: 75, lng: 75, popular: true },
-];
+import {
+  fetchPublicVenues,
+  mapApiVenueToRow,
+  businessListingImageSrc,
+  type ApiVenue,
+  type SearchVenueRow,
+} from "@/lib/venueSearch";
+import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
+import en from "../../../../shared/locales/en.json";
 
 function SearchContent() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -60,42 +28,138 @@ function SearchContent() {
     searchParams.get("category") ? [searchParams.get("category")!] : []
   );
   const [showMap, setShowMap] = useState(true);
-  const [activeMarkerId, setActiveMarkerId] = useState<number | null>(null);
-
-  // Constants
+  const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
+  const [apiVenues, setApiVenues] = useState<ApiVenue[]>([]);
+  const [venuesLoading, setVenuesLoading] = useState(true);
+  const [venuesError, setVenuesError] = useState<string | null>(null);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = viewMode === "list" ? 10 : 15;
-  
-  const activeVenue = useMemo(() => 
-    MOCK_RESULTS.find(v => v.id === activeMarkerId), 
-  [activeMarkerId]);
+  const categoryKeyFromQuery = searchParams.get("categoryKey");
+  const searchQuery = searchParams.get("q") || "";
+  const venues = useMemo(
+    () => apiVenues.map((v) => mapApiVenueToRow(v, language)),
+    [apiVenues, language],
+  );
 
-  // Filter & Sort Logic
+  useEffect(() => {
+    let cancelled = false;
+    const run = (geo?: { lat: number; lng: number }) => {
+      setVenuesLoading(true);
+      const filters = {
+        page: currentPage,
+        limit: itemsPerPage,
+        category: categoryKeyFromQuery || "",
+        search: searchQuery,
+        sortBy: sortBy,
+      };
+
+      void fetchPublicVenues(15_000, geo, filters)
+        .then((res) => {
+          if (cancelled) return;
+          setApiVenues(res.data);
+          setTotalItems(res.total);
+          setTotalPages(res.totalPages);
+          setVenuesError(null);
+        })
+        .catch((e: unknown) => {
+          if (cancelled) return;
+          setVenuesError(e instanceof Error ? e.message : "Failed to load venues");
+        })
+        .finally(() => {
+          if (!cancelled) setVenuesLoading(false);
+        });
+    };
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          if (cancelled) return;
+          run({ lat: p.coords.latitude, lng: p.coords.longitude });
+        },
+        () => {
+          if (cancelled) return;
+          run();
+        },
+        { enableHighAccuracy: false, maximumAge: 300_000, timeout: 12_000 },
+      );
+    } else {
+      run();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage, sortBy, categoryKeyFromQuery, searchQuery]);
+
+  const categoryOptions = useMemo(() => {
+    const labels = new Set<string>();
+    venues.forEach((v) => labels.add(v.category));
+    return Array.from(labels).sort();
+  }, [venues]);
+  const activeVenue = useMemo(
+    () => venues.find((v) => v.businessId === activeMarkerId),
+    [venues, activeMarkerId],
+  );
+  const legacyCategoryNameFromQuery = searchParams.get("category");
+  /** Page title: honor `categoryKey` (e.g. from home tiles), not a stray default to hair. */
+  const searchResultsTitle = useMemo(() => {
+    if (legacyCategoryNameFromQuery) return legacyCategoryNameFromQuery;
+    if (categoryKeyFromQuery) return t(categoryKeyFromQuery as keyof typeof en);
+    return t("discoverPerfectService");
+  }, [legacyCategoryNameFromQuery, categoryKeyFromQuery, t, language]);
+
   const filteredAndSortedResults = useMemo(() => {
-    let results = [...MOCK_RESULTS];
+    let results = [...venues];
 
-    // Filter by category
+    if (categoryKeyFromQuery) {
+      results = results.filter((r) => r.categoryKey === categoryKeyFromQuery);
+    }
+
     if (selectedCategories.length > 0) {
-      results = results.filter(r => selectedCategories.includes(r.category));
+      results = results.filter((r) => selectedCategories.includes(r.category));
     }
 
-    // Filter by rating
     if (selectedRatings.length > 0) {
-      results = results.filter(r => selectedRatings.some(min => r.rating >= min));
+      results = results.filter((r) => selectedRatings.some((min) => r.rating >= min));
     }
 
-    // Sort
     results.sort((a, b) => {
       if (sortBy === "priceLowHigh") return a.price - b.price;
       if (sortBy === "priceHighLow") return b.price - a.price;
       if (sortBy === "ratingHighLow") return b.rating - a.rating;
-      return 0; // Default
+      return 0;
     });
 
     return results;
-  }, [selectedCategories, selectedRatings, sortBy]);
+  }, [venues, selectedCategories, selectedRatings, sortBy, categoryKeyFromQuery]);
+
+  const markerBounds = useMemo(() => {
+    const list = filteredAndSortedResults;
+    if (!list.length) return { minLat: 0, maxLat: 1, minLng: 0, maxLng: 1 };
+    let minLat = Infinity,
+      maxLat = -Infinity,
+      minLng = Infinity,
+      maxLng = -Infinity;
+    for (const r of list) {
+      minLat = Math.min(minLat, r.lat);
+      maxLat = Math.max(maxLat, r.lat);
+      minLng = Math.min(minLng, r.lng);
+      maxLng = Math.max(maxLng, r.lng);
+    }
+    if (minLat === maxLat) {
+      minLat -= 0.01;
+      maxLat += 0.01;
+    }
+    if (minLng === maxLng) {
+      minLng -= 0.01;
+      maxLng += 0.01;
+    }
+    return { minLat, maxLat, minLng, maxLng };
+  }, [filteredAndSortedResults]);
 
   // Pagination Logic
-  const totalPages = Math.ceil(filteredAndSortedResults.length / itemsPerPage);
+  const localTotalPages = Math.ceil(filteredAndSortedResults.length / itemsPerPage);
   const paginatedResults = filteredAndSortedResults.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -113,6 +177,42 @@ function SearchContent() {
   const toggleCategory = (c: string) => {
     setSelectedCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   };
+
+  if (venuesLoading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4 px-6 py-20">
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#ff5a5f]"
+          aria-hidden
+        />
+        <p className="text-sm font-semibold text-slate-600">{t('loadingVenues')}</p>
+        <p className="text-center text-xs text-slate-400 max-w-md">
+          Fetching from{" "}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700">
+            {process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api"}
+          </code>
+          . If this hangs, start the backend on port 4000 or set{" "}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">NEXT_PUBLIC_API_BASE_URL</code> in{" "}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">Web/.env.local</code>.
+        </p>
+      </div>
+    );
+  }
+
+  if (venuesError || venues.length === 0) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center px-6 py-16">
+        <p className="text-sm font-semibold text-red-600">{venuesError ?? "No venues available."}</p>
+        <p className="mt-3 text-xs text-slate-500 text-center max-w-lg leading-relaxed">
+          Start the Nest API from <code className="font-mono text-[11px]">Backend/</code>{" "}
+          (<code className="font-mono text-[11px]">npm run start:dev</code>), then reload. Expected URL:{" "}
+          <code className="mt-1 block rounded bg-slate-100 px-2 py-1 text-[11px] text-slate-800">
+            {process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api"}/mobile/venues
+          </code>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -163,7 +263,7 @@ function SearchContent() {
                 {t('filterService')}
               </h4>
               <div className="space-y-5">
-                 {CATEGORIES.map(c => (
+                 {categoryOptions.map(c => (
                    <label key={c} className="flex items-center gap-4 cursor-pointer group">
                       <div 
                         onClick={() => toggleCategory(c)}
@@ -221,7 +321,7 @@ function SearchContent() {
            <div className="max-w-6xl mx-auto">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
                  <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">{searchParams.get("category") || t('hairService')}</h2>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">{searchResultsTitle}</h2>
                     <p className="text-xs font-black text-[#ff5a5f] mt-2 uppercase tracking-[0.2em] bg-[#ff5a5f]/5 inline-block px-3 py-1 rounded-full border border-[#ff5a5f]/10">
                         {filteredAndSortedResults.length} {t('searchResultCount')}
                     </p>
@@ -243,23 +343,31 @@ function SearchContent() {
               </div>
 
               {/* LIST VIEW */}
+              {viewMode === "list" && filteredAndSortedResults.length === 0 && (
+                <div className="rounded-[32px] border border-slate-100 bg-white px-8 py-16 text-center">
+                  <p className="text-sm font-bold text-slate-700">{t('noVenuesMatch')}</p>
+                  <p className="mt-2 text-xs text-slate-400">Try clearing category or rating filters, or change the URL category key.</p>
+                </div>
+              )}
+
               {viewMode === "list" && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {paginatedResults.map((res) => (
-                        <Link href={`/venue/${res.id}`} key={res.id} className="group flex flex-col md:flex-row bg-white rounded-[32px] border border-slate-100 overflow-hidden hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 p-4 h-auto cursor-pointer">
+                        <Link href={`/venue/${res.businessId}`} key={res.businessId} className="group flex flex-col md:flex-row bg-white rounded-[32px] border border-slate-100 overflow-hidden hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 p-4 h-auto cursor-pointer">
                             <div className="relative w-full md:w-72 h-48 md:h-auto overflow-hidden rounded-[24px] flex-shrink-0">
                                 <img 
-                                  src={`https://images.unsplash.com/photo-${res.img}?q=80&w=800&fit=crop`} 
+                                  src={businessListingImageSrc(res)} 
                                   className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" 
                                   alt={res.name}
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
-                                    target.src = "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=800&fit=crop";
+                                    target.onerror = null;
+                                    target.src = PLACEHOLDER_IMAGE_DATA_URI;
                                   }}
                                 />
                                 {res.popular && (
                                     <div className="absolute top-4 left-4 bg-[#ff5a5f] text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-lg">
-                                        Popular
+                                        {t('popular')}
                                     </div>
                                 )}
                                 <button className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 hover:text-[#ff5a5f] transition-all shadow-lg hover:scale-110">
@@ -280,18 +388,15 @@ function SearchContent() {
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-500 mt-6">
-                                        <div className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-1.5 rounded-full border border-green-100 uppercase tracking-tighter">
-                                            <Clock className="w-4 h-4" /> {t('today')} 3:00 PM
-                                        </div>
-                                        <div className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-1.5 rounded-full border border-slate-100 uppercase tracking-tighter">
-                                            Avenida Balboa • 0.5 km
+                                        <div className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-1.5 rounded-full border border-slate-100 tracking-tight max-w-full">
+                                            {res.locationLabel} • {res.distanceLabel}
                                         </div>
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center mt-8 pt-6 border-t border-slate-50">
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('priceFrom')}</span>
-                                        <span className="font-black text-2xl text-slate-900 tracking-tight">${res.price}.00</span>
+                                        <span className="font-black text-2xl text-slate-900 tracking-tight">${res.price.toFixed(2)}</span>
                                     </div>
                                     <button className="bg-[#ff5a5f] hover:bg-[#e0454a] text-white px-10 py-4 rounded-[20px] font-black transition-all duration-500 shadow-xl shadow-[#ff5a5f]/20 uppercase tracking-widest text-xs hover:translate-y-[-4px] active:translate-y-0">
                                         {t('bookBtn')}
@@ -304,18 +409,25 @@ function SearchContent() {
               )}
 
               {/* GRID VIEW */}
+              {viewMode === "grid" && filteredAndSortedResults.length === 0 && (
+                <div className="rounded-[40px] border border-slate-100 bg-white px-8 py-16 text-center col-span-full">
+                  <p className="text-sm font-bold text-slate-700">{t('noVenuesMatch')}</p>
+                </div>
+              )}
+
               {viewMode === "grid" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 animate-in fade-in zoom-in-95 duration-700">
                     {paginatedResults.map((res) => (
-                        <Link href={`/venue/${res.id}`} key={res.id} className="group bg-white rounded-[40px] border border-slate-100 overflow-hidden hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 flex flex-col cursor-pointer border-b-[6px] border-b-[#ff5a5f]/10 translate-y-0 hover:translate-y-[-8px]">
+                        <Link href={`/venue/${res.businessId}`} key={res.businessId} className="group bg-white rounded-[40px] border border-slate-100 overflow-hidden hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 flex flex-col cursor-pointer border-b-[6px] border-b-[#ff5a5f]/10 translate-y-0 hover:translate-y-[-8px]">
                             <div className="relative h-64 overflow-hidden">
                                 <img 
-                                  src={`https://images.unsplash.com/photo-${res.img}?q=80&w=600&fit=crop`} 
+                                  src={businessListingImageSrc(res)} 
                                   className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" 
                                   alt={res.name}
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
-                                    target.src = "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=600&fit=crop";
+                                    target.onerror = null;
+                                    target.src = PLACEHOLDER_IMAGE_DATA_URI;
                                   }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -332,7 +444,7 @@ function SearchContent() {
                                 <h3 className="text-xl font-black text-slate-900 leading-tight mb-4 group-hover:text-[#ff5a5f] transition-colors line-clamp-2">{res.name}</h3>
                                 
                                 <div className="mt-auto flex justify-between items-center pt-6 border-t border-slate-50">
-                                    <span className="font-black text-2xl text-slate-900">${res.price}.00</span>
+                                    <span className="font-black text-2xl text-slate-900">${res.price.toFixed(2)}</span>
                                     <button className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-[#ff5a5f] transition-all duration-500 shadow-lg hover:rotate-90">
                                         <ChevronRight className="w-6 h-6" strokeWidth={3} />
                                     </button>
@@ -344,7 +456,7 @@ function SearchContent() {
               )}
 
               {/* PAGINATION */}
-              {totalPages > 1 && (
+              {localTotalPages > 1 && (
                 <div className="mt-20 flex justify-center items-center gap-3">
                     <button 
                         disabled={currentPage === 1}
@@ -355,7 +467,7 @@ function SearchContent() {
                     </button>
                     
                     <div className="flex bg-white border-2 border-slate-100 rounded-2xl p-1.5 shadow-sm">
-                        {Array.from({length: totalPages}).map((_, i) => (
+                        {Array.from({length: localTotalPages}).map((_, i) => (
                             <button
                                 key={i + 1}
                                 onClick={() => setCurrentPage(i + 1)}
@@ -367,9 +479,9 @@ function SearchContent() {
                     </div>
 
                     <button 
-                        disabled={currentPage === totalPages}
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${currentPage === totalPages ? 'border-slate-50 text-slate-200 cursor-not-allowed' : 'border-slate-100 text-slate-600 hover:border-[#ff5a5f] hover:text-[#ff5a5f] hover:bg-white active:scale-95 shadow-sm'}`}
+                        disabled={currentPage === localTotalPages}
+                        onClick={() => setCurrentPage(p => Math.min(localTotalPages, p + 1))}
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${currentPage === localTotalPages ? 'border-slate-50 text-slate-200 cursor-not-allowed' : 'border-slate-100 text-slate-600 hover:border-[#ff5a5f] hover:text-[#ff5a5f] hover:bg-white active:scale-95 shadow-sm'}`}
                     >
                         <ChevronRight className="w-6 h-6" strokeWidth={3} />
                     </button>
@@ -395,21 +507,26 @@ function SearchContent() {
                 
                 <div className="absolute inset-0 pointer-events-none">
                     {filteredAndSortedResults.map((res) => {
-                      const isActive = activeMarkerId === res.id;
+                      const isActive = activeMarkerId === res.businessId;
+                      const { minLat, maxLat, minLng, maxLng } = markerBounds;
+                      const topPct =
+                        maxLat === minLat ? 50 : ((res.lat - minLat) / (maxLat - minLat)) * 70 + 15;
+                      const leftPct =
+                        maxLng === minLng ? 50 : ((res.lng - minLng) / (maxLng - minLng)) * 70 + 15;
                       return (
                         <div 
-                            key={res.id} 
+                            key={res.businessId} 
                             onClick={() => {
-                                setActiveMarkerId(res.id === activeMarkerId ? null : res.id);
+                                setActiveMarkerId(res.businessId === activeMarkerId ? null : res.businessId);
                             }}
                             className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${
                               isActive ? 'z-50' : activeMarkerId != null ? 'z-10 opacity-35 scale-[0.92]' : 'z-10 opacity-90'
                             }`}
-                            style={{ top: `${(res.lat / 100) * 80 + 10}%`, left: `${(res.lng / 100) * 80 + 10}%` }}
+                            style={{ top: `${topPct}%`, left: `${leftPct}%` }}
                         >
                             <div className={`border-2 rounded-xl px-2.5 py-1 font-black text-[11px] shadow-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${isActive ? 'bg-slate-900 border-white text-white scale-110 ring-2 ring-white/90' : 'bg-white/95 border-slate-200 text-slate-700 scale-95 saturate-75'}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-[#ff5a5f]' : 'bg-[#ff5a5f]'}`}></span>
-                                ${res.price}
+                                ${res.price.toFixed(0)}
                             </div>
                             <div className={`w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] mx-auto -mt-px filter drop-shadow-lg ${isActive ? 'border-t-slate-900 opacity-100' : 'border-t-slate-300 opacity-60'}`}></div>
                         </div>
@@ -423,12 +540,13 @@ function SearchContent() {
                     <div className="pointer-events-auto mx-auto max-w-lg w-full bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 flex items-center gap-4 animate-in slide-in-from-bottom-4 duration-300">
                         <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0">
                             <img 
-                               src={`https://images.unsplash.com/photo-${activeVenue.img}?q=80&w=300&fit=crop`} 
+                               src={businessListingImageSrc(activeVenue)} 
                                className="w-full h-full object-cover" 
                                alt={activeVenue.name}
                                onError={(e) => {
                                  const target = e.target as HTMLImageElement;
-                                 target.src = "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=300&fit=crop";
+                                 target.onerror = null;
+                                 target.src = PLACEHOLDER_IMAGE_DATA_URI;
                                }}
                              />
                         </div>
@@ -445,7 +563,7 @@ function SearchContent() {
                                 <span>${activeVenue.price}</span>
                             </div>
                             <button 
-                                onClick={() => router.push(`/venue/${activeVenue.id}`)}
+                                onClick={() => router.push(`/venue/${activeVenue.businessId}`)}
                                 className="w-full bg-[#ff5a5f] text-white text-[10px] font-black uppercase tracking-widest py-2.5 rounded-xl mt-3 hover:bg-[#e0454a] transition-all"
                             >
                                 {t('viewDetails')}
@@ -473,7 +591,14 @@ function SearchContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 py-16">
+          <div className="h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-[#ff5a5f]" aria-hidden />
+          <p className="text-sm font-semibold text-slate-500">Loading search…</p>
+        </div>
+      }
+    >
       <SearchContent />
     </Suspense>
   );

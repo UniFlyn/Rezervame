@@ -1,8 +1,11 @@
 "use client";
 import React from "react";
+import Link from "next/link";
 import { useI18n } from "./I18nProvider";
 import { Facebook, Linkedin, Instagram } from "lucide-react";
 import { usePathname } from "next/navigation";
+
+const footerLinkClass = "block hover:underline opacity-90 transition-opacity hover:opacity-100";
 
 export const Footer = () => {
   const { t } = useI18n();
@@ -22,45 +25,63 @@ export const Footer = () => {
              {t('footerAbout')}
            </p>
            <div className="flex space-x-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-white/10 hover:bg-white/20 transition hover:scale-110">
+              <a
+                href="https://www.facebook.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 transition hover:scale-110"
+                aria-label="Facebook"
+              >
                 <Facebook size={18} />
-              </div>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-white/10 hover:bg-white/20 transition hover:scale-110">
+              </a>
+              <a
+                href="https://www.instagram.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 transition hover:scale-110"
+                aria-label="Instagram"
+              >
                 <Instagram size={18} />
-              </div>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-white/10 hover:bg-white/20 transition hover:scale-110">
+              </a>
+              <a
+                href="https://www.linkedin.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 transition hover:scale-110"
+                aria-label="LinkedIn"
+              >
                 <Linkedin size={18} />
-              </div>
+              </a>
            </div>
         </div>
         
         <div className="md:col-span-2">
-          <h4 className="font-bold text-[15px] mb-6 tracking-wide">Para Clientes</h4>
+          <h4 className="font-bold text-[15px] mb-6 tracking-wide">{t("footerForClients")}</h4>
           <ul className="space-y-4 text-[13px] font-bold opacity-90">
-             <li><a href="/download" className="hover:underline opacity-90">Descargar app</a></li>
-             <li><a href="/how-it-works" className="hover:underline opacity-90">Cómo funciona</a></li>
-             <li><a href="/customer-service" className="hover:underline opacity-90">Atención al cliente</a></li>
-             <li><a href="/events" className="hover:underline opacity-90">Eventos en REZERVAME</a></li>
+             <li><Link href="/download" className={footerLinkClass}>{t("footerDownload")}</Link></li>
+             <li><Link href="/how-it-works" className={footerLinkClass}>{t("footerHow")}</Link></li>
+             <li><Link href="/customer-service" className={footerLinkClass}>{t("footerSupport")}</Link></li>
+             <li><Link href="/events" className={footerLinkClass}>{t("footerEvents")}</Link></li>
           </ul>
         </div>
         
         <div className="md:col-span-3">
           <h4 className="font-bold text-[15px] mb-6 tracking-wide">{t('footerForBusiness')}</h4>
           <ul className="space-y-4 text-[13px] font-bold opacity-90">
-             <li><a href="/business/join" className="hover:underline opacity-90">{t('footerJoin')}</a></li>
-             <li><a href="/business/login" className="hover:underline opacity-90">{t('footerApp')}</a></li>
-             <li><a href="/pricing" className="hover:underline opacity-90">{t('footerPrices')}</a></li>
-             <li><a href="/business/support" className="hover:underline opacity-90">{t('footerSupportBiz')}</a></li>
+             <li><Link href="/business/join" className={footerLinkClass}>{t('footerJoin')}</Link></li>
+             <li><Link href="/business/login" className={footerLinkClass}>{t('footerApp')}</Link></li>
+             <li><Link href="/pricing" className={footerLinkClass}>{t('footerPrices')}</Link></li>
+             <li><Link href="/business/support" className={footerLinkClass}>{t('footerSupportBiz')}</Link></li>
           </ul>
         </div>
         
         <div className="md:col-span-3">
-          <h4 className="font-bold text-[15px] mb-6 tracking-wide text-transparent select-none">Legal</h4>
+          <h4 className="font-bold text-[15px] mb-6 tracking-wide text-white/90">{t("footerLegal")}</h4>
           <ul className="space-y-4 text-[13px] font-bold opacity-90">
-             <li><a href="/about" className="hover:underline opacity-90">Sobre nosotros</a></li>
-             <li><a href="/jobs" className="hover:underline opacity-90">Empleos</a></li>
-             <li><a href="/privacy" className="hover:underline opacity-90">Política de privacidad</a></li>
-             <li><a href="/terms" className="hover:underline opacity-90">Términos del servicio</a></li>
+             <li><Link href="/about" className={footerLinkClass}>{t("footerAboutUs")}</Link></li>
+             <li><Link href="/jobs" className={footerLinkClass}>{t("footerJobs")}</Link></li>
+             <li><Link href="/privacy" className={footerLinkClass}>{t("footerPrivacy")}</Link></li>
+             <li><Link href="/terms" className={footerLinkClass}>{t("footerTerms")}</Link></li>
           </ul>
         </div>
 
@@ -68,16 +89,26 @@ export const Footer = () => {
       
       <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between">
          <div className="flex flex-col">
-            <h5 className="font-extrabold text-[15px] mb-1">Descarga la aplicación REZERVAME</h5>
-            <p className="text-xs font-semibold opacity-80">Reserva citas estés donde estés</p>
+            <h5 className="font-extrabold text-[15px] mb-1">{t("downloadApp")}</h5>
+            <p className="text-xs font-semibold opacity-80">{t("downloadSub")}</p>
          </div>
          <div className="flex space-x-3 mt-4 md:mt-0">
-            <button className="flex items-center px-4 py-2 bg-transparent border border-white/30 rounded-lg hover:bg-white/10 transition">
+            <a
+              href="https://apps.apple.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-4 py-2 bg-transparent border border-white/30 rounded-lg hover:bg-white/10 transition"
+            >
                <span className="text-xs font-bold tracking-tight">App Store</span>
-            </button>
-            <button className="flex items-center px-4 py-2 bg-transparent border border-white/30 rounded-lg hover:bg-white/10 transition">
+            </a>
+            <a
+              href="https://play.google.com/store"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-4 py-2 bg-transparent border border-white/30 rounded-lg hover:bg-white/10 transition"
+            >
                <span className="text-xs font-bold tracking-tight">Google Play</span>
-            </button>
+            </a>
          </div>
       </div>
     </footer>

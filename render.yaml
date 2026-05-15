@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: rezervame-backend
+    runtime: node
+    buildCommand: npm install && npm run build --prefix Backend && npx prisma generate --schema=Backend/prisma/schema.prisma
+    startCommand: npm run start --prefix Backend
+    envVars:
+      - key: DATABASE_URL
+        sync: false # User will provide this in the Render dashboard
+      - key: PORT
+        value: 4000
+      - key: NODE_ENV
+        value: production

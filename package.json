@@ -2,9 +2,18 @@
   "name": "rezervame-monorepo",
   "private": true,
   "scripts": {
+    "check:local": "node scripts/check-local.mjs",
+    "dev:api": "npm run dev:local --prefix Backend",
+    "dev:web": "npm run dev --prefix Web",
+    "dev:admin": "npm run dev --prefix Admin",
     "build:web": "npm run build --prefix Web",
+    "build": "npm run build --prefix Backend",
+    "start": "npm run start --prefix Backend",
     "deploy:web": "npm run build:web && firebase deploy --only hosting:web --project rezerveme-1fce5",
     "build:admin": "npm run build --prefix Admin",
-    "deploy:admin": "npm run build:admin && firebase deploy --only hosting:admin --project rezerveme-1fce5"
+    "deploy:admin": "npm run build:admin && firebase deploy --only hosting:admin --project rezerveme-1fce5",
+    "deploy:backend": "bash scripts/deploy-backend.sh",
+    "deploy:all": "npm run deploy:web && npm run deploy:admin && npm run deploy:backend",
+    "backup": "bash scripts/backup.sh"
   }
 }

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
 import "./globals.css";
 import React from "react";
 import { I18nProvider } from "../components/I18nProvider";
@@ -7,13 +6,7 @@ import { AuthProvider } from "../components/AuthProvider";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import { LoginModal } from "../components/LoginModal";
-
-/** Display sans; swap for licensed Cocogoose files via localFont when available */
-const outfit = Outfit({
-  subsets: ["latin"],
-  variable: "--font-outfit",
-  display: "swap",
-});
+import { AppToaster } from "../components/AppToaster";
 
 export const metadata: Metadata = {
   title: "Rezervame - Reserva citas de belleza al instante",
@@ -27,16 +20,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${outfit.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <AuthProvider>
           <I18nProvider>
-            <div className="flex flex-col min-h-screen">
+            <div className="flex min-h-screen flex-col">
               <Header />
-              <main className="flex-grow">
+              <main className="min-h-0 w-full flex-1">
                 {children}
               </main>
               <Footer />
               <LoginModal />
+              <AppToaster />
             </div>
           </I18nProvider>
         </AuthProvider>

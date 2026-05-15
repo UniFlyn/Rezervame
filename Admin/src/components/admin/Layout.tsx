@@ -13,7 +13,10 @@ import {
   ShieldCheck, 
   Settings, 
   FileText,
-  LogOut
+  LogOut,
+  Tags,
+  Sparkles,
+  Tag
 } from 'lucide-react';
 import { cn } from '@/lib/utils'; // I'll create this helper if it doesn't exist
 
@@ -22,16 +25,23 @@ const menuItems = [
   { name: 'Businesses', icon: Store, href: '/admin/businesses' },
   { name: 'Users', icon: Users, href: '/admin/users' },
   { name: 'Bookings', icon: CalendarCheck, href: '/admin/bookings' },
+  { name: 'Promotions', icon: Tag, href: '/admin/promotions' },
   { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
   { name: 'Withdrawals', icon: ArrowDownCircle, href: '/admin/withdrawals' },
   { name: 'Notifications', icon: Bell, href: '/admin/notifications' },
   { name: 'Subscriptions', icon: ShieldCheck, href: '/admin/subscriptions' },
+  { name: 'Categories', icon: Tags, href: '/admin/categories' },
+  { name: 'Amenities', icon: Sparkles, href: '/admin/amenities' },
   { name: 'Settings', icon: Settings, href: '/admin/settings' },
   { name: 'Logs', icon: FileText, href: '/admin/logs' },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const logout = () => {
+    localStorage.removeItem("admin_token");
+    window.location.href = "/admin/login";
+  };
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col h-screen fixed left-0 top-0">
@@ -62,7 +72,7 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-800">
-        <button className="flex items-center space-x-3 w-full px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors group">
+        <button onClick={logout} className="flex items-center space-x-3 w-full px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors group">
           <LogOut className="w-5 h-5 group-hover:text-white" />
           <span className="font-medium text-sm">Logout</span>
         </button>

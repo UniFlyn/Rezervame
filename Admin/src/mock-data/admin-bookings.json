@@ -1,5 +1,0 @@
-[
-  { "id": "BK-1001", "user": "John Doe", "email": "john.doe@example.com", "business": "Barber Pro", "date": "2024-05-21", "status": "confirmed", "amount": 45 },
-  { "id": "BK-1002", "user": "Jane Smith", "email": "jane.smith@example.com", "business": "Style Loft", "date": "2024-05-22", "status": "pending", "amount": 60 },
-  { "id": "BK-1003", "user": "Mike Ross", "email": "mike.ross@example.com", "business": "Elite Cuts", "date": "2024-05-20", "status": "cancelled", "amount": 35 }
-]

@@ -1,5 +1,5 @@
 import type { Config } from "tailwindcss";
-import { colors } from "../shared/colors";
+import { colors } from "./src/lib/colors";
 
 const config: Config = {
   content: [
@@ -10,7 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-outfit)", "system-ui", "Segoe UI", "sans-serif"],
+        sans: ["system-ui", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
       },
       colors: {
         primary: colors.primary,

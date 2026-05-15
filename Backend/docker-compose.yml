@@ -1,0 +1,23 @@
+# Local PostgreSQL for development. From Backend/: docker compose up -d
+# Then: npm run prisma:push && npm run prisma:seed && npm run start:dev
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: barber-rezervame-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rezervame
+    volumes:
+      - barber_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rezervame"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+
+volumes:
+  barber_pg_data:

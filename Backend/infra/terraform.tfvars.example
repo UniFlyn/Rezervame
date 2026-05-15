@@ -1,0 +1,5 @@
+aws_region   = "us-east-1"
+project_name = "rezervame"
+
+# Never commit real secrets. Pass this via CI secret or local env-backed tfvars.
+db_password = "replace-me"

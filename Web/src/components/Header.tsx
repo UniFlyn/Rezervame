@@ -3,7 +3,9 @@ import React, { useState } from "react";
 import { useI18n } from "./I18nProvider";
 import { useAuth } from "./AuthProvider";
 import { useRouter, usePathname } from "next/navigation";
-import { CheckCircle, Heart, Bell, Search, MapPin, User as UserIcon } from "lucide-react";
+import { CheckCircle, Heart, Bell, Search, MapPin, User as UserIcon, ShoppingBag } from "lucide-react";
+import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
+import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
 
 const HOME_SEARCH_SCROLL_PX = 260;
 
@@ -16,7 +18,11 @@ export const Header = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [showHeaderSearch, setShowHeaderSearch] = useState(() => pathname !== "/");
 
+  const { businessId, serviceIds } = useVenueBookingCartStore();
+  const [mounted, setMounted] = useState(false);
+
   React.useEffect(() => {
+    setMounted(true);
     if (pathname !== "/") {
       setShowHeaderSearch(true);
       return;
@@ -42,7 +48,7 @@ export const Header = () => {
         <div className="relative cursor-pointer flex items-center gap-2" onClick={() => router.push('/')}>
           <img 
             src="/logo.png" 
-            alt="rezervame" 
+            alt="Rezervame" 
             className="h-8 w-auto object-contain transform group-hover:scale-105 transition duration-500"
             onError={(e) => {
               (e.target as HTMLImageElement).classList.add('hidden');
@@ -126,19 +132,31 @@ export const Header = () => {
              <Heart size={24} strokeWidth={1.5} />
           </button>
           
+          {mounted && isLoggedIn && businessId && serviceIds.length > 0 && (
+            <button
+              onClick={() => router.push(`/venue/${businessId}`)}
+              className="p-2 rounded-2xl text-[#ff5a5f] bg-[#ff5a5f]/10 hover:bg-[#ff5a5f]/20 transition-all relative transform active:scale-95"
+              title={language === "en" ? "Continue booking" : "Continuar reserva"}
+            >
+              <ShoppingBag size={24} strokeWidth={1.5} />
+              <div className="absolute top-0 right-0 bg-[#ff5a5f] text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center transform translate-x-1/4 -translate-y-1/4 shadow-sm border border-white">
+                {serviceIds.length}
+              </div>
+            </button>
+          )}
+
           <div className="w-[1px] h-8 bg-slate-200 mx-2"></div>
 
           {isLoggedIn ? (
             <div className="flex items-center space-x-4 cursor-pointer group" onClick={() => router.push('/profile')} title="Go to Profile">
                <div className="relative">
-                  <img src={user?.avatar || "/richard_lucas_avatar.png"} alt="Profile" className="w-11 h-11 rounded-[1.2rem] object-cover border-2 border-white shadow-md group-hover:scale-105 transition duration-500" />
+                  <img src={user?.avatar || PLACEHOLDER_IMAGE_DATA_URI} alt="Profile" className="w-11 h-11 rounded-[1.2rem] object-cover border-2 border-white shadow-md group-hover:scale-105 transition duration-500" />
                   <div className="absolute -bottom-1 -right-1 bg-green-500 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm"></div>
                </div>
                <div className="flex flex-col text-left hidden sm:flex">
                   <span className="text-sm font-black text-slate-800 group-hover:text-[#ff5a5f] transition leading-none">{user?.name || "User"}</span>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
-                     <span className="w-1 h-1 bg-[#ff5a5f] rounded-full"></span>
-                     152 {language === "en" ? "bookings" : "reservas"}
+                  <span className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-widest mt-1.5">
+                    {t("profileDashboardLink")}
                   </span>
                </div>
             </div>

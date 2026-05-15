@@ -3,17 +3,39 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowRight, ShieldCheck, Zap } from "lucide-react";
+import { apiPostOptional } from "@/lib/api";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [email, setEmail] = useState("admin@rezervame.com");
+  const [password, setPassword] = useState("password");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      router.push("/admin/dashboard");
-    }, 1500);
+    setError("");
+    try {
+      const auth = await apiPostOptional<{ token: string; user: { role: string } }>("/auth/login", { email, password });
+      if (auth && auth.user.role === "ADMIN") {
+        localStorage.setItem("admin_token", auth.token);
+        toastSuccess("Signed in", "Welcome to the admin console.");
+        router.push("/admin/dashboard");
+      } else {
+        const msg =
+          "Sign-in failed. Check email/password, or ensure the API is running (e.g. http://localhost:4000).";
+        setError(msg);
+        toastError("Sign-in failed", msg);
+      }
+    } catch {
+      const msg =
+        "Cannot reach the API. Start the backend and confirm NEXT_PUBLIC_API_BASE_URL (default http://localhost:4000/api).";
+      setError(msg);
+      toastError("Cannot reach API", msg);
+    }
+    setLoading(false);
   };
 
   return (
@@ -42,7 +64,8 @@ export default function LoginPage() {
                 <input 
                   type="email" 
                   required
-                  defaultValue="admin@rezervame.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold text-white focus:ring-4 focus:ring-blue-500/20 outline-none transition"
                   placeholder="Enter admin identifier"
                 />
@@ -56,12 +79,19 @@ export default function LoginPage() {
                 <input 
                   type="password" 
                   required
-                  defaultValue="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold text-white focus:ring-4 focus:ring-blue-500/20 outline-none transition"
                   placeholder="••••••••"
                 />
               </div>
             </div>
+
+            {error ? (
+              <p className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-xs font-semibold text-rose-200">
+                {error}
+              </p>
+            ) : null}
 
             <div className="flex items-center justify-between px-2">
               <label className="flex items-center gap-2 cursor-pointer group">

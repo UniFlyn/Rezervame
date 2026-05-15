@@ -1,7 +1,0 @@
-[
-  { "id": "log_1", "date": "2024-05-20T10:30:00Z", "user": "Prem Kumar", "action": "LOGIN_SUCCESS", "details": "Logged into the admin panel" },
-  { "id": "log_2", "date": "2024-05-20T09:45:00Z", "user": "System", "action": "BACKUP_COMPLETED", "details": "Daily database backup finished" },
-  { "id": "log_3", "date": "2024-05-19T22:15:00Z", "user": "Alice Admin", "action": "BUSINESS_APPROVED", "details": "Approved 'Barber Pro' application" },
-  { "id": "log_4", "date": "2024-05-19T18:00:00Z", "user": "Prem Kumar", "action": "USER_BLOCKED", "details": "Blocked user ID #1052 due to spam" },
-  { "id": "log_5", "date": "2024-05-19T14:20:00Z", "user": "Bob Editor", "action": "SETTINGS_UPDATED", "details": "Changed commission rate to 15%" }
-]

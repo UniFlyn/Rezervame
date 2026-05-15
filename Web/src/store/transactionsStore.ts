@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import transactionsData from '../mock-data/transactions.json';
+import { apiGet, apiPost } from '@/lib/api';
+import { useBusinessStore } from './businessStore';
 
 export interface Transaction {
   id: string;
@@ -16,19 +16,22 @@ export interface Transaction {
 
 interface TransactionsState {
   transactions: Transaction[];
-  addTransaction: (tx: Transaction) => void;
+  addTransaction: (tx: Transaction) => Promise<void>;
+  hydrate: () => Promise<void>;
 }
 
-export const useTransactionsStore = create<TransactionsState>()(
-  persist(
-    (set) => ({
-      transactions: transactionsData.map(t => ({ 
-        ...t, 
-        type: (t.type as 'Earning' | 'Withdrawal') || 'Earning' 
-      })),
-      addTransaction: (tx) =>
-        set((state) => ({ transactions: [tx, ...state.transactions] })),
-    }),
-    { name: 'transactions-storage' }
-  )
-);
+export const useTransactionsStore = create<TransactionsState>()((set) => ({
+  transactions: [],
+  addTransaction: async (tx) => {
+    const business = useBusinessStore.getState().business;
+    if (!business) return;
+    const created = await apiPost<Transaction>(`/business/${business.id}/transactions`, tx, 'BUSINESS');
+    set((state) => ({ transactions: [created, ...state.transactions] }));
+  },
+  hydrate: async () => {
+    const business = useBusinessStore.getState().business;
+    if (!business) return;
+    const transactions = await apiGet<Transaction[]>(`/business/${business.id}/transactions`, 'BUSINESS');
+    set({ transactions });
+  },
+}));

@@ -19,3 +19,11 @@ export function formatDate(dateString: string) {
     day: 'numeric',
   });
 }
+
+/** 6-digit display for business.merchantNumber (100000–999999). */
+export function formatMerchantNumericId(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return String(n).padStart(6, "0");
+}

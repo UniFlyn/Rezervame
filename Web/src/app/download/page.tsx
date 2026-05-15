@@ -8,13 +8,23 @@ export default function DownloadPage() {
         <p className="text-xl">Lleva REZERVAME contigo a donde quiera que vayas. Reserva en segundos desde tu móvil.</p>
         
         <div className="flex flex-col md:flex-row justify-center gap-6">
-          <a href="#" className="bg-black text-white px-8 py-4 rounded-2xl flex items-center gap-4 hover:scale-105 transition shadow-xl">
+          <a
+            href="https://apps.apple.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-black text-white px-8 py-4 rounded-2xl flex items-center gap-4 hover:scale-105 transition shadow-xl"
+          >
              <div className="text-left">
                <div className="text-xs opacity-70">Download on the</div>
                <div className="text-xl font-bold">App Store</div>
              </div>
           </a>
-          <a href="#" className="bg-black text-white px-8 py-4 rounded-2xl flex items-center gap-4 hover:scale-105 transition shadow-xl">
+          <a
+            href="https://play.google.com/store"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-black text-white px-8 py-4 rounded-2xl flex items-center gap-4 hover:scale-105 transition shadow-xl"
+          >
              <div className="text-left">
                <div className="text-xs opacity-70">GET IT ON</div>
                <div className="text-xl font-bold">Google Play</div>

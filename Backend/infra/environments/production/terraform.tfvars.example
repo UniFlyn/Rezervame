@@ -1,0 +1,32 @@
+aws_region   = "us-east-1"
+project_name = "rezervame"
+environment  = "production"
+
+vpc_cidr             = "10.40.0.0/16"
+public_subnet_cidrs  = ["10.40.1.0/24", "10.40.2.0/24"]
+private_subnet_cidrs = ["10.40.11.0/24", "10.40.12.0/24"]
+single_nat_gateway   = false
+
+container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rezervame-backend-prod:latest"
+container_port  = 4000
+desired_count   = 3
+min_count       = 3
+max_count       = 6
+task_cpu        = 2048
+task_memory     = 4096
+
+db_name                        = "rezervame"
+db_username                    = "rezervame_app"
+db_password                    = "replace-me"
+db_instance_class              = "db.r6g.large"
+db_allocated_storage           = 300
+db_multi_az                    = true
+db_backup_retention_days       = 30
+db_read_replica_enabled        = true
+db_read_replica_instance_class = "db.r6g.large"
+
+redis_node_type          = "cache.r6g.large"
+redis_num_cache_clusters = 2
+
+# Optional: wire to existing SNS topic for alarms.
+alarm_sns_topic_arn = ""

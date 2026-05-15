@@ -26,6 +26,28 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Env (keep secrets out of git)
+.env
+!.env.example
+.env.*
+!.env.example
+
+# Terraform local/sensitive artifacts
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Secrets / local credential exports
+*_credentials.csv
+*credentials*.csv
+
 # IDEs
 .vscode/
 .idea/
@@ -48,3 +70,6 @@ ios/.generated/
 # Large Design Files
 *.fig
 Requirments/
+
+# Backups
+backups/

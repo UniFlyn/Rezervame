@@ -1,70 +1,179 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import { apiGet, apiPost, apiPostOptional } from "@/lib/api";
 
 interface User {
+  id?: string;
   name: string;
   email: string;
   phone: string;
-  avatar?: string;
+  avatar?: string | null;
+  address?: string;
+  gender?: string;
+  age?: number | null;
+}
+
+export interface RegisterCustomerPayload {
+  email: string;
+  password: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  gender?: string;
+  age?: number;
 }
 
 interface AuthContextType {
   isLoggedIn: boolean;
+  isHydrated: boolean;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (payload: RegisterCustomerPayload) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<boolean>;
+  /** One-shot action after successful login (e.g. continue adding a service on the venue page). */
+  setPendingAfterLogin: (fn: (() => void) | null) => void;
+  runPendingAfterLogin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   isLoggedIn: false,
+  isHydrated: false,
   isLoginModalOpen: false,
   setIsLoginModalOpen: () => {},
   user: null,
   login: async () => {},
+  register: async () => {},
   logout: () => {},
+  refreshUser: async () => false,
+  setPendingAfterLogin: () => {},
+  runPendingAfterLogin: () => false,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [user, setUser] = useState<User | null>(null);
+  const pendingAfterLoginRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    const savedAuth = localStorage.getItem("rezervame_auth");
-    if (savedAuth === "true") {
-      setIsLoggedIn(true);
-      setUser({
-        name: "Richard Lucas",
-        email: "richardlucas01@gmail.com",
-        phone: "(786) 717-1203",
-        avatar: "/richard_lucas_avatar.png",
-      });
-    }
+  const setPendingAfterLogin = useCallback((fn: (() => void) | null) => {
+    pendingAfterLoginRef.current = fn;
   }, []);
 
+  const runPendingAfterLogin = useCallback((): boolean => {
+    const fn = pendingAfterLoginRef.current;
+    pendingAfterLoginRef.current = null;
+    if (!fn) return false;
+    fn();
+    return true;
+  }, []);
+
+  const clearUserSession = useCallback(() => {
+    pendingAfterLoginRef.current = null;
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("rezervame_token");
+    }
+    setIsLoggedIn(false);
+    setUser(null);
+  }, []);
+
+  const loadUserFromApi = useCallback(async (): Promise<boolean> => {
+    if (typeof window === "undefined" || !localStorage.getItem("rezervame_token")) {
+      setUser(null);
+      setIsLoggedIn(false);
+      setIsHydrated(true);
+      return false;
+    }
+    try {
+      const row = await apiGet<{
+        id?: string;
+        name: string;
+        email: string;
+        phone?: string;
+        avatar?: string | null;
+        address?: string;
+        gender?: string;
+        age?: number | null;
+      }>("/auth/user-session", "USER");
+      setUser({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        phone: row.phone ?? "",
+        avatar: row.avatar ?? null,
+        address: row.address ?? "",
+        gender: row.gender ?? "",
+        age: row.age ?? null,
+      });
+      setIsLoggedIn(true);
+      return true;
+    } catch {
+      clearUserSession();
+      setIsHydrated(true);
+      return false;
+    } finally {
+      setIsHydrated(true);
+    }
+  }, [clearUserSession]);
+
+  useEffect(() => {
+    void loadUserFromApi();
+  }, [loadUserFromApi]);
+
   const login = async (email: string, password: string) => {
-    // Mock login delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setIsLoggedIn(true);
-    setUser({
-      name: "Richard Lucas",
-      email: email,
-      phone: "(786) 717-1203",
-      avatar: "/richard_lucas_avatar.png",
-    });
-    localStorage.setItem("rezervame_auth", "true");
+    const result = await apiPostOptional<{ token: string; user: { name: string; email: string; role: string } }>(
+      "/auth/login",
+      { email: email.trim().toLowerCase(), password },
+    );
+    if (!result || result.user.role !== "USER") {
+      throw new Error("Invalid user credentials");
+    }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("rezervame_token", result.token);
+    }
+    await loadUserFromApi();
+  };
+
+  const register = async (payload: RegisterCustomerPayload) => {
+    const result = await apiPost<{ token: string; user: { name: string; email: string; role: string } }>(
+      "/auth/register",
+      {
+        ...payload,
+        email: payload.email.trim().toLowerCase(),
+      },
+    );
+    if (result.user.role !== "USER") {
+      throw new Error("Registration failed");
+    }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("rezervame_token", result.token);
+    }
+    await loadUserFromApi();
   };
 
   const logout = () => {
-    setIsLoggedIn(false);
-    setUser(null);
-    localStorage.removeItem("rezervame_auth");
+    clearUserSession();
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isLoginModalOpen, setIsLoginModalOpen, user, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        isLoggedIn,
+        isHydrated,
+        isLoginModalOpen,
+        setIsLoginModalOpen,
+        user,
+        login,
+        register,
+        logout,
+        refreshUser: loadUserFromApi,
+        setPendingAfterLogin,
+        runPendingAfterLogin,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

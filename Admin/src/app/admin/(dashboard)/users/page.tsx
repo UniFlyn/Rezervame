@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { 
   Search, 
   Filter, 
@@ -10,10 +10,13 @@ import {
   History,
   Lock,
   Unlock,
-  Mail
+  Mail,
+  Trash2,
+  Loader2
 } from "lucide-react";
-import usersData from "@/mock-data/admin-users.json";
+import { apiDelete, apiGet } from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
+import TablePagination from "@/components/admin/TablePagination";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -28,12 +31,51 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 export default function UsersPage() {
+  const [usersData, setUsersData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const pageSize = 10;
 
-  const filteredUsers = usersData.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      try {
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(pageSize),
+          search: searchTerm,
+        });
+        const response = await apiGet<{ data: any[]; total: number; totalPages: number }>(`/admin/users?${query.toString()}`);
+        setUsersData(response.data);
+        setTotalItems(response.total);
+        setTotalPages(response.totalPages);
+      } catch (err) {
+        console.error("Failed to fetch users", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchUsers();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [page, searchTerm]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
+
+  async function deleteUser(id: string) {
+    if (!window.confirm("Delete this user permanently?")) return;
+    await apiDelete(`/admin/users/${id}`);
+    setUsersData((prev) => prev.filter((u) => u.id !== id));
+    setTotalItems(prev => prev - 1);
+  }
 
   return (
     <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
@@ -76,8 +118,13 @@ export default function UsersPage() {
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredUsers.map((user) => (
+            <tbody className="divide-y divide-slate-50 relative">
+              {isLoading && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                </div>
+              )}
+              {usersData.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
@@ -121,6 +168,14 @@ export default function UsersPage() {
                       <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
                         <MoreVertical className="w-4 h-4" />
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteUser(user.id)}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        title="Delete User"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -128,6 +183,13 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

@@ -21,14 +21,14 @@ type FilterToolbarProps = {
   searchPlaceholder: string;
   searchValue: string;
   onSearchChange: (value: string) => void;
-  filterGroups: FilterGroup[];
+  filterGroups?: FilterGroup[];
 };
 
 export default function FilterToolbar({
   searchPlaceholder,
   searchValue,
   onSearchChange,
-  filterGroups,
+  filterGroups = [],
 }: FilterToolbarProps) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">

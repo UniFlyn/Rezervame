@@ -1,13 +1,16 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { 
   ArrowDownCircle,
-  X
+  X,
+  Trash2,
+  Loader2
 } from "lucide-react";
-import financeData from "@/mock-data/admin-finance.json";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { apiDelete, apiGet } from "@/lib/api";
+import { formatCurrency, formatDate, formatMerchantNumericId, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
+import TablePagination from "@/components/admin/TablePagination";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -15,32 +18,64 @@ const StatusBadge = ({ status }: { status: string }) => {
     pending: "bg-amber-100 text-amber-700",
     rejected: "bg-red-100 text-red-700",
   };
+  const key = (status || "").toLowerCase() as keyof typeof styles;
+  const cls = styles[key] ?? "bg-slate-100 text-slate-600";
   return (
-    <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider", styles[status as keyof typeof styles])}>
+    <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider", cls)}>
       {status}
     </span>
   );
 };
 
 export default function WithdrawalsPage() {
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const { withdrawals } = financeData;
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const pageSize = 10;
 
-  const filteredWithdrawals = useMemo(
-    () =>
-      withdrawals.filter((withdrawal) => {
-        const normalized = searchTerm.toLowerCase();
-        const matchesSearch =
-          withdrawal.id.toLowerCase().includes(normalized) ||
-          withdrawal.business.toLowerCase().includes(normalized) ||
-          withdrawal.businessId.toLowerCase().includes(normalized);
-        const matchesStatus = statusFilter === "all" || withdrawal.status === statusFilter;
-        return matchesSearch && matchesStatus;
-      }),
-    [searchTerm, statusFilter, withdrawals],
-  );
+  useEffect(() => {
+    const fetchWithdrawals = async () => {
+      setIsLoading(true);
+      try {
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(pageSize),
+          search: searchTerm,
+          status: statusFilter,
+        });
+        const response = await apiGet<{ data: any[]; total: number; totalPages: number }>(`/admin/withdrawals?${query.toString()}`);
+        setWithdrawals(response.data);
+        setTotalItems(response.total);
+        setTotalPages(response.totalPages);
+      } catch (err) {
+        console.error("Failed to fetch withdrawals", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchWithdrawals();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [page, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  async function deleteWithdrawal(id: string) {
+    if (!window.confirm("Delete this withdrawal permanently?")) return;
+    await apiDelete(`/admin/withdrawals/${id}`);
+    setWithdrawals((prev) => prev.filter((w) => w.id !== id));
+    setTotalItems(prev => prev - 1);
+  }
 
   return (
     <div className="space-y-8 animate-in slide-in-from-left-4 duration-500">
@@ -97,7 +132,7 @@ export default function WithdrawalsPage() {
               <tr className="bg-slate-50/50 border-b border-slate-100">
                 <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">#</th>
                 <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Withdrawal Tx ID</th>
-                <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Business ID</th>
+                <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Merchant ID</th>
                 <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Business Name</th>
                 <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Current Balance</th>
                 <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Amount Requested</th>
@@ -106,12 +141,19 @@ export default function WithdrawalsPage() {
                 <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Review Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredWithdrawals.map((wd, index) => (
+            <tbody className="divide-y divide-slate-50 relative">
+              {isLoading && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                </div>
+              )}
+              {withdrawals.map((wd, index) => (
                 <tr key={wd.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-6 py-5 text-sm font-semibold text-slate-700">{index + 1}</td>
+                  <td className="px-6 py-5 text-sm font-semibold text-slate-700">{(page - 1) * pageSize + index + 1}</td>
                   <td className="px-6 py-5 text-sm font-mono text-slate-700">{wd.id}</td>
-                  <td className="px-6 py-5 text-sm font-mono text-slate-700">{wd.businessId}</td>
+                  <td className="px-6 py-5 text-sm font-mono tabular-nums tracking-wide text-slate-700">
+                    {formatMerchantNumericId(wd.merchantNumber)}
+                  </td>
                   <td className="px-6 py-5 text-sm font-semibold text-slate-900">{wd.business}</td>
                   <td className="px-6 py-5 text-center">
                     <p className="text-sm font-bold text-slate-500 italic">{formatCurrency(wd.balance)}</p>
@@ -131,6 +173,14 @@ export default function WithdrawalsPage() {
                           <>
                             <button className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition shadow-md shadow-blue-600/20 active:scale-95">Approve</button>
                             <button className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition font-black tracking-tighter uppercase text-[10px]">Reject</button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteWithdrawal(wd.id)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                              title="Delete Withdrawal"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </>
                        ) : (
                           <span className="text-xs font-bold text-slate-400 italic">Processed on {formatDate(wd.processedDate ?? wd.date)}</span>
@@ -139,7 +189,7 @@ export default function WithdrawalsPage() {
                   </td>
                 </tr>
               ))}
-              {filteredWithdrawals.length === 0 ? (
+              {withdrawals.length === 0 && !isLoading ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-8 text-center text-sm text-slate-500">
                     No withdrawals match the current filters.
@@ -149,6 +199,13 @@ export default function WithdrawalsPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       {showBatchModal && (

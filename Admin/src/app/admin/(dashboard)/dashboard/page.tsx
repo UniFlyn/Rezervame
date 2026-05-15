@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { 
   Users, 
   Store, 
@@ -23,10 +23,8 @@ import {
   AreaChart,
   Area
 } from "recharts";
-import dashboardData from "@/mock-data/admin-dashboard.json";
+import { apiGet } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
-
-type TimeRange = "day" | "week" | "month";
 
 type KpiCardProps = {
   title: string;
@@ -37,6 +35,7 @@ type KpiCardProps = {
 };
 
 const StatCard = ({ title, value, change, icon: Icon, color }: KpiCardProps) => {
+  const isTrend = change.startsWith("+") || change.startsWith("-");
   const isPositive = change.startsWith("+");
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
@@ -44,9 +43,14 @@ const StatCard = ({ title, value, change, icon: Icon, color }: KpiCardProps) => 
         <div className={cn("p-2 rounded-lg bg-opacity-10", color)}>
           <Icon className={cn("w-6 h-6", color.replace('bg-', 'text-'))} />
         </div>
-        <div className={cn("flex items-center space-x-1 text-xs font-medium", isPositive ? "text-green-600" : "text-red-600")}>
+        <div
+          className={cn(
+            "flex items-center space-x-1 text-xs font-medium",
+            !isTrend ? "text-slate-400" : isPositive ? "text-green-600" : "text-red-600",
+          )}
+        >
           <span>{change}</span>
-          {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+          {isTrend ? isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" /> : null}
         </div>
       </div>
       <div className="mt-4">
@@ -63,113 +67,109 @@ function cn(...classes: string[]) {
 }
 
 export default function Dashboard() {
-  const { stats, charts, recentActivities } = dashboardData;
-  const [timeRange, setTimeRange] = useState<TimeRange>("week");
-  const scale = timeRange === "day" ? 0.2 : timeRange === "week" ? 1 : 4;
+  const [dashboardData, setDashboardData] = useState<any | null>(null);
+  useEffect(() => {
+    void apiGet<any>("/admin/dashboard").then(setDashboardData);
+  }, []);
+  const stats = dashboardData?.stats ?? {};
+  const charts = dashboardData?.charts ?? { weeklyBookings: [], revenue: [] };
+  const recentActivities = dashboardData?.recentActivities ?? [];
+
+  const dash = "—";
 
   const businessKpis = useMemo(
     () => [
       {
         title: "Total Businesses",
-        value: Math.round(stats.businesses * scale).toLocaleString(),
-        change: "+5.2%",
+        value: Number(stats.businesses ?? 0).toLocaleString(),
+        change: dash,
         icon: Store,
         color: "bg-purple-500",
       },
       {
-        title: "Business Bookings",
-        value: Math.round(stats.bookings * scale).toLocaleString(),
-        change: "+10.9%",
+        title: "Total Bookings",
+        value: Number(stats.bookings ?? 0).toLocaleString(),
+        change: dash,
         icon: CalendarCheck,
         color: "bg-orange-500",
       },
       {
-        title: "Business Revenue",
-        value: formatCurrency(stats.revenue * scale),
-        change: "+8.7%",
+        title: "Platform Revenue",
+        value: formatCurrency(Number(stats.revenue ?? 0)),
+        change: dash,
         icon: DollarSign,
         color: "bg-emerald-500",
       },
       {
-        title: "YTD Revenue",
-        value: formatCurrency(stats.revenue * 1.32),
-        change: "+19.1%",
+        title: "Pending business approvals",
+        value: Number(stats.pendingApprovals ?? 0).toLocaleString(),
+        change: dash,
         icon: TrendingUp,
         color: "bg-sky-500",
       },
       {
-        title: "YTD vs Last YTD",
-        value: "+14.8%",
-        change: "+2.4%",
+        title: "Avg. booking value",
+        value: formatCurrency(Number(stats.avgBookingValue ?? 0)),
+        change: dash,
         icon: Repeat,
         color: "bg-indigo-500",
       },
     ],
-    [scale, stats.bookings, stats.businesses, stats.revenue],
+    [stats.avgBookingValue, stats.bookings, stats.businesses, stats.pendingApprovals, stats.revenue],
   );
 
   const customerKpis = useMemo(
     () => [
       {
-        title: "Total Customers",
-        value: Math.round(stats.users * scale).toLocaleString(),
-        change: "+12.5%",
+        title: "Registered customers",
+        value: Number(stats.users ?? 0).toLocaleString(),
+        change: dash,
         icon: Users,
         color: "bg-blue-500",
       },
       {
-        title: "New Signups",
-        value: Math.round(stats.users * 0.07 * scale).toLocaleString(),
-        change: "+6.0%",
+        title: "Customers per booking (avg)",
+        value:
+          stats.users > 0 && stats.bookings > 0
+            ? (stats.bookings / stats.users).toFixed(2)
+            : "0",
+        change: dash,
         icon: UserPlus,
         color: "bg-cyan-500",
       },
       {
-        title: "Customer Bookings",
-        value: Math.round(stats.bookings * 0.78 * scale).toLocaleString(),
-        change: "+11.2%",
+        title: "Bookings (platform)",
+        value: Number(stats.bookings ?? 0).toLocaleString(),
+        change: dash,
         icon: CalendarCheck,
         color: "bg-violet-500",
       },
       {
-        title: "YTD Customer Spend",
-        value: formatCurrency(stats.revenue * 0.78 * 1.24),
-        change: "+16.0%",
+        title: "Revenue per customer (avg)",
+        value:
+          stats.users > 0 ? formatCurrency(Number(stats.revenue ?? 0) / stats.users) : formatCurrency(0),
+        change: dash,
         icon: DollarSign,
         color: "bg-teal-500",
       },
       {
-        title: "YTD vs Last YTD",
-        value: "+12.3%",
-        change: "+1.8%",
+        title: "Avg. booking value",
+        value: formatCurrency(Number(stats.avgBookingValue ?? 0)),
+        change: dash,
         icon: Repeat,
         color: "bg-fuchsia-500",
       },
     ],
-    [scale, stats.bookings, stats.revenue, stats.users],
+    [stats.avgBookingValue, stats.bookings, stats.revenue, stats.users],
   );
+
+  if (!dashboardData) return <div className="text-sm text-slate-500">Loading dashboard...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Overview</h1>
-        <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1">
-          {(["day", "week", "month"] as TimeRange[]).map((range) => (
-            <button
-              key={range}
-              type="button"
-              onClick={() => setTimeRange(range)}
-              className={cn(
-                "rounded-lg px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition",
-                timeRange === range
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-600 hover:bg-slate-100",
-              )}
-            >
-              {range}
-            </button>
-          ))}
-        </div>
+        <p className="text-xs text-slate-500">Live data from API</p>
       </div>
 
       <div>
@@ -259,13 +259,15 @@ export default function Dashboard() {
           Recent Platform Activity
         </h3>
         <div className="space-y-4">
-          {recentActivities.map((activity, idx) => (
+          {recentActivities.map((activity: any) => (
             <div key={activity.id} className="flex items-start space-x-4 p-4 hover:bg-slate-50 transition-colors rounded-xl border border-transparent hover:border-slate-100">
               <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-xs font-bold text-slate-500">{activity.user[0]}</span>
+                <span className="text-xs font-bold text-slate-500">
+                  {(activity.title || activity.user || "?").toString().charAt(0)}
+                </span>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-800">{activity.user}</p>
+                <p className="text-sm font-semibold text-slate-800">{activity.title || activity.user}</p>
                 <p className="text-sm text-slate-500 mt-0.5">{activity.message}</p>
               </div>
               <div className="text-right">

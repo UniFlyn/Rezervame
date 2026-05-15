@@ -1,0 +1,349 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  BUSINESS
+  USER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  phone     String?
+  avatar    String?
+  address   String?
+  gender    String?
+  age       Int?
+  bookings  Booking[]
+  reviews   Review[]
+  favorites UserFavorite[]
+  familyMembers FamilyMember[]
+}
+
+model FamilyMember {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  age       Int?
+  gender    String
+  email     String?
+  createdAt DateTime @default(now())
+  bookings  Booking[]
+
+  @@index([userId])
+}
+
+model UserFavorite {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, businessId])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  startAt   DateTime
+  location  String
+  price     Float    @default(0)
+  imageKey  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model JobPosting {
+  id          String   @id @default(cuid())
+  title       String
+  location    String
+  description String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  labelEn   String
+  labelEs   String
+  imageUrl  String?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Amenity {
+  id             String   @id @default(cuid())
+  key            String   @unique
+  labelEn        String
+  labelEs        String
+  descriptionEn  String?
+  descriptionEs  String?
+  imageUrl       String?
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+}
+
+model Business {
+  id           String         @id @default(cuid())
+  /// Human-facing 6-digit numeric id (100000–999999) for admin/support; not the internal cuid.
+  merchantNumber Int?         @unique
+  name         String
+  owner        String
+  email        String         @unique
+  phone        String
+  address      String
+  categoryKeys String[]       @default([])
+  amenityKeys  String[]       @default([])
+  description  String
+  taxId        String
+  status       String         @default("Pending")
+  idVerified   Boolean        @default(false)
+  licenseVerified Boolean     @default(false)
+  insuranceVerified Boolean   @default(false)
+  idDocumentImage String?
+  licenseDocumentImage String?
+  insuranceDocumentImage String?
+  rejectionReason String?
+  revenue      Float          @default(0)
+  balance      Float          @default(0)
+  joinedDate   DateTime       @default(now())
+  services     Service[]
+  staff        Staff[]
+  bookings     Booking[]
+  reviews      Review[]
+  transactions Transaction[]
+  withdrawals  Withdrawal[]
+  machines     Machine[]
+  parts        Part[]
+  qaInspections QaInspection[]
+  ncrs         Ncr[]
+  orders       Order[]
+  favoritedBy  UserFavorite[]
+  statusHistory BusinessStatusHistory[]
+  notifyBookingEmail       Boolean @default(true)
+  notifyCancellationEmail  Boolean @default(true)
+  notifyDailySummary       Boolean @default(false)
+  logoUrl                  String?
+  bannerUrl                String?
+  /// WGS84 — set from merchant map picker or admin; used for distance sorting.
+  latitude                 Float?
+  longitude                Float?
+  /// Legacy single display label; kept in sync when saving multiple `categoryLabels`.
+  categoryLabel            String?
+  /// Human-facing category tags from the business profile (e.g. Barbershop, Spa).
+  categoryLabels           String[]       @default([])
+  socialYoutube            String?
+  socialInstagram          String?
+  socialX                  String?
+  socialTiktok             String?
+  taxPercentage            Float          @default(0)
+  promotions               Promotion[]
+}
+
+model BusinessStatusHistory {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  fromStatus String?
+  toStatus   String
+  reason     String?
+  actorId    String?
+  actorName  String?
+  actorRole  Role?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
+}
+
+model Service {
+  id         String      @id @default(cuid())
+  name       String
+  price      Float
+  duration   Int
+  category   String
+  /// Optional image (URL or data URL from merchant upload).
+  imageUrl   String?
+  businessId String
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings   Booking[]
+  promotions Promotion[]
+}
+
+model Promotion {
+  id              String   @id @default(cuid())
+  serviceId       String
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  discountPercent Float    @default(10)
+  /// Optional label e.g. "Summer Sale", "Early Bird"
+  label           String?
+  active          Boolean  @default(true)
+  startsAt        DateTime @default(now())
+  endsAt          DateTime?
+  createdAt       DateTime @default(now())
+}
+
+
+model Staff {
+  id           String    @id @default(cuid())
+  name         String
+  role         String
+  skills       String[]
+  /// Service ids this staff member performs; empty = merchant has not restricted (treated as all services in booking UI).
+  serviceIds   String[]  @default([])
+  availability String
+  image        String?
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+}
+
+model Booking {
+  id             String         @id @default(cuid())
+  customerName   String
+  date           DateTime
+  status         String
+  price          Float
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId     String
+  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  serviceId      String?
+  service        Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  staffId        String?
+  staff          Staff?         @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  familyMemberId String?
+  familyMember   FamilyMember?  @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
+  transactionId  String?
+  transaction    Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  taxAmount      Float          @default(0)
+  isReviewed     Boolean        @default(false)
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  customerName String
+  avatar       String?
+  rating       Int
+  staffRating  Int?
+  businessRating Int?
+  comment      String
+  date         DateTime @default(now())
+  serviceName  String
+  staffName    String
+  staffId      String?
+  bookingId    String?
+  reply        String?
+  status       String   @default("Pending")
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  bookingId     String?
+  customerEmail String?
+  staffMember   String?
+  amount        Float
+  taxAmount     Float    @default(0)
+  status        String
+  date          DateTime @default(now())
+  type          String   @default("Earning")
+  paymentMethod String   @default("Online")
+  description   String?
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings      Booking[]
+}
+
+model Withdrawal {
+  id          String   @id @default(cuid())
+  amount      Float
+  balance     Float
+  status      String
+  date        DateTime @default(now())
+  processedDate DateTime?
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Machine {
+  id          String   @id @default(cuid())
+  serial      String   @unique
+  qrCode      String   @unique
+  status      String
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Part {
+  id          String   @id @default(cuid())
+  partNumber  String
+  name        String
+  machineId   String?
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model QaInspection {
+  id          String   @id @default(cuid())
+  machineId   String
+  status      String
+  notes       String
+  completedAt DateTime?
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Ncr {
+  id          String   @id @default(cuid())
+  machineId   String
+  severity    String
+  description String
+  status      String
+  createdAt   DateTime @default(now())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  productName String
+  quantity    Int
+  status      String
+  total       Float
+  createdAt   DateTime @default(now())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String
+  title     String
+  body      String
+  role      Role
+  createdAt DateTime @default(now())
+}

@@ -1,85 +1,45 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { 
   Bell,
   Send,
-  Search,
   CheckCircle2,
   Clock,
   AlertTriangle,
-  X
+  X,
+  Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import TablePagination from "@/components/admin/TablePagination";
 
 type NotificationStatus = "open" | "resolved" | "in_review";
 type NotificationCategory = "security" | "finance" | "merchant" | "system";
 
-const systemAlerts: Array<{
-  id: number;
+type AlertItem = {
+  id: string;
   category: NotificationCategory;
   status: NotificationStatus;
   title: string;
   description: string;
   time: string;
-}> = [
-  {
-    id: 1,
-    category: "security",
-    status: "open",
-    title: 'New Admin Login Attempt',
-    description: 'Suspicious login attempt from IP 192.168.1.105 (London, UK).',
-    time: '5 mins ago'
-  },
-  {
-    id: 2,
-    category: "finance",
-    status: "in_review",
-    title: 'High Value Withdrawal',
-    description: 'Zen Spa & Wellness requested a withdrawal of $5,400.00.',
-    time: '25 mins ago'
-  },
-  {
-    id: 3,
-    category: "merchant",
-    status: "resolved",
-    title: 'New Merchant Signup',
-    description: '"Urban Kicks Store" has completed their business profile.',
-    time: '1h ago'
-  },
-  {
-    id: 4,
-    category: "system",
-    status: "open",
-    title: 'Server Load Advisory',
-    description: 'CPU usage exceeded 85% on Node EU-West-1 for 10 minutes.',
-    time: '2h ago'
-  }
-];
+};
 
-const transmissionHistory = [
-  {
-    id: "BR-1101",
-    audience: "All Businesses",
-    status: "Sent",
-    reach: 845,
-    readRate: "92%",
-    sentAt: "2h ago",
-    summary: "New commission structure starting June 1st.",
-  },
-  {
-    id: "BR-1102",
-    audience: "All Users",
-    status: "Sent",
-    reach: 1450,
-    readRate: "88%",
-    sentAt: "5h ago",
-    summary: "Maintenance window notice for this weekend.",
-  },
-];
+type BroadcastRow = {
+  id: string;
+  audience: string;
+  status: string;
+  reach: number;
+  readRate: string;
+  sentAt: string;
+  summary: string;
+};
 
 export default function NotificationsPage() {
+  const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
+  const [systemAlerts, setSystemAlerts] = useState<AlertItem[]>([]);
   const [activeTab, setActiveTab] = useState("feed");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -88,17 +48,44 @@ export default function NotificationsPage() {
   const [target, setTarget] = useState("all_users");
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [feedPage, setFeedPage] = useState(1);
+  const [broadcastPage, setBroadcastPage] = useState(1);
+  const pageSize = 10;
 
-  const handleSend = () => {
+  useEffect(() => {
+    void apiGet<AlertItem[]>("/admin/notifications").then((rows) => {
+      setSystemAlerts(
+        rows.map((r, idx) => ({
+          ...r,
+          id: String(r.id || `alert-${idx + 1}`),
+          category: (r.category as NotificationCategory) || "system",
+          status: (r.status as NotificationStatus) || "open",
+        })),
+      );
+    });
+    void apiGet<BroadcastRow[]>("/admin/broadcasts").then(setBroadcasts);
+  }, []);
+
+  const handleSend = async () => {
     setIsSending(true);
-    setTimeout(() => {
-      setIsSending(false);
-      setMessage("");
-      setShowCompose(false);
-    }, 1500);
+    await apiPost("/admin/broadcast", { target, message });
+    const history = await apiGet<BroadcastRow[]>("/admin/broadcasts");
+    setBroadcasts(history);
+    const rows = await apiGet<AlertItem[]>("/admin/notifications");
+    setSystemAlerts(
+      rows.map((r, idx) => ({
+        ...r,
+        id: String(r.id || `alert-${idx + 1}`),
+        category: (r.category as NotificationCategory) || "system",
+        status: (r.status as NotificationStatus) || "open",
+      })),
+    );
+    setIsSending(false);
+    setMessage("");
+    setShowCompose(false);
   };
 
-  const filteredAlerts = systemAlerts.filter((alert) => {
+  const filteredAlerts = useMemo(() => systemAlerts.filter((alert) => {
     const normalized = searchTerm.toLowerCase();
     const matchesSearch =
       alert.title.toLowerCase().includes(normalized) ||
@@ -106,7 +93,21 @@ export default function NotificationsPage() {
     const matchesCategory = categoryFilter === "all" || alert.category === categoryFilter;
     const matchesStatus = statusFilter === "all" || alert.status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
-  });
+  }), [systemAlerts, searchTerm, categoryFilter, statusFilter]);
+  const totalFeedPages = Math.max(1, Math.ceil(filteredAlerts.length / pageSize));
+  const pagedAlerts = filteredAlerts.slice((feedPage - 1) * pageSize, feedPage * pageSize);
+  const totalBroadcastPages = Math.max(1, Math.ceil(broadcasts.length / pageSize));
+  const pagedBroadcasts = broadcasts.slice((broadcastPage - 1) * pageSize, broadcastPage * pageSize);
+  useEffect(() => {
+    setFeedPage(1);
+  }, [searchTerm, categoryFilter, statusFilter]);
+
+  async function deleteNotification(id: string | number) {
+    if (!window.confirm("Delete this notification permanently?")) return;
+    await apiDelete(`/admin/notifications/${String(id)}`);
+    setSystemAlerts((prev) => prev.filter((n) => String(n.id) !== String(id)));
+    setBroadcasts((prev) => prev.filter((n) => String(n.id) !== String(id)));
+  }
 
   const headerKpis = [
     { label: "Total Alerts", value: systemAlerts.length.toString(), icon: Bell },
@@ -205,7 +206,7 @@ export default function NotificationsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredAlerts.map((alert) => (
+                  {pagedAlerts.map((alert) => (
                     <tr key={alert.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4 text-sm capitalize text-slate-700">{alert.category}</td>
                       <td className="px-6 py-4">
@@ -232,6 +233,13 @@ export default function NotificationsPage() {
                         <button className="ml-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
                           Resolve
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteNotification(alert.id)}
+                          className="ml-2 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -245,6 +253,13 @@ export default function NotificationsPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              page={feedPage}
+              totalPages={totalFeedPages}
+              totalItems={filteredAlerts.length}
+              pageSize={pageSize}
+              onPageChange={setFeedPage}
+            />
           </div>
         </div>
       ) : (
@@ -273,27 +288,54 @@ export default function NotificationsPage() {
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Read Rate</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Sent</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {transmissionHistory.map((history) => (
-                    <tr key={history.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 text-sm font-mono text-slate-700">{history.id}</td>
-                      <td className="px-6 py-4 text-sm text-slate-700">{history.audience}</td>
-                      <td className="px-6 py-4 text-sm text-slate-700">{history.summary}</td>
-                      <td className="px-6 py-4 text-sm text-slate-700">{history.reach}</td>
-                      <td className="px-6 py-4 text-sm text-slate-700">{history.readRate}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                          {history.status}
-                        </span>
+                  {broadcasts.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-8 text-center text-sm text-slate-500">
+                        No broadcasts yet. Compose one to reach users or businesses.
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-700">{history.sentAt}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    pagedBroadcasts.map((history) => (
+                      <tr key={history.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 text-sm font-mono text-slate-700">{history.id}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{history.audience}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{history.summary}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{history.reach}</td>
+                        <td className="px-6 py-4 text-sm text-slate-700">{history.readRate}</td>
+                        <td className="px-6 py-4 text-sm">
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                            {history.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-700">
+                          {new Date(history.sentAt).toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => void deleteNotification(history.id)}
+                            className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              page={broadcastPage}
+              totalPages={totalBroadcastPages}
+              totalItems={broadcasts.length}
+              pageSize={pageSize}
+              onPageChange={setBroadcastPage}
+            />
           </div>
         </div>
       )}

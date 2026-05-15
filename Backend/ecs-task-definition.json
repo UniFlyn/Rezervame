@@ -1,0 +1,35 @@
+{
+  "family": "rezervame-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/rezervame-backend-task-role",
+  "containerDefinitions": [
+    {
+      "name": "rezervame-backend",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/rezervame-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 4000,
+          "hostPort": 4000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "PORT", "value": "4000" },
+        { "name": "DATABASE_URL", "value": "<RDS_POSTGRES_URL>" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/rezervame-backend",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "../../../Web/src/app/globals.css"; // Reuse globals from web
+import "./globals.css";
+import { AppToaster } from "../components/AppToaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,6 +19,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         {children}
+        <AppToaster />
       </body>
     </html>
   );

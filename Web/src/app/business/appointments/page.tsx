@@ -1,15 +1,18 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import FullCalendar from '@fullcalendar/react';
 import type { CalendarApi, DatesSetArg, EventInput, DayCellContentArg, DayHeaderContentArg } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import { useBusinessStore } from '../../../store/businessStore';
+import { apiGet, apiPatch } from '@/lib/api';
 import { useBookingsStore, Booking } from '../../../store/bookingsStore';
 import { useServicesStore, Service } from '../../../store/servicesStore';
 import { useStaffStore } from '../../../store/staffStore';
+import { Pagination } from '@/components/ui/pagination';
 import {
   X,
   Plus,
@@ -30,11 +33,12 @@ import {
   CalendarDays,
   Check,
   Scissors,
+  Loader2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import esLocale from '@fullcalendar/core/locales/es';
 import enGbLocale from '@fullcalendar/core/locales/en-gb';
-import { useI18n } from '../../../components/I18nProvider';
+import { toastError, toastInfo, toastSuccess } from '@/lib/toast';
 
 type Language = 'en' | 'es';
 
@@ -158,20 +162,72 @@ function bookingStatusLabel(lang: Language, status: string) {
 }
 
 export default function AppointmentsPage() {
-  const { language } = useI18n();
+  const language: Language = 'en';
+  const business = useBusinessStore((state) => state.business);
   const bookings = useBookingsStore((state) => state.bookings);
+  const hydrateBookings = useBookingsStore((state) => state.hydrate);
   const services = useServicesStore((state) => state.services);
   const staff = useStaffStore((state) => state.staff);
   const addBooking = useBookingsStore((state) => state.addBooking);
   const updateBookingStatus = useBookingsStore((state) => state.updateBookingStatus);
 
+  const [paginatedBookings, setPaginatedBookings] = useState<Booking[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingList, setIsLoadingList] = useState(false);
+  const pageSize = 10;
+
+  const [staffScope, setStaffScope] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scheduleView, setScheduleView] = useState<'calendar' | 'list'>('calendar');
+
+  const fetchPaginatedBookings = useCallback(async () => {
+    if (!business) return;
+    setIsLoadingList(true);
+    try {
+      const query = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+        search: searchQuery,
+        status: statusFilter === 'all' ? '' : statusFilter,
+      });
+      if (staffScope !== 'all') query.append('staffId', staffScope);
+
+      const response = await apiGet<{ data: any[]; total: number; totalPages: number }>(
+        `/business/${business.id}/bookings?${query.toString()}`,
+        'BUSINESS'
+      );
+      setPaginatedBookings(response.data);
+      setTotalItems(response.total);
+      setTotalPages(response.totalPages);
+    } catch (err) {
+      console.error('Failed to fetch paginated bookings', err);
+    } finally {
+      setIsLoadingList(false);
+    }
+  }, [business, page, searchQuery, statusFilter, staffScope]);
+
+  useEffect(() => {
+    void hydrateBookings();
+  }, [hydrateBookings]);
+
+  useEffect(() => {
+    if (scheduleView === 'list') {
+      const timer = setTimeout(() => {
+        void fetchPaginatedBookings();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [scheduleView, fetchPaginatedBookings]);
+
   const calendarRef = useRef<FullCalendar>(null);
   const [calTitle, setCalTitle] = useState('');
   const [calMode, setCalMode] = useState<CalMode>('week');
 
-  const [staffScope, setStaffScope] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [newAppointment, setNewAppointment] = useState({
     customerName: '',
     serviceId: '',
@@ -184,10 +240,8 @@ export default function AppointmentsPage() {
   });
 
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(false);
-  const [scheduleView, setScheduleView] = useState<'calendar' | 'list'>('calendar');
 
   const tzLabel = useMemo(() => gmtOffsetLabel(), []);
 
@@ -219,10 +273,16 @@ export default function AppointmentsPage() {
     return filteredBookings.filter((b) => b.customerName.toLowerCase().includes(q)).slice(0, 12);
   }, [filteredBookings, searchQuery]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter, staffScope]);
+
   const listRows = useMemo(
     () =>
-      [...filteredBookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [filteredBookings],
+      scheduleView === 'list' 
+        ? paginatedBookings 
+        : [...filteredBookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [scheduleView, paginatedBookings, filteredBookings],
   );
 
   const countBookingsOnDay = useCallback(
@@ -262,7 +322,7 @@ export default function AppointmentsPage() {
   const events: EventInput[] = useMemo(() => {
     const lang = language as Language;
     return filteredBookings.map((b: Booking) => {
-      const s = services.find((serv: Service) => serv.id === b.serviceId);
+      const s = b.serviceId ? services.find((serv: Service) => serv.id === b.serviceId) : undefined;
       const idx = hashIdx(b.serviceId || b.id, APPT_PALETTE.length);
       const { fill, accent } = APPT_PALETTE[idx];
       const start = new Date(b.date);
@@ -289,37 +349,75 @@ export default function AppointmentsPage() {
     });
   }, [filteredBookings, services, language]);
 
-  const getServiceName = (id: string) => services.find((s: Service) => s.id === id)?.name || '—';
-  const getStaffLabel = (id: string) => staff.find((s) => s.id === id)?.name || '—';
+  const getServiceName = (id: string | null) =>
+    id ? services.find((s: Service) => s.id === id)?.name || '—' : '—';
+  const getStaffLabel = (id: string | null) =>
+    id ? staff.find((s) => s.id === id)?.name || '—' : '—';
 
-  const handleAddAppointment = (e: React.FormEvent) => {
+  const handleAddAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     const service = services.find((s) => s.id === newAppointment.serviceId);
-    const booking: Booking = {
-      id: `bk-${Date.now()}`,
-      userId: 'offline-user',
-      customerName: newAppointment.customerName,
-      serviceId: newAppointment.serviceId,
-      staffId: newAppointment.staffId,
-      date: `${newAppointment.date}T${newAppointment.time}:00Z`,
-      status: newAppointment.walkIn ? 'Pending' : 'Approved',
-      price: service?.price || 0,
-      walkIn: newAppointment.walkIn || undefined,
-      recurring: newAppointment.recurring || undefined,
-      locked: newAppointment.locked || undefined,
-    };
-    addBooking(booking);
-    setIsModalOpen(false);
-    setNewAppointment({
-      customerName: '',
-      serviceId: '',
-      staffId: '',
-      date: '',
-      time: '10:00',
-      walkIn: false,
-      recurring: false,
-      locked: false,
-    });
+    try {
+      await addBooking({
+        customerName: newAppointment.customerName,
+        serviceId: newAppointment.serviceId || undefined,
+        staffId: newAppointment.staffId || undefined,
+        date: `${newAppointment.date}T${newAppointment.time}:00.000Z`,
+        status: newAppointment.walkIn ? 'Pending' : 'Approved',
+        price: service?.price || 0,
+      });
+      toastSuccess('Appointment added');
+      setIsModalOpen(false);
+      setNewAppointment({
+        customerName: '',
+        serviceId: '',
+        staffId: '',
+        date: '',
+        time: '10:00',
+        walkIn: false,
+        recurring: false,
+        locked: false,
+      });
+    } catch (err) {
+      toastError(
+        'Could not add appointment',
+        err instanceof Error ? err.message : 'Please try again.',
+      );
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: Booking['status']) => {
+    try {
+      await updateBookingStatus(id, status);
+      // Update local state instantly
+      setPaginatedBookings((prev) => 
+        prev.map((b) => (b.id === id ? { ...b, status } : b))
+      );
+      toastSuccess('Status updated');
+    } catch (err) {
+      toastError(
+        'Update failed',
+        err instanceof Error ? err.message : 'Please try again.',
+      );
+    }
+  };
+
+  const handleUpdateBooking = async (id: string, payload: any) => {
+    try {
+      const updated = await apiPatch<Booking>(`/bookings/${id}`, payload, 'BUSINESS');
+      // Update global store
+      useBookingsStore.setState((state) => ({
+        bookings: state.bookings.map((b) => (b.id === id ? { ...b, ...updated } : b)),
+      }));
+      // Update local paginated state
+      setPaginatedBookings((prev) => 
+        prev.map((b) => (b.id === id ? { ...b, ...updated } : b))
+      );
+      toastSuccess('Appointment updated');
+      setEditingBooking(null);
+    } catch (err) {
+      toastError('Update failed', err instanceof Error ? err.message : 'Please try again.');
+    }
   };
 
   const goToday = () => getApi()?.today();
@@ -696,8 +794,8 @@ export default function AppointmentsPage() {
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView={viewMap[calMode]}
-                locales={[esLocale, enGbLocale]}
-                locale={language === 'en' ? 'en-gb' : 'es'}
+                locales={[enGbLocale, esLocale]}
+                locale={'en-gb'}
                 headerToolbar={false}
                 nowIndicator
                 slotMinTime="07:00:00"
@@ -766,7 +864,11 @@ export default function AppointmentsPage() {
                 }}
                 eventClick={(info) => {
                   const b = (info.event.extendedProps as { booking?: Booking }).booking;
-                  if (b) alert(`${b.customerName}\n${getServiceName(b.serviceId)}\n${b.status}`);
+                  if (b && !b.locked) {
+                    setEditingBooking(b);
+                  } else if (b?.locked) {
+                    toastInfo(b.customerName, L(language as Language, 'Appointment is locked.', 'Cita bloqueada.'));
+                  }
                 }}
               />
             </div>
@@ -790,7 +892,12 @@ export default function AppointmentsPage() {
                     <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Actions', 'Acciones')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-slate-50 relative">
+                  {isLoadingList && (
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                    </div>
+                  )}
                   {listRows.map((booking) => (
                     <tr key={booking.id} className="transition-colors hover:bg-cyan-50/40">
                       <td className="px-4 py-3">
@@ -820,17 +927,24 @@ export default function AppointmentsPage() {
                         {formatTime12(language as Language, booking.date)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span
+                        <select
+                          value={booking.status}
+                          onChange={(e) => void handleStatusChange(booking.id, e.target.value as any)}
+                          disabled={booking.locked}
                           className={clsx(
-                            'inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide',
-                            booking.status === 'Approved' && 'bg-emerald-100 text-emerald-800',
-                            booking.status === 'Pending' && 'bg-amber-100 text-amber-800',
-                            booking.status === 'Rejected' && 'bg-rose-100 text-rose-800',
-                            booking.status === 'Completed' && 'bg-cyan-100 text-cyan-900',
+                            'appearance-none rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide cursor-pointer transition-all focus:ring-2 focus:ring-offset-1 outline-none border-none',
+                            booking.status === 'Approved' && 'bg-emerald-100 text-emerald-800 focus:ring-emerald-500',
+                            booking.status === 'Pending' && 'bg-amber-100 text-amber-800 focus:ring-amber-500',
+                            booking.status === 'Rejected' && 'bg-rose-100 text-rose-800 focus:ring-rose-500',
+                            booking.status === 'Completed' && 'bg-cyan-100 text-cyan-900 focus:ring-cyan-500',
+                            booking.locked && 'opacity-50 cursor-not-allowed'
                           )}
                         >
-                          {bookingStatusLabel(language as Language, booking.status)}
-                        </span>
+                          <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
+                          <option value="Approved">{L(language as Language, 'Confirmed', 'Confirmada')}</option>
+                          <option value="Completed">{L(language as Language, 'Completed', 'Completada')}</option>
+                          <option value="Rejected">{L(language as Language, 'Rejected', 'Rechazada')}</option>
+                        </select>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
@@ -858,7 +972,7 @@ export default function AppointmentsPage() {
                             <>
                               <button
                                 type="button"
-                                onClick={() => updateBookingStatus(booking.id, 'Approved')}
+                                onClick={() => void handleStatusChange(booking.id, 'Approved')}
                                 className="rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-600 hover:text-white"
                                 title={L(language as Language, 'Confirm', 'Confirmar')}
                               >
@@ -866,7 +980,7 @@ export default function AppointmentsPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => updateBookingStatus(booking.id, 'Rejected')}
+                                onClick={() => void handleStatusChange(booking.id, 'Rejected')}
                                 className="rounded-lg bg-rose-50 p-2 text-rose-600 hover:bg-rose-600 hover:text-white"
                                 title={L(language as Language, 'Reject', 'Rechazar')}
                               >
@@ -877,12 +991,22 @@ export default function AppointmentsPage() {
                           {booking.status === 'Approved' && !booking.locked ? (
                             <button
                               type="button"
-                              onClick={() => updateBookingStatus(booking.id, 'Completed')}
+                              onClick={() => void handleStatusChange(booking.id, 'Completed')}
                               className="rounded-lg bg-slate-900 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white hover:bg-cyan-600"
                             >
                               {L(language as Language, 'Done', 'Hecho')}
                             </button>
                           ) : null}
+                          {!booking.locked && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingBooking(booking)}
+                              className="rounded-lg bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
+                              title={L(language as Language, 'Edit', 'Editar')}
+                            >
+                              <Settings className="h-4 w-4" />
+                            </button>
+                          )}
                           {booking.locked ? (
                             <span className="text-[10px] font-semibold text-slate-400">{L(language as Language, 'Locked', 'Bloqueado')}</span>
                           ) : null}
@@ -892,6 +1016,15 @@ export default function AppointmentsPage() {
                   ))}
                 </tbody>
               </table>
+              )}
+              {scheduleView === 'list' && (
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                />
               )}
             </div>
           )}
@@ -1017,6 +1150,107 @@ export default function AppointmentsPage() {
           </div>
         </div>
       ) : null}
+
+      {editingBooking && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-8 py-6">
+              <div>
+                <h3 className="text-xl font-black text-slate-900">{L(language as Language, 'Edit Appointment', 'Editar Cita')}</h3>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">{editingBooking.customerName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingBooking(null)}
+                className="rounded-2xl bg-white p-3 text-slate-400 shadow-sm hover:bg-slate-100 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{L(language as Language, 'Date', 'Fecha')}</label>
+                  <input
+                    type="date"
+                    defaultValue={new Date(editingBooking.date).toISOString().split('T')[0]}
+                    onChange={(e) => {
+                      const d = new Date(editingBooking.date);
+                      const [y, m, day] = e.target.value.split('-').map(Number);
+                      d.setFullYear(y, m - 1, day);
+                      setEditingBooking({ ...editingBooking, date: d.toISOString() });
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{L(language as Language, 'Time', 'Hora')}</label>
+                  <input
+                    type="time"
+                    defaultValue={new Date(editingBooking.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    onChange={(e) => {
+                      const d = new Date(editingBooking.date);
+                      const [h, m] = e.target.value.split(':').map(Number);
+                      d.setHours(h, m);
+                      setEditingBooking({ ...editingBooking, date: d.toISOString() });
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{L(language as Language, 'Staff', 'Staff')}</label>
+                <select
+                  value={editingBooking.staffId || ''}
+                  onChange={(e) => setEditingBooking({ ...editingBooking, staffId: e.target.value || null })}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/20 appearance-none"
+                >
+                  <option value="">{L(language as Language, 'Any Staff', 'Cualquier Staff')}</option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">{L(language as Language, 'Service', 'Servicio')}</label>
+                <select
+                  value={editingBooking.serviceId || ''}
+                  onChange={(e) => setEditingBooking({ ...editingBooking, serviceId: e.target.value || null })}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-500/20 appearance-none"
+                >
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingBooking(null)}
+                  className="flex-1 rounded-2xl border-2 border-slate-100 py-4 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50"
+                >
+                  {L(language as Language, 'Cancel', 'Cancelar')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleUpdateBooking(editingBooking.id, {
+                    date: editingBooking.date,
+                    staffId: editingBooking.staffId,
+                    serviceId: editingBooking.serviceId,
+                    status: editingBooking.status
+                  })}
+                  className="flex-1 rounded-2xl bg-slate-900 py-4 text-xs font-black uppercase tracking-widest text-white hover:bg-slate-800 shadow-lg shadow-slate-200"
+                >
+                  {L(language as Language, 'Save Changes', 'Guardar Cambios')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

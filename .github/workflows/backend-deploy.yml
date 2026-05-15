@@ -1,0 +1,91 @@
+name: backend-ci-cd
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "Backend/**"
+      - ".github/workflows/backend-deploy.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "Backend/**"
+      - ".github/workflows/backend-deploy.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: Backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: Backend
+        run: npm run prisma:generate
+
+      - name: Build backend
+        working-directory: Backend
+        run: npm run build
+
+  build-and-deploy:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: Backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: Backend
+        run: npm run prisma:generate
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ github.ref_name == 'main' && 'rezervame-backend-prod' || 'rezervame-backend-staging' }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG Backend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy to ECS service
+        env:
+          CLUSTER: ${{ github.ref_name == 'main' && 'rezervame-cluster-prod' || 'rezervame-cluster-staging' }}
+          SERVICE: ${{ github.ref_name == 'main' && 'rezervame-api-service-prod' || 'rezervame-api-service-staging' }}
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --force-new-deployment

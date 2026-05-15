@@ -1,11 +1,114 @@
 "use client";
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../components/I18nProvider";
 import { useRouter } from "next/navigation";
+import {
+  fetchPublicCategories,
+  fetchPublicVenues,
+  mapApiVenueToRow,
+  businessBannerHeroSrc,
+  businessListingImageSrc,
+  venueCardImageSrc,
+  type ApiVenue,
+  type PublicCategory,
+  type SearchVenueRow,
+} from "../lib/venueSearch";
 
 export default function Home() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const router = useRouter();
+  const [apiVenues, setApiVenues] = useState<ApiVenue[]>([]);
+  const [categories, setCategories] = useState<PublicCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const p1 = fetchPublicVenues()
+      .then((rows) => setApiVenues(rows.data))
+      .catch(() => setApiVenues([]));
+    const p2 = fetchPublicCategories()
+      .then(setCategories)
+      .catch(() => setCategories([]));
+    
+    Promise.all([p1, p2]).finally(() => setIsLoading(false));
+  }, []);
+
+  const venues = useMemo(
+    () => apiVenues.map((v) => mapApiVenueToRow(v, language)),
+    [apiVenues, language],
+  );
+
+  const dynamicCategories = useMemo(
+    () =>
+      categories.map((c) => ({
+        key: c.key,
+        title: language === "en" ? c.labelEn : c.labelEs,
+        stat: c.activeBusinessCount ?? 0,
+        img: (c.imageUrl || "").trim(),
+      })),
+    [categories, language],
+  );
+
+  const featuredVenueCards = useMemo(
+    () =>
+      [...venues]
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 4)
+        .map((v) => ({
+          businessId: v.businessId,
+          serviceName: (v.serviceName && v.serviceName.trim()) || v.name,
+          salonName: v.name,
+          price: v.price,
+          rating: v.rating,
+          durationMin: v.serviceDurationMinutes || 0,
+          imgSrc: businessBannerHeroSrc(v),
+        })),
+    [venues],
+  );
+
+  /** Below Featured: popular services (by reviews), service imagery; avoids duplicating the same four as Featured when possible. */
+  const topServiceMenuCards = useMemo(() => {
+    const byRating = [...venues].sort((a, b) => b.rating - a.rating);
+    const featuredIds = new Set(byRating.slice(0, 4).map((v) => v.businessId));
+    let list = [...venues]
+      .filter((v) => !featuredIds.has(v.businessId))
+      .sort((a, b) => b.reviews - a.reviews || b.rating - a.rating);
+    if (list.length < 4) {
+      list = [...venues].sort((a, b) => b.reviews - a.reviews || b.rating - a.rating);
+    }
+    return list.slice(0, 8).map((v) => ({
+      businessId: v.businessId,
+      serviceName: (v.serviceName && v.serviceName.trim()) || v.name,
+      salonName: v.name,
+      price: v.price,
+      rating: v.rating,
+      durationMin: v.serviceDurationMinutes || 0,
+      imgSrc: venueCardImageSrc(v),
+    }));
+  }, [venues]);
+
+  const dynamicBestBusinesses = useMemo(
+    () =>
+      venues.slice(0, 5).map((v) => ({
+        n: v.name,
+        rat: Number(v.rating).toFixed(1),
+        rts: `(${v.reviews} ${t("reviews")})`,
+        s: [v.category],
+        p: `$${v.price.toFixed(2)}`,
+        id: v.businessId,
+        location: v.locationLabel,
+        imgSrc: businessListingImageSrc(v),
+      })),
+    [venues, t],
+  );
+
+  const heroCategoryChips = useMemo(
+    () =>
+      categories.slice(0, 8).map((c) => ({
+        key: c.key,
+        label: language === "en" ? c.labelEn : c.labelEs,
+      })),
+    [categories, language],
+  );
 
   return (
     <div className="bg-white font-sans text-slate-900">
@@ -36,68 +139,75 @@ export default function Home() {
             </button>
           </div>
           
-          <div className="mt-8 text-sm font-semibold flex flex-wrap items-center justify-center gap-y-3">
-             <span className="mr-3">{t('featuredServices')}</span>
-              {[
-                { key: 'cut', label: t('cut') },
-                { key: 'nails', label: t('nails') },
-                { key: 'massage', label: t('massage') },
-                { key: 'facial', label: t('facial') },
-                { key: 'eyebrows', label: t('eyebrows') },
-                { key: 'makeup', label: t('makeup') }
-              ].map(svc => (
-                <span 
-                  key={svc.key} 
-                  onClick={() => router.push(`/search?category=${svc.label}`)}
+          {heroCategoryChips.length > 0 ? (
+            <div className="mt-8 text-sm font-semibold flex flex-wrap items-center justify-center gap-y-3">
+              <span className="mr-3">{t("featuredServices")}</span>
+              {heroCategoryChips.map((svc) => (
+                <span
+                  key={svc.key}
+                  onClick={() =>
+                    router.push(`/search?categoryKey=${encodeURIComponent(svc.key)}`)
+                  }
                   className="inline-block px-5 py-2.5 md:px-6 md:py-3 mx-1 text-[15px] md:text-base border border-white/25 bg-black/45 rounded-xl hover:bg-black/65 cursor-pointer backdrop-blur-md transition shadow-md font-semibold"
                 >
                   {svc.label}
                 </span>
               ))}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
       <main className="w-full max-w-[1920px] mx-auto py-16 px-4 sm:px-8 lg:px-14">
         
-        {/* CATEGORIES — horizontal carousel, square cards */}
-        <section className="mb-24">
+        {/* CATEGORIES — horizontal carousel, square cards (directly below hero banner) */}
+        <section id="browse-categories" className="mb-24 scroll-mt-28">
           <div className="text-center mb-12">
             <h3 className="text-[32px] font-extrabold text-slate-900 tracking-wide">{t('chooseCategory')}</h3>
             <p className="text-slate-500 mt-2 font-medium max-w-lg mx-auto tracking-normal">{t('chooseCategorySub')}</p>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory no-scrollbar -mx-1 px-1">
-            {[ 
-              { title: t('hairService'), stat: '1,245', img: '1560066984-138dadb4c035' },
-              { title: t('spaService'), stat: '284', img: '1544161515-4ab6ce6db874' },
-              { title: t('beautyService'), stat: '434', img: '1487412947147-5cebf100ffc2' },
-              { title: t('hairRemoval'), stat: '41', img: '1544161515-4ab6ce6db874' },
-              { title: t('nailCare'), stat: '220', img: '1522337660859-02fbefca4702' },
-              { title: t('barber'), stat: '29', img: '1585747860715-2ba37e788b70' }
-            ].map((cat, i) => (
-              <div 
-                key={i} 
-                onClick={() => router.push(`/search?category=${encodeURIComponent(cat.title)}`)}
-                className="snap-start shrink-0 w-[min(220px,78vw)] sm:w-56 cursor-pointer group"
-              >
-                  <div className="relative aspect-square rounded-2xl overflow-hidden border border-slate-100 shadow-lg hover:shadow-xl transition-all duration-500 hover:-translate-y-1">
-                         <img 
-                           src={`https://images.unsplash.com/photo-${cat.img}?q=80&w=400&fit=crop`} 
-                           alt={cat.title} 
-                           className="w-full h-full object-cover group-hover:scale-105 transition duration-700" 
-                           onError={(e) => {
-                             const target = e.target as HTMLImageElement;
-                             target.src = "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=400&fit=crop";
-                           }}
-                         />
-                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-                     <div className="absolute bottom-0 left-0 right-0 p-4 text-left">
-                       <h4 className="font-extrabold text-white text-[15px] leading-snug tracking-wide drop-shadow-md">{cat.title}</h4>
-                       <p className="text-white/75 text-[11px] font-bold uppercase tracking-normal mt-1">{cat.stat} {t('places')}</p>
-                     </div>
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="snap-start shrink-0 w-56 h-72 bg-slate-100 rounded-[32px] animate-pulse" />
+              ))
+            ) : dynamicCategories.length === 0 ? (
+              <p className="text-sm font-medium text-slate-500 px-2 py-8">
+                {language === "en"
+                  ? "No categories loaded yet. Start the API and add categories in admin."
+                  : "Aún no hay categorías. Inicia el API y agrega categorías en admin."}
+              </p>
+            ) : (
+              dynamicCategories.map((cat, i) => (
+                <div
+                  key={`${cat.key}-${i}`}
+                  onClick={() =>
+                    router.push(`/search?categoryKey=${encodeURIComponent(cat.key)}`)
+                  }
+                  className="snap-start shrink-0 w-[min(220px,78vw)] sm:w-56 cursor-pointer group"
+                >
+                  <div className="relative aspect-square rounded-2xl overflow-hidden border border-slate-100 shadow-lg hover:shadow-xl transition-all duration-500 hover:-translate-y-1 bg-slate-200">
+                    {cat.img ? (
+                      <img
+                        src={cat.img.startsWith("http") ? cat.img : cat.img}
+                        alt={cat.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-700"
+                      />
+                    ) : null}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-4 text-left">
+                      <h4 className="font-extrabold text-white text-[15px] leading-snug tracking-wide drop-shadow-md">
+                        {cat.title}
+                      </h4>
+                      <p className="text-white/75 text-[11px] font-bold uppercase tracking-normal mt-1">
+                        {typeof cat.stat === "number" ? cat.stat.toLocaleString() : cat.stat}{" "}
+                        {t("places")}
+                      </p>
+                    </div>
                   </div>
-              </div>
-            ))}
+                </div>
+              ))
+            )}
           </div>
         </section>
 
@@ -112,65 +222,133 @@ export default function Home() {
                  <h3 className="text-[32px] font-extrabold text-slate-900 tracking-wide mb-2">{t('featuredServicesTitle')}</h3>
                  <p className="text-slate-500 font-medium tracking-normal">{t('featuredServicesSub2')}</p>
               </div>
-              <button 
-                onClick={() => router.push('/search')}
-                className="hidden md:inline-flex font-bold text-slate-900 text-[14px] bg-white px-7 py-3 rounded-xl border-2 border-slate-200 hover:border-[#ff5a5f]/40 hover:text-[#ff5a5f] shadow-sm transition-all duration-300 group items-center"
+              <button
+                type="button"
+                onClick={() => router.push("/search")}
+                className="inline-flex font-bold text-slate-900 text-[14px] bg-white px-7 py-3 rounded-xl border-2 border-slate-200 hover:border-[#ff5a5f]/40 hover:text-[#ff5a5f] shadow-sm transition-all duration-300 group items-center"
               >
-                 {t('viewAllFeatured')} <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
+                {t("viewAllFeatured")}{" "}
+                <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
               </button>
            </div>
            
            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8 relative z-10">
-              {[
-                { s: 'Corte de Cabello Premium', c: 'Luxe Hair Studio', p: '$45.00', r: '4.9', t: `45 ${t('min')}`, i: '1560066984-138dadb4c035', id: 1, badge: 'partner' as const },
-                { s: 'Manicura Spa + Gel', c: 'Nail Society', p: '$30.00', r: '4.8', t: `60 ${t('min')}`, i: '1522337660859-02fbefca4702', id: 3, badge: 'promo' as const },
-                { s: 'Masaje Tejido Profundo', c: 'Bliss Beauty Spa', p: '$65.00', r: '5.0', t: `90 ${t('min')}`, i: '1544161515-4ab6ce6db874', id: 2, badge: 'partner' as const },
-                { s: 'Limpieza Facial Detox', c: 'Skin Care Clinic', p: '$50.00', r: '4.7', t: `60 ${t('min')}`, i: '1487412947147-5cebf100ffc2', id: 4, badge: 'promo' as const }
-              ].map((serv, i) => (
+              {featuredVenueCards.length === 0 ? (
+                <p className="col-span-full text-center text-sm font-medium text-slate-500 py-12">
+                  {language === "en"
+                    ? "No featured venues yet. Add active businesses in the admin panel."
+                    : "Aún no hay negocios destacados. Agrega negocios activos en el panel admin."}
+                </p>
+              ) : (
+              featuredVenueCards.map((serv, i) => (
                  <div 
-                   key={i} 
-                   onClick={() => router.push(`/venue/${serv.id}`)}
+                   key={`${serv.businessId}-${i}`} 
+                   onClick={() => router.push(`/venue/${serv.businessId}`)}
                    className="group cursor-pointer bg-white rounded-3xl p-3 sm:p-4 shadow-md hover:shadow-2xl hover:shadow-[#ff5a5f]/10 border border-slate-100/80 transition-all duration-500 flex flex-col h-full transform hover:-translate-y-1.5 ring-1 ring-transparent hover:ring-[#ff5a5f]/20"
                  >
-                    <div className="relative h-48 sm:h-52 rounded-2xl overflow-hidden mb-4 shadow-inner">
-                       <img 
-                         src={`https://images.unsplash.com/photo-${serv.i}?q=80&w=500&fit=crop`} 
-                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" 
-                         alt={serv.s} 
-                         onError={(e) => {
-                           const target = e.target as HTMLImageElement;
-                           target.src = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=400&fit=crop";
-                         }}
+                    <div className="relative h-48 sm:h-52 rounded-2xl overflow-hidden mb-4 shadow-inner bg-slate-100">
+                       <img
+                         src={serv.imgSrc}
+                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
+                         alt={serv.salonName}
                        />
                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-70" />
                        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                         {serv.badge === 'partner' && (
-                           <span className="bg-slate-900/90 text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">Partner</span>
-                         )}
-                         {serv.badge === 'promo' && (
-                           <span className="bg-[#ff5a5f] text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">Promo</span>
-                         )}
+                         <span className="bg-[#ff5a5f] text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">{t('recommended')}</span>
                        </div>
                        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md text-slate-900 px-2.5 py-1 rounded-lg text-[11px] font-black shadow-sm flex items-center">
-                          <span className="text-amber-400 mr-1.5 text-xs">★</span>{serv.r}
+                          <span className="text-amber-400 mr-1.5 text-xs">★</span>{serv.rating.toFixed(1)}
                        </div>
                     </div>
                     <div className="flex justify-between items-start mb-2 flex-1 px-1">
-                      <h4 className="font-extrabold text-slate-900 text-base leading-snug group-hover:text-[#ff5a5f] transition-colors line-clamp-2 tracking-wide">{serv.s}</h4>
+                      <h4 className="font-extrabold text-slate-900 text-base leading-snug group-hover:text-[#ff5a5f] transition-colors line-clamp-2 tracking-wide">{serv.serviceName}</h4>
                     </div>
                     <div className="px-1 py-3 flex items-center justify-between border-t border-slate-50 mt-auto">
                        <div className="flex flex-col min-w-0">
-                          <span className="text-[11px] text-slate-400 font-bold uppercase tracking-normal mb-0.5 truncate">{serv.c}</span>
-                          <span className="font-black text-slate-900 text-lg">{serv.p}</span>
+                          <span className="text-[11px] text-slate-400 font-bold uppercase tracking-normal mb-0.5 truncate">{serv.salonName}</span>
+                          <span className="font-black text-slate-900 text-lg">${serv.price.toFixed(2)}</span>
                        </div>
                        <div className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center shrink-0 ml-2">
                           <svg className="w-3 h-3 mr-1.5 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          {serv.t}
+                          {serv.durationMin > 0 ? `${serv.durationMin} ${t('min')}` : `— ${t('min')}`}
                        </div>
                     </div>
                  </div>
-              ))}
+              ))
+              )}
            </div>
+        </section>
+
+        {/* TOP SERVICES — horizontal menu below Featured */}
+        <section className="mb-24 w-full">
+          <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="text-left">
+              <span className="mb-1 inline-block text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5a5f]">
+                REZERVAME
+              </span>
+              <h3 className="text-[28px] font-extrabold tracking-wide text-slate-900">{t("topServicesTitle")}</h3>
+              <p className="mt-1 font-medium text-slate-500">{t("topServicesSub")}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/search")}
+              className="group inline-flex shrink-0 items-center self-start rounded-xl border-2 border-slate-200 bg-white px-6 py-2.5 text-[14px] font-bold text-slate-900 shadow-sm transition-all hover:border-[#ff5a5f]/40 hover:text-[#ff5a5f] sm:self-auto"
+            >
+              {t("viewAllTopServices")}{" "}
+              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+            </button>
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-2 pt-1 snap-x snap-mandatory no-scrollbar -mx-1 px-1">
+            {topServiceMenuCards.length === 0 ? (
+              <p className="px-2 py-8 text-sm font-medium text-slate-500">
+                {language === "en"
+                  ? "No services to show yet."
+                  : "Aún no hay servicios para mostrar."}
+              </p>
+            ) : (
+              topServiceMenuCards.map((row, i) => (
+                <div
+                  key={`top-svc-${row.businessId}-${i}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/venue/${row.businessId}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(`/venue/${row.businessId}`);
+                    }
+                  }}
+                  className="group snap-start shrink-0 w-[min(280px,85vw)] cursor-pointer rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-[#ff5a5f]/25 hover:shadow-md"
+                >
+                  <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">
+                    <img
+                      src={row.imgSrc}
+                      alt={row.serviceName}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent opacity-80" />
+                    <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] font-black uppercase tracking-wide text-white drop-shadow">
+                        {row.salonName}
+                      </span>
+                      <span className="shrink-0 rounded-md bg-white/95 px-2 py-0.5 text-[10px] font-black text-slate-900">
+                        ★ {row.rating.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <h4 className="line-clamp-2 px-0.5 text-[15px] font-extrabold leading-snug text-slate-900 group-hover:text-[#ff5a5f]">
+                    {row.serviceName}
+                  </h4>
+                  <div className="mt-2 flex items-center justify-between px-0.5 text-[13px]">
+                    <span className="font-black text-slate-900">${row.price.toFixed(2)}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      {row.durationMin > 0 ? `${row.durationMin} ${t("min")}` : `— ${t("min")}`}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </section>
 
         {/* BEST BUSINESSES */}
@@ -180,27 +358,24 @@ export default function Home() {
              <p className="text-slate-500 font-medium tracking-normal">{t('bestNearSub')}</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[18px] text-left mb-10 w-full">
-            {[
-              { n: 'Luxe Hair Studio', rat: '4.9', rts: `(120 ${t('reviews')})`, s: ['Corte', 'Color', 'Peinado', '+4 más'], p: '$45.00', id: 1 },
-              { n: 'Bliss Beauty', rat: '4.8', rts: `(89 ${t('reviews')})`, s: ['Corte', 'Color', 'Peinado', '+4 más'], p: '$45.00', id: 2 },
-              { n: 'Nail Society', rat: '4.7', rts: `(62 ${t('reviews')})`, s: ['Manicura', 'Pedicura', 'Relleno', '+2 más'], p: '$25.00', id: 3 },
-              { n: 'Brow Studio', rat: '4.9', rts: `(194 ${t('reviews')})`, s: ['Corte', 'Hilo', 'Relleno', '+2 más'], p: '$32.75', id: 4 },
-              { n: 'Brow Haus Panamá', rat: '4.9', rts: `(323 ${t('reviews')})`, s: ['Corte', 'Hilo', 'Alisado', '+2 más'], p: '$15.50', id: 5 }
-            ].map((biz, i) => (
+            {dynamicBestBusinesses.length === 0 ? (
+              <p className="col-span-full text-center text-sm font-medium text-slate-500 py-10">
+                {language === "en"
+                  ? "No businesses to show yet."
+                  : "Aún no hay negocios para mostrar."}
+              </p>
+            ) : (
+            dynamicBestBusinesses.map((biz, i) => (
               <div 
-                key={i} 
+                key={`${biz.id}-${i}`} 
                 onClick={() => router.push(`/venue/${biz.id}`)}
                 className="bg-white rounded-[16px] shadow-sm border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col pt-1 pl-1 pr-1 pb-1"
               >
-                <div className="relative h-[150px] rounded-[13px] overflow-hidden">
+                <div className="relative h-[150px] rounded-[13px] overflow-hidden bg-slate-100">
                   <img 
-                    src={`https://images.unsplash.com/photo-${['1560066984-138dadb4c035','1522337660859-02fbefca4702','1487412947147-5cebf100ffc2','1585747860715-2ba37e788b70','1544161515-4ab6ce6db874'][i]}?q=80&w=600&fit=crop`} 
+                    src={biz.imgSrc} 
                     alt={biz.n} 
                     className="w-full h-full object-cover" 
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?q=80&w=600&fit=crop";
-                    }}
                   />
                   <div className="absolute top-2.5 left-2.5 bg-black text-white text-[10px] px-2.5 py-1 rounded-[6px] font-bold tracking-wide shadow-sm">{t('recommended')}</div>
                   <button className="absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center bg-white shadow-sm rounded-full hover:bg-slate-50"><svg className="w-3.5 h-3.5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg></button>
@@ -216,7 +391,7 @@ export default function Home() {
                   
                   <div className="flex items-center text-[10.5px] text-slate-500 mb-3.5 font-semibold">
                     <svg className="w-[14px] h-[14px] text-slate-400 mr-[4px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    Avenida Balboa <span className="ml-auto">• 0.5 km</span>
+                    <span className="truncate">{biz.location || "—"}</span>
                   </div>
                   
                   <div className="flex flex-wrap gap-[5px] mb-5 border-b border-slate-100 pb-5">
@@ -229,7 +404,7 @@ export default function Home() {
                     <div className="flex justify-between items-center mb-4">
                       <span className="flex flex-col xs:flex-row xs:items-center text-slate-500 font-semibold text-[10px] leading-tight max-w-[55%]">
                          <div className="flex items-center mb-0.5 xs:mb-0"><svg className="w-[14px] h-[14px] mr-1 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {t('nextAppt')}</div> 
-                         {t('today')} 3:00 PM
+                         —
                       </span>
                       <span className="font-black text-slate-900 text-[16px] tracking-tight">{biz.p}</span>
                     </div>
@@ -239,7 +414,8 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </div>
           <button 
             onClick={() => router.push('/search')}

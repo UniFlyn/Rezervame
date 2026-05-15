@@ -1,16 +1,20 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { 
   Download, 
   CheckCircle2,
   Clock,
   XCircle,
-  X
+  X,
+  Trash2,
+  Loader2,
+  TrendingUp
 } from "lucide-react";
-import financeData from "@/mock-data/admin-finance.json";
+import { apiDelete, apiGet } from "@/lib/api";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
+import TablePagination from "@/components/admin/TablePagination";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -27,23 +31,54 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 export default function TransactionsPage() {
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedTransaction, setSelectedTransaction] = useState<(typeof financeData.transactions)[number] | null>(null);
-  const { transactions } = financeData;
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const pageSize = 10;
 
-  const filteredTransactions = useMemo(
-    () =>
-      transactions.filter((transaction) => {
-        const normalized = searchTerm.toLowerCase();
-        const matchesSearch =
-          transaction.id.toLowerCase().includes(normalized) ||
-          transaction.business.toLowerCase().includes(normalized);
-        const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
-        return matchesSearch && matchesStatus;
-      }),
-    [searchTerm, statusFilter, transactions],
-  );
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      setIsLoading(true);
+      try {
+        const query = new URLSearchParams({
+          page: String(page),
+          limit: String(pageSize),
+          search: searchTerm,
+          status: statusFilter,
+        });
+        const response = await apiGet<{ data: any[]; total: number; totalPages: number }>(`/admin/transactions?${query.toString()}`);
+        setTransactions(response.data);
+        setTotalItems(response.total);
+        setTotalPages(response.totalPages);
+      } catch (err) {
+        console.error("Failed to fetch transactions", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchTransactions();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [page, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  async function deleteTransaction(id: string) {
+    if (!window.confirm("Delete this transaction permanently?")) return;
+    await apiDelete(`/admin/transactions/${id}`);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    setTotalItems(prev => prev - 1);
+  }
 
   const statusKpis = useMemo(() => {
     const total = transactions.length;
@@ -137,8 +172,13 @@ export default function TransactionsPage() {
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredTransactions.map((tx) => (
+            <tbody className="divide-y divide-slate-50 relative">
+              {isLoading && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                </div>
+              )}
+              {transactions.map((tx) => (
                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <p className="font-mono text-xs font-bold text-slate-600">{tx.id}</p>
@@ -165,10 +205,18 @@ export default function TransactionsPage() {
                     >
                       Details
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteTransaction(tx.id)}
+                      className="ml-3 inline-flex items-center text-xs font-bold text-rose-600 hover:underline"
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
-              {filteredTransactions.length === 0 ? (
+              {transactions.length === 0 && !isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500">
                     No transactions found for current filters.
@@ -178,6 +226,13 @@ export default function TransactionsPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       {selectedTransaction && (
@@ -213,21 +268,3 @@ export default function TransactionsPage() {
   );
 }
 
-function TrendingUp(props: any) {
-  return (
-    <svg 
-      {...props}
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-    >
-      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-      <polyline points="16 7 22 7 22 13" />
-    </svg>
-  );
-}
