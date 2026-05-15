@@ -6,6 +6,7 @@ import {
   Get,
   Headers,
   Param,
+  NotFoundException,
   Patch,
   Post,
   Query,
@@ -1327,8 +1328,8 @@ export class AppController {
     @Query('userLng') userLng?: string,
   ) {
     const b = await this.prisma.business.findUnique({ where: { id } });
-    if (!b) return null;
-    if (!(await isBusinessPubliclyVisible(this.prisma, b, authorization))) return null;
+    if (!b) throw new NotFoundException('Business not found');
+    if (!(await isBusinessPubliclyVisible(this.prisma, b, authorization))) throw new NotFoundException('Business not found');
     const base = mapBusiness(b);
     const keys = (b.amenityKeys ?? []).filter(Boolean);
     const rows =
