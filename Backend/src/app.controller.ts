@@ -2516,18 +2516,24 @@ export class AppController {
     let orderBy: any = { joinedDate: 'desc' };
     if (sortBy === 'name') orderBy = { name: 'asc' };
 
-    const [total, businesses] = await Promise.all([
-      this.prisma.business.count({ where }),
-      this.prisma.business.findMany({
-        where,
-        orderBy,
+    const [total, allServices, amenityRows] = await Promise.all([
+      this.prisma.service.count({
+        where: { business: where },
+      }),
+      this.prisma.service.findMany({
+        where: { business: where },
+        include: { business: true },
+        orderBy: { name: 'asc' },
         skip: (p - 1) * l,
         take: l,
       }),
+      this.prisma.amenity.findMany({
+        where: { active: true },
+        select: { key: true, labelEn: true, labelEs: true },
+      }),
     ]);
 
-    const bizIds = businesses.map((b) => b.id);
-    if (bizIds.length === 0) {
+    if (allServices.length === 0) {
       return {
         data: [],
         total: 0,
@@ -2537,7 +2543,8 @@ export class AppController {
       };
     }
 
-    const [bookingCounts, reviewStats, services, amenityRows] = await Promise.all([
+    const bizIds = [...new Set(allServices.map((s) => s.businessId))];
+    const [bookingCounts, reviewStats] = await Promise.all([
       this.prisma.booking.groupBy({
         by: ['businessId'],
         where: { businessId: { in: bizIds } },
@@ -2549,54 +2556,40 @@ export class AppController {
         _avg: { rating: true },
         _count: { _all: true },
       }),
-      this.prisma.service.findMany({
-        where: { businessId: { in: bizIds } },
-        orderBy: { name: 'asc' },
-      }),
-      this.prisma.amenity.findMany({
-        where: { active: true },
-        select: { key: true, labelEn: true, labelEs: true },
-      }),
     ]);
+
     const amenityLabelEn = new Map(amenityRows.map((a) => [a.key, a.labelEn]));
     const amenityLabelEs = new Map(amenityRows.map((a) => [a.key, a.labelEs]));
-
-    const countByBusiness = new Map(bookingCounts.map((b) => [b.businessId, b._count._all]));
     const reviewMap = new Map(
       reviewStats.map((r) => [
         r.businessId,
         { avg: r._avg.rating ?? 0, n: r._count._all },
       ]),
     );
-    const firstServiceByBiz = new Map<string, (typeof services)[0]>();
-    for (const s of services) {
-      if (!firstServiceByBiz.has(s.businessId)) firstServiceByBiz.set(s.businessId, s);
-    }
 
-    const data = businesses.map((b, index) => {
+    const data = allServices.map((svc, index) => {
+      const b = svc.business;
       const rs = reviewMap.get(b.id);
       const ratingStr = rs && rs.n > 0 ? Number(rs.avg).toFixed(1) : '0';
       const reviewsStr = String(rs?.n ?? 0);
-      const svc = firstServiceByBiz.get(b.id);
-      /** Prefer profile `categoryKeys` so listings match admin/onboarding; avoid wrong key from alphabetically-first service. */
+
       const categoryKey =
         Array.isArray(b.categoryKeys) && b.categoryKeys.length > 0
           ? b.categoryKeys[0]
-          : svc
-            ? categoryKeyFromServiceCategory(svc.category)
-            : 'hairService';
-      const displayPrice =
-        svc && svc.price > 0 ? `$${Number(svc.price).toFixed(2)}` : `$${Number(0).toFixed(2)}`;
+          : categoryKeyFromServiceCategory(svc.category);
+
+      const displayPrice = svc.price > 0 ? `$${Number(svc.price).toFixed(2)}` : `$${Number(0).toFixed(2)}`;
       const keys = b.amenityKeys ?? [];
       const amenityLabelsEn = keys.map((k) => amenityLabelEn.get(k) ?? k);
       const amenityLabelsEs = keys.map((k) => amenityLabelEs.get(k) ?? k);
-      /** Service photo (optional) — for service-focused UIs. */
-      const imageUrl = (svc?.imageUrl && String(svc.imageUrl).trim()) || null;
+
+      const imageUrl = (svc.imageUrl && String(svc.imageUrl).trim()) || null;
       const logoUrl = (b.logoUrl && String(b.logoUrl).trim()) || null;
       const bannerUrl = (b.bannerUrl && String(b.bannerUrl).trim()) || null;
       const bizLat = b.latitude ?? null;
       const bizLng = b.longitude ?? null;
       const distanceLabel = distanceLabelBetween(geo.lat, geo.lng, bizLat, bizLng);
+
       return {
         id: (p - 1) * l + index + 1,
         businessId: b.id,
@@ -2605,14 +2598,14 @@ export class AppController {
         rating: ratingStr,
         reviews: reviewsStr,
         price: displayPrice,
-        serviceName: svc?.name ?? '',
-        serviceDurationMinutes: svc?.duration ?? 0,
+        serviceName: svc.name ?? '',
+        serviceDurationMinutes: svc.duration ?? 0,
         lat: bizLat ?? 0,
         lng: bizLng ?? 0,
-        serviceImageUrl: imageUrl,
+        imageUrl,
         logoUrl,
         bannerUrl,
-        unsplashImgId: null as string | null,
+        unsplashImgId: null,
         locationLabel: b.address || 'Panama City',
         distanceLabel,
         amenityKeys: keys,
