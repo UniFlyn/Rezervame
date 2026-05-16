@@ -9,7 +9,7 @@ export interface Booking {
   serviceId: string | null;
   staffId: string | null;
   date: string;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Completed';
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Completed' | 'Paid' | 'Rescheduled' | 'Cancelled';
   price: number;
   walkIn?: boolean;
   recurring?: boolean;
@@ -55,7 +55,7 @@ export const useBookingsStore = create<BookingsState>()((set) => ({
     if (!business) return;
     await apiPost(`/business/${business.id}/bookings/pay-group`, { bookingIds: ids, paymentMethod: method }, 'BUSINESS');
     set((state) => ({
-      bookings: state.bookings.map((b) => (ids.includes(b.id) ? { ...b, status: 'Completed' } : b)),
+      bookings: state.bookings.map((b) => (ids.includes(b.id) ? { ...b, status: 'Paid' } : b)),
     }));
   },
   addBooking: async (booking) => {
