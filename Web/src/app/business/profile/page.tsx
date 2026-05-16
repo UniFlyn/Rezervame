@@ -174,16 +174,15 @@ export default function ProfilePage() {
   const onSubmit = async (data: ProfileFormValues) => {
     setErrorMessage(null);
     try {
-      const logo = (getValues('logo') ?? data.logo ?? '').trim();
-      const banner = (getValues('banner') ?? data.banner ?? '').trim();
+      // Use the values from the form data directly as they are synced via setValue
       await updateBusiness({
         ...data,
-        socialYoutube: data.socialYoutube.trim(),
-        socialInstagram: data.socialInstagram.trim(),
-        socialX: data.socialX.trim(),
-        socialTiktok: data.socialTiktok.trim(),
-        logo,
-        banner,
+        socialYoutube: data.socialYoutube?.trim() || '',
+        socialInstagram: data.socialInstagram?.trim() || '',
+        socialX: data.socialX?.trim() || '',
+        socialTiktok: data.socialTiktok?.trim() || '',
+        logo: data.logo,
+        banner: data.banner,
         categories: data.categories,
         amenityKeys: amenityKeysDraft,
       });

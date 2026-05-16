@@ -59,6 +59,24 @@ export default function BusinessBookingsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const pageSize = 10;
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleUpdateStatus = async (bookingId: string, newStatus: string) => {
+    if (!business) return;
+    setUpdatingId(bookingId);
+    try {
+      await apiPatch(`/bookings/${bookingId}`, { status: newStatus }, 'BUSINESS');
+      setBookingsData(prev => prev.map(b => b.id === bookingId ? { ...b, status: newStatus } : b));
+      if (selectedBooking?.id === bookingId) {
+        setSelectedBooking((prev: any) => ({ ...prev, status: newStatus }));
+      }
+    } catch (err) {
+      console.error("Failed to update status", err);
+      alert("Failed to update status");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!business) return;
@@ -89,8 +107,6 @@ export default function BusinessBookingsPage() {
 
     return () => clearTimeout(debounceTimer);
   }, [page, searchTerm, filterStatus, business]);
-
-  }, [searchTerm, filterStatus]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -197,14 +213,43 @@ export default function BusinessBookingsPage() {
                   <td className="px-8 py-5">
                     <StatusBadge status={booking.status} />
                   </td>
-                  <td className="px-8 py-5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedBooking(booking)}
-                      className="p-3 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all border border-transparent hover:border-primary/10"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+                  <td className="px-8 py-5">
+                    <div className="flex items-center justify-end gap-2">
+                      {booking.status === 'Pending' && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateStatus(booking.id, 'Approved')}
+                            disabled={updatingId === booking.id}
+                            className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase rounded-lg transition-all shadow-sm shadow-green-200 disabled:opacity-50"
+                          >
+                            {updatingId === booking.id ? '...' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => handleUpdateStatus(booking.id, 'Rejected')}
+                            disabled={updatingId === booking.id}
+                            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase rounded-lg transition-all shadow-sm shadow-red-200 disabled:opacity-50"
+                          >
+                            {updatingId === booking.id ? '...' : 'Reject'}
+                          </button>
+                        </>
+                      )}
+                      {booking.status === 'Paid' && (
+                        <button
+                          onClick={() => handleUpdateStatus(booking.id, 'Completed')}
+                          disabled={updatingId === booking.id}
+                          className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-[10px] font-black uppercase rounded-lg transition-all shadow-sm shadow-cyan-200 disabled:opacity-50"
+                        >
+                          {updatingId === booking.id ? '...' : 'Complete'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBooking(booking)}
+                        className="p-3 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all border border-transparent hover:border-primary/10"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -288,10 +333,40 @@ export default function BusinessBookingsPage() {
                 </div>
               </div>
 
-              {/* Archived Note */}
+              {/* Action Buttons */}
+              {selectedBooking.status === 'Pending' && (
+                <div className="flex gap-4 pt-4">
+                  <button
+                    onClick={() => handleUpdateStatus(selectedBooking.id, 'Approved')}
+                    disabled={updatingId === selectedBooking.id}
+                    className="flex-1 py-4 bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-2xl transition-all shadow-xl shadow-green-200 disabled:opacity-50"
+                  >
+                    {updatingId === selectedBooking.id ? 'Updating...' : 'Approve Booking'}
+                  </button>
+                  <button
+                    onClick={() => handleUpdateStatus(selectedBooking.id, 'Rejected')}
+                    disabled={updatingId === selectedBooking.id}
+                    className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white text-xs font-black uppercase rounded-2xl transition-all shadow-xl shadow-red-200 disabled:opacity-50"
+                  >
+                    {updatingId === selectedBooking.id ? 'Updating...' : 'Reject Booking'}
+                  </button>
+                </div>
+              )}
+              {selectedBooking.status === 'Paid' && (
+                <div className="flex pt-4">
+                  <button
+                    onClick={() => handleUpdateStatus(selectedBooking.id, 'Completed')}
+                    disabled={updatingId === selectedBooking.id}
+                    className="flex-1 py-4 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-black uppercase rounded-2xl transition-all shadow-xl shadow-cyan-200 disabled:opacity-50"
+                  >
+                    {updatingId === selectedBooking.id ? 'Updating...' : 'Mark as Completed'}
+                  </button>
+                </div>
+              )}
+
               <div className="pt-8 border-t border-slate-100">
                 <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  Historical Record • Read Only
+                  Business Management Portal
                 </p>
               </div>
             </div>

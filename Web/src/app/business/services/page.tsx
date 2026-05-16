@@ -204,24 +204,32 @@ export default function ServicesPage() {
   }
 
   const [promoModal, setPromoModal] = useState<{ open: boolean; service: Service | null }>({ open: false, service: null });
-  const [promoDraft, setPromoDraft] = useState({ discount: 10, label: '', active: true });
+  const [promoDraft, setPromoDraft] = useState<{ discount: number; label: string; active: boolean; endsAt: string; noExpiry: boolean }>({ 
+    discount: 10, 
+    label: '', 
+    active: true, 
+    endsAt: '',
+    noExpiry: true
+  });
 
   async function savePromo(e: React.FormEvent) {
     e.preventDefault();
     if (!promoModal.service || !business?.id) return;
     try {
       const activePromo = (promoModal.service as any).promotions?.[0];
+      const payload = {
+        discountPercent: promoDraft.discount,
+        label: promoDraft.label,
+        active: promoDraft.active,
+        endsAt: promoDraft.noExpiry ? null : (promoDraft.endsAt ? new Date(promoDraft.endsAt).toISOString() : null)
+      };
+
       if (activePromo) {
-        await apiPatch(`/business/${business.id}/promotions/${activePromo.id}`, {
-          discountPercent: promoDraft.discount,
-          label: promoDraft.label,
-          active: promoDraft.active,
-        }, 'BUSINESS');
+        await apiPatch(`/business/${business.id}/promotions/${activePromo.id}`, payload, 'BUSINESS');
       } else {
         await apiPost(`/business/${business.id}/promotions`, {
           serviceId: promoModal.service.id,
-          discountPercent: promoDraft.discount,
-          label: promoDraft.label,
+          ...payload
         }, 'BUSINESS');
       }
       toastSuccess('Promotion saved');
@@ -238,6 +246,8 @@ export default function ServicesPage() {
       discount: p?.discountPercent ?? 10,
       label: p?.label ?? '',
       active: p?.active ?? true,
+      endsAt: p?.endsAt ? new Date(p.endsAt).toISOString().slice(0, 16) : '',
+      noExpiry: !p?.endsAt
     });
     setPromoModal({ open: true, service: s });
   }
@@ -573,6 +583,37 @@ export default function ServicesPage() {
                     onChange={(e) => setPromoDraft({ ...promoDraft, label: e.target.value })}
                     className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                   />
+                </div>
+
+                <div className="space-y-4 pt-2">
+                   <div className="flex items-center justify-between">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                       Promotion Expiry
+                     </label>
+                     <div className="flex items-center gap-2">
+                       <input 
+                        type="checkbox" 
+                        id="no-expiry" 
+                        checked={promoDraft.noExpiry}
+                        onChange={(e) => setPromoDraft({...promoDraft, noExpiry: e.target.checked})}
+                        className="w-4 h-4 rounded-md accent-primary"
+                       />
+                       <label htmlFor="no-expiry" className="text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">No expiry</label>
+                     </div>
+                   </div>
+                   
+                   {!promoDraft.noExpiry && (
+                     <div className="animate-in slide-in-from-top-2 duration-300">
+                        <input
+                          type="datetime-local"
+                          required={!promoDraft.noExpiry}
+                          value={promoDraft.endsAt}
+                          onChange={(e) => setPromoDraft({ ...promoDraft, endsAt: e.target.value })}
+                          className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                        />
+                        <p className="mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 italic">The promotion will automatically stop after this date.</p>
+                     </div>
+                   )}
                 </div>
               </div>
               <button

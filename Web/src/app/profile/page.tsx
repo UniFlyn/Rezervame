@@ -1164,15 +1164,15 @@ function ProfileContent() {
                           </button>
                         </div>
                         <div className="flex flex-col justify-center py-2">
-                           <h3 className="text-2xl font-black text-slate-900 group-hover:text-[#ff5a5f] transition-colors mb-2">{biz.business?.name || biz.name}</h3>
+                           <h3 className="text-2xl font-black text-slate-900 group-hover:text-[#ff5a5f] transition-colors mb-2">{biz.name}</h3>
                            <div className="flex items-center gap-2 text-slate-400 font-bold text-sm mb-4">
                               <MapPin size={16} />
-                              <span>{biz.business?.address || "Location unavailable"}</span>
+                              <span>{biz.locationLabel || "Location unavailable"}</span>
                            </div>
                            <div className="flex items-center gap-4">
                               <div className="flex items-center bg-[#ff5a5f]/5 px-4 py-2 rounded-2xl border border-[#ff5a5f]/10">
                                  <Star size={16} fill="#ff5a5f" className="text-[#ff5a5f] mr-2" />
-                                 <span className="font-black text-[#ff5a5f] text-sm">{biz.business?.rating || "4.8"}</span>
+                                 <span className="font-black text-[#ff5a5f] text-sm">{biz.rating || "4.8"}</span>
                               </div>
                               <button className="text-slate-400 hover:text-slate-900 transition-colors">
                                  <ChevronRight size={24} />

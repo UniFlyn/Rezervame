@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useStaffStore, type Staff } from '../../../store/staffStore';
 import { useBusinessStore } from '../../../store/businessStore';
 import { apiGet } from '@/lib/api';
-import { Plus, Edit, Trash2, X, Clock, LayoutGrid, List, Camera, Menu, LayoutDashboard, Settings, Calendar } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Clock, LayoutGrid, List, Camera, Menu, LayoutDashboard, Settings, Calendar, Star, Users } from 'lucide-react';
 import { Pagination } from '@/components/ui/pagination';
 import { BusinessFilterToolbar } from '../../../components/business/BusinessFilterToolbar';
 import { StaffAvailabilityPicker } from '../../../components/business/StaffAvailabilityPicker';
@@ -324,12 +324,30 @@ export default function StaffPage() {
                     className="h-full w-full object-cover"
                   />
                 </div>
-                <div><h3 className="text-xl font-black uppercase leading-tight tracking-tight text-slate-900">{member.name}</h3><p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-primary">{member.role}</p></div>
+                <div>
+                  <h3 className="text-xl font-black uppercase leading-tight tracking-tight text-slate-900">{member.name}</h3>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-primary">{member.role}</p>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} className={clsx("h-3 w-3", i < Math.round(member.rating || 0) ? "fill-amber-400 text-amber-400" : "text-slate-200")} />
+                      ))}
+                    </div>
+                    <span className="text-[10px] font-black text-slate-700">{member.rating || 0}</span>
+                    <span className="text-[10px] font-bold text-slate-400">({member.reviews || 0})</span>
+                  </div>
+                </div>
               </div>
               <div className="space-y-4">
-                <div className="flex items-center rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">
-                  <Clock className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
-                  {formatAvailabilityDisplay(member.availability)}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">
+                    <Clock className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
+                    {formatAvailabilityDisplay(member.availability)}
+                  </div>
+                  <div className="flex items-center rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">
+                    <Users className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
+                    {member.clients || 0} {member.clients === 1 ? 'Client' : 'Clients'}
+                  </div>
                 </div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   {member.serviceIds?.length
@@ -356,7 +374,14 @@ export default function StaffPage() {
                           className="h-full w-full object-cover"
                         />
                       </div>
-                      <span className="font-black text-slate-900">{member.name}</span>
+                      <div>
+                        <div className="font-black text-slate-900">{member.name}</div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                          <span className="text-[10px] font-black text-slate-600">{member.rating || 0}</span>
+                          <span className="text-[10px] font-bold text-slate-400 ml-1">({member.reviews || 0} reviews)</span>
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td className="px-8 py-5 text-primary">{member.role}</td>

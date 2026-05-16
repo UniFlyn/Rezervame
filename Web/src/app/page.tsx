@@ -130,6 +130,9 @@ export default function Home() {
     [categories, language],
   );
 
+  const [searchVal, setSearchVal] = useState("");
+  const [locationVal, setLocationVal] = useState("");
+
   return (
     <div className="bg-white font-sans text-slate-900">
       {/* HERO SECTION */}
@@ -145,14 +148,27 @@ export default function Home() {
           <div className="bg-white p-2 rounded-xl shadow-2xl flex w-full max-w-3xl mx-auto items-center h-[72px]">
             <div className="flex-[1.5] flex items-center px-4 border-r border-slate-200 h-full">
               <svg className="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input type="text" placeholder={t('searchPlaceholder')} className="w-full h-full text-sm outline-none text-slate-800 bg-transparent placeholder-slate-400 font-medium" />
+              <input 
+                type="text" 
+                value={searchVal}
+                onChange={(e) => setSearchVal(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && router.push(`/search?q=${encodeURIComponent(searchVal)}`)}
+                placeholder={t('searchPlaceholder')} 
+                className="w-full h-full text-sm outline-none text-slate-800 bg-transparent placeholder-slate-400 font-medium" 
+              />
             </div>
             <div className="flex-1 flex items-center px-4 h-full">
               <svg className="w-5 h-5 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              <input type="text" placeholder={t('locationPlaceholder')} className="w-full h-full text-sm outline-none text-slate-800 bg-transparent placeholder-slate-400 font-medium" />
+              <input 
+                type="text" 
+                value={locationVal}
+                onChange={(e) => setLocationVal(e.target.value)}
+                placeholder={t('locationPlaceholder')} 
+                className="w-full h-full text-sm outline-none text-slate-800 bg-transparent placeholder-slate-400 font-medium" 
+              />
             </div>
             <button 
-              onClick={() => router.push('/search')}
+              onClick={() => router.push(`/search?q=${encodeURIComponent(searchVal)}`)}
               className="bg-[#ff5a5f] hover:bg-[#e0454a] text-white px-8 h-full rounded-lg font-bold transition flex-shrink-0"
             >
               {t('searchBtn')}

@@ -158,6 +158,10 @@ model Business {
   socialTiktok             String?
   taxPercentage            Float          @default(0)
   promotions               Promotion[]
+  plan                     String         @default("Basic")
+  planExpires              DateTime?
+  planId                   String?
+  subscriptionPlan         SubscriptionPlan? @relation(fields: [planId], references: [id])
 }
 
 model BusinessStatusHistory {
@@ -348,5 +352,35 @@ model Notification {
   title     String
   body      String
   role      Role
+  userId    String?
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+model SystemConfig {
+  id                Int      @id @default(1)
+  platformBranding  String   @default("Rezervame")
+  defaultCommission Float    @default(15)
+  slotHoldTime      Int      @default(5)
+  approvalMode      String   @default("Manual Verification")
+  twoFactorMandatory Boolean @default(true)
+  minPasswordLength Int      @default(12)
+  sessionTimeout    Int      @default(60)
+  maintenanceMode   Boolean  @default(false)
+  databaseRetention Int      @default(90)
+  stripeApiKey      String?
+  googleMapsApiKey  String?
+  updatedAt         DateTime @updatedAt
+  updatedBy         String   @default("System Admin")
+}
+
+model SubscriptionPlan {
+  id            String     @id @default(cuid())
+  name          String
+  price         Float
+  billingCycle  String     @default("monthly")
+  features      String[]
+  active        Boolean    @default(true)
+  businesses    Business[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 }

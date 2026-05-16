@@ -40,17 +40,9 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-/* ─── Action buttons config per status ─── */
+/* ─── Action buttons config per status (REMOVED) ─── */
 function getActions(status: string): { label: string; newStatus: string; style: string; icon: React.ReactNode }[] {
-  switch (status) {
-    case "pending":
-      return [
-        { label: "Approve", newStatus: "Approved", style: "bg-green-600 hover:bg-green-700 text-white", icon: <CheckCircle className="w-3.5 h-3.5" /> },
-        { label: "Reject",  newStatus: "Rejected", style: "bg-red-500 hover:bg-red-600 text-white",     icon: <XCircle className="w-3.5 h-3.5" /> },
-      ];
-    default:
-      return [];
-  }
+  return []; // Admin no longer has actions
 }
 
 export default function BookingsPage() {
@@ -378,31 +370,7 @@ export default function BookingsPage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              {getActions(selectedBooking.status).length > 0 && (
-                <div className="flex gap-3 pt-2">
-                  {getActions(selectedBooking.status).map((action) => (
-                    <button
-                      key={action.newStatus}
-                      type="button"
-                      disabled={updatingId === selectedBooking.id}
-                      onClick={() => void updateStatus(selectedBooking.id, action.newStatus)}
-                      className={cn(
-                        "flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-bold transition-all shadow-md",
-                        action.style,
-                        updatingId === selectedBooking.id && "opacity-50 cursor-not-allowed",
-                      )}
-                    >
-                      {updatingId === selectedBooking.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        action.icon
-                      )}
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {/* Action Buttons (REMOVED) */}
 
               {/* Delete */}
               <div className="pt-2 border-t border-slate-100">

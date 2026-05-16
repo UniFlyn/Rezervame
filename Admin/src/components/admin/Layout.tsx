@@ -16,7 +16,8 @@ import {
   LogOut,
   Tags,
   Sparkles,
-  Tag
+  Tag,
+  CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils'; // I'll create this helper if it doesn't exist
 
@@ -25,6 +26,7 @@ const menuItems = [
   { name: 'Businesses', icon: Store, href: '/admin/businesses' },
   { name: 'Users', icon: Users, href: '/admin/users' },
   { name: 'Bookings', icon: CalendarCheck, href: '/admin/bookings' },
+  { name: 'Events', icon: CalendarDays, href: '/admin/events' },
   { name: 'Promotions', icon: Tag, href: '/admin/promotions' },
   { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
   { name: 'Withdrawals', icon: ArrowDownCircle, href: '/admin/withdrawals' },

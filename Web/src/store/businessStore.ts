@@ -24,6 +24,7 @@ export interface Business {
   socialX?: string;
   socialTiktok?: string;
   balance: number;
+  revenue: number;
   notifyBookingEmail?: boolean;
   notifyCancellationEmail?: boolean;
   notifyDailySummary?: boolean;

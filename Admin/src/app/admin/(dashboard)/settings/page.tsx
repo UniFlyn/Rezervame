@@ -6,20 +6,40 @@ import {
   Settings, 
   Percent, 
   Clock, 
-  MapPin, 
   Globe, 
   Save, 
   ShieldCheck, 
   Bell, 
   Database,
   Lock,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiGet, apiPost } from "@/lib/api";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("general");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [settings, setSettings] = useState({
+    platformBranding: "Rezervame",
+    defaultCommission: 15,
+    slotHoldTime: 5,
+    approvalMode: "Manual Verification",
+    twoFactorMandatory: true,
+    minPasswordLength: 12,
+    sessionTimeout: 60,
+    maintenanceMode: false,
+    databaseRetention: 90,
+    stripeApiKey: "",
+    googleMapsApiKey: "",
+    updatedAt: "",
+    updatedBy: "System Admin"
+  });
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -28,6 +48,37 @@ export default function SettingsPage() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  async function fetchSettings() {
+    try {
+      setIsLoading(true);
+      const data = await apiGet<any>("/admin/config");
+      if (data) {
+        setSettings(prev => ({ ...prev, ...data }));
+      }
+    } catch (err) {
+      toastError("Failed to load settings", String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleSave() {
+    try {
+      setIsSaving(true);
+      const updated = await apiPost<any>("/admin/config", settings);
+      setSettings(prev => ({ ...prev, ...updated }));
+      toastSuccess("Settings committed", "System configuration has been updated globally.");
+    } catch (err) {
+      toastError("Failed to save settings", String(err));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const tabs = [
     { id: 'general', name: 'General', icon: Settings },
     { id: 'security', name: 'Security', icon: Lock },
@@ -35,11 +86,28 @@ export default function SettingsPage() {
     { id: 'platform', name: 'Platform', icon: Database },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Loading configuration...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in slide-in-from-left-4 duration-500">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Settings</h1>
-        <p className="text-slate-500 text-sm mt-1">Configure global platform parameters and security protocols.</p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Settings</h1>
+          <p className="text-slate-500 text-sm mt-1">Configure global platform parameters and security protocols.</p>
+        </div>
+        {isSaving && (
+          <div className="flex items-center gap-2 text-blue-600 animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Saving changes...</span>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -77,7 +145,8 @@ export default function SettingsPage() {
                    </label>
                    <input 
                     type="text" 
-                    defaultValue="Rezervame" 
+                    value={settings.platformBranding}
+                    onChange={(e) => setSettings({...settings, platformBranding: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                    />
                  </div>
@@ -90,7 +159,8 @@ export default function SettingsPage() {
                    <div className="relative">
                      <input 
                       type="number" 
-                      defaultValue="15" 
+                      value={settings.defaultCommission}
+                      onChange={(e) => setSettings({...settings, defaultCommission: Number(e.target.value)})}
                       className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition pr-12"
                      />
                      <span className="absolute right-5 top-1/2 -translate-y-1/2 font-black text-slate-400">%</span>
@@ -107,7 +177,8 @@ export default function SettingsPage() {
                    <div className="relative">
                      <input 
                       type="number" 
-                      defaultValue="5" 
+                      value={settings.slotHoldTime}
+                      onChange={(e) => setSettings({...settings, slotHoldTime: Number(e.target.value)})}
                       className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition pr-16"
                      />
                      <span className="absolute right-5 top-1/2 -translate-y-1/2 font-black text-[10px] text-slate-400 uppercase tracking-widest">MIN</span>
@@ -119,7 +190,11 @@ export default function SettingsPage() {
                      <ShieldCheck className="w-3 h-3" />
                      Approval Mode
                    </label>
-                   <select className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition appearance-none cursor-pointer">
+                   <select 
+                    value={settings.approvalMode}
+                    onChange={(e) => setSettings({...settings, approvalMode: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition appearance-none cursor-pointer"
+                   >
                       <option>Manual Verification</option>
                       <option>AI-Assisted (Auto)</option>
                       <option>Fully Automatic</option>
@@ -128,9 +203,15 @@ export default function SettingsPage() {
                </div>
 
                <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                  <div className="text-xs font-bold text-slate-400 italic">Last updated: 2 days ago by System Admin</div>
-                  <button className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2">
-                    <Save className="w-4 h-4" />
+                  <div className="text-xs font-bold text-slate-400 italic">
+                    Last updated: {settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : "Never"} by {settings.updatedBy}
+                  </div>
+                  <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     Commit Changes
                   </button>
                </div>
@@ -146,7 +227,13 @@ export default function SettingsPage() {
                        Two-Factor Auth (2FA)
                     </label>
                     <div className="flex items-center gap-3">
-                      <input type="checkbox" id="2fa-toggle" className="w-5 h-5 accent-blue-600 rounded cursor-pointer" defaultChecked />
+                      <input 
+                        type="checkbox" 
+                        id="2fa-toggle" 
+                        className="w-5 h-5 accent-blue-600 rounded cursor-pointer" 
+                        checked={settings.twoFactorMandatory}
+                        onChange={(e) => setSettings({...settings, twoFactorMandatory: e.target.checked})}
+                      />
                       <span className="text-sm font-bold text-slate-800 italic uppercase">Mandatory for all admins</span>
                     </div>
                   </div>
@@ -158,7 +245,8 @@ export default function SettingsPage() {
                     </label>
                     <input 
                      type="number" 
-                     defaultValue="12" 
+                     value={settings.minPasswordLength}
+                     onChange={(e) => setSettings({...settings, minPasswordLength: Number(e.target.value)})}
                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                     />
                   </div>
@@ -172,16 +260,21 @@ export default function SettingsPage() {
                     </label>
                     <input 
                      type="number" 
-                     defaultValue="60" 
+                     value={settings.sessionTimeout}
+                     onChange={(e) => setSettings({...settings, sessionTimeout: Number(e.target.value)})}
                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                     />
                   </div>
                 </div>
 
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                   <div className="text-xs font-bold text-slate-400 italic">Security status: Robust</div>
-                   <button className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition shadow-2xl shadow-blue-600/20 active:scale-95 flex items-center gap-2">
-                     <Save className="w-4 h-4" />
+                   <div className="text-xs font-bold text-slate-400 italic">Security status: {settings.twoFactorMandatory ? "Robust" : "Vulnerable"}</div>
+                   <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition shadow-2xl shadow-blue-600/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                   >
+                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                      Update Security
                    </button>
                 </div>
@@ -214,8 +307,12 @@ export default function SettingsPage() {
 
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
                    <div className="text-xs font-bold text-slate-400 italic">Connected to SMTP: mail.rezervame.com</div>
-                   <button className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2">
-                     <Save className="w-4 h-4" />
+                   <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                   >
+                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                      Confirm Config
                    </button>
                 </div>
@@ -231,7 +328,13 @@ export default function SettingsPage() {
                        Maintenance Mode
                     </label>
                     <div className="flex items-center gap-3">
-                      <input type="checkbox" id="maint-toggle" className="w-5 h-5 accent-rose-600 rounded cursor-pointer" />
+                      <input 
+                        type="checkbox" 
+                        id="maint-toggle" 
+                        className="w-5 h-5 accent-rose-600 rounded cursor-pointer" 
+                        checked={settings.maintenanceMode}
+                        onChange={(e) => setSettings({...settings, maintenanceMode: e.target.checked})}
+                      />
                       <span className="text-sm font-bold text-slate-800 italic uppercase">Redirect visitors to offline page</span>
                     </div>
                   </div>
@@ -243,7 +346,8 @@ export default function SettingsPage() {
                     </label>
                     <input 
                      type="number" 
-                     defaultValue="90" 
+                     value={settings.databaseRetention}
+                     onChange={(e) => setSettings({...settings, databaseRetention: Number(e.target.value)})}
                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                     />
                   </div>
@@ -258,7 +362,9 @@ export default function SettingsPage() {
                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase">Stripe</span>
                        <input 
                         type="password" 
-                        defaultValue="sk_test_••••••••••••••••••••"
+                        value={settings.stripeApiKey || ""}
+                        onChange={(e) => setSettings({...settings, stripeApiKey: e.target.value})}
+                        placeholder="sk_test_••••••••••••••••••••"
                         className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-20 pr-5 py-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                        />
                     </div>
@@ -266,7 +372,9 @@ export default function SettingsPage() {
                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase">G-Maps</span>
                        <input 
                         type="password" 
-                        defaultValue="AIzaSy••••••••••••••••••••"
+                        value={settings.googleMapsApiKey || ""}
+                        onChange={(e) => setSettings({...settings, googleMapsApiKey: e.target.value})}
+                        placeholder="AIzaSy••••••••••••••••••••"
                         className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-20 pr-5 py-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                        />
                     </div>
@@ -275,8 +383,12 @@ export default function SettingsPage() {
 
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
                    <div className="text-xs font-bold text-slate-400 italic">Environment: Production (v2.1.0)</div>
-                   <button className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2">
-                     <Save className="w-4 h-4" />
+                   <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                   >
+                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                      Commit changes
                    </button>
                 </div>

@@ -279,5 +279,6 @@
   "venueFavRemovedTitle": "Eliminado de favoritos",
   "venueFavRemovedBody": "Este local ya no está en tus favoritos.",
   "venueFavErrorTitle": "Error en la acción",
-  "venueFavErrorBody": "No se pudieron actualizar tus favoritos. Por favor, inténtalo de nuevo."
+  "venueFavErrorBody": "No se pudieron actualizar tus favoritos. Por favor, inténtalo de nuevo.",
+  "venueReviewReplyLabel": "Respuesta del Barbero"
 }

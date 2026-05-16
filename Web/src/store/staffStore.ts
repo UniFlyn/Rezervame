@@ -21,6 +21,8 @@ export interface Staff {
 export type StaffCreatePayload = Pick<Staff, 'name' | 'role' | 'skills' | 'availability'> & {
   image?: string | null;
   serviceIds?: string[];
+  bio?: string | null;
+  experienceYears?: number;
 };
 
 interface StaffState {

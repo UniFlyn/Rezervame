@@ -189,6 +189,29 @@ export default function AppointmentsPage() {
   const [scheduleView, setScheduleView] = useState<'calendar' | 'list'>('calendar');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleStatusChange = async (bookingId: string, newStatus: string) => {
+    if (!business) return;
+    setUpdatingId(bookingId);
+    try {
+      await apiPatch(`/bookings/${bookingId}`, { status: newStatus }, 'BUSINESS');
+      // Update local state in store
+      await useBookingsStore.getState().hydrate();
+      // Refresh business balance/revenue in store
+      await useBusinessStore.getState().hydrate();
+      // If we are in list view, re-fetch the paginated list
+      if (scheduleView === 'list') {
+        void fetchPaginatedBookings();
+      }
+    } catch (err) {
+      console.error('Failed to update booking status', err);
+      alert('Failed to update status');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const toggleGroup = (key: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
@@ -856,7 +879,47 @@ export default function AppointmentsPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-1.5 items-center">
-                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{L(language as Language, 'Archive', 'Archivo')}</span>
+                              {!isGroup ? (
+                                <>
+                                  {booking.status === 'Pending' && (
+                                    <>
+                                      <button
+                                        onClick={() => handleStatusChange(booking.id, 'Approved')}
+                                        disabled={updatingId === booking.id}
+                                        className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-black uppercase text-white hover:bg-emerald-600 shadow-sm transition-all hover:scale-105 disabled:opacity-50"
+                                      >
+                                        {updatingId === booking.id ? '...' : L(language, 'Approve', 'Aceptar')}
+                                      </button>
+                                      <button
+                                        onClick={() => handleStatusChange(booking.id, 'Rejected')}
+                                        disabled={updatingId === booking.id}
+                                        className="rounded-lg bg-rose-500 px-3 py-1.5 text-[9px] font-black uppercase text-white hover:bg-rose-600 shadow-sm transition-all hover:scale-105 disabled:opacity-50"
+                                      >
+                                        {updatingId === booking.id ? '...' : L(language, 'Reject', 'Rechazar')}
+                                      </button>
+                                    </>
+                                  )}
+                                  {(booking.status === 'Approved' || booking.status === 'Paid') && (
+                                    <button
+                                      onClick={() => handleStatusChange(booking.id, 'Completed')}
+                                      disabled={updatingId === booking.id}
+                                      className="rounded-lg bg-cyan-600 px-3 py-1.5 text-[9px] font-black uppercase text-white hover:bg-cyan-700 shadow-sm transition-all hover:scale-105 disabled:opacity-50"
+                                    >
+                                      {updatingId === booking.id ? '...' : L(language, 'Complete', 'Completar')}
+                                    </button>
+                                  )}
+                                  {booking.status === 'Completed' && (
+                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{L(language as Language, 'Archived', 'Archivado')}</span>
+                                  )}
+                                </>
+                              ) : (
+                                <button 
+                                  onClick={() => toggleGroup(groupKey)}
+                                  className="text-[10px] font-black text-cyan-600 uppercase tracking-widest hover:text-cyan-700 transition-colors"
+                                >
+                                  {isExpanded ? L(language as Language, 'Hide details', 'Ocultar') : L(language as Language, 'View details', 'Ver detalles')}
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -900,9 +963,37 @@ export default function AppointmentsPage() {
                             <td className="px-4 py-2 text-xs font-bold text-slate-600">
                               ${subBooking.price.toFixed(2)}
                             </td>
-                            <td className="px-4 py-2 text-right">
-                              <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">{L(language as Language, 'Locked', 'Bloqueado')}</span>
-                            </td>
+                             <td className="px-4 py-2 text-right">
+                               <div className="flex justify-end gap-1">
+                                 {subBooking.status === 'Pending' && (
+                                   <>
+                                     <button
+                                       onClick={() => handleStatusChange(subBooking.id, 'Approved')}
+                                       disabled={updatingId === subBooking.id}
+                                       className="rounded bg-green-500 px-2 py-1 text-[9px] font-black uppercase text-white hover:bg-green-600 disabled:opacity-50"
+                                     >
+                                       {updatingId === subBooking.id ? '...' : L(language, 'Approve', 'Aceptar')}
+                                     </button>
+                                     <button
+                                       onClick={() => handleStatusChange(subBooking.id, 'Rejected')}
+                                       disabled={updatingId === subBooking.id}
+                                       className="rounded bg-rose-500 px-2 py-1 text-[9px] font-black uppercase text-white hover:bg-rose-600 disabled:opacity-50"
+                                     >
+                                       {updatingId === subBooking.id ? '...' : L(language, 'Reject', 'Rechazar')}
+                                     </button>
+                                   </>
+                                 )}
+                                 {subBooking.status === 'Paid' && (
+                                   <button
+                                     onClick={() => handleStatusChange(subBooking.id, 'Completed')}
+                                     disabled={updatingId === subBooking.id}
+                                     className="rounded bg-cyan-600 px-2 py-1 text-[9px] font-black uppercase text-white hover:bg-cyan-700 disabled:opacity-50"
+                                   >
+                                     {updatingId === subBooking.id ? '...' : L(language, 'Complete', 'Completar')}
+                                   </button>
+                                 )}
+                               </div>
+                             </td>
                           </tr>
                         ))}
                       </Fragment>
@@ -1016,11 +1107,29 @@ export default function AppointmentsPage() {
                       </p>
                       <p className="text-[10px] font-medium text-slate-400">{new Date(b.date).toLocaleString()}</p>
                     </div>
-                    {b.walkIn ? (
-                      <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">
-                        {L(language as Language, 'Walk-in', 'Sin cita')}
-                      </span>
-                    ) : null}
+                    <div className="flex flex-col items-end gap-1.5">
+                      {b.walkIn ? (
+                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">
+                          {L(language as Language, 'Walk-in', 'Sin cita')}
+                        </span>
+                      ) : null}
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleStatusChange(b.id, 'Approved')}
+                          disabled={updatingId === b.id}
+                          className="rounded-lg bg-green-500 px-2 py-1 text-[10px] font-black uppercase text-white hover:bg-green-600 shadow-sm disabled:opacity-50"
+                        >
+                          {updatingId === b.id ? '...' : L(language, 'Approve', 'Aceptar')}
+                        </button>
+                        <button
+                          onClick={() => handleStatusChange(b.id, 'Rejected')}
+                          disabled={updatingId === b.id}
+                          className="rounded-lg bg-rose-500 px-2 py-1 text-[10px] font-black uppercase text-white hover:bg-rose-600 shadow-sm disabled:opacity-50"
+                        >
+                          {updatingId === b.id ? '...' : L(language, 'Reject', 'Rechazar')}
+                        </button>
+                      </div>
+                    </div>
                   </li>
                 ))
               )}

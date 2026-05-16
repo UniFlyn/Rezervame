@@ -26,7 +26,7 @@ import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { fetchPublicCategories, type PublicCategory } from "@/lib/venueSearch";
 import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { useAuth } from "@/components/AuthProvider";
-import { formatAvailabilityDisplay } from "@/lib/staffAvailability";
+import { formatAvailabilityDisplay, parseAvailability } from "@/lib/staffAvailability";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
 
 type VenueService = { id: string; name: string; description: string; time: string; price: number; image?: string | null; tag: string };
@@ -72,6 +72,35 @@ function servicesForMember(member: VenueTeam, services: VenueService[]): VenueSe
   return services.filter((s) => memberOffersService(member, s.id));
 }
 
+function getNextSlotForService(serviceId: string, team: VenueTeam[], language: string): string {
+  const staffForService = team.filter(m => !m.serviceIds || m.serviceIds.length === 0 || m.serviceIds.includes(serviceId));
+  if (staffForService.length === 0) return "—";
+
+  const today = new Date();
+  // Check next 14 days
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dayOfWeek = d.getDay();
+    const dateStr = d.toISOString().slice(0, 10);
+
+    for (const member of staffForService) {
+      const { mode, weekly, dates } = parseAvailability(member.availability);
+      if (mode === 'weekly' && weekly.includes(dayOfWeek)) {
+        return i === 0 
+          ? (language === 'en' ? 'Today' : 'Hoy') 
+          : d.toLocaleDateString(language === 'en' ? 'en-US' : 'es-PA', { weekday: 'short', day: 'numeric' });
+      }
+      if (mode === 'dates' && dates.includes(dateStr)) {
+        return i === 0 
+          ? (language === 'en' ? 'Today' : 'Hoy') 
+          : d.toLocaleDateString(language === 'en' ? 'en-US' : 'es-PA', { weekday: 'short', day: 'numeric' });
+      }
+    }
+  }
+  return "—";
+}
+
 function emptyVenue(venueId: string): VenueState {
   return {
     id: venueId,
@@ -113,6 +142,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
       date: string;
       rating: number;
       comment: string;
+      reply?: string | null;
       initials: string;
     }>
   >([]);
@@ -322,59 +352,80 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         const staffList = Array.isArray(staff) ? staff : (staff as any)?.data || [];
         const revList = Array.isArray(reviews) ? reviews : (reviews as any)?.data || [];
 
-        const bizReviews = revList.filter((r: any) => r.businessRating !== null);
-        const ratingAvg =
-          bizReviews.length > 0
-            ? bizReviews.reduce(
-                (acc: number, r: any) => acc + Number(r.businessRating ?? 0),
-                0,
-              ) / bizReviews.length
-            : 0;
+
 
         if (cancelled) return;
 
-        setReviewRows(
-          revList.map((raw: any) => {
-            const r = raw as {
-              id: string;
-              customerName: string;
-              date: string;
-              rating: number;
-              comment: string;
+        // Group reviews by user and date to show as a single "visit"
+        const groupedReviews: Record<string, any> = {};
+        revList.forEach((r: any) => {
+          const d = new Date(r.date);
+          const dateKey = Number.isNaN(d.getTime())
+            ? "invalid"
+            : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+          
+          // Use userId if available, otherwise fallback to customerName
+          const groupKey = `${r.userId || r.customerName}_${dateKey}`;
+          
+          if (!groupedReviews[groupKey]) {
+            groupedReviews[groupKey] = {
+              ...r,
+              ratingSum: Number(r.rating) || 0,
+              ratingCount: 1,
+              comments: r.comment && r.comment.trim() ? [r.comment.trim()] : [],
+              reply: r.reply,
+              formattedDate: dateKey === "invalid" ? "" : d.toLocaleDateString(language === "en" ? "en-US" : "es-PA", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
             };
-            const d = new Date(r.date);
-            const initials = (r.customerName || "?")
-              .split(/\s+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map((p) => p[0]?.toUpperCase())
-              .join("");
-            return {
-              id: r.id,
-              customerName: r.customerName,
-              date: Number.isNaN(d.getTime())
-                ? ""
-                : d.toLocaleDateString(language === "en" ? "en-US" : "es-PA", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  }),
-              rating: Number(r.rating) || 0,
-              comment: r.comment || "",
-              initials: initials || "?",
-            };
-          }),
-        );
+          } else {
+            groupedReviews[groupKey].ratingSum += Number(r.rating) || 0;
+            groupedReviews[groupKey].ratingCount += 1;
+            if (r.comment && r.comment.trim() && !groupedReviews[groupKey].comments.includes(r.comment.trim())) {
+              groupedReviews[groupKey].comments.push(r.comment.trim());
+            }
+            if (r.reply && !groupedReviews[groupKey].reply) {
+              groupedReviews[groupKey].reply = r.reply;
+            }
+          }
+        });
+
+        const finalReviewRows = Object.values(groupedReviews).map((g: any) => {
+          const initials = (g.customerName || "?")
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((p) => p[0]?.toUpperCase())
+            .join("");
+            
+          return {
+            id: g.id,
+            customerName: g.customerName,
+            date: g.formattedDate,
+            rating: Math.round(g.ratingSum / g.ratingCount),
+            comment: g.comments.join(" | "),
+            reply: g.reply,
+            initials: initials || "?",
+          };
+        });
+
+        setReviewRows(finalReviewRows);
 
         if (cancelled) return;
+
+        const bizData = business as any;
+        const apiRating = parseFloat(String(bizData.rating || '0'));
+        const apiReviews = parseInt(String(bizData.reviews || '0'), 10);
 
         setVenueData({
           ...base,
           id: String((business as { id?: string }).id ?? venueId),
           name: String((business as { name?: string }).name ?? "—"),
           category: String((business as { category?: string }).category ?? "—"),
-          rating: Number(ratingAvg.toFixed(1)) || 0,
-          reviews: revList.length,
+          rating: apiRating,
+          reviews: apiReviews,
           address: String((business as { location?: string }).location ?? ""),
           description: String((business as { description?: string }).description ?? ""),
           images: imgs,
@@ -695,7 +746,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                               <Clock size={13} className="text-slate-300 shrink-0" /> {s.time}
                                           </div>
                                           <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-wide">
-                                              <Clock size={13} className="text-[#ff5a5f] shrink-0" /> Next: —
+                                              <Clock size={13} className="text-[#ff5a5f] shrink-0" /> Next: {getNextSlotForService(s.id, VENUE_DATA.team, language)}
                                           </div>
                                         </div>
                                     </div>
@@ -873,6 +924,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                 </div>
                                 {rev.comment && rev.comment.trim() && (
                                   <p className="text-slate-600 font-medium leading-relaxed italic border-l-4 border-[#ff5a5f]/20 pl-6">&ldquo;{rev.comment}&rdquo;</p>
+                                )}
+                                {rev.reply && rev.reply.trim() && (
+                                  <div className="mt-6 ml-6 p-5 bg-slate-50 rounded-2xl border-l-4 border-slate-900 relative">
+                                    <div className="absolute -top-3 left-4 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded">
+                                      {t("venueReviewReplyLabel") || "Barber's Response"}
+                                    </div>
+                                    <p className="text-slate-700 text-sm font-semibold leading-relaxed">
+                                      {rev.reply}
+                                    </p>
+                                  </div>
                                 )}
                             </div>
                         ))

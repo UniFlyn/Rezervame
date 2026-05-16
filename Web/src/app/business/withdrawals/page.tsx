@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { clsx } from 'clsx';
 import { useBusinessStore } from '../../../store/businessStore';
 import { Wallet, ArrowRight, Building2, Loader2 } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api';
@@ -67,7 +68,8 @@ export default function WithdrawalsPage() {
 
   useEffect(() => {
     void loadWithdrawals();
-  }, [loadWithdrawals]);
+    void hydrateBusiness();
+  }, [loadWithdrawals, hydrateBusiness]);
 
   const handleWithdraw = async () => {
     const val = parseFloat(amount);
@@ -139,16 +141,33 @@ export default function WithdrawalsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-gradient-to-br from-primary-dark to-primary rounded-[32px] p-10 text-white shadow-2xl shadow-primary/20 relative overflow-hidden">
+        <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 to-slate-800 rounded-[32px] p-10 text-white shadow-2xl shadow-slate-200/50 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <Wallet className="w-48 h-48" />
           </div>
           <div className="relative z-10">
-            <p className="text-white/70 font-black uppercase tracking-[0.2em] text-[10px] mb-4">Available Balance</p>
-            <h3 className="text-6xl font-black tracking-tighter">${business?.balance?.toFixed(2) ?? '0.00'}</h3>
-            <div className="mt-12 pt-8 border-t border-white/10">
-              <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Account status</p>
-              <p className="font-bold text-sm text-white/90 capitalize">{business?.status ?? '—'}</p>
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <p className="text-white/40 font-black uppercase tracking-[0.2em] text-[9px] mb-4">Available Balance</p>
+                <h3 className="text-5xl font-black tracking-tighter text-emerald-400">${business?.balance?.toFixed(2) ?? '0.00'}</h3>
+              </div>
+              <div className="border-l border-white/10 pl-8">
+                <p className="text-white/40 font-black uppercase tracking-[0.2em] text-[9px] mb-4">Lifetime Revenue</p>
+                <h3 className="text-5xl font-black tracking-tighter text-white/90">${business?.revenue?.toFixed(2) ?? '0.00'}</h3>
+              </div>
+            </div>
+            <div className="mt-12 pt-8 border-t border-white/10 flex justify-between items-center">
+              <div>
+                <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Account status</p>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <p className="font-bold text-sm text-white/90 capitalize">{business?.status || 'Active'}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Business ID</p>
+                <p className="font-mono text-[10px] text-white/40 uppercase">{(business?.id || '—').slice(0, 12)}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -207,31 +226,31 @@ export default function WithdrawalsPage() {
               <Building2 className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Cambio de cuenta bancaria</h3>
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Bank Account Change</h3>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                Solicitud revisada por el equipo Rezervame
+                Request reviewed by the Rezervame team
               </p>
             </div>
           </div>
           {bankSubmitOk && (
             <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-xs font-bold text-emerald-700">
-              Solicitud enviada. Te notificaremos cuando sea evaluada.
+              Request sent. We will notify you once it is evaluated.
             </div>
           )}
           <div className="space-y-4">
             <div>
-              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Banco</label>
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Bank</label>
               <input
                 required
                 value={bankForm.bankName}
                 onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
                 className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
-                placeholder="Nombre del banco"
+                placeholder="Bank Name"
               />
             </div>
             <div>
               <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Titular de la cuenta
+                Account Holder
               </label>
               <input
                 required
@@ -243,7 +262,7 @@ export default function WithdrawalsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Últimos 4 dígitos
+                  Last 4 Digits
                 </label>
                 <input
                   required
@@ -257,7 +276,7 @@ export default function WithdrawalsPage() {
               </div>
               <div>
                 <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Routing / IBAN (opcional)
+                  Routing / IBAN (optional)
                 </label>
                 <input
                   value={bankForm.routingOrIban}
@@ -267,29 +286,29 @@ export default function WithdrawalsPage() {
               </div>
             </div>
             <div>
-              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Notas</label>
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</label>
               <textarea
                 value={bankForm.notes}
                 onChange={(e) => setBankForm({ ...bankForm, notes: e.target.value })}
                 rows={3}
                 className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
-                placeholder="Motivo del cambio…"
+                placeholder="Reason for change..."
               />
             </div>
             <button
               type="submit"
               className="w-full rounded-2xl bg-slate-900 py-4 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-primary"
             >
-              Enviar solicitud
+              Send Request
             </button>
           </div>
         </form>
 
         <div className="rounded-[32px] border border-slate-100 bg-white p-10 shadow-xl shadow-slate-200/50 flex flex-col justify-center">
-          <h3 className="mb-2 text-lg font-black uppercase tracking-tight text-slate-900">Solicitudes</h3>
+          <h3 className="mb-2 text-lg font-black uppercase tracking-tight text-slate-900">Requests</h3>
           <p className="text-sm font-semibold text-slate-500 leading-relaxed">
-            El historial de cambios de cuenta aparece cuando el equipo procesa tu mensaje. Usa el formulario para
-            enviar los datos actualizados.
+            Bank account change history appears once the team processes your message. Use the form to
+            send updated details.
           </p>
         </div>
       </div>
@@ -332,9 +351,15 @@ export default function WithdrawalsPage() {
                     {new Date(w.date).toLocaleString()}
                   </td>
                   <td className="px-10 py-6 font-black text-slate-900 text-lg">${Number(w.amount).toFixed(2)}</td>
-                  <td className="px-10 py-6">${Number(w.balance).toFixed(2)}</td>
+                  <td className="px-10 py-6 text-slate-400 font-medium">${Number(w.balance).toFixed(2)}</td>
                   <td className="px-10 py-6">
-                    <span className="inline-flex items-center px-4 py-1.5 bg-slate-50 text-slate-700 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-100">
+                    <span className={clsx(
+                      "inline-flex items-center px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border",
+                      w.status.toLowerCase() === 'pending' && "bg-amber-50 text-amber-600 border-amber-100",
+                      w.status.toLowerCase() === 'completed' && "bg-emerald-50 text-emerald-600 border-emerald-100",
+                      w.status.toLowerCase() === 'rejected' && "bg-rose-50 text-rose-600 border-rose-100",
+                      !['pending', 'completed', 'rejected'].includes(w.status.toLowerCase()) && "bg-slate-50 text-slate-500 border-slate-100"
+                    )}>
                       {w.status}
                     </span>
                   </td>

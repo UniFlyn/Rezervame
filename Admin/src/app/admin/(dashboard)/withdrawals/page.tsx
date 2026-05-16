@@ -7,7 +7,8 @@ import {
   Trash2,
   Loader2
 } from "lucide-react";
-import { apiDelete, apiGet } from "@/lib/api";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { toastError, toastSuccess } from "@/lib/toast";
 import { formatCurrency, formatDate, formatMerchantNumericId, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
 import TablePagination from "@/components/admin/TablePagination";
@@ -32,6 +33,7 @@ export default function WithdrawalsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [totalPendingAmount, setTotalPendingAmount] = useState(0);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -48,10 +50,11 @@ export default function WithdrawalsPage() {
           search: searchTerm,
           status: statusFilter,
         });
-        const response = await apiGet<{ data: any[]; total: number; totalPages: number }>(`/admin/withdrawals?${query.toString()}`);
+        const response = await apiGet<{ data: any[]; total: number; totalPages: number; totalPendingAmount: number }>(`/admin/withdrawals?${query.toString()}`);
         setWithdrawals(response.data);
         setTotalItems(response.total);
         setTotalPages(response.totalPages);
+        setTotalPendingAmount(response.totalPendingAmount || 0);
       } catch (err) {
         console.error("Failed to fetch withdrawals", err);
       } finally {
@@ -72,9 +75,55 @@ export default function WithdrawalsPage() {
 
   async function deleteWithdrawal(id: string) {
     if (!window.confirm("Delete this withdrawal permanently?")) return;
-    await apiDelete(`/admin/withdrawals/${id}`);
-    setWithdrawals((prev) => prev.filter((w) => w.id !== id));
-    setTotalItems(prev => prev - 1);
+    try {
+      const target = withdrawals.find(w => w.id === id);
+      await apiDelete(`/admin/withdrawals/${id}`);
+      setWithdrawals((prev) => prev.filter((w) => w.id !== id));
+      setTotalItems(prev => prev - 1);
+      if (target?.status === 'pending') {
+        setTotalPendingAmount(prev => Math.max(0, prev - target.amount));
+      }
+    } catch (err) {
+      console.error("Delete failed", err);
+    }
+  }
+
+  async function approveWithdrawal(id: string) {
+    if (!window.confirm("Approve this payout request?")) return;
+    try {
+      const target = withdrawals.find(w => w.id === id);
+      setIsLoading(true);
+      await apiPost(`/admin/withdrawals/${id}/approve`, {});
+      setWithdrawals((prev) => prev.map(w => w.id === id ? { ...w, status: 'approved', processedDate: new Date() } : w));
+      if (target?.status === 'pending') {
+        setTotalPendingAmount(prev => Math.max(0, prev - target.amount));
+      }
+      toastSuccess("Withdrawal approved");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to approve withdrawal";
+      toastError("Approve failed", msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function rejectWithdrawal(id: string) {
+    if (!window.confirm("Reject this payout request? Funds will be returned to business balance.")) return;
+    try {
+      const target = withdrawals.find(w => w.id === id);
+      setIsLoading(true);
+      await apiPost(`/admin/withdrawals/${id}/reject`, {});
+      setWithdrawals((prev) => prev.map(w => w.id === id ? { ...w, status: 'rejected', processedDate: new Date() } : w));
+      if (target?.status === 'pending') {
+        setTotalPendingAmount(prev => Math.max(0, prev - target.amount));
+      }
+      toastSuccess("Withdrawal rejected");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to reject withdrawal";
+      toastError("Reject failed", msg);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -91,7 +140,7 @@ export default function WithdrawalsPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Pending</p>
-            <h3 className="text-2xl font-black text-slate-900">$1,500.00</h3>
+            <h3 className="text-2xl font-black text-slate-900">{formatCurrency(totalPendingAmount)}</h3>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -171,8 +220,18 @@ export default function WithdrawalsPage() {
                     <div className="flex items-center justify-end gap-2">
                        {wd.status === 'pending' ? (
                           <>
-                            <button className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition shadow-md shadow-blue-600/20 active:scale-95">Approve</button>
-                            <button className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition font-black tracking-tighter uppercase text-[10px]">Reject</button>
+                            <button 
+                              onClick={() => void approveWithdrawal(wd.id)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition shadow-md shadow-blue-600/20 active:scale-95"
+                            >
+                              Approve
+                            </button>
+                            <button 
+                              onClick={() => void rejectWithdrawal(wd.id)}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition font-black tracking-tighter uppercase text-[10px]"
+                            >
+                              Reject
+                            </button>
                             <button
                               type="button"
                               onClick={() => void deleteWithdrawal(wd.id)}

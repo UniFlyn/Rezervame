@@ -45,8 +45,57 @@ export default function ReviewsPage() {
         `/business/${business.id}/reviews?${query.toString()}`,
         'BUSINESS'
       );
-      setPaginatedReviews(response.data);
-      setTotalItems(response.total);
+      // Group the paginated reviews for display
+      const groups: Record<string, any> = {};
+      response.data.forEach((r) => {
+        const d = new Date(r.date);
+        const dateKey = Number.isNaN(d.getTime()) ? 'invalid' : d.toLocaleDateString('en-US');
+        const groupKey = `${(r as any).userId || r.customerName}_${dateKey}`;
+        
+        if (!groups[groupKey]) {
+          groups[groupKey] = {
+            ...r,
+            ratingSum: r.rating || 0,
+            ratingCount: 1,
+            staffRatingSum: r.staffRating || 0,
+            staffRatingCount: r.staffRating ? 1 : 0,
+            businessRatingSum: r.businessRating || 0,
+            businessRatingCount: r.businessRating ? 1 : 0,
+            comments: r.comment && r.comment.trim() ? [r.comment.trim()] : [],
+            serviceNames: [r.serviceName],
+            staffNames: [r.staffName]
+          };
+        } else {
+          groups[groupKey].ratingSum += r.rating || 0;
+          groups[groupKey].ratingCount += 1;
+          if (r.staffRating) {
+            groups[groupKey].staffRatingSum += r.staffRating;
+            groups[groupKey].staffRatingCount += 1;
+          }
+          if (r.businessRating) {
+            groups[groupKey].businessRatingSum += r.businessRating;
+            groups[groupKey].businessRatingCount += 1;
+          }
+          if (r.comment && r.comment.trim() && !groups[groupKey].comments.includes(r.comment.trim())) {
+            groups[groupKey].comments.push(r.comment.trim());
+          }
+          if (!groups[groupKey].serviceNames.includes(r.serviceName)) groups[groupKey].serviceNames.push(r.serviceName);
+          if (!groups[groupKey].staffNames.includes(r.staffName)) groups[groupKey].staffNames.push(r.staffName);
+        }
+      });
+
+      const finalRows = Object.values(groups).map((g: any) => ({
+        ...g,
+        rating: Math.round(g.ratingSum / g.ratingCount),
+        staffRating: g.staffRatingCount > 0 ? Math.round(g.staffRatingSum / g.staffRatingCount) : undefined,
+        businessRating: g.businessRatingCount > 0 ? Math.round(g.businessRatingSum / g.businessRatingCount) : undefined,
+        comment: g.comments.join(' | '),
+        serviceName: g.serviceNames.join(', '),
+        staffName: g.staffNames.join(', ')
+      }));
+
+      setPaginatedReviews(finalRows);
+      setTotalItems(response.total); // We keep the server total for pagination consistency
       setTotalPages(response.totalPages);
     } catch (err) {
       console.error('Failed to fetch reviews', err);
@@ -70,10 +119,48 @@ export default function ReviewsPage() {
     setPage(1);
   }, [search, filterRating, filterStatus]);
 
-  const totalReviews = Array.isArray(reviews) ? reviews.length : 0;
+  // Group all reviews for summary statistics
+  const groupedAllReviews = useMemo(() => {
+    const groups: Record<string, any> = {};
+    const list = Array.isArray(reviews) ? reviews : [];
+    
+    list.forEach((r) => {
+      const d = new Date(r.date);
+      const dateKey = Number.isNaN(d.getTime()) ? 'invalid' : d.toLocaleDateString('en-US');
+      const groupKey = `${(r as any).userId || r.customerName}_${dateKey}`;
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = { 
+          ratingSum: r.rating || 0, 
+          ratingCount: 1,
+          businessRating: r.businessRating || null
+        };
+      } else {
+        groups[groupKey].ratingSum += r.rating || 0;
+        groups[groupKey].ratingCount += 1;
+        if (r.businessRating && !groups[groupKey].businessRating) {
+          groups[groupKey].businessRating = r.businessRating;
+        }
+      }
+    });
+
+    return Object.values(groups).map((g: any) => ({
+      rating: Math.round(g.ratingSum / g.ratingCount),
+      businessRating: g.businessRating
+    }));
+  }, [reviews]);
+
+  const totalReviews = groupedAllReviews.length;
   const averageRating = totalReviews === 0 
     ? '0.0' 
-    : (reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / totalReviews).toFixed(1);
+    : (() => {
+        const validBizRatings = groupedAllReviews.filter(g => g.businessRating !== null);
+        if (validBizRatings.length === 0) {
+          // Fallback to average of service ratings if no specific business ratings
+          return (groupedAllReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / totalReviews).toFixed(1);
+        }
+        return (validBizRatings.reduce((acc, r) => acc + (r.businessRating || 0), 0) / validBizRatings.length).toFixed(1);
+      })();
 
   const handleReply = async (id: string) => {
     if (!replyText.trim()) {
@@ -127,8 +214,8 @@ export default function ReviewsPage() {
             <div className="mt-2 flex justify-center md:justify-start">{[1,2,3,4,5].map((s)=><Star key={s} size={24} className={clsx(s<=Math.round(Number(averageRating))?'fill-amber-400 text-amber-400':'text-slate-200')} />)}</div>
           </div>
           <div className="w-full max-w-md space-y-3 md:max-w-lg">
-            {[5,4,3,2,1].map((rating)=>{const count=reviews.filter((r)=>r.rating===rating).length; const percentage=totalReviews?(count/totalReviews)*100:0; return <div key={rating} className="flex items-center gap-3"><span className="w-4 text-[10px] font-bold text-slate-500">{rating}</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-50"><div className="h-full rounded-full bg-amber-400" style={{width:`${percentage}%`}} /></div><span className="w-8 text-[10px] font-bold text-slate-400">{count}</span></div>;})}
-            <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400 md:text-right">{totalReviews} total reviews</p>
+            {[5,4,3,2,1].map((rating)=>{const count=groupedAllReviews.filter((r)=>r.rating===rating).length; const percentage=totalReviews?(count/totalReviews)*100:0; return <div key={rating} className="flex items-center gap-3"><span className="w-4 text-[10px] font-bold text-slate-500">{rating}</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-50"><div className="h-full rounded-full bg-amber-400" style={{width:`${percentage}%`}} /></div><span className="w-8 text-[10px] font-bold text-slate-400">{count}</span></div>;})}
+            <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400 md:text-right">{totalReviews} total customer visits</p>
           </div>
         </div>
       </div>

@@ -3,9 +3,19 @@ import React, { useState } from "react";
 import { useI18n } from "./I18nProvider";
 import { useAuth } from "./AuthProvider";
 import { useRouter, usePathname } from "next/navigation";
-import { CheckCircle, Heart, Bell, Search, MapPin, User as UserIcon, ShoppingBag } from "lucide-react";
+import { CheckCircle, Heart, Bell, Search, MapPin, User as UserIcon, ShoppingBag, Clock, Tag } from "lucide-react";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
+import { apiGet, apiPatch } from "@/lib/api";
+
+interface NotificationRow {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
 
 const HOME_SEARCH_SCROLL_PX = 260;
 
@@ -17,9 +27,52 @@ export const Header = () => {
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [showHeaderSearch, setShowHeaderSearch] = useState(() => pathname !== "/");
+  const [searchVal, setSearchVal] = useState("");
+  const [locationVal, setLocationVal] = useState("");
 
   const { businessId, serviceIds } = useVenueBookingCartStore();
   const [mounted, setMounted] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadNotifications = async () => {
+    if (!isLoggedIn) return;
+    try {
+      const data = await apiGet<NotificationRow[]>('/notifications', 'USER');
+      setNotifications(data);
+      setUnreadCount(data.filter(n => !n.read).length);
+    } catch (e) {
+      console.error("Failed to load notifications:", e);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await apiPatch('/notifications/read-all', {}, 'USER');
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (e) {
+      console.error("Failed to mark all as read:", e);
+    }
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      await apiPatch(`/notifications/${id}/read`, {}, 'USER');
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (e) {
+      console.error("Failed to mark as read:", e);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      loadNotifications();
+      const interval = setInterval(loadNotifications, 30000); // refresh every 30s
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn]);
 
   React.useEffect(() => {
     setMounted(true);
@@ -35,12 +88,27 @@ export const Header = () => {
 
   if (pathname.startsWith('/business')) return null;
 
-  const notifications = [
-    { id: 1, title: language === "en" ? "Booking Confirmed" : "Reserva Confirmada", desc: "Tu cita en The Grooming Room ha sido confirmada.", time: "2 min ago", icon: <CheckCircle size={16} className="text-green-500" /> },
-    { id: 2, title: language === "en" ? "New Special Offer" : "Nueva oferta especial", desc: "50% de descuento en tu próximo masaje en Bliss Spa.", time: "1 hour ago", icon: <CheckCircle size={16} className="text-amber-500" /> }
-  ];
-
   const notificationTitle = language === "en" ? "Notifications" : "Notificaciones";
+
+  const getRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return language === "en" ? "Just now" : "Ahora";
+    if (diffMins < 60) return language === "en" ? `${diffMins} min ago` : `hace ${diffMins} min`;
+    if (diffHours < 24) return language === "en" ? `${diffHours} hour ago` : `hace ${diffHours} h`;
+    return language === "en" ? `${diffDays} day ago` : `hace ${diffDays} d`;
+  };
+
+  const getIcon = (type: string) => {
+    if (type.includes('BOOKING')) return <CheckCircle size={16} className="text-green-500" />;
+    if (type.includes('OFFER') || type.includes('PROMOTION')) return <Tag size={16} className="text-amber-500" />;
+    return <Bell size={16} className="text-slate-400" />;
+  };
 
   return (
     <header className="bg-white px-8 py-4 flex justify-between items-center z-50 sticky top-0 border-b border-gray-100 shadow-sm">
@@ -63,19 +131,32 @@ export const Header = () => {
       
       <div className="flex items-center space-x-8">
         {(pathname !== "/" || showHeaderSearch) && (
-        <div className="hidden lg:flex bg-slate-50 border border-slate-200 rounded-2xl py-2 px-5 items-center w-[450px] shadow-inner focus-within:border-[#ff5a5f] transition-all animate-in fade-in slide-in-from-top-2 duration-300">
+         <div className="hidden lg:flex bg-slate-50 border border-slate-200 rounded-2xl py-2 px-5 items-center w-[450px] shadow-inner focus-within:border-[#ff5a5f] transition-all animate-in fade-in slide-in-from-top-2 duration-300">
            <div className="flex-1 flex items-center border-r border-slate-200 pr-4 mr-4">
               <Search className="w-4 h-4 text-slate-400 mr-3 shrink-0" />
-              <input type="text" placeholder={t('searchPlaceholder')} className="bg-transparent text-xs outline-none w-full font-bold text-slate-700 placeholder:text-slate-300" />
+              <input 
+                type="text" 
+                value={searchVal}
+                onChange={(e) => setSearchVal(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && router.push(`/search?q=${encodeURIComponent(searchVal)}`)}
+                placeholder={t('searchPlaceholder')} 
+                className="bg-transparent text-xs outline-none w-full font-bold text-slate-700 placeholder:text-slate-300" 
+              />
            </div>
            <div className="flex-1 flex items-center min-w-0">
               <MapPin className="w-4 h-4 text-slate-400 mr-3 shrink-0" />
-              <input type="text" placeholder={t('locationPlaceholder')} className="bg-transparent text-xs outline-none w-full font-bold text-slate-700 placeholder:text-slate-300" />
+              <input 
+                type="text" 
+                value={locationVal}
+                onChange={(e) => setLocationVal(e.target.value)}
+                placeholder={t('locationPlaceholder')} 
+                className="bg-transparent text-xs outline-none w-full font-bold text-slate-700 placeholder:text-slate-300" 
+              />
            </div>
            <button
              type="button"
-             onClick={() => router.push("/search")}
-             className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl ml-2 hover:bg-slate-800 transition shadow-lg shrink-0"
+             onClick={() => router.push(`/search?q=${encodeURIComponent(searchVal)}`)}
+             className="bg-[#ff5a5f] text-white text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl ml-2 hover:bg-[#e0454a] transition shadow-lg shrink-0"
            >
              {t('searchBtn')}
            </button>

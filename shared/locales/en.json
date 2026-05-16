@@ -279,5 +279,6 @@
   "venueFavRemovedTitle": "Removed from favorites",
   "venueFavRemovedBody": "This venue is no longer in your favorites.",
   "venueFavErrorTitle": "Action failed",
-  "venueFavErrorBody": "Could not update your favorites. Please try again."
+  "venueFavErrorBody": "Could not update your favorites. Please try again.",
+  "venueReviewReplyLabel": "Barber's Response"
 }

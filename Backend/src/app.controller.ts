@@ -10,6 +10,7 @@ import {
   ForbiddenException,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { Business, Role } from '@prisma/client';
@@ -167,6 +168,7 @@ function mapBusiness(b: Business | null) {
     contactEmail: b.email,
     contactPhone: b.phone,
     balance: b.balance,
+    revenue: b.revenue,
     socialYoutube: b.socialYoutube || '',
     socialInstagram: b.socialInstagram || '',
     socialX: b.socialX || '',
@@ -237,6 +239,31 @@ function categoryKeyFromServiceCategory(category: string): string {
 @Controller('api')
 export class AppController {
   constructor(private readonly prisma: PrismaService) {}
+
+  @Get('admin/config')
+  async getAdminConfig(@Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    let config = await this.prisma.systemConfig.findUnique({ where: { id: 1 } });
+    if (!config) {
+      config = await this.prisma.systemConfig.create({ data: { id: 1 } });
+    }
+    return config;
+  }
+
+  @Post('admin/config')
+  async updateAdminConfig(
+    @Body() body: Record<string, unknown>,
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    // Remove metadata fields from body if present
+    const { id, updatedAt, ...data } = body as any;
+    return this.prisma.systemConfig.upsert({
+      where: { id: 1 },
+      update: data,
+      create: { ...data, id: 1 },
+    });
+  }
 
 
   @Post('auth/login')
@@ -502,6 +529,53 @@ export class AppController {
         summary: n.body.slice(0, 120),
       };
     });
+  }
+
+  @Get('admin/events')
+  async getAdminEvents(@Headers('authorization') auth?: string) {
+    await requireUser(this.prisma, auth, [Role.ADMIN]);
+    return this.prisma.event.findMany({ orderBy: { startAt: 'desc' } });
+  }
+
+  @Post('admin/events')
+  async createAdminEvent(@Body() body: any, @Headers('authorization') auth?: string) {
+    await requireUser(this.prisma, auth, [Role.ADMIN]);
+    return this.prisma.event.create({
+      data: {
+        title: body.title,
+        body: body.body,
+        startAt: new Date(body.startAt),
+        location: body.location,
+        price: Number(body.price),
+        imageKey: body.imageKey,
+        active: body.active !== undefined ? body.active : true,
+      },
+    });
+  }
+
+  @Put('admin/events/:id')
+  async updateAdminEvent(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Headers('authorization') auth?: string,
+  ) {
+    await requireUser(this.prisma, auth, [Role.ADMIN]);
+    const { id: _, createdAt, ...rest } = body;
+    return this.prisma.event.update({
+      where: { id },
+      data: {
+        ...rest,
+        startAt: body.startAt ? new Date(body.startAt) : undefined,
+        price: body.price !== undefined ? Number(body.price) : undefined,
+      },
+    });
+  }
+
+  @Delete('admin/events/:id')
+  async deleteAdminEvent(@Param('id') id: string, @Headers('authorization') auth?: string) {
+    await requireUser(this.prisma, auth, [Role.ADMIN]);
+    await this.prisma.event.delete({ where: { id } });
+    return { success: true };
   }
 
   @Get('admin/businesses')
@@ -1097,9 +1171,11 @@ export class AppController {
     const l = Math.max(1, parseInt(limit));
     
     const where: any = {};
-    if (status && status !== 'all') where.status = status;
+    if (status && status !== 'all') {
+      where.status = { equals: status, mode: 'insensitive' };
+    }
 
-    const [total, w] = await Promise.all([
+    const [total, w, pendingTotal] = await Promise.all([
       this.prisma.withdrawal.count({ where }),
       this.prisma.withdrawal.findMany({
         where,
@@ -1108,13 +1184,17 @@ export class AppController {
         skip: (p - 1) * l,
         take: l,
       }),
+      this.prisma.withdrawal.aggregate({
+        where: { status: { equals: 'Pending', mode: 'insensitive' } },
+        _sum: { amount: true },
+      }),
     ]);
 
     return {
       data: w.map((it) => ({
         id: it.id,
         amount: it.amount,
-        balance: it.balance,
+        balance: it.business.balance,
         status: it.status.toLowerCase(),
         date: it.date,
         processedDate: it.processedDate,
@@ -1126,6 +1206,7 @@ export class AppController {
       page: p,
       limit: l,
       totalPages: Math.ceil(total / l),
+      totalPendingAmount: pendingTotal._sum.amount || 0,
     };
   }
 
@@ -1137,6 +1218,46 @@ export class AppController {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     await this.prisma.withdrawal.delete({ where: { id } });
     return { ok: true, id };
+  }
+
+  @Post('admin/withdrawals/:id/approve')
+  async approveAdminWithdrawal(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const w = await this.prisma.withdrawal.findUnique({ where: { id } });
+    if (!w) throw new BadRequestException('Withdrawal not found');
+    if (w.status.toLowerCase() !== 'pending') throw new BadRequestException('Already processed');
+
+    return this.prisma.withdrawal.update({
+      where: { id },
+      data: { status: 'Approved', processedDate: new Date() },
+    });
+  }
+
+  @Post('admin/withdrawals/:id/reject')
+  async rejectAdminWithdrawal(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const w = await this.prisma.withdrawal.findUnique({ where: { id } });
+    if (!w) throw new BadRequestException('Withdrawal not found');
+    if (w.status.toLowerCase() !== 'pending') throw new BadRequestException('Already processed');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Revert balance
+      await tx.business.update({
+        where: { id: w.businessId },
+        data: { balance: { increment: w.amount } },
+      });
+      return tx.withdrawal.update({
+        where: { id },
+        data: { status: 'Rejected', processedDate: new Date() },
+      });
+    });
   }
 
   @Get('admin/notifications')
@@ -1155,6 +1276,91 @@ export class AppController {
       description: n.body,
       time: n.createdAt.toISOString(),
     }));
+  }
+
+  @Get('admin/plans')
+  async getAdminPlans(@Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    return this.prisma.subscriptionPlan.findMany({ orderBy: { price: 'asc' } });
+  }
+
+  @Post('admin/plans')
+  async createAdminPlan(@Body() body: any, @Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    return this.prisma.subscriptionPlan.create({
+      data: {
+        name: body.name,
+        price: Number(body.price),
+        billingCycle: body.billingCycle || 'monthly',
+        features: Array.isArray(body.features) ? body.features : [],
+        active: body.active !== undefined ? body.active : true,
+      },
+    });
+  }
+
+  @Patch('admin/plans/:id')
+  async updateAdminPlan(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const data: any = {};
+    if (body.name !== undefined) data.name = body.name;
+    if (body.price !== undefined) data.price = Number(body.price);
+    if (body.billingCycle !== undefined) data.billingCycle = body.billingCycle;
+    if (body.features !== undefined) data.features = body.features;
+    if (body.active !== undefined) data.active = body.active;
+
+    return this.prisma.subscriptionPlan.update({
+      where: { id },
+      data,
+    });
+  }
+
+  @Delete('admin/plans/:id')
+  async deleteAdminPlan(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    await this.prisma.subscriptionPlan.delete({ where: { id } });
+    return { ok: true };
+  }
+  
+  @Get('notifications')
+  async getNotifications(@Headers('authorization') authorization?: string) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER, Role.BUSINESS]);
+    return this.prisma.notification.findMany({
+      where: {
+        OR: [
+          { userId: user.id },
+          { userId: null, role: user.role as Role },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  @Patch('notifications/:id/read')
+  async markNotificationRead(
+    @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER, Role.BUSINESS]);
+    await this.prisma.notification.updateMany({
+      where: { id, userId: user.id },
+      data: { read: true },
+    });
+    return { ok: true };
+  }
+
+  @Patch('notifications/read-all')
+  async markAllNotificationsRead(@Headers('authorization') authorization?: string) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER, Role.BUSINESS]);
+    await this.prisma.notification.updateMany({
+      where: { userId: user.id, read: false },
+      data: { read: true },
+    });
+    return { ok: true };
   }
 
   @Delete('admin/notifications/:id')
@@ -1436,6 +1642,25 @@ export class AppController {
     const data = mapBusinessPatch(body);
     const updated = await this.prisma.business.update({ where: { id }, data });
     return mapBusiness(updated);
+  }
+
+  @Post('business/:id/upgrade')
+  async upgradeBusinessPlan(
+    @Param('id') id: string,
+    @Body() body: { plan: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireBusinessOwner(this.prisma, authorization, id);
+    const { plan } = body;
+    if (!['Basic', 'Premium', 'Enterprise'].includes(plan)) {
+      throw new BadRequestException('Invalid plan');
+    }
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+    return this.prisma.business.update({
+      where: { id },
+      data: { plan, planExpires: expiresAt },
+    });
   }
 
   @Get('business/:id/services')
@@ -1867,22 +2092,36 @@ export class AppController {
     const biz = await this.prisma.business.findUnique({ where: { id: id! } });
     const taxP = biz?.taxPercentage ?? 0;
 
-    return this.prisma.booking.create({
-      data: {
-        businessId: id,
-        userId,
-        customerName: body.customerName,
-        date: new Date(body.date),
-        status: body.status,
-        price: body.price,
-        taxAmount: (body.price * taxP) / 100,
-        serviceId: svcId,
-        staffId: stId,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const b = await tx.booking.create({
+        data: {
+          businessId: id,
+          userId,
+          customerName: body.customerName,
+          date: new Date(body.date),
+          status: body.status,
+          price: body.price,
+          taxAmount: (body.price * taxP) / 100,
+          serviceId: svcId,
+          staffId: stId,
+        },
+      });
+
+      const earningStatuses = ['Completed', 'Paid'];
+      if (earningStatuses.includes(b.status)) {
+        await tx.business.update({
+          where: { id },
+          data: {
+            balance: { increment: b.price },
+            revenue: { increment: b.price },
+          },
+        });
+      }
+      return b;
     });
   }
 
-  @Post('business/:id/bookings/pay-group')
+  @Post('business/:id/pay-group')
   async payBusinessBookingGroup(
     @Param('id') id: string,
     @Body() body: { bookingIds: string[]; paymentMethod?: string },
@@ -1893,19 +2132,29 @@ export class AppController {
       throw new BadRequestException('bookingIds must be a non-empty array');
     }
 
-    const bookings = await this.prisma.booking.findMany({
-      where: { id: { in: body.bookingIds }, businessId: id },
-      include: { staff: true, service: true, user: true },
-    });
+    const [bookings, config] = await Promise.all([
+      this.prisma.booking.findMany({
+        where: { id: { in: body.bookingIds }, businessId: id },
+        include: { staff: true, service: true, user: true },
+      }),
+      this.prisma.systemConfig.findUnique({ where: { id: 1 } }),
+    ]);
+    
     if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
 
     const payableBookings = bookings.filter(
-      (b) => b.status !== 'Cancelled' && b.status !== 'Rejected' && b.status !== 'Completed',
+      (b) => b.status !== 'Cancelled' && b.status !== 'Rejected' && b.status !== 'Completed' && b.status !== 'Paid',
     );
-    if (payableBookings.length === 0) throw new BadRequestException('All bookings are already completed or cancelled');
+    if (payableBookings.length === 0) throw new BadRequestException('All bookings are already completed or paid');
 
-    const totalAmount = payableBookings.reduce((sum, b) => sum + b.price, 0);
+    const grossAmount = payableBookings.reduce((sum, b) => sum + b.price, 0);
     const totalTax = payableBookings.reduce((sum, b) => sum + (b.taxAmount || 0), 0);
+    
+    // Calculate commission
+    const commissionPct = config?.defaultCommission ?? 15;
+    const commissionAmount = Number((grossAmount * (commissionPct / 100)).toFixed(2));
+    const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
+
     const staffNames = [...new Set(payableBookings.map((b) => b.staff?.name).filter(Boolean))].join(', ');
     const serviceNames = payableBookings.map((b) => b.service?.name || 'Service').join(', ');
     const method = body.paymentMethod || 'Cash';
@@ -1914,7 +2163,7 @@ export class AppController {
       data: {
         bookingId: payableBookings[0].id,
         businessId: id,
-        amount: totalAmount + totalTax,
+        amount: grossAmount + totalTax,
         taxAmount: totalTax,
         status: 'Completed',
         paymentMethod: method,
@@ -1936,10 +2185,13 @@ export class AppController {
 
     await this.prisma.business.update({
       where: { id },
-      data: { revenue: { increment: totalAmount } },
+      data: { 
+        revenue: { increment: grossAmount },
+        balance: { increment: netAmount }
+      },
     });
 
-    return { ok: true, transactionId: transaction.id, total: totalAmount };
+    };
   }
 
   @Patch('business/:id/bookings/:bookingId/propose-reschedule')
@@ -1968,9 +2220,10 @@ export class AppController {
     @Body() body: UpdateBookingDto,
     @Headers('authorization') authorization?: string,
   ) {
-    const b = await this.prisma.booking.findUnique({ where: { id } });
-    if (!b) throw new BadRequestException('Booking not found');
-    await requireBusinessOwner(this.prisma, authorization, b.businessId);
+    const old = await this.prisma.booking.findUnique({ where: { id } });
+    if (!old) throw new BadRequestException('Booking not found');
+    await requireBusinessOwner(this.prisma, authorization, old.businessId);
+
     const data: Record<string, unknown> = {};
     if (body.customerName !== undefined) data.customerName = body.customerName;
     if (body.date !== undefined) data.date = new Date(body.date);
@@ -1983,9 +2236,50 @@ export class AppController {
     if (body.staffId !== undefined) {
       data.staffId = typeof body.staffId === 'string' && body.staffId.trim() ? body.staffId : null;
     }
-    if (body.userId !== undefined && body.userId !== 'offline-user') data.userId = body.userId;
-    return this.prisma.booking.update({ where: { id }, data });
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.update({ where: { id }, data });
+
+      const earningStatuses = ['Completed', 'Paid'];
+      const wasEarned = old.status && earningStatuses.includes(old.status);
+      const isEarned = updated.status && earningStatuses.includes(updated.status);
+
+      if (!wasEarned && isEarned) {
+        // Fetch commission
+        const config = await tx.systemConfig.findUnique({ where: { id: 1 } });
+        const commissionPct = config?.defaultCommission ?? 15;
+        const amount = updated.price;
+        const commissionAmount = Number((amount * (commissionPct / 100)).toFixed(2));
+        const netAmount = Number((amount - commissionAmount).toFixed(2));
+
+        await tx.business.update({
+          where: { id: updated.businessId },
+          data: {
+            balance: { increment: netAmount },
+            revenue: { increment: amount },
+          },
+        });
+      }
+      else if (wasEarned && !isEarned) {
+        // Fetch commission (from when it was added)
+        const config = await tx.systemConfig.findUnique({ where: { id: 1 } });
+        const commissionPct = config?.defaultCommission ?? 15;
+        const amount = old.price;
+        const commissionAmount = Number((amount * (commissionPct / 100)).toFixed(2));
+        const netAmount = Number((amount - commissionAmount).toFixed(2));
+
+        await tx.business.update({
+          where: { id: updated.businessId },
+          data: {
+            balance: { decrement: netAmount },
+            revenue: { decrement: amount },
+          },
+        });
+      }
+      return updated;
+    });
   }
+
 
   @Get('business/:id/reviews')
   async getBusinessReviews(
@@ -2254,6 +2548,19 @@ export class AppController {
         },
       });
       await tx.business.update({ where: { id }, data: { balance: newBal } });
+      
+      // Also create a Transaction record for the history view
+      await tx.transaction.create({
+        data: {
+          businessId: id,
+          amount,
+          type: 'Withdrawal',
+          status: 'Completed',
+          description: `Withdrawal request #${w.id.slice(-6).toUpperCase()}`,
+          date: new Date(),
+        }
+      });
+      
       return w;
     });
   }
@@ -2728,6 +3035,16 @@ export class AppController {
       },
     });
 
+    await this.prisma.notification.create({
+      data: {
+        userId: user.id,
+        role: Role.USER,
+        type: 'BOOKING_CREATED',
+        title: 'Booking Confirmed',
+        body: `Tu cita en ${business.name} ha sido confirmada.`,
+      },
+    });
+
     if (status === 'Approved') {
       await this.prisma.transaction.create({
         data: {
@@ -2835,131 +3152,80 @@ export class AppController {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { address: { contains: search, mode: 'insensitive' } },
+        { services: { some: { name: { contains: search, mode: 'insensitive' } } } },
       ];
     }
-    if (category && category !== 'all') {
-      where.categoryKeys = { has: category };
-    }
-
-    // Since rating is calculated from Reviews, we'll need to filter/sort after fetching or use subqueries.
-    // For now, let's stick to basic filtering and maybe add rating filter if needed via separate logic.
     
-    let orderBy: any = { joinedDate: 'desc' };
-    if (sortBy === 'name') orderBy = { name: 'asc' };
-
-    const [total, allServices, amenityRows] = await Promise.all([
-      this.prisma.service.count({
-        where: { business: where },
-      }),
-      this.prisma.service.findMany({
-        where: { business: where },
-        include: { business: true },
-        orderBy: { name: 'asc' },
-        skip: (p - 1) * l,
-        take: l,
-      }),
-      this.prisma.amenity.findMany({
-        where: { active: true },
-        select: { key: true, labelEn: true, labelEs: true },
-      }),
-    ]);
-
-    if (allServices.length === 0) {
-      return {
-        data: [],
-        total: 0,
-        page: p,
-        limit: l,
-        totalPages: 0,
-      };
+    // Multiple categories support (comma separated)
+    if (category && category !== 'all') {
+      const cats = category.split(',').filter(Boolean);
+      if (cats.length > 0) {
+        where.categoryKeys = { hasSome: cats };
+      }
     }
 
-    const bizIds = [...new Set(allServices.map((s) => s.businessId))];
-    const [bookingCounts, reviewStats, futureBookings] = await Promise.all([
-      this.prisma.booking.groupBy({
-        by: ['businessId'],
-        where: { businessId: { in: bizIds } },
-        _count: { _all: true },
-      }),
-      this.prisma.review.groupBy({
-        by: ['businessId'],
-        where: { businessId: { in: bizIds } },
-        _avg: { businessRating: true },
-        _count: { _all: true },
-      }),
-      this.prisma.booking.findMany({
-        where: { businessId: { in: bizIds }, date: { gte: new Date() } },
-        include: { service: true }
-      }),
-    ]);
-
-    const amenityLabelEn = new Map(amenityRows.map((a) => [a.key, a.labelEn]));
-    const amenityLabelEs = new Map(amenityRows.map((a) => [a.key, a.labelEs]));
-    const reviewMap = new Map(
-      reviewStats.map((r) => [
-        r.businessId,
-        { avg: r._avg.businessRating ?? 0, n: r._count._all },
-      ]),
-    );
-
-    const bizBookings = new Map<string, any[]>();
-    futureBookings.forEach(b => {
-      if (!bizBookings.has(b.businessId)) bizBookings.set(b.businessId, []);
-      bizBookings.get(b.businessId)!.push(b);
+    // Fetch businesses with their reviews to calculate ratings for filtering
+    const businesses = await this.prisma.business.findMany({
+      where,
+      include: {
+        reviews: { select: { businessRating: true } },
+        services: { where: { active: true }, orderBy: { price: 'asc' } },
+      },
     });
 
-    const data = allServices.map((svc, index) => {
-      const b = svc.business;
-      const rs = reviewMap.get(b.id);
-      const ratingStr = rs && rs.n > 0 ? Number(rs.avg).toFixed(1) : '0';
-      const reviewsStr = String(rs?.n ?? 0);
+    const minR = parseFloat(minRating || '0');
 
-      const categoryKey =
-        Array.isArray(b.categoryKeys) && b.categoryKeys.length > 0
-          ? b.categoryKeys[0]
-          : categoryKeyFromServiceCategory(svc.category);
-
-      const displayPrice = svc.price > 0 ? `$${Number(svc.price).toFixed(2)}` : `$${Number(0).toFixed(2)}`;
-      const keys = b.amenityKeys ?? [];
-      const amenityLabelsEn = keys.map((k) => amenityLabelEn.get(k) ?? k);
-      const amenityLabelsEs = keys.map((k) => amenityLabelEs.get(k) ?? k);
-
-      const imageUrl = (svc.imageUrl && String(svc.imageUrl).trim()) || null;
-      const logoUrl = (b.logoUrl && String(b.logoUrl).trim()) || null;
-      const bannerUrl = (b.bannerUrl && String(b.bannerUrl).trim()) || null;
-      const bizLat = b.latitude ?? null;
-      const bizLng = b.longitude ?? null;
-      const distanceLabel = distanceLabelBetween(geo.lat, geo.lng, bizLat, bizLng);
-
-      const nextAvailable = getNextAvailableSlot(new Date(), bizBookings.get(b.id) || [], svc.duration || 30);
-
+    let mapped = businesses.map((b) => {
+      const rStats = b.reviews;
+      const validRatings = rStats.filter(r => r.businessRating !== null);
+      const count = rStats.length;
+      const avg = validRatings.length > 0 
+        ? validRatings.reduce((sum, r) => sum + r.businessRating, 0) / validRatings.length 
+        : 0;
+      const minPrice = b.services[0]?.price ?? 0;
+      
+      const distance = distanceBetween(geo.lat, geo.lng, b.latitude, b.longitude);
+      
       return {
-        id: (p - 1) * l + index + 1,
+        id: b.id,
         businessId: b.id,
         name: b.name,
-        categoryKey,
-        rating: ratingStr,
-        reviews: reviewsStr,
-        price: displayPrice,
-        serviceName: svc.name ?? '',
-        serviceDurationMinutes: svc.duration ?? 0,
-        lat: bizLat ?? 0,
-        lng: bizLng ?? 0,
-        imageUrl: safeImageUrl(svc.imageUrl),
-        logoUrl: safeImageUrl(b.logoUrl),
-        bannerUrl: safeImageUrl(b.bannerUrl),
-        unsplashImgId: null,
-        locationLabel: b.address || 'Panama City',
-        distanceLabel,
-        amenityKeys: keys,
-        amenityLabelsEn,
-        amenityLabelsEs,
-        nextAvailable,
+        categoryKey: b.categoryKeys?.[0] ?? 'barber',
+        rating: avg.toFixed(1),
+        reviews: String(count),
+        price: minPrice.toFixed(2),
+        lat: b.latitude ?? 0,
+        lng: b.longitude ?? 0,
+        imageUrl: b.logoUrl,
+        bannerUrl: b.bannerUrl,
+        logoUrl: b.logoUrl,
+        locationLabel: b.address.split(',')[0],
+        distanceLabel: distanceLabelBetween(geo.lat, geo.lng, b.latitude, b.longitude),
+        distance,
+        ratingNum: avg,
+        priceNum: minPrice,
       };
     });
 
+    // Filter by rating
+    if (minR > 0) {
+      mapped = mapped.filter(m => m.ratingNum >= minR);
+    }
+
+    // Sort
+    mapped.sort((a, b) => {
+      if (sortBy === 'ratingHighLow') return b.ratingNum - a.ratingNum;
+      if (sortBy === 'priceLowHigh') return a.priceNum - b.priceNum;
+      if (sortBy === 'priceHighLow') return b.priceNum - a.priceNum;
+      if (sortBy === 'distance') return a.distance - b.distance;
+      return 0;
+    });
+
+    const total = mapped.length;
+    const paginated = mapped.slice((p - 1) * l, p * l);
+
     return {
-      data,
+      data: paginated,
       total,
       page: p,
       limit: l,
@@ -3210,11 +3476,15 @@ export class AppController {
       const img = (s.imageUrl || '').trim();
       itemImageByBusiness.set(s.businessId, img || null);
     }
-    const [reviewAgg, minPrices] = await Promise.all([
+    const [reviewAgg, reviewCounts, minPrices] = await Promise.all([
       this.prisma.review.groupBy({
         by: ['businessId'],
         where: { businessId: { in: businessIds }, businessRating: { not: null } },
         _avg: { businessRating: true },
+      }),
+      this.prisma.review.groupBy({
+        by: ['businessId'],
+        where: { businessId: { in: businessIds } },
         _count: { _all: true },
       }),
       this.prisma.service.groupBy({
@@ -3226,15 +3496,18 @@ export class AppController {
     const reviewByBiz = new Map(
       reviewAgg.map((x) => [
         x.businessId,
-        { avg: x._avg.businessRating ?? 0, count: x._count._all },
+        { avg: x._avg.businessRating ?? 0 },
       ]),
+    );
+    const reviewCountByBiz = new Map(
+      reviewCounts.map((x) => [x.businessId, x._count._all]),
     );
     const minPriceByBiz = new Map(minPrices.map((p) => [p.businessId, p._min.price ?? 0]));
     return rows.map((r) => {
       const b = r.business;
       const rv = reviewByBiz.get(b.id);
       const ratingNum = rv?.avg != null ? Number(rv.avg.toFixed(1)) : 0;
-      const reviewsCount = rv?.count ?? 0;
+      const reviewsCount = reviewCountByBiz.get(b.id) ?? 0;
       const minSvc = minPriceByBiz.get(b.id) ?? 0;
       const imageUrl = itemImageByBusiness.get(b.id) ?? null;
       const bizLat = b.latitude ?? null;
