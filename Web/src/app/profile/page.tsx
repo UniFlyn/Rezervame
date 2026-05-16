@@ -61,6 +61,7 @@ interface Reservation {
   }[];
   businessId: string;
   transactionId?: string;
+  paymentMethod?: string;
 }
 
 function mapUserBookingGroup(
@@ -166,6 +167,7 @@ function mapUserBookingGroup(
     items,
     businessId: b.businessId,
     transactionId: b.transactionId,
+    paymentMethod: b.transaction?.paymentMethod,
   };
 }
 
@@ -494,6 +496,7 @@ function ProfileContent() {
       taxAmount: Number(inv.taxAmount || 0),
       taxPercentage: Number(inv.taxPercentage || 7),
       total: Number(inv.total || 0),
+      paymentMethod: inv.paymentMethod || "Online",
       paymentStatus: "paid",
     });
   };

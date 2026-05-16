@@ -2325,17 +2325,17 @@ export class AppController {
     // We'll paginate the history, and keep ongoing (usually few) as is or limited.
     const [ongoing, historyTotal, history] = await Promise.all([
       this.prisma.booking.findMany({
-        where: { userId: user.id, status: { in: ['Pending', 'Approved'] } },
-        include: { business: true, service: true, staff: true, familyMember: true },
+        where: { userId: user.id, status: { in: ['Pending', 'Approved', 'Paid', 'Rescheduled'] } },
+        include: { business: true, service: true, staff: true, familyMember: true, transaction: true },
         orderBy: { date: 'asc' },
-        take: 20,
+        take: 50,
       }),
       this.prisma.booking.count({
         where: { userId: user.id, status: { in: ['Completed', 'Rejected', 'Cancelled'] } },
       }),
       this.prisma.booking.findMany({
         where: { userId: user.id, status: { in: ['Completed', 'Rejected', 'Cancelled'] } },
-        include: { business: true, service: true, staff: true, familyMember: true },
+        include: { business: true, service: true, staff: true, familyMember: true, transaction: true },
         orderBy: { date: 'desc' },
         skip: (p - 1) * l,
         take: l,
