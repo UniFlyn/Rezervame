@@ -193,6 +193,27 @@ function categoryKeyFromServiceCategory(category: string): string {
 export class AppController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Patch('business/:id/bookings/bulk-complete')
+  async bulkCompleteBookings(
+    @Param('id') id: string,
+    @Body() body: { bookingIds: string[] },
+    @Headers('authorization') authorization?: string,
+  ) {
+    console.log(`[bulkComplete] businessId=${id}, bookings=${body.bookingIds}`);
+    await requireBusinessOwner(this.prisma, authorization, id);
+    return await this.prisma.booking.updateMany({
+      where: { 
+        id: { in: body.bookingIds }, 
+        businessId: id,
+        OR: [
+          { status: 'Paid' },
+          { transactionId: { not: null } }
+        ]
+      },
+      data: { status: 'Completed' },
+    });
+  }
+
   @Post('auth/login')
   async login(@Body() body: { email: string; password: string }) {
     const raw = body.email.trim();
@@ -1828,20 +1849,6 @@ export class AppController {
     });
 
     return { ok: true, transactionId: transaction.id, total: totalAmount };
-  }
-
-  @Patch('business/:id/bookings/bulk-complete')
-  async bulkCompleteBookings(
-    @Param('id') id: string,
-    @Body() body: { bookingIds: string[] },
-    @Headers('authorization') authorization?: string,
-  ) {
-    console.log(`[bulkComplete] businessId=${id}, bookings=${body.bookingIds}`);
-    await requireBusinessOwner(this.prisma, authorization, id);
-    return await this.prisma.booking.updateMany({
-      where: { id: { in: body.bookingIds }, businessId: id, status: 'Paid' },
-      data: { status: 'Completed' },
-    });
   }
 
   @Patch('business/:id/bookings/:bookingId/propose-reschedule')
