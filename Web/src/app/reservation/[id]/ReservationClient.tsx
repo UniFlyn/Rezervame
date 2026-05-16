@@ -25,7 +25,7 @@ interface Reservation {
   time: string;
   price: string;
   totalPrice: number;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
   img: string;
   subtotal: number;
   taxAmount: number;
@@ -39,7 +39,7 @@ interface Reservation {
     price: string; 
     customerName?: string; 
     staffName?: string;
-    status: "pending" | "confirmed" | "completed" | "cancelled";
+    status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
     isReviewed?: boolean;
     taxAmount?: number;
   }[];
@@ -77,7 +77,13 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
   
   const items = group.map(item => {
     const st = (item?.status || "").toLowerCase();
-    const status: Reservation["status"] = st === "completed" ? "completed" : st === "cancelled" || st === "rejected" ? "cancelled" : st === "pending" ? "pending" : "confirmed";
+    let status: Reservation["status"] = "pending";
+    if (st === "completed") status = "completed";
+    else if (st === "cancelled" || st === "rejected") status = "cancelled";
+    else if (st === "paid") status = "paid";
+    else if (st === "rescheduled") status = "rescheduled";
+    else if (st === "approved") status = "confirmed";
+    else status = "pending";
     
     return {
         id: item?.id || Math.random().toString(),
@@ -90,7 +96,17 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
     };
   });
 
-  const mainStatus: Reservation["status"] = items.every(i => i.status === "completed") ? "completed" : items.some(i => i.status === "cancelled") ? "cancelled" : items.every(i => i.status === "pending") ? "pending" : "confirmed";
+  const mainStatus: Reservation["status"] = items.every(i => i.status === "completed") 
+    ? "completed" 
+    : items.some(i => i.status === "cancelled") 
+    ? "cancelled" 
+    : items.every(i => i.status === "pending") 
+    ? "pending" 
+    : items.some(i => i.status === "rescheduled")
+    ? "rescheduled"
+    : items.some(i => i.status === "paid")
+    ? "paid"
+    : "confirmed";
 
   return {
     id: b.id || "unknown",
@@ -218,6 +234,36 @@ export default function ReservationClient() {
     }
   }
 
+  const handleMarkCompletedGroup = async () => {
+    try {
+      setPayingLoading(true);
+      for (const item of res?.items || []) {
+        await apiPost(`/mobile/bookings/${item.id}/complete`, {}, "USER");
+      }
+      toastSuccess(language === "en" ? "Appointment completed" : "Cita completada");
+      loadGroup();
+    } catch (err) {
+      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Failed to complete");
+    } finally {
+      setPayingLoading(false);
+    }
+  };
+
+  const handleAcceptReschedule = async () => {
+    try {
+      setPayingLoading(true);
+      for (const item of res?.items || []) {
+        await apiPost(`/mobile/bookings/${item.id}/accept-reschedule`, {}, "USER");
+      }
+      toastSuccess(language === "en" ? "New time accepted" : "Nuevo horario aceptado");
+      loadGroup();
+    } catch (err) {
+      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Failed to accept");
+    } finally {
+      setPayingLoading(false);
+    }
+  };
+
   const handleOpenRateModal = (bookingId: string) => {
     setRatingBookingId(bookingId);
     setStaffRating(5);
@@ -323,10 +369,18 @@ export default function ReservationClient() {
                     </div>
                     <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
                       res.status === 'confirmed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                      res.status === 'paid' ? 'bg-cyan-50 text-cyan-600 border border-cyan-100' :
                       res.status === 'completed' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                      'bg-amber-50 text-amber-600 border border-amber-100'
+                      res.status === 'rescheduled' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                      res.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                      'bg-slate-50 text-slate-600 border border-slate-100'
                     }`}>
-                      {res.status}
+                      {res.status === 'confirmed' ? (language === 'en' ? 'Awaiting Payment' : 'Esperando Pago') :
+                       res.status === 'paid' ? (language === 'en' ? 'Paid' : 'Pagado') :
+                       res.status === 'completed' ? (language === 'en' ? 'Completed' : 'Completado') :
+                       res.status === 'rescheduled' ? (language === 'en' ? 'Rescheduled' : 'Reagendado') :
+                       res.status === 'pending' ? (language === 'en' ? 'Pending' : 'Pendiente') :
+                       res.status}
                     </div>
                  </div>
 
@@ -401,9 +455,9 @@ export default function ReservationClient() {
 
                 {paymentView === "none" && res.status === "confirmed" && (
                   <div className="mt-8 space-y-4">
-                     <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">{language === "en" ? "Pending Payment" : "Pago Pendiente"}</p>
-                        <p className="text-amber-700 text-[10px] font-medium">{language === "en" ? "Please pay online to confirm your spot." : "Por favor paga online para confirmar tu cupo."}</p>
+                     <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                        <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-1">{language === "en" ? "Approved" : "Aprobado"}</p>
+                        <p className="text-emerald-700 text-[10px] font-medium">{language === "en" ? "Your booking is approved. Please pay online to confirm." : "Tu cita está aprobada. Por favor paga online para confirmar."}</p>
                      </div>
                      <button 
                        onClick={() => setPaymentView("select")}
@@ -412,6 +466,46 @@ export default function ReservationClient() {
                        {language === "en" ? "Pay Online Now" : "Pagar Online Ahora"}
                      </button>
                   </div>
+                )}
+
+                {paymentView === "none" && res.status === "rescheduled" && (
+                  <div className="mt-8 space-y-4">
+                     <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">{language === "en" ? "Reschedule Proposed" : "Reagendamiento Propuesto"}</p>
+                        <p className="text-amber-700 text-[10px] font-medium">{language === "en" ? "The venue has proposed a new time. Do you accept?" : "El establecimiento ha propuesto un nuevo horario. ¿Aceptas?"}</p>
+                     </div>
+                     <button 
+                       onClick={handleAcceptReschedule}
+                       disabled={payingLoading}
+                       className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                     >
+                       {payingLoading && <Loader2 className="animate-spin" size={16} />}
+                       {language === "en" ? "Accept New Time" : "Aceptar Nuevo Horario"}
+                     </button>
+                  </div>
+                )}
+
+                {paymentView === "none" && res.status === "paid" && (
+                  <div className="mt-8 space-y-4">
+                     <div className="p-4 bg-cyan-50 border border-cyan-100 rounded-2xl">
+                        <p className="text-[10px] font-black text-cyan-800 uppercase tracking-widest mb-1">{language === "en" ? "Payment Confirmed" : "Pago Confirmado"}</p>
+                        <p className="text-cyan-700 text-[10px] font-medium">{language === "en" ? "Your appointment is ready. Mark as completed after the service." : "Tu cita está lista. Márcala como completada después del servicio."}</p>
+                     </div>
+                     <button 
+                       onClick={handleMarkCompletedGroup}
+                       disabled={payingLoading}
+                       className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
+                     >
+                       {payingLoading && <Loader2 className="animate-spin" size={16} />}
+                       {language === "en" ? "Mark as Completed" : "Marcar como Completado"}
+                     </button>
+                  </div>
+                )}
+
+                {paymentView === "none" && res.status === "pending" && (
+                   <div className="mt-8 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Waiting for Venue" : "Esperando al Establecimiento"}</p>
+                   </div>
                 )}
 
                 {paymentView === "select" && (

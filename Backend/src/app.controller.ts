@@ -1801,7 +1801,7 @@ export class AppController {
     // Mark all as Completed
     await this.prisma.booking.updateMany({
       where: { id: { in: payableBookings.map(b => b.id) } },
-      data: { status: 'Completed' },
+      data: { status: 'Paid' },
     });
 
     const transaction = await this.prisma.transaction.create({
@@ -1827,6 +1827,36 @@ export class AppController {
     });
 
     return { ok: true, transactionId: transaction.id, total: totalAmount };
+  }
+
+  @Patch('business/:id/bookings/bulk-complete')
+  async bulkCompleteBookings(
+    @Param('id') id: string,
+    @Body() body: { bookingIds: string[] },
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireBusinessOwner(this.prisma, authorization, id);
+    return await this.prisma.booking.updateMany({
+      where: { id: { in: body.bookingIds }, businessId: id, status: 'Paid' },
+      data: { status: 'Completed' },
+    });
+  }
+
+  @Patch('business/:id/bookings/:bookingId/propose-reschedule')
+  async proposeReschedule(
+    @Param('id') id: string,
+    @Param('bookingId') bookingId: string,
+    @Body() body: { newDate: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireBusinessOwner(this.prisma, authorization, id);
+    return await this.prisma.booking.update({
+      where: { id: bookingId, businessId: id },
+      data: { 
+        date: new Date(body.newDate),
+        status: 'Rescheduled' 
+      },
+    });
   }
 
   @Patch('business/:id/bookings/bulk-status')
@@ -2492,7 +2522,45 @@ export class AppController {
       data: { revenue: { increment: totalAmount } },
     });
 
+    // Mark as Paid
+    await this.prisma.booking.updateMany({
+      where: { id: { in: payableBookings.map(b => b.id) } },
+      data: { status: 'Paid' },
+    });
+
     return { ok: true, transactionId: transaction.id, total: totalAmount };
+  }
+
+  @Post('mobile/bookings/:id/complete')
+  async completeUserBooking(
+    @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const booking = await this.prisma.booking.findUnique({ where: { id } });
+    if (!booking || (booking.userId !== user.id && user.role !== Role.ADMIN)) {
+      throw new ForbiddenException();
+    }
+    if (booking.status !== 'Paid') throw new BadRequestException('Only paid bookings can be completed');
+    return await this.prisma.booking.update({
+      where: { id },
+      data: { status: 'Completed' },
+    });
+  }
+
+  @Post('mobile/bookings/:id/accept-reschedule')
+  async acceptReschedule(
+    @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const booking = await this.prisma.booking.findUnique({ where: { id } });
+    if (!booking || booking.userId !== user.id) throw new ForbiddenException();
+    if (booking.status !== 'Rescheduled') throw new BadRequestException('Not in rescheduled state');
+    return await this.prisma.booking.update({
+      where: { id },
+      data: { status: 'Approved' },
+    });
   }
 
   @Post('mobile/bookings')

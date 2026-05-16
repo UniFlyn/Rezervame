@@ -431,7 +431,11 @@ export default function AppointmentsPage() {
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
-      await useBookingsStore.getState().bulkUpdateBookingStatus([id], status);
+      if (status === 'Completed') {
+        await apiPatch(`/business/${business?.id}/bookings/bulk-complete`, { bookingIds: [id] }, 'BUSINESS');
+      } else {
+        await useBookingsStore.getState().bulkUpdateBookingStatus([id], status);
+      }
       // Update local state instantly
       setPaginatedBookings((prev) => 
         prev.map((b) => (b.id === id ? { ...b, status: status as any } : b))
@@ -447,7 +451,11 @@ export default function AppointmentsPage() {
 
   const handleBulkStatusChange = async (ids: string[], status: string) => {
     try {
-      await useBookingsStore.getState().bulkUpdateBookingStatus(ids, status);
+      if (status === 'Completed') {
+        await apiPatch(`/business/${business?.id}/bookings/bulk-complete`, { bookingIds: ids }, 'BUSINESS');
+      } else {
+        await useBookingsStore.getState().bulkUpdateBookingStatus(ids, status);
+      }
       setPaginatedBookings((prev) => 
         prev.map((b) => (ids.includes(b.id) ? { ...b, status: status as any } : b))
       );
@@ -459,7 +467,15 @@ export default function AppointmentsPage() {
 
   const handleUpdateBooking = async (id: string, payload: any) => {
     try {
-      const updated = await apiPatch<Booking>(`/bookings/${id}`, payload, 'BUSINESS');
+      // If we are changing date, it might be a reschedule proposal
+      const isRescheduling = payload.date || payload.time;
+      const endpoint = isRescheduling ? `/business/${business?.id}/bookings/${id}/propose-reschedule` : `/bookings/${id}`;
+      
+      const updated = await (isRescheduling 
+        ? apiPatch<Booking>(endpoint, { newDate: payload.date }, 'BUSINESS')
+        : apiPatch<Booking>(endpoint, payload, 'BUSINESS')
+      );
+
       // Update global store
       useBookingsStore.setState((state) => ({
         bookings: state.bookings.map((b) => (b.id === id ? { ...b, ...updated } : b)),
@@ -1005,7 +1021,11 @@ export default function AppointmentsPage() {
                     const groupIds = group.map((b) => b.id);
                     const allCompleted = group.every((b) => b.status === 'Completed');
                     const allApproved = group.every((b) => b.status === 'Approved');
+                    const allPaid = group.every((b) => b.status === 'Paid');
                     const anyPending = group.some((b) => b.status === 'Pending');
+                    const anyRescheduled = group.some((b) => b.status === 'Rescheduled');
+                    const anyPaid = group.some((b) => b.status === 'Paid');
+                    const anyApproved = group.some((b) => b.status === 'Approved');
                     const anyLocked = group.some((b) => b.locked);
                     const totalPrice = group.reduce((sum, b) => sum + b.price, 0);
 
@@ -1069,7 +1089,7 @@ export default function AppointmentsPage() {
                           <td className="px-4 py-3 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <select
-                                value={allCompleted ? 'Completed' : anyPending ? 'Pending' : allApproved ? 'Approved' : 'Mixed'}
+                                value={allCompleted ? 'Completed' : allPaid ? 'Paid' : allApproved ? 'Approved' : anyPending ? 'Pending' : anyRescheduled ? 'Rescheduled' : 'Mixed'}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   if (val === 'Mixed') return;
@@ -1100,15 +1120,35 @@ export default function AppointmentsPage() {
                                   anyLocked && 'opacity-50 cursor-not-allowed'
                                 )}
                               >
-                                <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
-                                <option value="Approved">{L(language as Language, 'Accept', 'Aceptar')}</option>
-                                <option value="Rejected">{L(language as Language, 'Reject', 'Rechazar')}</option>
-                                <option value="Cancelled">{L(language as Language, 'Cancel', 'Cancelar')}</option>
-                                <option value="Reschedule">{L(language as Language, 'Schedule rechange', 'Reagendar')}</option>
-                                <option value="PaidCash">{L(language as Language, 'Paid via Cash', 'Pagado Efectivo')}</option>
-                                <option value="PaidCard">{L(language as Language, 'Paid via Card', 'Pagado Tarjeta')}</option>
-                                <option value="PaidOnline">{L(language as Language, 'Paid via Online', 'Pagado Online')}</option>
-                                <option value="Mixed" disabled>Mixed</option>
+                                  {anyPending && (
+                                    <>
+                                      <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
+                                      <option value="Approved">{L(language as Language, 'Accept', 'Aceptar')}</option>
+                                      <option value="Rejected">{L(language as Language, 'Reject', 'Rechazar')}</option>
+                                      <option value="Reschedule">{L(language as Language, 'Schedule rechange', 'Reagendar')}</option>
+                                    </>
+                                  )}
+                                  {anyApproved && !anyPaid && (
+                                    <>
+                                      <option value="Approved">{L(language as Language, 'Accepted', 'Aceptado')}</option>
+                                      <option value="PaidCash">{L(language as Language, 'Paid via Cash', 'Pagado Efectivo')}</option>
+                                      <option value="PaidCard">{L(language as Language, 'Paid via Card', 'Pagado Tarjeta')}</option>
+                                      <option value="Cancelled">{L(language as Language, 'Cancel', 'Cancelar')}</option>
+                                    </>
+                                  )}
+                                  {anyPaid && !allCompleted && (
+                                    <>
+                                      <option value="Paid">{L(language as Language, 'Paid', 'Pagado')}</option>
+                                      <option value="Completed">{L(language as Language, 'Mark as Completed', 'Marcar Completado')}</option>
+                                    </>
+                                  )}
+                                  {anyRescheduled && (
+                                    <option value="Rescheduled">{L(language as Language, 'Waiting Client', 'Esperando Cliente')}</option>
+                                  )}
+                                  {allCompleted && (
+                                    <option value="Completed">{L(language as Language, 'Completed', 'Completado')}</option>
+                                  )}
+                                  <option value="Mixed" disabled>Mixed</option>
                               </select>
                               <span className="text-[10px] font-black text-slate-900">${totalPrice.toFixed(2)}</span>
                             </div>
@@ -1131,7 +1171,7 @@ export default function AppointmentsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            {isGroup && !anyLocked && (
+                            {isGroup && !anyLocked && anyPending && (
                               <div className="flex gap-1">
                                 <button
                                   onClick={(e) => {
@@ -1156,7 +1196,19 @@ export default function AppointmentsPage() {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-1.5 items-center">
-                              {!allCompleted && !anyLocked && (
+                              {anyPaid && !allCompleted && !anyLocked && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleBulkStatusChange(groupIds, 'Completed');
+                                  }}
+                                  className="rounded-lg bg-cyan-600 px-2 py-1 text-[9px] font-black uppercase text-white hover:bg-cyan-700 shadow-sm transition-colors"
+                                >
+                                  {L(language as Language, 'Complete All', 'Completar Todo')}
+                                </button>
+                              )}
+
+                              {anyApproved && !anyPaid && !anyLocked && (
                                 <div className="flex gap-1">
                                   <button
                                     onClick={() => void handleGroupPay(groupIds, 'Cash')}
@@ -1257,20 +1309,41 @@ export default function AppointmentsPage() {
                                 disabled={subBooking.locked}
                                 className={clsx(
                                   'appearance-none rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide cursor-pointer transition-all outline-none border-none',
-                                  subBooking.status === 'Approved' && 'bg-emerald-50 text-emerald-700',
+                                  (subBooking.status === 'Approved' || subBooking.status === 'Paid') && 'bg-emerald-50 text-emerald-700',
                                   subBooking.status === 'Pending' && 'bg-amber-50 text-amber-700',
+                                   subBooking.status === 'Rescheduled' && 'bg-amber-100 text-amber-800',
                                   subBooking.status === 'Completed' && 'bg-cyan-50 text-cyan-800',
                                   subBooking.locked && 'opacity-50 cursor-not-allowed'
                                 )}
                               >
-                                <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
-                                <option value="Approved">{L(language as Language, 'Accept', 'Aceptar')}</option>
-                                <option value="Rejected">{L(language as Language, 'Reject', 'Rechazar')}</option>
-                                <option value="Cancelled">{L(language as Language, 'Cancel', 'Cancelar')}</option>
-                                <option value="Reschedule">{L(language as Language, 'Schedule rechange', 'Reagendar')}</option>
-                                <option value="PaidCash">{L(language as Language, 'Paid via Cash', 'Pagado Efectivo')}</option>
-                                <option value="PaidCard">{L(language as Language, 'Paid via Card', 'Pagado Tarjeta')}</option>
-                                <option value="PaidOnline">{L(language as Language, 'Paid via Online', 'Pagado Online')}</option>
+                                  {subBooking.status === 'Pending' && (
+                                    <>
+                                      <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
+                                      <option value="Approved">{L(language as Language, 'Accept', 'Aceptar')}</option>
+                                      <option value="Rejected">{L(language as Language, 'Reject', 'Rechazar')}</option>
+                                      <option value="Reschedule">{L(language as Language, 'Schedule rechange', 'Reagendar')}</option>
+                                    </>
+                                  )}
+                                  {subBooking.status === 'Approved' && (
+                                    <>
+                                      <option value="Approved">{L(language as Language, 'Accepted', 'Aceptado')}</option>
+                                      <option value="PaidCash">{L(language as Language, 'Paid via Cash', 'Pagado Efectivo')}</option>
+                                      <option value="PaidCard">{L(language as Language, 'Paid via Card', 'Pagado Tarjeta')}</option>
+                                      <option value="Cancelled">{L(language as Language, 'Cancel', 'Cancelar')}</option>
+                                    </>
+                                  )}
+                                  {subBooking.status === 'Paid' && (
+                                    <>
+                                      <option value="Paid">{L(language as Language, 'Paid', 'Pagado')}</option>
+                                      <option value="Completed">{L(language as Language, 'Mark as Completed', 'Marcar Completado')}</option>
+                                    </>
+                                  )}
+                                  {subBooking.status === 'Rescheduled' && (
+                                    <option value="Rescheduled">{L(language as Language, 'Waiting Client', 'Esperando Cliente')}</option>
+                                  )}
+                                  {subBooking.status === 'Completed' && (
+                                    <option value="Completed">{L(language as Language, 'Completed', 'Completado')}</option>
+                                  )}
                               </select>
                             </td>
                             <td className="px-4 py-2 text-xs font-bold text-slate-600">
