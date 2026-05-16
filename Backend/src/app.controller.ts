@@ -1729,7 +1729,7 @@ export class AppController {
       this.prisma.booking.count({ where }),
       this.prisma.booking.findMany({
         where,
-        include: { service: true, staff: true, user: true },
+        include: { service: true, staff: true, user: true, transaction: true },
         orderBy: { date: 'desc' },
         skip: (p - 1) * l,
         take: l,

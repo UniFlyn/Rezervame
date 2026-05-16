@@ -14,6 +14,7 @@ export interface Booking {
   walkIn?: boolean;
   recurring?: boolean;
   locked?: boolean;
+  transactionId?: string;
 }
 
 export type BookingCreatePayload = {
