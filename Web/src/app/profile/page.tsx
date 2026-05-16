@@ -43,6 +43,7 @@ interface Reservation {
   status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
   img: string;
   taxAmount: number;
+  taxPercentage: number;
   subtotal: number;
   address?: string;
   isReviewed?: boolean;
@@ -152,6 +153,7 @@ function mapUserBookingGroup(
     img: b.service?.imageUrl || b.business?.bannerUrl || b.business?.logoUrl || PLACEHOLDER_IMAGE_DATA_URI,
     subtotal,
     taxAmount,
+    taxPercentage: b.business?.taxPercentage || 0,
     address: b.business?.address || "",
     phone: b.business?.phone,
     isReviewed: items.every(i => i.isReviewed),
@@ -436,7 +438,8 @@ function ProfileContent() {
         staffName: i.staffName,
       })),
       subtotal: res.subtotal,
-      tax: res.taxAmount,
+      taxAmount: res.taxAmount,
+      taxPercentage: res.taxPercentage,
       total: res.totalPrice,
       paymentMethod: payMethod === "card" ? "Credit Card" : "Cash",
       paymentStatus: paymentView === "done" ? "paid" : "pending",
@@ -481,6 +484,8 @@ function ProfileContent() {
           }))
         : [{ name: "Services", quantity: 1, price: Number(inv.subtotal || inv.total || 0) }],
       subtotal: Number(inv.subtotal || 0),
+      taxAmount: Number(inv.taxAmount || 0),
+      taxPercentage: Number(inv.taxPercentage || 7),
       total: Number(inv.total || 0),
       paymentStatus: "paid",
     });

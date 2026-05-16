@@ -27,9 +27,10 @@ interface Reservation {
   totalPrice: number;
   status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
   img: string;
-  subtotal: number;
   taxAmount: number;
-  address: string;
+  taxPercentage: number;
+  subtotal: number;
+  address?: string;
   phone?: string;
   isReviewed?: boolean;
   businessId?: string;
@@ -123,6 +124,7 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
     img: b.service?.imageUrl || b.business?.bannerUrl || b.business?.logoUrl || PLACEHOLDER_IMAGE_DATA_URI,
     subtotal,
     taxAmount,
+    taxPercentage: b.business?.taxPercentage || 0,
     isReviewed: items.every(i => i.isReviewed),
     address: b.business?.address || "",
     phone: b.business?.phone,

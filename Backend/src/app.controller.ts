@@ -1764,6 +1764,7 @@ export class AppController {
         date: new Date(body.date),
         status: body.status,
         price: body.price,
+        taxAmount: (body.price * (await this.prisma.business.findUnique({ where: { id } }))?.taxPercentage || 0) / 100,
         serviceId: svcId,
         staffId: stId,
       },
@@ -1808,7 +1809,7 @@ export class AppController {
       data: {
         bookingId: payableBookings[0].id,
         businessId: id,
-        amount: totalAmount,
+        amount: totalAmount + totalTax,
         taxAmount: totalTax,
         status: 'Completed',
         paymentMethod: method,
@@ -2503,7 +2504,7 @@ export class AppController {
       data: {
         bookingId: payableBookings[0].id,          // anchor to first booking id
         businessId,
-        amount: totalAmount,
+        amount: totalAmount + totalTax,
         taxAmount: totalTax,
         status: 'Completed',
         paymentMethod: method,
