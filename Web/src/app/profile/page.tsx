@@ -494,7 +494,7 @@ function ProfileContent() {
         : [{ name: "Services", quantity: 1, price: Number(inv.subtotal || inv.total || 0) }],
       subtotal: Number(inv.subtotal || 0),
       taxAmount: Number(inv.taxAmount || 0),
-      taxPercentage: Number(inv.taxPercentage || 7),
+      taxPercentage: inv.taxPercentage ?? 7,
       total: Number(inv.total || 0),
       paymentMethod: inv.paymentMethod || "Online",
       paymentStatus: "paid",
