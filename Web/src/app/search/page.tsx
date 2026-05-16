@@ -391,6 +391,9 @@ function SearchContent() {
                                         <div className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-1.5 rounded-full border border-slate-100 tracking-tight max-w-full">
                                             {res.locationLabel} • {res.distanceLabel}
                                         </div>
+                                        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border tracking-tight ${res.nextAvailable?.includes('Today') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-[#ff5a5f]/5 text-[#ff5a5f] border-[#ff5a5f]/10'}`}>
+                                            <Clock className="w-3.5 h-3.5" /> Next: {res.nextAvailable || '—'}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center mt-8 pt-6 border-t border-slate-50">
@@ -442,6 +445,10 @@ function SearchContent() {
                             <div className="p-8 flex flex-col flex-1">
                                 <p className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-widest mb-2">{res.category}</p>
                                 <h3 className="text-xl font-black text-slate-900 leading-tight mb-4 group-hover:text-[#ff5a5f] transition-colors line-clamp-2">{res.name}</h3>
+                                
+                                <div className={`mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl w-fit ${res.nextAvailable?.includes('Today') ? 'bg-green-50 text-green-600' : 'bg-[#ff5a5f]/5 text-[#ff5a5f]'}`}>
+                                    <Clock size={12} /> Next: {res.nextAvailable || '—'}
+                                </div>
                                 
                                 <div className="mt-auto flex justify-between items-center pt-6 border-t border-slate-50">
                                     <span className="font-black text-2xl text-slate-900">${res.price.toFixed(2)}</span>

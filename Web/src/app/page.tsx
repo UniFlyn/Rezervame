@@ -13,6 +13,7 @@ import {
   type PublicCategory,
   type SearchVenueRow,
 } from "../lib/venueSearch";
+import { Clock } from "lucide-react";
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -67,6 +68,7 @@ export default function Home() {
           rating: v.rating,
           durationMin: v.serviceDurationMinutes || 0,
           imgSrc: businessBannerHeroSrc(v),
+          nextAvailable: v.nextAvailable,
         }));
     },
     [venues],
@@ -90,6 +92,7 @@ export default function Home() {
       rating: v.rating,
       durationMin: v.serviceDurationMinutes || 0,
       imgSrc: venueCardImageSrc(v),
+      nextAvailable: v.nextAvailable,
     }));
   }, [venues]);
 
@@ -111,6 +114,7 @@ export default function Home() {
           p: `$${v.price.toFixed(2)}`,
           id: v.businessId,
           location: v.locationLabel,
+          nextAvailable: v.nextAvailable,
           imgSrc: businessListingImageSrc(v),
         }));
     },
@@ -355,11 +359,16 @@ export default function Home() {
                   <h4 className="line-clamp-2 px-0.5 text-[15px] font-extrabold leading-snug text-slate-900 group-hover:text-[#ff5a5f]">
                     {row.serviceName}
                   </h4>
-                  <div className="mt-2 flex items-center justify-between px-0.5 text-[13px]">
-                    <span className="font-black text-slate-900">${row.price.toFixed(2)}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      {row.durationMin > 0 ? `${row.durationMin} ${t("min")}` : `— ${t("min")}`}
-                    </span>
+                  <div className="mt-3 flex items-start justify-between px-0.5">
+                    <span className="font-black text-slate-900 text-lg">${row.price.toFixed(2)}</span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                        {row.durationMin > 0 ? `${row.durationMin} ${t("min")}` : `— ${t("min")}`}
+                      </span>
+                      <div className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-wide ${row.nextAvailable?.includes('Today') ? 'text-green-600' : 'text-[#ff5a5f]'}`}>
+                        <Clock size={10} className="shrink-0" /> Next: {row.nextAvailable || '—'}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))
@@ -420,7 +429,7 @@ export default function Home() {
                     <div className="flex justify-between items-center mb-4">
                       <span className="flex flex-col xs:flex-row xs:items-center text-slate-500 font-semibold text-[10px] leading-tight max-w-[55%]">
                          <div className="flex items-center mb-0.5 xs:mb-0"><svg className="w-[14px] h-[14px] mr-1 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {t('nextAppt')}</div> 
-                         —
+                         {biz.nextAvailable || "—"}
                       </span>
                       <span className="font-black text-slate-900 text-[16px] tracking-tight">{biz.p}</span>
                     </div>

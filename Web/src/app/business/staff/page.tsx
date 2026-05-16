@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useStaffStore, type Staff } from '../../../store/staffStore';
 import { useBusinessStore } from '../../../store/businessStore';
 import { apiGet } from '@/lib/api';
-import { Plus, Edit, Trash2, X, Clock, LayoutGrid, List, Camera } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Clock, LayoutGrid, List, Camera, Menu, LayoutDashboard, Settings, Calendar } from 'lucide-react';
 import { Pagination } from '@/components/ui/pagination';
 import { BusinessFilterToolbar } from '../../../components/business/BusinessFilterToolbar';
 import { StaffAvailabilityPicker } from '../../../components/business/StaffAvailabilityPicker';
@@ -12,7 +13,7 @@ import { formatAvailabilityDisplay, serializeWeekly, staffPhotoSrc } from '@/lib
 import clsx from 'clsx';
 import { toastError, toastSuccess, toastWarning } from '@/lib/toast';
 
-type Draft = { name: string; role: string; availability: string; image: string; serviceIds: string[] };
+type Draft = { name: string; role: string; availability: string; image: string; serviceIds: string[]; bio: string; experienceYears: number };
 /** Default Mon–Fri weekly pattern (JSON) so create passes API validation. */
 const emptyDraft: Draft = {
   name: '',
@@ -20,6 +21,8 @@ const emptyDraft: Draft = {
   availability: serializeWeekly([1, 2, 3, 4, 5]),
   image: '',
   serviceIds: [],
+  bio: '',
+  experienceYears: 0,
 };
 
 export default function StaffPage() {
@@ -95,6 +98,8 @@ export default function StaffPage() {
       availability: member.availability,
       image: member.image || '',
       serviceIds: Array.isArray(member.serviceIds) ? [...member.serviceIds] : [],
+      bio: member.bio || '',
+      experienceYears: member.experienceYears || 0,
     });
     setIsModalOpen(true);
   };
@@ -131,6 +136,8 @@ export default function StaffPage() {
           image: draft.image.trim() ? draft.image : null,
           skills: existing?.skills ?? [],
           serviceIds: draft.serviceIds,
+          bio: draft.bio,
+          experienceYears: draft.experienceYears,
         });
         setMessage({ type: 'success', text: 'Staff member updated.' });
         toastSuccess('Staff member updated');
@@ -142,7 +149,9 @@ export default function StaffPage() {
           ...(draft.image.trim() ? { image: draft.image } : {}),
           skills: [],
           serviceIds: draft.serviceIds,
-        });
+          bio: draft.bio,
+          experienceYears: draft.experienceYears,
+        } as any);
         setMessage({ type: 'success', text: 'Staff member created.' });
         toastSuccess('Staff member created');
       }
@@ -169,9 +178,12 @@ export default function StaffPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-3xl font-black uppercase tracking-tight text-gray-900">Staff management</h2>
+    <div className="space-y-6 pb-10">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-2xl font-black uppercase tracking-tight text-gray-900 md:text-3xl">Staff management</h2>
+          <p className="mt-0.5 text-sm text-slate-500 font-medium">Manage your team members and their schedules.</p>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex rounded-2xl bg-slate-100 p-1.5">
             <button type="button" onClick={() => setViewMode('grid')} className={clsx('flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all', viewMode === 'grid' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400')}>
@@ -248,6 +260,8 @@ export default function StaffPage() {
               <div className="space-y-6">
                 <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Full name</label><input type="text" required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
                 <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Role / specialty</label><input type="text" required value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
+                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Years of Experience</label><input type="number" value={draft.experienceYears} onChange={(e) => setDraft({ ...draft, experienceYears: parseInt(e.target.value) || 0 })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
+                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Professional Bio</label><textarea rows={3} value={draft.bio} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} placeholder="Tell us about their background..." className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
                 <div>
                   <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
                     Availability

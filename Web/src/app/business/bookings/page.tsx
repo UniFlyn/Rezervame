@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   Clock,
   Eye,
@@ -18,6 +19,10 @@ import {
   Scissors,
   Search,
   Filter,
+  Menu,
+  LayoutDashboard,
+  Settings,
+  Users,
 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch } from '@/lib/api';
 import { useBusinessStore } from '../../../store/businessStore';
@@ -49,7 +54,6 @@ export default function BusinessBookingsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -86,26 +90,7 @@ export default function BusinessBookingsPage() {
     return () => clearTimeout(debounceTimer);
   }, [page, searchTerm, filterStatus, business]);
 
-  useEffect(() => {
-    setPage(1);
   }, [searchTerm, filterStatus]);
-
-  async function updateStatus(bookingId: string, newStatus: string) {
-    setUpdatingId(bookingId);
-    try {
-      const result = await apiPatch<any>(`/bookings/${bookingId}`, { status: newStatus }, 'BUSINESS');
-      setBookingsData((prev) =>
-        prev.map((b) => (b.id === bookingId ? { ...b, status: result.status } : b)),
-      );
-      if (selectedBooking?.id === bookingId) {
-        setSelectedBooking((prev: any) => prev ? { ...prev, status: result.status } : null);
-      }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update status");
-    } finally {
-      setUpdatingId(null);
-    }
-  }
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -118,10 +103,16 @@ export default function BusinessBookingsPage() {
   };
 
   return (
-    <div className="p-8 space-y-8 animate-in fade-in duration-700">
-      <div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Booking Management</h1>
-        <p className="text-slate-500 text-sm font-medium mt-1">Flat list of all your appointments. Use filters to find specific bookings.</p>
+    <div className="space-y-6 pb-10">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-3xl uppercase">
+            Booking Management
+          </h1>
+          <p className="mt-0.5 text-sm text-slate-500 font-medium">
+            Flat list of all your appointments. Use filters to find specific bookings.
+          </p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -297,40 +288,11 @@ export default function BusinessBookingsPage() {
                 </div>
               </div>
 
-              {/* Status Flow */}
-              <div className="pt-8 border-t border-slate-100 flex gap-2">
-                {selectedBooking.status === 'Pending' && (
-                  <>
-                    <button
-                      onClick={() => updateStatus(selectedBooking.id, 'Approved')}
-                      className="flex-1 bg-emerald-600 text-white font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => updateStatus(selectedBooking.id, 'Rejected')}
-                      className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 transition"
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-                {(selectedBooking.status === 'Approved' || selectedBooking.status === 'Paid') && (
-                  <button
-                    onClick={() => updateStatus(selectedBooking.id, 'Completed')}
-                    className="flex-1 bg-primary text-white font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-primary/90 transition shadow-lg shadow-primary/20"
-                  >
-                    Mark as Completed
-                  </button>
-                )}
-                {selectedBooking.status !== 'Cancelled' && selectedBooking.status !== 'Completed' && (
-                   <button
-                    onClick={() => updateStatus(selectedBooking.id, 'Cancelled')}
-                    className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-slate-200 transition"
-                  >
-                    Cancel
-                  </button>
-                )}
+              {/* Archived Note */}
+              <div className="pt-8 border-t border-slate-100">
+                <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                  Historical Record • Read Only
+                </p>
               </div>
             </div>
           </div>

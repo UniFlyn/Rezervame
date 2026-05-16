@@ -90,6 +90,50 @@ function displayCategoryLabels(b: Business): string[] {
     : [legacy];
 }
 
+function tryParseDate(val?: string): Date | null {
+  if (!val || typeof val !== 'string' || val === 'undefined' || val === 'null' || !val.trim()) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getNextAvailableSlot(now: Date, bookings: any[], durationMin: number): string {
+  const startHour = 9;
+  const endHour = 18;
+  let current = new Date(now);
+  if (current.getHours() < startHour) {
+    current.setHours(startHour, 0, 0, 0);
+  }
+  for (let d = 0; d < 7; d++) {
+    const dayStart = new Date(current);
+    dayStart.setHours(startHour, 0, 0, 0);
+    const dayEnd = new Date(current);
+    dayEnd.setHours(endHour, 0, 0, 0);
+    let slot = new Date(Math.max(current.getTime(), dayStart.getTime()));
+    while (slot.getTime() + durationMin * 60000 <= dayEnd.getTime()) {
+      const isBooked = bookings.some(b => {
+        const bStart = new Date(b.date).getTime();
+        const bEnd = bStart + (b.service?.duration || 30) * 60000;
+        const sStart = slot.getTime();
+        const sEnd = sStart + durationMin * 60000;
+        return (sStart < bEnd && sEnd > bStart);
+      });
+      if (!isBooked) {
+        const today = new Date();
+        const isToday = slot.getDate() === today.getDate() && slot.getMonth() === today.getMonth();
+        const isTomorrow = slot.getDate() === (today.getDate() + 1) && slot.getMonth() === today.getMonth();
+        const timeStr = slot.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        if (isToday) return `Today, ${timeStr}`;
+        if (isTomorrow) return `Tomorrow, ${timeStr}`;
+        return slot.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + `, ${timeStr}`;
+      }
+      slot = new Date(slot.getTime() + 30 * 60000);
+    }
+    current.setDate(current.getDate() + 1);
+    current.setHours(startHour, 0, 0, 0);
+  }
+  return 'No slots';
+}
+
 /** Web business panel shape (Prisma uses address/email/phone). */
 function safeImageUrl(url: any): string | null {
   if (typeof url !== "string") return null;
@@ -1351,7 +1395,7 @@ export class AppController {
           })
         : [];
     const rv = await this.prisma.review.aggregate({
-      where: { businessId: id, businessRating: { not: null } },
+      where: { businessId: id },
       _avg: { businessRating: true },
       _count: true,
     });
@@ -1624,11 +1668,58 @@ export class AppController {
       }),
     ]);
 
+    // Gather stats for the staff members in the current page
+    const staffIds = staff.map(s => s.id);
+    const [reviewStats, clientStats] = await Promise.all([
+      this.prisma.review.groupBy({
+        by: ['staffId'],
+        where: { staffId: { in: staffIds } },
+        _avg: { staffRating: true, rating: true },
+        _count: { _all: true },
+      }),
+      this.prisma.booking.findMany({
+        where: { staffId: { in: staffIds }, userId: { not: { equals: '' } } },
+        select: { staffId: true, userId: true },
+        distinct: ['staffId', 'userId'],
+      }),
+    ]).catch(err => {
+      console.error('[getBusinessStaff] Stats fetch failed:', err);
+      return [[], []]; // Fallback to empty stats on error
+    });
+
+    const statsMap = new Map<string, { rating: number; reviews: number; clients: number }>();
+    staffIds.forEach(id => statsMap.set(id, { rating: 0, reviews: 0, clients: 0 }));
+    
+    reviewStats.forEach(rs => {
+      if (rs.staffId) {
+        // Use staffRating as primary, fallback to service rating
+        const avgRating = rs._avg.staffRating || rs._avg.rating || 0;
+        statsMap.set(rs.staffId, {
+          ...statsMap.get(rs.staffId)!,
+          rating: avgRating,
+          reviews: rs._count._all || 0,
+        });
+      }
+    });
+
+    clientStats.forEach(cs => {
+      if (cs.staffId) {
+        const current = statsMap.get(cs.staffId)!;
+        statsMap.set(cs.staffId, { ...current, clients: current.clients + 1 });
+      }
+    });
+
     return {
-      data: staff.map(s => ({
-        ...s,
-        image: safeImageUrl(s.image)
-      })),
+      data: staff.map(s => {
+        const stats = statsMap.get(s.id)!;
+        return {
+          ...s,
+          image: safeImageUrl(s.image),
+          rating: Number(stats.rating.toFixed(1)),
+          reviews: stats.reviews,
+          clients: stats.clients,
+        };
+      }),
       total,
       page: p,
       limit: l,
@@ -1652,6 +1743,8 @@ export class AppController {
         serviceIds: body.serviceIds ?? [],
         availability: body.availability,
         image: body.image ?? undefined,
+        bio: body.bio ?? null,
+        experienceYears: body.experienceYears ?? 0,
       },
     });
   }
@@ -1674,6 +1767,8 @@ export class AppController {
         ...(body.serviceIds !== undefined ? { serviceIds: body.serviceIds } : {}),
         ...(body.availability !== undefined ? { availability: body.availability } : {}),
         ...(body.image !== undefined ? { image: body.image && String(body.image).trim() ? body.image : null } : {}),
+        ...(body.bio !== undefined ? { bio: body.bio } : {}),
+        ...(body.experienceYears !== undefined ? { experienceYears: body.experienceYears } : {}),
       },
     });
   }
@@ -1702,49 +1797,60 @@ export class AppController {
     @Query('endDate') endDate?: string,
     @Headers('authorization') authorization?: string,
   ) {
-    await requireBusinessOwner(this.prisma, authorization, id);
-    const p = Math.max(1, parseInt(page));
-    const l = Math.max(1, parseInt(limit));
-    
-    const where: any = { businessId: id };
-    if (status && status !== 'all') where.status = status;
-    if (staffId && staffId !== 'all') where.staffId = staffId;
-    
-    if (search) {
-      where.OR = [
-        { customerName: { contains: search, mode: 'insensitive' } },
-        { user: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
-
-    if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        where.date.lte = end;
+    try {
+      await requireBusinessOwner(this.prisma, authorization, id);
+      const p = Math.max(1, parseInt(page));
+      const l = Math.max(1, parseInt(limit));
+      
+      const where: any = { businessId: id };
+      if (status && status !== 'all') where.status = status;
+      if (staffId && staffId !== 'all') where.staffId = staffId;
+      
+      if (search && search.trim()) {
+        where.OR = [
+          { customerName: { contains: search, mode: 'insensitive' } },
+          { user: { name: { contains: search, mode: 'insensitive' } } },
+        ];
       }
+
+      const start = tryParseDate(startDate);
+      const end = tryParseDate(endDate);
+
+      if (start || end) {
+        where.date = {};
+        if (start) where.date.gte = start;
+        if (end) {
+          const e = new Date(end);
+          e.setHours(23, 59, 59, 999);
+          where.date.lte = e;
+        }
+      }
+
+      const [total, bookings] = await Promise.all([
+        this.prisma.booking.count({ where }),
+        this.prisma.booking.findMany({
+          where,
+          include: { service: true, staff: true, user: true, transaction: true },
+          orderBy: { date: 'desc' },
+          skip: (p - 1) * l,
+          take: l,
+        }),
+      ]);
+
+      return {
+        data: bookings,
+        total,
+        page: p,
+        limit: l,
+        totalPages: Math.ceil(total / l),
+      };
+    } catch (err) {
+      console.error(`[getBusinessBookings] Failed for business ${id}:`, err);
+      if (err instanceof ForbiddenException || err instanceof BadRequestException || err instanceof NotFoundException) {
+        throw err;
+      }
+      throw new BadRequestException(err instanceof Error ? err.message : 'Failed to fetch bookings');
     }
-
-    const [total, bookings] = await Promise.all([
-      this.prisma.booking.count({ where }),
-      this.prisma.booking.findMany({
-        where,
-        include: { service: true, staff: true, user: true, transaction: true },
-        orderBy: { date: 'desc' },
-        skip: (p - 1) * l,
-        take: l,
-      }),
-    ]);
-
-    return {
-      data: bookings,
-      total,
-      page: p,
-      limit: l,
-      totalPages: Math.ceil(total / l),
-    };
   }
 
   @Post('business/:id/bookings')
@@ -1804,12 +1910,6 @@ export class AppController {
     const serviceNames = payableBookings.map((b) => b.service?.name || 'Service').join(', ');
     const method = body.paymentMethod || 'Cash';
 
-    // Mark all as Completed
-    await this.prisma.booking.updateMany({
-      where: { id: { in: payableBookings.map(b => b.id) } },
-      data: { status: 'Paid' },
-    });
-
     const transaction = await this.prisma.transaction.create({
       data: {
         bookingId: payableBookings[0].id,
@@ -1826,6 +1926,13 @@ export class AppController {
         }
       },
     });
+
+    // Mark all as Paid
+    await this.prisma.booking.updateMany({
+      where: { id: { in: payableBookings.map(b => b.id) } },
+      data: { status: 'Paid', transactionId: transaction.id },
+    });
+
 
     await this.prisma.business.update({
       where: { id },
@@ -1944,7 +2051,7 @@ export class AppController {
         comment: body.comment,
         serviceName: booking.service?.name || 'Service',
         staffName: booking.staff?.name || 'Staff',
-        status: 'Pending',
+        status: 'Approved',
       },
     });
 
@@ -1995,7 +2102,7 @@ export class AppController {
           comment: i === 0 ? body.comment : (s.comment || ''),
           serviceName: booking.service?.name || 'Service',
           staffName: booking.staff?.name || 'Staff',
-          status: 'Pending',
+          status: 'Approved',
         },
       });
 
@@ -2505,8 +2612,9 @@ export class AppController {
     // Mark as Paid
     await this.prisma.booking.updateMany({
       where: { id: { in: payableBookings.map(b => b.id) } },
-      data: { status: 'Paid' },
+      data: { status: 'Paid', transactionId: transaction.id },
     });
+
 
     return { ok: true, transactionId: transaction.id, total: totalAmount };
   }
@@ -2767,7 +2875,7 @@ export class AppController {
     }
 
     const bizIds = [...new Set(allServices.map((s) => s.businessId))];
-    const [bookingCounts, reviewStats] = await Promise.all([
+    const [bookingCounts, reviewStats, futureBookings] = await Promise.all([
       this.prisma.booking.groupBy({
         by: ['businessId'],
         where: { businessId: { in: bizIds } },
@@ -2775,9 +2883,13 @@ export class AppController {
       }),
       this.prisma.review.groupBy({
         by: ['businessId'],
-        where: { businessId: { in: bizIds }, businessRating: { not: null } },
+        where: { businessId: { in: bizIds } },
         _avg: { businessRating: true },
         _count: { _all: true },
+      }),
+      this.prisma.booking.findMany({
+        where: { businessId: { in: bizIds }, date: { gte: new Date() } },
+        include: { service: true }
       }),
     ]);
 
@@ -2789,6 +2901,12 @@ export class AppController {
         { avg: r._avg.businessRating ?? 0, n: r._count._all },
       ]),
     );
+
+    const bizBookings = new Map<string, any[]>();
+    futureBookings.forEach(b => {
+      if (!bizBookings.has(b.businessId)) bizBookings.set(b.businessId, []);
+      bizBookings.get(b.businessId)!.push(b);
+    });
 
     const data = allServices.map((svc, index) => {
       const b = svc.business;
@@ -2813,6 +2931,8 @@ export class AppController {
       const bizLng = b.longitude ?? null;
       const distanceLabel = distanceLabelBetween(geo.lat, geo.lng, bizLat, bizLng);
 
+      const nextAvailable = getNextAvailableSlot(new Date(), bizBookings.get(b.id) || [], svc.duration || 30);
+
       return {
         id: (p - 1) * l + index + 1,
         businessId: b.id,
@@ -2834,6 +2954,7 @@ export class AppController {
         amenityKeys: keys,
         amenityLabelsEn,
         amenityLabelsEs,
+        nextAvailable,
       };
     });
 
@@ -2955,6 +3076,7 @@ export class AppController {
       idDocumentImage?: string;
       licenseDocumentImage?: string;
       insuranceDocumentImage?: string;
+      password?: string;
     },
   ) {
     const name = (body.name || '').trim();
@@ -2963,6 +3085,7 @@ export class AppController {
     const email = (body.email || '').trim().toLowerCase();
     const phone = (body.phone || '').trim();
     const address = (body.address || '').trim();
+    const password = (body.password || '').trim();
     const categories = Array.isArray(body.categories) ? body.categories.filter(Boolean) : [];
     const services = Array.isArray(body.services) ? body.services : [];
     const idDocumentImage = String(body.idDocumentImage || '').trim();
@@ -2986,43 +3109,63 @@ export class AppController {
     if (existing) throw new BadRequestException('business already exists for this email');
 
     const merchantNumber = await allocateMerchantNumber(this.prisma);
-    const created = await this.prisma.business.create({
-      data: {
-        merchantNumber,
-        name,
-        owner,
-        email,
-        phone,
-        address,
-        categoryKeys: categories,
-        description: `Categories: ${categories.join(', ')}`,
-        taxId,
-        status: 'pending',
-        idVerified: false,
-        licenseVerified: false,
-        insuranceVerified: false,
-        idDocumentImage,
-        licenseDocumentImage,
-        insuranceDocumentImage,
-        services: {
-          create: services.map((s) => ({
-            name: (s.name || '').trim() || 'Service',
-            price: Number(s.price) || 0,
-            duration: Number(s.duration) || 30,
-            category: (s.category || categories[0] || 'general').toString(),
-          })),
+    
+    // Create Business and User in a transaction
+    const created = await this.prisma.$transaction(async (tx) => {
+      // Create User first if it doesn't exist
+      const existingUser = await tx.user.findUnique({ where: { email } });
+      if (!existingUser && password) {
+        await tx.user.create({
+          data: {
+            email,
+            password,
+            name: owner,
+            role: Role.BUSINESS,
+          },
+        });
+      }
+
+      const biz = await tx.business.create({
+        data: {
+          merchantNumber,
+          name,
+          owner,
+          email,
+          phone,
+          address,
+          categoryKeys: categories,
+          description: `Categories: ${categories.join(', ')}`,
+          taxId,
+          status: 'pending',
+          idVerified: false,
+          licenseVerified: false,
+          insuranceVerified: false,
+          idDocumentImage,
+          licenseDocumentImage,
+          insuranceDocumentImage,
+          services: {
+            create: services.map((s) => ({
+              name: (s.name || '').trim() || 'Service',
+              price: Number(s.price) || 0,
+              duration: Number(s.duration) || 30,
+              category: (s.category || categories[0] || 'general').toString(),
+            })),
+          },
         },
-      },
-      include: { services: true },
-    });
-    await this.prisma.businessStatusHistory.create({
-      data: {
-        businessId: created.id,
-        fromStatus: null,
-        toStatus: created.status,
-        reason: 'Created from public business join form',
-        actorName: 'System',
-      },
+        include: { services: true },
+      });
+
+      await tx.businessStatusHistory.create({
+        data: {
+          businessId: biz.id,
+          fromStatus: null,
+          toStatus: biz.status,
+          reason: 'Created from public business join form',
+          actorName: 'System',
+        },
+      });
+
+      return biz;
     });
 
     return {

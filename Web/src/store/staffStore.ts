@@ -11,6 +11,11 @@ export interface Staff {
   serviceIds?: string[];
   availability: string;
   image?: string | null;
+  bio?: string | null;
+  experienceYears?: number;
+  rating?: number;
+  reviews?: number;
+  clients?: number;
 }
 
 export type StaffCreatePayload = Pick<Staff, 'name' | 'role' | 'skills' | 'availability'> & {

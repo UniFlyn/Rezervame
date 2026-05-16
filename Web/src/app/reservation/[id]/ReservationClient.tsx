@@ -415,20 +415,12 @@ export default function ReservationClient() {
                                     {language === "en" ? "Cancel" : "Cancelar"}
                                  </button>
                                )}
-                               {item.status === 'completed' && !item.isReviewed && (
-                                  <button 
-                                    onClick={() => handleOpenRateModal(item.id)}
-                                    className="bg-primary hover:bg-primary/90 text-white font-black px-5 py-2.5 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 transition"
-                                  >
-                                     {language === "en" ? "Rate" : "Calificar"}
-                                  </button>
-                                )}
-                                {item.status === 'completed' && item.isReviewed && (
-                                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
-                                     <CheckCircle2 size={12} />
-                                     {language === "en" ? "Reviewed" : "Calificado"}
-                                  </span>
-                                )}
+                                 {item.status === 'completed' && item.isReviewed && (
+                                   <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
+                                      <CheckCircle2 size={12} />
+                                      {language === "en" ? "Reviewed" : "Calificado"}
+                                   </span>
+                                 )}
                             </div>
                          </div>
                        ))}
@@ -491,21 +483,36 @@ export default function ReservationClient() {
                 )}
 
                 {paymentView === "none" && res.status === "paid" && (
-                  <div className="mt-8 space-y-4">
-                     <div className="p-4 bg-cyan-50 border border-cyan-100 rounded-2xl">
-                        <p className="text-[10px] font-black text-cyan-800 uppercase tracking-widest mb-1">{language === "en" ? "Payment Confirmed" : "Pago Confirmado"}</p>
-                        <p className="text-cyan-700 text-[10px] font-medium">{language === "en" ? "Your appointment is ready. Mark as completed after the service." : "Tu cita está lista. Márcala como completada después del servicio."}</p>
-                     </div>
-                     <button 
-                       onClick={handleMarkCompletedGroup}
-                       disabled={payingLoading}
-                       className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
-                     >
-                       {payingLoading && <Loader2 className="animate-spin" size={16} />}
-                       {language === "en" ? "Mark as Completed" : "Marcar como Completado"}
-                     </button>
-                  </div>
-                )}
+                   <div className="mt-8 space-y-4">
+                      <div className="p-4 bg-cyan-50 border border-cyan-100 rounded-2xl">
+                         <p className="text-[10px] font-black text-cyan-800 uppercase tracking-widest mb-1">{language === "en" ? "Payment Confirmed" : "Pago Confirmado"}</p>
+                         <p className="text-cyan-700 text-[10px] font-medium">{language === "en" ? "Your appointment is ready. Mark as completed after the service." : "Tu cita está lista. Márcala como completada después del servicio."}</p>
+                      </div>
+                      <button 
+                        onClick={handleMarkCompletedGroup}
+                        disabled={payingLoading}
+                        className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
+                      >
+                        {payingLoading && <Loader2 className="animate-spin" size={16} />}
+                        {language === "en" ? "Mark as Completed" : "Marcar como Completado"}
+                      </button>
+                   </div>
+                 )}
+
+                 {res.status === "completed" && !res.isReviewed && (
+                   <div className="mt-8 space-y-4">
+                      <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                         <p className="text-[10px] font-black text-blue-800 uppercase tracking-widest mb-1">{language === "en" ? "Service Completed" : "Servicio Completado"}</p>
+                         <p className="text-blue-700 text-[10px] font-medium text-center">{language === "en" ? "How was your experience today?" : "¿Cómo fue tu experiencia hoy?"}</p>
+                      </div>
+                      <button 
+                        onClick={() => handleOpenRateModal(res.items[0]?.id || "")}
+                        className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all transform active:scale-95"
+                      >
+                        {language === "en" ? "Rate Experience" : "Calificar Experiencia"}
+                      </button>
+                   </div>
+                 )}
 
                 {paymentView === "none" && res.status === "pending" && (
                    <div className="mt-8 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">

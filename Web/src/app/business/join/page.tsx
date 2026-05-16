@@ -58,6 +58,8 @@ export default function BusinessJoinPage() {
   const [idDocumentImage, setIdDocumentImage] = useState("");
   const [licenseDocumentImage, setLicenseDocumentImage] = useState("");
   const [insuranceDocumentImage, setInsuranceDocumentImage] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const tx = language === "es"
     ? {
@@ -121,6 +123,9 @@ export default function BusinessJoinPage() {
         insuranceDoc: "Copia de seguro",
         uploadFile: "Subir imagen",
         valStep2: "Completa dueño, teléfono y correo electrónico válido.",
+        passwordLabel: "Contraseña",
+        confirmPasswordLabel: "Confirmar Contraseña",
+        valStep2Password: "Las contraseñas deben coincidir y tener al menos 6 caracteres.",
         valStep3: "Completa la dirección del negocio.",
         valStep4: "Agrega al menos un servicio válido.",
         valStep5: "Debes aceptar términos y privacidad para continuar.",
@@ -186,6 +191,9 @@ export default function BusinessJoinPage() {
         insuranceDoc: "Insurance copy",
         uploadFile: "Upload image",
         valStep2: "Fill owner, phone, and valid email.",
+        passwordLabel: "Password",
+        confirmPasswordLabel: "Confirm Password",
+        valStep2Password: "Passwords must match and be at least 6 characters.",
         valStep3: "Fill business address.",
         valStep4: "Add at least one valid service.",
         valStep5: "Accept terms and privacy to continue.",
@@ -255,9 +263,11 @@ export default function BusinessJoinPage() {
     }
     if (step === 2) {
       const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(businessEmail.trim());
-      if (!ownerName.trim() || !businessPhone.trim() || !validEmail) {
-        setStepError(tx.valStep2);
-        toastWarning("Validation", tx.valStep2);
+      const passValid = password.length >= 6 && password === confirmPassword;
+      if (!ownerName.trim() || !businessPhone.trim() || !validEmail || !passValid) {
+        const err = !passValid ? tx.valStep2Password : tx.valStep2;
+        setStepError(err);
+        toastWarning("Validation", err);
         return;
       }
     }
@@ -307,6 +317,7 @@ export default function BusinessJoinPage() {
         idDocumentImage,
         licenseDocumentImage,
         insuranceDocumentImage,
+        password,
         services: services
           .filter((s) => s.name.trim() && Number(s.duration) > 0)
           .map((s) => ({
@@ -681,6 +692,23 @@ export default function BusinessJoinPage() {
                                   <div className="relative">
                                     <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
                                     <input value={businessEmail} onChange={(e) => setBusinessEmail(e.target.value)} type="email" placeholder={tx.emailPh} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
+                                  </div>
+                               </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                               <div className="space-y-4">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.passwordLabel}</label>
+                                  <div className="relative">
+                                    <ShieldCheck className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
+                                    <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
+                                  </div>
+                               </div>
+                               <div className="space-y-4">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.confirmPasswordLabel}</label>
+                                  <div className="relative">
+                                    <ShieldCheck className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
+                                    <input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} type="password" placeholder="••••••••" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
                                   </div>
                                </div>
                             </div>

@@ -1,6 +1,6 @@
 import { PLACEHOLDER_IMAGE_DATA_URI } from "./placeholderImage";
 
-const API_BASE = 'https://rezervame-backend.onrender.com/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
 
 export type ApiVenue = {
   id: number;
@@ -24,6 +24,7 @@ export type ApiVenue = {
   amenityKeys?: string[];
   amenityLabelsEn?: string[];
   amenityLabelsEs?: string[];
+  nextAvailable?: string;
 };
 
 /** UI row for search / map (derived from [ApiVenue]). */
@@ -48,6 +49,7 @@ export type SearchVenueRow = {
   imageUrl?: string | null;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  nextAvailable?: string;
 };
 
 const ES_CATEGORY: Record<string, string> = {
@@ -83,31 +85,49 @@ function isUsableImageUrl(u: string): boolean {
   return t.startsWith("http") || t.startsWith("data:") || t.startsWith("/");
 }
 
-export function venueCardImageSrc(row: Pick<SearchVenueRow, "img" | "imageUrl">): string {
-  const u = (row.imageUrl || "").trim();
-  if (isUsableImageUrl(u)) return u;
+export function venueCardImageSrc(row: Pick<SearchVenueRow, "img" | "imageUrl" | "bannerUrl" | "logoUrl">): string {
+  const serviceImg = (row.imageUrl || "").trim();
+  if (isUsableImageUrl(serviceImg)) return serviceImg;
+
+  const banner = (row.bannerUrl || "").trim();
+  if (isUsableImageUrl(banner)) return banner;
+
+  const logo = (row.logoUrl || "").trim();
+  if (isUsableImageUrl(logo)) return logo;
+
   const raw = (row.img || "").trim().replace(/^photo-/, "");
   if (!raw) return PLACEHOLDER_IMAGE_DATA_URI;
   return `https://images.unsplash.com/photo-${raw}?q=80&w=800&fit=crop`;
 }
 
-/** Venue listings and home cards: prefer business banner, then logo, then service photo / fallback. */
+/** Venue listings and home cards: prefer service image, then business banner, then logo. */
 export function businessListingImageSrc(row: SearchVenueRow): string {
+  const serviceImg = (row.imageUrl || "").trim();
+  if (isUsableImageUrl(serviceImg)) return serviceImg;
+
   const banner = (row.bannerUrl || "").trim();
   if (isUsableImageUrl(banner)) return banner;
+
   const logo = (row.logoUrl || "").trim();
   if (isUsableImageUrl(logo)) return logo;
+
   return venueCardImageSrc(row);
 }
 
-/** Featured / hero tiles: business banner or logo only — never the service thumbnail (`imageUrl`). */
+/** Featured / hero tiles: prefer service image, then business banner or logo. */
 export function businessBannerHeroSrc(row: SearchVenueRow): string {
+  const serviceImg = (row.imageUrl || "").trim();
+  if (isUsableImageUrl(serviceImg)) return serviceImg;
+
   const banner = (row.bannerUrl || "").trim();
   if (isUsableImageUrl(banner)) return banner;
+
   const logo = (row.logoUrl || "").trim();
   if (isUsableImageUrl(logo)) return logo;
+
   const raw = (row.img || "").trim().replace(/^photo-/, "");
   if (raw) return `https://images.unsplash.com/photo-${raw}?q=80&w=800&fit=crop`;
+
   return PLACEHOLDER_IMAGE_DATA_URI;
 }
 
@@ -135,6 +155,7 @@ export function mapApiVenueToRow(v: ApiVenue, lang: "en" | "es" = "en"): SearchV
     imageUrl: v.imageUrl ?? null,
     bannerUrl: v.bannerUrl ?? null,
     logoUrl: v.logoUrl ?? null,
+    nextAvailable: v.nextAvailable,
   };
 }
 

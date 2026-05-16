@@ -214,6 +214,8 @@ model Staff {
   serviceIds   String[]  @default([])
   availability String
   image        String?
+  bio          String?
+  experienceYears Int @default(0)
   businessId   String
   business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   bookings     Booking[]

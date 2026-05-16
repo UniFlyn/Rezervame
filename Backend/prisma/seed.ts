@@ -19,6 +19,11 @@ async function main() {
     update: {},
     create: { name: 'Studio Owner', email: 'studio@rezervame.com', password: 'password', role: Role.BUSINESS },
   });
+  const businessUser3 = await prisma.user.upsert({
+    where: { email: 'spa@rezervame.com' },
+    update: {},
+    create: { name: 'Serenity Owner', email: 'spa@rezervame.com', password: 'password', role: Role.BUSINESS },
+  });
   const customer = await prisma.user.upsert({
     where: { email: 'customer@rezervame.com' },
     update: {},
@@ -149,6 +154,52 @@ async function main() {
     });
   }
 
+  const serena = await prisma.business.upsert({
+    where: { email: 'spa@rezervame.com' },
+    update: {
+      amenityKeys: ['wifi', 'parking', 'ac', 'coffee', 'card_payment', 'water', 'shower'],
+      latitude: 8.9833,
+      longitude: -79.5167,
+      bannerUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?q=80&w=1600&fit=crop',
+    },
+    create: {
+      merchantNumber: await allocateMerchantNumber(prisma),
+      name: 'Serenity Spa',
+      owner: 'Serena Smith',
+      email: 'spa@rezervame.com',
+      phone: '+507 888-9999',
+      address: 'Calle 50, Panama City, Panama',
+      description: 'Luxury spa treatments, massages, and wellness rituals.',
+      taxId: 'TAX-SPA-123',
+      categoryKeys: ['spaService'],
+      amenityKeys: ['wifi', 'parking', 'ac', 'coffee', 'card_payment', 'water', 'shower'],
+      status: 'active',
+      revenue: 55000,
+      balance: 8200,
+      latitude: 8.9833,
+      longitude: -79.5167,
+      bannerUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?q=80&w=1600&fit=crop',
+    },
+  });
+
+  let massage = await prisma.service.findFirst({
+    where: { businessId: serena.id, name: 'Deep Tissue Massage' },
+  });
+  if (!massage) {
+    massage = await prisma.service.create({
+      data: { name: 'Deep Tissue Massage', category: 'Spa', duration: 60, price: 85, businessId: serena.id, imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=600&fit=crop' },
+    });
+  }
+
+  let facial = await prisma.service.findFirst({
+    where: { businessId: serena.id, name: 'HydraFacial' },
+  });
+  if (!facial) {
+    facial = await prisma.service.create({
+      data: { name: 'HydraFacial', category: 'Spa', duration: 45, price: 120, businessId: serena.id, imageUrl: 'https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?q=80&w=600&fit=crop' },
+    });
+  }
+
   const txCount = await prisma.transaction.count({ where: { businessId: luxe.id } });
   if (txCount === 0) {
     await prisma.transaction.createMany({
@@ -156,6 +207,7 @@ async function main() {
         { businessId: luxe.id, amount: 45, status: 'completed', type: 'Earning' },
         { businessId: luxe.id, amount: 45, status: 'completed', type: 'Earning' },
         { businessId: urban.id, amount: 28, status: 'completed', type: 'Earning' },
+        { businessId: serena.id, amount: 85, status: 'completed', type: 'Earning' },
       ],
     });
   }

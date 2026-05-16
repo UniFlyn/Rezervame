@@ -25,4 +25,11 @@ export class CreateStaffDto {
   @IsOptional()
   @IsString()
   image?: string | null;
+
+  @IsOptional()
+  @IsString()
+  bio?: string | null;
+
+  @IsOptional()
+  experienceYears?: number;
 }

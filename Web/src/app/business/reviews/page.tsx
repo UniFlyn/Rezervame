@@ -70,8 +70,10 @@ export default function ReviewsPage() {
     setPage(1);
   }, [search, filterRating, filterStatus]);
 
-  const totalReviews = reviews.length;
-  const averageRating = totalReviews === 0 ? '0.0' : (reviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews).toFixed(1);
+  const totalReviews = Array.isArray(reviews) ? reviews.length : 0;
+  const averageRating = totalReviews === 0 
+    ? '0.0' 
+    : (reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / totalReviews).toFixed(1);
 
   const handleReply = async (id: string) => {
     if (!replyText.trim()) {

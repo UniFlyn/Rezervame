@@ -41,7 +41,14 @@ export const useReviewsStore = create<ReviewsState>()((set) => ({
   hydrate: async () => {
     const business = useBusinessStore.getState().business;
     if (!business) return;
-    const reviews = await apiGet<Review[]>(`/business/${business.id}/reviews`, 'BUSINESS');
-    set({ reviews });
+    try {
+      // Fetch a larger set for the overview stats (limit 100 for basic average)
+      const response = await apiGet<{ data: Review[] }>(`/business/${business.id}/reviews?limit=100`, 'BUSINESS');
+      const reviews = Array.isArray(response) ? response : (response?.data || []);
+      set({ reviews });
+    } catch (e) {
+      console.error("Failed to hydrate reviews", e);
+      set({ reviews: [] });
+    }
   },
 }));

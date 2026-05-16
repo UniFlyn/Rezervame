@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useBusinessStore } from '../../../store/businessStore';
 import clsx from 'clsx';
 import { toastError, toastSuccess } from '@/lib/toast';
+import { Menu, LayoutDashboard, Users, List, Calendar, Settings } from 'lucide-react';
 
 export default function SettingsPage() {
   const business = useBusinessStore((state) => state.business);
@@ -42,8 +44,13 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-10 pb-20">
-      <h2 className="text-3xl font-black tracking-tight text-gray-900 uppercase">Settings</h2>
+    <div className="mx-auto max-w-2xl space-y-8 pb-20">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight text-gray-900 md:text-3xl uppercase">Settings</h2>
+          <p className="mt-0.5 text-sm text-slate-500 font-medium">Manage your portal preferences and configurations.</p>
+        </div>
+      </div>
 
       {banner ? (
         <div

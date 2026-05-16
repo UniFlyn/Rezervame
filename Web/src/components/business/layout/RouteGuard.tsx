@@ -17,6 +17,7 @@ const MERCHANT_PANEL_SEGMENTS = new Set([
   'join',
   'login',
   'appointments',
+  'bookings',
   'services',
   'settings',
   'profile',

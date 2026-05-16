@@ -322,12 +322,13 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         const staffList = Array.isArray(staff) ? staff : (staff as any)?.data || [];
         const revList = Array.isArray(reviews) ? reviews : (reviews as any)?.data || [];
 
+        const bizReviews = revList.filter((r: any) => r.businessRating !== null);
         const ratingAvg =
-          revList.length > 0
-            ? (revList as { rating?: number }[]).reduce(
-                (acc, r) => acc + Number(r.rating ?? 0),
+          bizReviews.length > 0
+            ? bizReviews.reduce(
+                (acc: number, r: any) => acc + Number(r.businessRating ?? 0),
                 0,
-              ) / revList.length
+              ) / bizReviews.length
             : 0;
 
         if (cancelled) return;
@@ -386,7 +387,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               description: row.category || "—",
               time: `${row.duration} min`,
               price: row.price,
-              image: row.imageUrl || null,
+              image: row.imageUrl || imgs[0] || null,
               tag: "all",
             };
           }),
@@ -406,12 +407,12 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               id: String(row.id),
               name: row.name,
               role: row.role,
-              rating: 0,
-              reviews: 0,
-              clients: "—",
-              years: "—",
+              rating: Number(row.rating) || 0,
+              reviews: Number(row.reviews) || 0,
+              clients: String(row.clients || "—"),
+              years: String(row.experienceYears || "—"),
               img: img || PLACEHOLDER_IMAGE_DATA_URI,
-              bio: Array.isArray(row.skills) && row.skills.length ? row.skills.join(", ") : "—",
+              bio: row.bio || (Array.isArray(row.skills) && row.skills.length ? row.skills.join(", ") : "—"),
               serviceIds: svcIds,
               availability: String(row.availability ?? ""),
             };
@@ -689,8 +690,13 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                     <div className="flex-1 min-w-0">
                                         <h4 className="text-base font-black text-slate-900 mb-1 group-hover:text-[#ff5a5f] transition-colors tracking-wide truncate">{s.name}</h4>
                                         <p className="text-slate-500 text-[11px] font-medium leading-snug mb-3 tracking-normal">{s.description}</p>
-                                        <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-wide">
-                                            <Clock size={13} className="text-[#ff5a5f] shrink-0" /> {s.time}
+                                        <div className="flex flex-col gap-1.5">
+                                          <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-wide">
+                                              <Clock size={13} className="text-slate-300 shrink-0" /> {s.time}
+                                          </div>
+                                          <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-wide">
+                                              <Clock size={13} className="text-[#ff5a5f] shrink-0" /> Next: —
+                                          </div>
                                         </div>
                                     </div>
                                 </div>
@@ -779,7 +785,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                     />
                                     <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/95 px-2.5 py-1 rounded-lg text-[11px] font-black text-slate-900 shadow-sm border border-slate-100">
                                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                        {member.rating}
+                                        {member.rating > 0 ? member.rating.toFixed(1) : "—"}
                                     </div>
                                 </div>
                                 <div className="p-5 text-left flex flex-col flex-1">
@@ -865,7 +871,9 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                         ))}
                                     </div>
                                 </div>
-                                <p className="text-slate-600 font-medium leading-relaxed italic border-l-4 border-[#ff5a5f]/20 pl-6">&ldquo;{rev.comment}&rdquo;</p>
+                                {rev.comment && rev.comment.trim() && (
+                                  <p className="text-slate-600 font-medium leading-relaxed italic border-l-4 border-[#ff5a5f]/20 pl-6">&ldquo;{rev.comment}&rdquo;</p>
+                                )}
                             </div>
                         ))
                         )}
