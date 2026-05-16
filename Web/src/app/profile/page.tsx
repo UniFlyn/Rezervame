@@ -57,8 +57,10 @@ interface Reservation {
     staffName?: string;
     status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
     isReviewed?: boolean;
+    transactionId?: string;
   }[];
-  businessId?: string;
+  businessId: string;
+  transactionId?: string;
 }
 
 function mapUserBookingGroup(
@@ -125,6 +127,7 @@ function mapUserBookingGroup(
         staffName: item.staff?.name || item.staffName,
         status,
         isReviewed: item.isReviewed || false,
+        transactionId: item.transactionId,
     };
   });
 
