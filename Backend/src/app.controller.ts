@@ -1836,6 +1836,7 @@ export class AppController {
     @Body() body: { bookingIds: string[] },
     @Headers('authorization') authorization?: string,
   ) {
+    console.log(`[bulkComplete] businessId=${id}, bookings=${body.bookingIds}`);
     await requireBusinessOwner(this.prisma, authorization, id);
     return await this.prisma.booking.updateMany({
       where: { id: { in: body.bookingIds }, businessId: id, status: 'Paid' },
@@ -1850,6 +1851,7 @@ export class AppController {
     @Body() body: { newDate: string },
     @Headers('authorization') authorization?: string,
   ) {
+    console.log(`[proposeReschedule] businessId=${id}, bookingId=${bookingId}, newDate=${body.newDate}`);
     await requireBusinessOwner(this.prisma, authorization, id);
     return await this.prisma.booking.update({
       where: { id: bookingId, businessId: id },
