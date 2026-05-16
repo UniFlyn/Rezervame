@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Query } from '@nestjs/common';
 import { requireBusinessOwner } from '../auth.helpers';
 import { PrismaService } from '../prisma.service';
 import { BusinessPanelService } from './business-panel.service';
@@ -40,5 +40,40 @@ export class BusinessPanelController {
   ) {
     await requireBusinessOwner(this.prisma, authorization, businessId);
     return this.panel.getCustomers(businessId, page, limit, search);
+  }
+
+  @Patch('bookings/bulk-complete')
+  async bulkCompleteBookings(
+    @Param('businessId') id: string,
+    @Body() body: { bookingIds: string[] },
+    @Headers('authorization') authorization?: string,
+  ) {
+    console.log(`[bulkComplete] businessId=${id}, bookings=${body.bookingIds}`);
+    await requireBusinessOwner(this.prisma, authorization, id);
+    return await this.prisma.booking.updateMany({
+      where: { 
+        id: { in: body.bookingIds }, 
+        businessId: id,
+        OR: [
+          { status: 'Paid' },
+          { transactionId: { not: null } }
+        ]
+      },
+      data: { status: 'Completed' },
+    });
+  }
+
+  @Patch('bookings/bulk-status')
+  async bulkUpdateBookingStatus(
+    @Param('businessId') id: string,
+    @Body() body: { bookingIds: string[]; status: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    console.log(`[bulkStatus] businessId=${id}, bookings=${body.bookingIds}, status=${body.status}`);
+    await requireBusinessOwner(this.prisma, authorization, id);
+    return await this.prisma.booking.updateMany({
+      where: { id: { in: body.bookingIds }, businessId: id },
+      data: { status: body.status },
+    });
   }
 }

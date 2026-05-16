@@ -452,7 +452,7 @@ export default function AppointmentsPage() {
   const handleBulkStatusChange = async (ids: string[], status: string) => {
     try {
       if (status === 'Completed') {
-        await apiPatch(`/business/${business?.id}/bookings/bulk-complete`, { bookingIds: ids }, 'BUSINESS');
+        await apiPatch(`/business/${business?.id}/panel/bookings/bulk-complete`, { bookingIds: ids }, 'BUSINESS');
       } else {
         await useBookingsStore.getState().bulkUpdateBookingStatus(ids, status);
       }

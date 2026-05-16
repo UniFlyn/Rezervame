@@ -46,7 +46,7 @@ export const useBookingsStore = create<BookingsState>()((set) => ({
   bulkUpdateBookingStatus: async (ids, status) => {
     const business = useBusinessStore.getState().business;
     if (!business) return;
-    await apiPatch(`/business/${business.id}/bookings/bulk-status`, { bookingIds: ids, status }, 'BUSINESS');
+    await apiPatch(`/business/${business.id}/panel/bookings/bulk-status`, { bookingIds: ids, status }, 'BUSINESS');
     set((state) => ({
       bookings: state.bookings.map((b) => (ids.includes(b.id) ? { ...b, status: status as any } : b)),
     }));
