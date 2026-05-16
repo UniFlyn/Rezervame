@@ -7,6 +7,7 @@ import {
   Headers,
   Param,
   NotFoundException,
+  ForbiddenException,
   Patch,
   Post,
   Query,
@@ -1757,6 +1758,9 @@ export class AppController {
     const svcId = typeof body.serviceId === 'string' && body.serviceId.trim() ? body.serviceId : null;
     const stId = typeof body.staffId === 'string' && body.staffId.trim() ? body.staffId : null;
 
+    const biz = await this.prisma.business.findUnique({ where: { id: id! } });
+    const taxP = biz?.taxPercentage ?? 0;
+
     return this.prisma.booking.create({
       data: {
         businessId: id,
@@ -1765,7 +1769,7 @@ export class AppController {
         date: new Date(body.date),
         status: body.status,
         price: body.price,
-        taxAmount: (body.price * (await this.prisma.business.findUnique({ where: { id } }))?.taxPercentage || 0) / 100,
+        taxAmount: (body.price * taxP) / 100,
         serviceId: svcId,
         staffId: stId,
       },
@@ -1849,7 +1853,7 @@ export class AppController {
     });
   }
 
-  }
+
 
   @Patch('bookings/:id')
   async updateBooking(
