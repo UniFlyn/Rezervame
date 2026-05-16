@@ -40,7 +40,7 @@ interface Reservation {
   time: string;
   price: string;
   totalPrice: number;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
   img: string;
   taxAmount: number;
   subtotal: number;
@@ -54,7 +54,7 @@ interface Reservation {
     price: string; 
     customerName?: string; 
     staffName?: string;
-    status: "pending" | "confirmed" | "completed" | "cancelled";
+    status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
     isReviewed?: boolean;
   }[];
   businessId?: string;
@@ -105,14 +105,13 @@ function mapUserBookingGroup(
   
   const items = group.map(item => {
     const st = (item.status || "").toLowerCase();
-    const status: Reservation["status"] =
-      st === "completed"
-        ? "completed"
-        : st === "cancelled" || st === "rejected"
-          ? "cancelled"
-          : st === "pending"
-            ? "pending"
-            : "confirmed";
+    let status: Reservation["status"] = "pending";
+    if (st === "completed") status = "completed";
+    else if (st === "cancelled" || st === "rejected") status = "cancelled";
+    else if (st === "paid") status = "paid";
+    else if (st === "rescheduled") status = "rescheduled";
+    else if (st === "approved") status = "confirmed";
+    else status = "pending";
     
     return {
         id: item.id,
@@ -132,7 +131,11 @@ function mapUserBookingGroup(
         ? "cancelled"
         : items.every(i => i.status === "pending")
           ? "pending"
-          : "confirmed";
+          : items.some(i => i.status === "rescheduled")
+            ? "rescheduled"
+            : items.some(i => i.status === "paid")
+              ? "paid"
+              : "confirmed";
 
   return {
     id: b.id,
@@ -432,8 +435,9 @@ function ProfileContent() {
         price: parseFloat(i.price),
         staffName: i.staffName,
       })),
-      subtotal: res.totalPrice,
-      total: res.totalPrice * 1.07,
+      subtotal: res.subtotal,
+      tax: res.taxAmount,
+      total: res.totalPrice,
       paymentMethod: payMethod === "card" ? "Credit Card" : "Cash",
       paymentStatus: paymentView === "done" ? "paid" : "pending",
     });
@@ -758,10 +762,14 @@ function ProfileContent() {
                                 <CheckCircle size={11} /> {language === "en" ? "Confirmed" : "Confirmada"}
                               </span>
                             )}
-                            {/* Payment Badge */}
-                            {paidBookingIds.has(res.id) && (
+                            {res.status === "paid" && (
                               <span className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-200 flex items-center gap-1.5">
                                 <CreditCard size={11} /> {language === "en" ? "Paid" : "Pagado"}
+                              </span>
+                            )}
+                            {res.status === "rescheduled" && (
+                              <span className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
+                                <RefreshCcw size={11} /> {language === "en" ? "Rescheduled" : "Reagendada"}
                               </span>
                             )}
                             {res.customerName && (
@@ -1284,7 +1292,9 @@ function ProfileContent() {
                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-5 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3"
                    >
                      <FileText size={18} />
-                     {language === "en" ? "View Details & Pay" : "Ver Detalles y Pagar"}
+                     {selectedRes.status === 'paid' 
+                       ? (language === "en" ? "View Details" : "Ver Detalles")
+                       : (language === "en" ? "View Details & Pay" : "Ver Detalles y Pagar")}
                    </button>
                    <div className="flex gap-4">
                       {selectedRes.status === 'confirmed' && (

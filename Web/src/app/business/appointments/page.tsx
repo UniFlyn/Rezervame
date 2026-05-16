@@ -1116,6 +1116,7 @@ export default function AppointmentsPage() {
                                   'appearance-none rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide cursor-pointer transition-all focus:ring-2 focus:ring-offset-1 outline-none border-none',
                                   allApproved && 'bg-emerald-100 text-emerald-800 focus:ring-emerald-500',
                                   anyPending && 'bg-amber-100 text-amber-800 focus:ring-amber-500',
+                                   anyPaid && 'bg-blue-100 text-blue-900 focus:ring-blue-500',
                                   allCompleted && 'bg-cyan-100 text-cyan-900 focus:ring-cyan-500',
                                   anyLocked && 'opacity-50 cursor-not-allowed'
                                 )}
@@ -1309,7 +1310,8 @@ export default function AppointmentsPage() {
                                 disabled={subBooking.locked}
                                 className={clsx(
                                   'appearance-none rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide cursor-pointer transition-all outline-none border-none',
-                                  (subBooking.status === 'Approved' || subBooking.status === 'Paid') && 'bg-emerald-50 text-emerald-700',
+                                  subBooking.status === 'Approved' && 'bg-emerald-50 text-emerald-700',
+                                   subBooking.status === 'Paid' && 'bg-blue-50 text-blue-700',
                                   subBooking.status === 'Pending' && 'bg-amber-50 text-amber-700',
                                    subBooking.status === 'Rescheduled' && 'bg-amber-100 text-amber-800',
                                   subBooking.status === 'Completed' && 'bg-cyan-50 text-cyan-800',

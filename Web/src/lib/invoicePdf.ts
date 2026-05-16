@@ -13,7 +13,8 @@ export interface InvoiceData {
   venuePhone?: string;
   items: { name: string; quantity: number; price: number; staffName?: string }[];
   subtotal: number;
-  tax?: number;
+  taxAmount?: number;
+  taxPercentage?: number;
   total: number;
   paymentMethod?: string;
   paymentStatus: "paid" | "pending";
@@ -21,7 +22,8 @@ export interface InvoiceData {
 }
 
 export function generateAndDownloadInvoicePDF(data: InvoiceData) {
-  const taxAmount = data.tax ?? data.subtotal * 0.07;
+  const taxAmount = data.taxAmount ?? (data.taxPercentage ? (data.subtotal * data.taxPercentage) / 100 : 0);
+  const taxLabel = data.taxPercentage ? `Tax (${data.taxPercentage}%)` : "Tax";
   const formattedDate = data.date || new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   const html = `
@@ -199,7 +201,7 @@ export function generateAndDownloadInvoicePDF(data: InvoiceData) {
           <span class="total-value">$${data.subtotal.toFixed(2)}</span>
         </div>
         <div class="total-row">
-          <span class="total-label">Tax (7%)</span>
+          <span class="total-label">${taxLabel}</span>
           <span class="total-value">$${taxAmount.toFixed(2)}</span>
         </div>
         <div class="total-divider"></div>
