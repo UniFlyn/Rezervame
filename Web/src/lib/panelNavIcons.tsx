@@ -7,6 +7,7 @@ import {
   Headphones,
   Layers,
   LayoutDashboard,
+  List,
   Settings,
   Star,
   UserSquare,
@@ -25,6 +26,7 @@ const PANEL_NAV_ICONS: Record<string, LucideIcon> = {
   Building,
   Settings,
   Headphones,
+  List,
 };
 
 export function panelNavIcon(name: string): LucideIcon {
