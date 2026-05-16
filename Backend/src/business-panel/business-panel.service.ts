@@ -85,6 +85,7 @@ function pctDelta(cur: number, prev: number) {
 const MERCHANT_NAV_ITEMS: PanelNavItem[] = [
   { id: 'dashboard', href: '/business/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
   { id: 'appointments', href: '/business/appointments', label: 'Appointments', icon: 'Calendar' },
+  { id: 'bookings', href: '/business/bookings', label: 'Bookings', icon: 'List' },
   { id: 'services', href: '/business/services', label: 'Services', icon: 'Layers' },
   { id: 'staff', href: '/business/staff', label: 'Staff', icon: 'UserSquare' },
   { id: 'users', href: '/business/users', label: 'Customers', icon: 'Users' },

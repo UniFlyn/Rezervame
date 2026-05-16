@@ -14,6 +14,7 @@ import { panelNavIcon } from '@/lib/panelNavIcons';
 const FALLBACK_MENU: PanelMenuPayload['items'] = [
   { id: 'dashboard', href: '/business/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
   { id: 'appointments', href: '/business/appointments', label: 'Appointments', icon: 'Calendar' },
+  { id: 'bookings', href: '/business/bookings', label: 'Bookings', icon: 'List' },
   { id: 'services', href: '/business/services', label: 'Services', icon: 'Layers' },
   { id: 'staff', href: '/business/staff', label: 'Staff', icon: 'UserSquare' },
   { id: 'users', href: '/business/users', label: 'Customers', icon: 'Users' },
