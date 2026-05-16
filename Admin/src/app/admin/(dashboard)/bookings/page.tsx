@@ -48,14 +48,8 @@ function getActions(status: string): { label: string; newStatus: string; style: 
         { label: "Approve", newStatus: "Approved", style: "bg-green-600 hover:bg-green-700 text-white", icon: <CheckCircle className="w-3.5 h-3.5" /> },
         { label: "Reject",  newStatus: "Rejected", style: "bg-red-500 hover:bg-red-600 text-white",     icon: <XCircle className="w-3.5 h-3.5" /> },
       ];
-    case "approved":
-    case "confirmed":
-      return [
-        { label: "Complete", newStatus: "Completed", style: "bg-emerald-600 hover:bg-emerald-700 text-white", icon: <CheckCircle className="w-3.5 h-3.5" /> },
-        { label: "Cancel",   newStatus: "Cancelled", style: "bg-slate-500 hover:bg-slate-600 text-white",     icon: <XCircle className="w-3.5 h-3.5" /> },
-      ];
     default:
-      return []; // completed, cancelled, rejected — no further actions
+      return [];
   }
 }
 
@@ -135,25 +129,23 @@ export default function BookingsPage() {
   // For now, let's keep it simple or fetch total stats if needed.
   const stats = {
     total: totalItems,
-    pending: bookingsData.filter((b) => b.status === "pending").length, // This is just for the current page
+    pending: bookingsData.filter((b) => b.status === "pending").length,
     approved: bookingsData.filter((b) => b.status === "approved" || b.status === "confirmed").length,
-    completed: bookingsData.filter((b) => b.status === "completed").length,
   };
 
   return (
     <div className="space-y-6 animate-in zoom-in-95 duration-500">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Booking Management</h1>
-        <p className="text-slate-500 text-sm mt-1">Monitor and manage all service appointments. Approve, reject, or mark bookings as complete.</p>
+        <p className="text-slate-500 text-sm mt-1">Monitor and manage all service appointments. Approve or reject bookings.</p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { label: "Total", value: stats.total, color: "bg-slate-50 border-slate-200 text-slate-900" },
           { label: "Pending", value: stats.pending, color: "bg-amber-50 border-amber-200 text-amber-700" },
           { label: "Approved", value: stats.approved, color: "bg-blue-50 border-blue-200 text-blue-700" },
-          { label: "Completed", value: stats.completed, color: "bg-green-50 border-green-200 text-green-700" },
         ].map((s) => (
           <div key={s.label} className={cn("rounded-2xl border p-4 transition-all", s.color)}>
             <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{s.label}</p>
@@ -177,8 +169,6 @@ export default function BookingsPage() {
               { label: "Pending", value: "pending" },
               { label: "Approved", value: "approved" },
               { label: "Confirmed", value: "confirmed" },
-              { label: "Completed", value: "completed" },
-              { label: "Cancelled", value: "cancelled" },
               { label: "Rejected", value: "rejected" },
             ],
           },
