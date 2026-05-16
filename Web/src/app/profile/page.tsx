@@ -111,7 +111,10 @@ function mapUserBookingGroup(
     else if (st === "cancelled" || st === "rejected") status = "cancelled";
     else if (st === "paid") status = "paid";
     else if (st === "rescheduled") status = "rescheduled";
-    else if (st === "approved") status = "confirmed";
+    else if (st === "approved" || st === "confirmed") {
+        if (item?.transactionId) status = "paid";
+        else status = "confirmed";
+    }
     else status = "pending";
     
     return {
@@ -159,6 +162,7 @@ function mapUserBookingGroup(
     isReviewed: items.every(i => i.isReviewed),
     items,
     businessId: b.businessId,
+    transactionId: b.transactionId,
   };
 }
 
