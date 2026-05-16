@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import FullCalendar from '@fullcalendar/react';
 import type { CalendarApi, DatesSetArg, EventInput, DayCellContentArg, DayHeaderContentArg } from '@fullcalendar/core';
@@ -35,6 +35,8 @@ import {
   Scissors,
   Loader2,
   Trash2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import clsx from 'clsx';
 import esLocale from '@fullcalendar/core/locales/es';
@@ -152,11 +154,13 @@ function bookingStatusLabel(lang: Language, status: string) {
     case 'Pending':
       return L(lang, 'Pending', 'Pendiente');
     case 'Approved':
-      return L(lang, 'Confirmed', 'Confirmada');
+      return L(lang, 'Accept', 'Aceptar');
     case 'Completed':
-      return L(lang, 'Completed', 'Completada');
+      return L(lang, 'Paid', 'Pagado');
     case 'Rejected':
-      return L(lang, 'Rejected', 'Rechazada');
+      return L(lang, 'Reject', 'Rechazar');
+    case 'Cancelled':
+      return L(lang, 'Cancel', 'Cancelar');
     default:
       return status;
   }
@@ -170,19 +174,30 @@ export default function AppointmentsPage() {
   const services = useServicesStore((state) => state.services);
   const staff = useStaffStore((state) => state.staff);
   const addBooking = useBookingsStore((state) => state.addBooking);
-  const updateBookingStatus = useBookingsStore((state) => state.updateBookingStatus);
 
   const [paginatedBookings, setPaginatedBookings] = useState<Booking[]>([]);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingList, setIsLoadingList] = useState(false);
-  const pageSize = 10;
+  const pageSize = 50;
 
   const [staffScope, setStaffScope] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [scheduleView, setScheduleView] = useState<'calendar' | 'list'>('calendar');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const fetchPaginatedBookings = useCallback(async () => {
     if (!business) return;
@@ -193,6 +208,8 @@ export default function AppointmentsPage() {
         limit: String(pageSize),
         search: searchQuery,
         status: statusFilter === 'all' ? '' : statusFilter,
+        startDate,
+        endDate,
       });
       if (staffScope !== 'all') query.append('staffId', staffScope);
 
@@ -208,7 +225,7 @@ export default function AppointmentsPage() {
     } finally {
       setIsLoadingList(false);
     }
-  }, [business, page, searchQuery, statusFilter, staffScope]);
+  }, [business, page, searchQuery, statusFilter, staffScope, startDate, endDate]);
 
   useEffect(() => {
     void hydrateBookings();
@@ -276,7 +293,16 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, statusFilter, staffScope]);
+  }, [searchQuery, statusFilter, staffScope, startDate, endDate]);
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setStaffScope('all');
+    setStartDate('');
+    setEndDate('');
+    setPage(1);
+  };
 
   const listRows = useMemo(
     () =>
@@ -289,10 +315,15 @@ export default function AppointmentsPage() {
   const groupedListRows = useMemo(() => {
     const groups: Record<string, Booking[]> = {};
     listRows.forEach((b) => {
-      // Group by user (or customerName if no userId) and exact date/time
-      const key = `${b.userId || b.customerName}_${b.date}`;
+      // Group by user (or customerName if no userId) and the date (YYYY-MM-DD)
+      const dateOnly = new Date(b.date).toISOString().split('T')[0];
+      const key = `${b.userId || b.customerName}_${dateOnly}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(b);
+    });
+    // Sort services within each group by time
+    Object.values(groups).forEach(group => {
+      group.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     });
     return Object.values(groups);
   }, [listRows]);
@@ -398,12 +429,12 @@ export default function AppointmentsPage() {
     }
   };
 
-  const handleStatusChange = async (id: string, status: Booking['status']) => {
+  const handleStatusChange = async (id: string, status: string) => {
     try {
-      await updateBookingStatus(id, status);
+      await useBookingsStore.getState().bulkUpdateBookingStatus([id], status);
       // Update local state instantly
       setPaginatedBookings((prev) => 
-        prev.map((b) => (b.id === id ? { ...b, status } : b))
+        prev.map((b) => (b.id === id ? { ...b, status: status as any } : b))
       );
       toastSuccess('Status updated');
     } catch (err) {
@@ -411,6 +442,18 @@ export default function AppointmentsPage() {
         'Update failed',
         err instanceof Error ? err.message : 'Please try again.',
       );
+    }
+  };
+
+  const handleBulkStatusChange = async (ids: string[], status: string) => {
+    try {
+      await useBookingsStore.getState().bulkUpdateBookingStatus(ids, status);
+      setPaginatedBookings((prev) => 
+        prev.map((b) => (ids.includes(b.id) ? { ...b, status: status as any } : b))
+      );
+      toastSuccess('Bulk status updated');
+    } catch (err) {
+      toastError('Bulk update failed', err instanceof Error ? err.message : 'Please try again.');
     }
   };
 
@@ -435,13 +478,7 @@ export default function AppointmentsPage() {
   const handleGroupPay = async (bookingIds: string[], paymentMethod: string) => {
     if (!business) return;
     try {
-      await apiPost(`/business/${business.id}/bookings/pay-group`, {
-        bookingIds, paymentMethod 
-      }, 'BUSINESS');
-      // Update global store
-      useBookingsStore.setState((state) => ({
-        bookings: state.bookings.map((b) => (bookingIds.includes(b.id) ? { ...b, status: 'Completed' } : b)),
-      }));
+      await useBookingsStore.getState().payBookingGroup(bookingIds, paymentMethod);
       // Update local paginated state
       setPaginatedBookings((prev) => 
         prev.map((b) => (bookingIds.includes(b.id) ? { ...b, status: 'Completed' } : b))
@@ -538,6 +575,31 @@ export default function AppointmentsPage() {
               </option>
             ))}
           </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
+              title={L(language as Language, 'Start Date', 'Fecha inicio')}
+            />
+            <span className="text-slate-400 font-bold">-</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
+              title={L(language as Language, 'End Date', 'Fecha fin')}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            title={L(language as Language, 'Clear filters', 'Limpiar filtros')}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
@@ -936,6 +998,10 @@ export default function AppointmentsPage() {
                   {groupedListRows.map((group) => {
                     const booking = group[0];
                     const isGroup = group.length > 1;
+                    const dateOnly = new Date(booking.date).toISOString().split('T')[0];
+                    const groupKey = `${booking.userId || booking.customerName}_${dateOnly}`;
+                    const isExpanded = expandedGroups.has(groupKey);
+                    
                     const groupIds = group.map((b) => b.id);
                     const allCompleted = group.every((b) => b.status === 'Completed');
                     const allApproved = group.every((b) => b.status === 'Approved');
@@ -947,139 +1013,282 @@ export default function AppointmentsPage() {
                     const staffText = Array.from(new Set(group.map((b) => getStaffLabel(b.staffId)))).join(', ');
 
                     return (
-                      <tr key={booking.id} className="transition-colors hover:bg-cyan-50/40">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-xs font-black text-white">
-                              {booking.customerName.charAt(0)}
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-bold text-slate-900">{booking.customerName}</span>
-                              {isGroup && <span className="text-[10px] text-slate-400 font-bold uppercase">{group.length} {L(language as Language, 'Services', 'Servicios')}</span>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          <span className="inline-flex items-center gap-1.5 line-clamp-1">
-                            <Scissors className="h-3.5 w-3.5 text-slate-300 shrink-0" />
-                            {servicesText}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          <span className="inline-flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-slate-300 shrink-0" />
-                            {staffText}
-                          </span>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-800">
-                          {formatDateOnly(language as Language, booking.date)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-900">
-                          {formatTime12(language as Language, booking.date)}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <select
-                              value={allCompleted ? 'Completed' : anyPending ? 'Pending' : allApproved ? 'Approved' : 'Mixed'}
-                              onChange={(e) => {
-                                const newStatus = e.target.value;
-                                if (newStatus === 'Mixed') return;
-                                groupIds.forEach(id => void handleStatusChange(id, newStatus as any));
-                              }}
-                              disabled={anyLocked}
-                              className={clsx(
-                                'appearance-none rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide cursor-pointer transition-all focus:ring-2 focus:ring-offset-1 outline-none border-none',
-                                allApproved && 'bg-emerald-100 text-emerald-800 focus:ring-emerald-500',
-                                anyPending && 'bg-amber-100 text-amber-800 focus:ring-amber-500',
-                                allCompleted && 'bg-cyan-100 text-cyan-900 focus:ring-cyan-500',
-                                anyLocked && 'opacity-50 cursor-not-allowed'
+                      <Fragment key={groupKey}>
+                        <tr 
+                          className={clsx(
+                            "transition-colors hover:bg-cyan-50/40 border-l-4",
+                            isGroup ? "bg-slate-50/50 border-l-cyan-500/50" : "border-l-transparent"
+                          )}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {isGroup && (
+                                <button 
+                                  onClick={() => toggleGroup(groupKey)}
+                                  className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </button>
                               )}
-                            >
-                              <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
-                              <option value="Approved">{L(language as Language, 'Confirmed', 'Confirmada')}</option>
-                              <option value="Completed">{L(language as Language, 'Completed', 'Completada')}</option>
-                              <option value="Rejected">{L(language as Language, 'Rejected', 'Rechazada')}</option>
-                              <option value="Mixed" disabled>Mixed</option>
-                            </select>
-                            <span className="text-[10px] font-black text-slate-900">${totalPrice.toFixed(2)}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {booking.walkIn ? (
-                              <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">
-                                {L(language as Language, 'Walk-in', 'Sin cita')}
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-xs font-black text-white">
+                                {booking.customerName.charAt(0)}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-900">{booking.customerName}</span>
+                                {isGroup && <span className="text-[10px] text-slate-400 font-bold uppercase">{group.length} {L(language as Language, 'Services', 'Servicios')}</span>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <span className="inline-flex items-center gap-1.5 line-clamp-1">
+                              <Scissors className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                              {servicesText}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <span className="inline-flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                              {staffText}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-800">
+                            {formatDateOnly(language as Language, booking.date)}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-900">
+                            {isGroup ? (
+                              <span className="flex flex-col">
+                                <span>{formatTime12(language as Language, group[0].date)}</span>
+                                <span className="text-[10px] text-slate-400 font-normal leading-none mt-0.5">
+                                  to {formatTime12(language as Language, group[group.length - 1].date)}
+                                </span>
                               </span>
-                            ) : null}
-                            {booking.recurring ? (
-                              <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold text-violet-800">↻</span>
-                            ) : null}
-                            {anyLocked ? (
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">
-                                <Lock className="inline h-3 w-3" />
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex justify-end gap-1.5 items-center">
-                            {!allCompleted && !anyLocked && (
+                            ) : (
+                              formatTime12(language as Language, booking.date)
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <select
+                                value={allCompleted ? 'Completed' : anyPending ? 'Pending' : allApproved ? 'Approved' : 'Mixed'}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === 'Mixed') return;
+                                  if (val === 'Reschedule') {
+                                    setEditingBooking(booking);
+                                    return;
+                                  }
+                                  if (val === 'PaidCash') {
+                                    void handleGroupPay(groupIds, 'Cash');
+                                    return;
+                                  }
+                                  if (val === 'PaidCard') {
+                                    void handleGroupPay(groupIds, 'Card');
+                                    return;
+                                  }
+                                  if (val === 'PaidOnline') {
+                                    void handleGroupPay(groupIds, 'Online');
+                                    return;
+                                  }
+                                  void handleBulkStatusChange(groupIds, val);
+                                }}
+                                disabled={anyLocked}
+                                className={clsx(
+                                  'appearance-none rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide cursor-pointer transition-all focus:ring-2 focus:ring-offset-1 outline-none border-none',
+                                  allApproved && 'bg-emerald-100 text-emerald-800 focus:ring-emerald-500',
+                                  anyPending && 'bg-amber-100 text-amber-800 focus:ring-amber-500',
+                                  allCompleted && 'bg-cyan-100 text-cyan-900 focus:ring-cyan-500',
+                                  anyLocked && 'opacity-50 cursor-not-allowed'
+                                )}
+                              >
+                                <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
+                                <option value="Approved">{L(language as Language, 'Accept', 'Aceptar')}</option>
+                                <option value="Rejected">{L(language as Language, 'Reject', 'Rechazar')}</option>
+                                <option value="Cancelled">{L(language as Language, 'Cancel', 'Cancelar')}</option>
+                                <option value="Reschedule">{L(language as Language, 'Schedule rechange', 'Reagendar')}</option>
+                                <option value="PaidCash">{L(language as Language, 'Paid via Cash', 'Pagado Efectivo')}</option>
+                                <option value="PaidCard">{L(language as Language, 'Paid via Card', 'Pagado Tarjeta')}</option>
+                                <option value="PaidOnline">{L(language as Language, 'Paid via Online', 'Pagado Online')}</option>
+                                <option value="Mixed" disabled>Mixed</option>
+                              </select>
+                              <span className="text-[10px] font-black text-slate-900">${totalPrice.toFixed(2)}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {booking.walkIn ? (
+                                <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">
+                                  {L(language as Language, 'Walk-in', 'Sin cita')}
+                                </span>
+                              ) : null}
+                              {booking.recurring ? (
+                                <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold text-violet-800">↻</span>
+                              ) : null}
+                              {anyLocked ? (
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">
+                                  <Lock className="inline h-3 w-3" />
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {isGroup && !anyLocked && (
                               <div className="flex gap-1">
                                 <button
-                                  onClick={() => void handleGroupPay(groupIds, 'Cash')}
-                                  className="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-black uppercase text-white hover:bg-emerald-700"
-                                  title="Pay with Cash"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleBulkStatusChange(groupIds, 'Approved');
+                                  }}
+                                  className="rounded-lg bg-emerald-500 px-2 py-1 text-[9px] font-black uppercase text-white hover:bg-emerald-600 shadow-sm transition-colors"
                                 >
-                                  Cash
+                                  {L(language as Language, 'Accept All', 'Aceptar Todo')}
                                 </button>
                                 <button
-                                  onClick={() => void handleGroupPay(groupIds, 'Card')}
-                                  className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-black uppercase text-white hover:bg-blue-700"
-                                  title="Pay with Card"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleBulkStatusChange(groupIds, 'Rejected');
+                                  }}
+                                  className="rounded-lg bg-rose-500 px-2 py-1 text-[9px] font-black uppercase text-white hover:bg-rose-600 shadow-sm transition-colors"
                                 >
-                                  Card
+                                  {L(language as Language, 'Reject All', 'Rechazar Todo')}
                                 </button>
                               </div>
                             )}
-                            
-                            {anyPending && !anyLocked ? (
-                              <>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-1.5 items-center">
+                              {!allCompleted && !anyLocked && (
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => void handleGroupPay(groupIds, 'Cash')}
+                                    className="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-black uppercase text-white hover:bg-emerald-700"
+                                    title="Pay with Cash"
+                                  >
+                                    Cash
+                                  </button>
+                                  <button
+                                    onClick={() => void handleGroupPay(groupIds, 'Card')}
+                                    className="rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-black uppercase text-white hover:bg-blue-700"
+                                    title="Pay with Card"
+                                  >
+                                    Card
+                                  </button>
+                                </div>
+                              )}
+                              
+                              {anyPending && !anyLocked ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => groupIds.forEach(id => void handleStatusChange(id, 'Approved'))}
+                                    className="rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+                                    title={L(language as Language, 'Confirm All', 'Confirmar todo')}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </button>
+                                </>
+                              ) : null}
+
+                              {!anyLocked && (
                                 <button
                                   type="button"
-                                  onClick={() => groupIds.forEach(id => void handleStatusChange(id, 'Approved'))}
-                                  className="rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-600 hover:text-white"
-                                  title={L(language as Language, 'Confirm All', 'Confirmar todo')}
+                                  onClick={() => setEditingBooking(booking)}
+                                  className="rounded-lg bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
+                                  title={L(language as Language, 'Edit', 'Editar')}
                                 >
-                                  <Check className="h-4 w-4" />
+                                  <Settings className="h-4 w-4" />
                                 </button>
-                              </>
-                            ) : null}
-
-                            {!anyLocked && (
+                              )}
+                              
                               <button
                                 type="button"
-                                onClick={() => setEditingBooking(booking)}
-                                className="rounded-lg bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
-                                title={L(language as Language, 'Edit', 'Editar')}
+                                onClick={() => {
+                                  if (confirm(L(language as Language, 'Cancel this appointment?', '¿Cancelar esta cita?'))) {
+                                    void handleBulkStatusChange(groupIds, 'Rejected');
+                                  }
+                                }}
+                                className="rounded-lg bg-rose-50 p-2 text-rose-600 hover:bg-rose-600 hover:text-white"
                               >
-                                <Settings className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4" />
                               </button>
-                            )}
-                            
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (confirm(L(language as Language, 'Cancel this appointment?', '¿Cancelar esta cita?'))) {
-                                  groupIds.forEach(id => void handleStatusChange(id, 'Rejected'));
-                                }
-                              }}
-                              className="rounded-lg bg-rose-50 p-2 text-rose-600 hover:bg-rose-600 hover:text-white"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {isExpanded && group.map((subBooking) => (
+                          <tr key={subBooking.id} className="bg-slate-50/80 border-l-4 border-l-cyan-500 animate-in fade-in slide-in-from-left-1 duration-200">
+                            <td className="px-4 py-2 pl-12 text-slate-500 text-xs italic">
+                              ↳ {getServiceName(subBooking.serviceId)}
+                            </td>
+                            <td className="px-4 py-2 text-slate-600 text-xs">
+                              {getServiceName(subBooking.serviceId)}
+                            </td>
+                            <td className="px-4 py-2 text-slate-600 text-xs">
+                              {getStaffLabel(subBooking.staffId)}
+                            </td>
+                            <td className="px-4 py-2 text-slate-400 text-xs">
+                              -
+                            </td>
+                            <td className="px-4 py-2 font-bold text-slate-700 text-xs">
+                              {formatTime12(language as Language, subBooking.date)}
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              <select
+                                value={subBooking.status}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === 'Reschedule') {
+                                    setEditingBooking(subBooking);
+                                    return;
+                                  }
+                                  if (val === 'PaidCash') {
+                                    void handleGroupPay([subBooking.id], 'Cash');
+                                    return;
+                                  }
+                                  if (val === 'PaidCard') {
+                                    void handleGroupPay([subBooking.id], 'Card');
+                                    return;
+                                  }
+                                  if (val === 'PaidOnline') {
+                                    void handleGroupPay([subBooking.id], 'Online');
+                                    return;
+                                  }
+                                  void handleStatusChange(subBooking.id, val as any);
+                                }}
+                                disabled={subBooking.locked}
+                                className={clsx(
+                                  'appearance-none rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide cursor-pointer transition-all outline-none border-none',
+                                  subBooking.status === 'Approved' && 'bg-emerald-50 text-emerald-700',
+                                  subBooking.status === 'Pending' && 'bg-amber-50 text-amber-700',
+                                  subBooking.status === 'Completed' && 'bg-cyan-50 text-cyan-800',
+                                  subBooking.locked && 'opacity-50 cursor-not-allowed'
+                                )}
+                              >
+                                <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
+                                <option value="Approved">{L(language as Language, 'Accept', 'Aceptar')}</option>
+                                <option value="Rejected">{L(language as Language, 'Reject', 'Rechazar')}</option>
+                                <option value="Cancelled">{L(language as Language, 'Cancel', 'Cancelar')}</option>
+                                <option value="Reschedule">{L(language as Language, 'Schedule rechange', 'Reagendar')}</option>
+                                <option value="PaidCash">{L(language as Language, 'Paid via Cash', 'Pagado Efectivo')}</option>
+                                <option value="PaidCard">{L(language as Language, 'Paid via Card', 'Pagado Tarjeta')}</option>
+                                <option value="PaidOnline">{L(language as Language, 'Paid via Online', 'Pagado Online')}</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-2 text-xs font-bold text-slate-600">
+                              ${subBooking.price.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {!subBooking.locked && (
+                                <button
+                                  onClick={() => setEditingBooking(subBooking)}
+                                  className="text-slate-400 hover:text-cyan-600"
+                                >
+                                  <Settings className="h-3 w-3" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     );
                   })}
                 </tbody>

@@ -144,6 +144,7 @@ model Business {
   notifyDailySummary       Boolean @default(false)
   logoUrl                  String?
   bannerUrl                String?
+  images                   String[]       @default([])
   /// WGS84 — set from merchant map picker or admin; used for distance sorting.
   latitude                 Float?
   longitude                Float?

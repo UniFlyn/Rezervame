@@ -266,6 +266,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         const b = business as {
           banner?: string;
           logo?: string;
+          images?: string[];
           contactPhone?: string;
           contactEmail?: string;
           socialInstagram?: string;
@@ -287,8 +288,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           if (!s || imgs.includes(s)) return;
           imgs.push(s);
         };
-        pushIf(b.banner as string | undefined);
-        pushIf(b.logo as string | undefined);
+        
+        // Prioritize the images array if present
+        if (Array.isArray(b.images) && b.images.length > 0) {
+          b.images.forEach(img => pushIf(img));
+        } else {
+          // Fallback to legacy fields
+          pushIf(b.banner);
+          pushIf(b.logo);
+        }
+        
         if (imgs.length === 0) imgs.push(PLACEHOLDER_IMAGE_DATA_URI);
 
         let amenities: VenueAmenity[] = [];

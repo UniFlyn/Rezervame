@@ -49,10 +49,11 @@ export async function requireBusinessOwner(
 /** Public discovery shows only [active] businesses; owners and admins may still load panel/storefront data. */
 export async function isBusinessPubliclyVisible(
   prisma: PrismaService,
-  business: { status: string; email: string },
+  business: { status?: string | null; email: string },
   authorization?: string,
 ): Promise<boolean> {
-  if (business.status.toLowerCase() === 'active') return true;
+  const status = (business.status || '').toLowerCase().trim();
+  if (status === 'active') return true;
   const user = await getUserFromAuth(prisma, authorization);
   if (!user) return false;
   if (user.role === Role.ADMIN) return true;

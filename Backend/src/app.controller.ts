@@ -110,6 +110,9 @@ function mapBusiness(b: Business | null) {
     name: b.name,
     logo: safeImageUrl(b.logoUrl),
     banner: safeImageUrl(b.bannerUrl),
+    images: (Array.isArray((b as any).images) && (b as any).images.length > 0)
+      ? (b as any).images.map((img: string) => safeImageUrl(img)).filter(Boolean)
+      : [safeImageUrl(b.bannerUrl), safeImageUrl(b.logoUrl)].filter(Boolean),
     description: b.description,
     category: categories.join(' · '),
     categories,
@@ -1346,12 +1349,13 @@ export class AppController {
           })
         : [];
     const rv = await this.prisma.review.aggregate({
-      where: { businessId: id },
-      _avg: { rating: true },
+      where: { businessId: id, businessRating: { not: null } },
+      _avg: { businessRating: true },
       _count: true,
     });
-    const ratingStr = rv._count > 0 && rv._avg.rating != null ? Number(rv._avg.rating).toFixed(1) : '0';
-    const reviewsStr = String(rv._count);
+    const ratingStr = rv._count > 0 && rv._avg.businessRating != null ? Number(rv._avg.businessRating).toFixed(1) : '0';
+    const totalReviews = await this.prisma.review.count({ where: { businessId: id } });
+    const reviewsStr = String(totalReviews);
     const geo = parseUserGeoQuery(userLat, userLng);
     const distanceLabel = distanceLabelBetween(geo.lat, geo.lng, b.latitude, b.longitude);
     return {
@@ -1692,6 +1696,8 @@ export class AppController {
     @Query('status') status?: string,
     @Query('staffId') staffId?: string,
     @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
@@ -1701,8 +1707,22 @@ export class AppController {
     const where: any = { businessId: id };
     if (status && status !== 'all') where.status = status;
     if (staffId && staffId !== 'all') where.staffId = staffId;
+    
     if (search) {
-      where.customerName = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.date.lte = end;
+      }
     }
 
     const [total, bookings] = await Promise.all([
@@ -1809,6 +1829,22 @@ export class AppController {
     return { ok: true, transactionId: transaction.id, total: totalAmount };
   }
 
+  @Patch('business/:id/bookings/bulk-status')
+  async bulkUpdateBookingStatus(
+    @Param('id') id: string,
+    @Body() body: { bookingIds: string[]; status: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireBusinessOwner(this.prisma, authorization, id);
+    if (!Array.isArray(body.bookingIds) || body.bookingIds.length === 0) {
+      throw new BadRequestException('bookingIds must be a non-empty array');
+    }
+    return this.prisma.booking.updateMany({
+      where: { id: { in: body.bookingIds }, businessId: id },
+      data: { status: body.status },
+    });
+  }
+
   @Patch('bookings/:id')
   async updateBooking(
     @Param('id') id: string,
@@ -1869,6 +1905,7 @@ export class AppController {
       bookingId: string; 
       staffRating: number; 
       businessRating: number; 
+      serviceRating?: number;
       comment: string 
     },
     @Headers('authorization') authorization?: string,
@@ -1893,7 +1930,7 @@ export class AppController {
         avatar: user.avatar,
         staffRating: body.staffRating,
         businessRating: body.businessRating,
-        rating: Math.round((body.staffRating + body.businessRating) / 2),
+        rating: body.serviceRating ?? body.businessRating,
         comment: body.comment,
         serviceName: booking.service?.name || 'Service',
         staffName: booking.staff?.name || 'Staff',
@@ -2689,8 +2726,8 @@ export class AppController {
       }),
       this.prisma.review.groupBy({
         by: ['businessId'],
-        where: { businessId: { in: bizIds } },
-        _avg: { rating: true },
+        where: { businessId: { in: bizIds }, businessRating: { not: null } },
+        _avg: { businessRating: true },
         _count: { _all: true },
       }),
     ]);
@@ -2700,7 +2737,7 @@ export class AppController {
     const reviewMap = new Map(
       reviewStats.map((r) => [
         r.businessId,
-        { avg: r._avg.rating ?? 0, n: r._count._all },
+        { avg: r._avg.businessRating ?? 0, n: r._count._all },
       ]),
     );
 
@@ -2984,8 +3021,8 @@ export class AppController {
     const [reviewAgg, minPrices] = await Promise.all([
       this.prisma.review.groupBy({
         by: ['businessId'],
-        where: { businessId: { in: businessIds } },
-        _avg: { rating: true },
+        where: { businessId: { in: businessIds }, businessRating: { not: null } },
+        _avg: { businessRating: true },
         _count: { _all: true },
       }),
       this.prisma.service.groupBy({
@@ -2997,7 +3034,7 @@ export class AppController {
     const reviewByBiz = new Map(
       reviewAgg.map((x) => [
         x.businessId,
-        { avg: x._avg.rating ?? 0, count: x._count._all },
+        { avg: x._avg.businessRating ?? 0, count: x._count._all },
       ]),
     );
     const minPriceByBiz = new Map(minPrices.map((p) => [p.businessId, p._min.price ?? 0]));

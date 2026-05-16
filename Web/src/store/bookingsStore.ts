@@ -27,7 +27,9 @@ export type BookingCreatePayload = {
 
 interface BookingsState {
   bookings: Booking[];
-  updateBookingStatus: (id: string, status: Booking['status']) => Promise<void>;
+  updateBookingStatus: (id: string, status: string) => Promise<void>;
+  bulkUpdateBookingStatus: (ids: string[], status: string) => Promise<void>;
+  payBookingGroup: (ids: string[], method: string) => Promise<void>;
   addBooking: (booking: BookingCreatePayload) => Promise<Booking>;
   hydrate: () => Promise<void>;
 }
@@ -37,7 +39,23 @@ export const useBookingsStore = create<BookingsState>()((set) => ({
   updateBookingStatus: async (id, status) => {
     const updated = await apiPatch<Booking>(`/bookings/${id}`, { status }, 'BUSINESS');
     set((state) => ({
-      bookings: state.bookings.map((b) => (b.id === id ? { ...b, status: updated.status } : b)),
+      bookings: state.bookings.map((b) => (b.id === id ? { ...b, status: updated.status as any } : b)),
+    }));
+  },
+  bulkUpdateBookingStatus: async (ids, status) => {
+    const business = useBusinessStore.getState().business;
+    if (!business) return;
+    await apiPatch(`/business/${business.id}/bookings/bulk-status`, { bookingIds: ids, status }, 'BUSINESS');
+    set((state) => ({
+      bookings: state.bookings.map((b) => (ids.includes(b.id) ? { ...b, status: status as any } : b)),
+    }));
+  },
+  payBookingGroup: async (ids, method) => {
+    const business = useBusinessStore.getState().business;
+    if (!business) return;
+    await apiPost(`/business/${business.id}/bookings/pay-group`, { bookingIds: ids, paymentMethod: method }, 'BUSINESS');
+    set((state) => ({
+      bookings: state.bookings.map((b) => (ids.includes(b.id) ? { ...b, status: 'Completed' } : b)),
     }));
   },
   addBooking: async (booking) => {
