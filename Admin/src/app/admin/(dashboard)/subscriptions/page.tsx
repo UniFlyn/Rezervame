@@ -245,32 +245,43 @@ export default function SubscriptionsPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-10 space-y-8">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                  <div className="space-y-3">
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Plan Name</label>
                    <input 
                     required
                     type="text"
-                    value={editingPlan.name}
+                    value={editingPlan.name || ""}
                     onChange={(e) => setEditingPlan({...editingPlan, name: e.target.value})}
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-black text-slate-900 focus:border-blue-500 outline-none transition"
                     placeholder="e.g. Professional"
                    />
                  </div>
                  <div className="space-y-3">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Monthly Price ($)</label>
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Price ($)</label>
                    <div className="relative">
                      <span className="absolute left-6 top-1/2 -translate-y-1/2 font-black text-slate-400">$</span>
                      <input 
                       required
                       type="number"
                       step="0.01"
-                      value={editingPlan.price}
-                      onChange={(e) => setEditingPlan({...editingPlan, price: parseFloat(e.target.value)})}
+                      value={editingPlan.price !== undefined ? editingPlan.price : ""}
+                      onChange={(e) => setEditingPlan({...editingPlan, price: parseFloat(e.target.value) || 0})}
                       className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-10 pr-6 py-4 text-sm font-black text-slate-900 focus:border-blue-500 outline-none transition"
                       placeholder="0.00"
                      />
                    </div>
+                 </div>
+                 <div className="space-y-3">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Billing Cycle</label>
+                   <select 
+                    value={editingPlan.billingCycle || "monthly"}
+                    onChange={(e) => setEditingPlan({...editingPlan, billingCycle: e.target.value})}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-black text-slate-900 focus:border-blue-500 outline-none transition"
+                   >
+                     <option value="monthly">Monthly</option>
+                     <option value="yearly">Yearly</option>
+                   </select>
                  </div>
                </div>
 

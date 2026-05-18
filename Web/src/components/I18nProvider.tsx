@@ -1,13 +1,9 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import en from "../../../shared/locales/en.json";
-import es from "../../../shared/locales/es.json";
 
 type Language = "en" | "es";
 type Translations = typeof en;
-
-/** Customer web app language (separate from business panel `rezervame_panel_language`). */
-const STORAGE_KEY = "rezervame_web_language";
 
 interface I18nContextType {
   language: Language;
@@ -22,37 +18,18 @@ const I18nContext = createContext<I18nContextType>({
 });
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguageState] = useState<Language>("en");
+  const language = "en";
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "en" || stored === "es") {
-        setLanguageState(stored);
-      }
-    } catch {
-      /* ignore */
-    }
+    document.documentElement.lang = "en";
   }, []);
 
-  const setLanguage = useCallback((lang: Language) => {
-    setLanguageState(lang);
-    try {
-      localStorage.setItem(STORAGE_KEY, lang);
-      document.documentElement.lang = lang === "en" ? "en" : "es";
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.lang = language === "en" ? "en" : "es";
-  }, [language]);
-
-  const translations = language === "en" ? en : es;
+  const setLanguage = (lang: Language) => {
+    // No-op to preserve existing calling signatures
+  };
 
   const t = (key: keyof Translations) => {
-    return translations[key] || key;
+    return en[key] || String(key);
   };
 
   return (

@@ -15,6 +15,10 @@ class VenueListing {
     this.serviceImageUrl,
     this.logoUrl,
     this.bannerUrl,
+    this.locationLabel = '',
+    this.distanceLabel = '',
+    this.primaryServiceName,
+    this.serviceDurationMinutes,
     this.amenityLabelsEn = const [],
     this.amenityLabelsEs = const [],
   });
@@ -31,6 +35,7 @@ class VenueListing {
   final String price;
   final double lat;
   final double lng;
+  final String? unsplashImgId;
   final String? serviceImageUrl;
   final String? logoUrl;
   final String? bannerUrl;
@@ -107,7 +112,7 @@ class VenueListing {
       lng: lng,
       businessId: fav['businessId'] as String?,
       unsplashImgId: img,
-      imageUrl: fav['imageUrl'] as String?,
+      serviceImageUrl: fav['imageUrl'] as String? ?? fav['serviceImageUrl'] as String?,
       locationLabel: fav['locationLabel'] as String? ?? '',
       distanceLabel: fav['distanceLabel'] as String? ?? '',
       primaryServiceName: fav['primaryServiceName'] as String?,

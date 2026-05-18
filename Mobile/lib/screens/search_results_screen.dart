@@ -2,7 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../data/api_repository.dart';
-import '../data/venue_catalog.dart';
+// import '../data/venue_catalog.dart';
 import '../models/venue_listing.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
@@ -47,11 +47,12 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   String _appliedLocation = '';
   int _appliedSheetCategoryIndex = 0;
 
+  List<Map<String, dynamic>> _sourceResults = [];
   List<Map<String, dynamic>> _filteredResults = [];
   bool _catalogLoading = true;
-  bool _loadingMore = false;
+  // bool _loadingMore = false;
   int _currentPage = 1;
-  int _totalPages = 1;
+  // int _totalPages = 1;
 
   static const List<String?> _chipCategoryKeys = [null, 'hairService', 'beautyService', 'spaService', 'nailCare'];
 
@@ -84,6 +85,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         _catalogLoading = true;
         _currentPage = 1;
         _filteredResults = [];
+        _sourceResults = [];
       });
     }
 
@@ -103,28 +105,29 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       final List<Map<String, dynamic>> mapped = venues.map((v) => v.toSearchMap()).toList();
       
       if (refresh) {
-        _filteredResults = mapped;
+        _sourceResults = mapped;
       } else {
-        _filteredResults.addAll(mapped);
+        _sourceResults.addAll(mapped);
       }
       
-      _totalPages = res['totalPages'] ?? 1;
+      // _totalPages = res['totalPages'] ?? 1;
       _catalogLoading = false;
-      _loadingMore = false;
+      // _loadingMore = false;
     });
+    _applyFilter();
   }
 
-  void _loadMore() {
-    if (_currentPage < _totalPages && !_loadingMore) {
-      setState(() {
-        _loadingMore = true;
-        _currentPage++;
-      });
-      _bootstrapCatalog(refresh: false);
-    }
-  }
+  // void _loadMore() {
+  //   if (_currentPage < _totalPages && !_loadingMore) {
+  //     setState(() {
+  //       _loadingMore = true;
+  //       _currentPage++;
+  //     });
+  //     _bootstrapCatalog(refresh: false);
+  //   }
+  // }
 
-  void _applyFilter() {
+  void _triggerSearch() {
     _bootstrapCatalog(refresh: true);
   }
 
@@ -307,9 +310,9 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
             ),
             child: TextField(
               controller: _searchController,
-              onChanged: (_) => _applyFilter(),
+              onChanged: (_) => _triggerSearch(),
               textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _applyFilter(),
+              onSubmitted: (_) => _triggerSearch(),
               style: AppTypography.body200.copyWith(color: AppColors.grey900),
               decoration: InputDecoration(
                 hintText: 'searchPlaceholder'.tr(),
@@ -365,7 +368,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                           child: InkWell(
                             onTap: () {
                               setState(() => _selectedChipIndex = index);
-                              _applyFilter();
+                              _triggerSearch();
                             },
                             borderRadius: BorderRadius.circular(20),
                             child: Container(
@@ -616,7 +619,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
             _appliedMaxPrice = maxV;
             _appliedMinRating = minRating;
           });
-          _applyFilter();
+          _triggerSearch();
         },
       ),
     );

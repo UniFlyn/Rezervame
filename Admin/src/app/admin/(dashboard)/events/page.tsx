@@ -94,7 +94,7 @@ export default function EventsAdminPage() {
       const payload = {
         ...editingEvent,
         price: Number(editingEvent.price || 0),
-        startAt: new Date(editingEvent.startAt).toISOString(),
+        startAt: editingEvent.startAt ? new Date(editingEvent.startAt).toISOString() : new Date().toISOString(),
       };
 
       if (editingEvent.id) {
@@ -185,7 +185,7 @@ export default function EventsAdminPage() {
                         <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-200">
                           {event.imageKey ? (
                             <img 
-                              src={event.imageKey.startsWith('http') ? event.imageKey : `https://images.unsplash.com/photo-${event.imageKey.replace(/^photo-/, '')}?q=80&w=200&fit=crop`} 
+                              src={event.imageKey.startsWith('http') || event.imageKey.startsWith('data:') ? event.imageKey : `https://images.unsplash.com/photo-${event.imageKey.replace(/^photo-/, '')}?q=80&w=200&fit=crop`} 
                               alt="" 
                               className="w-full h-full object-cover"
                             />

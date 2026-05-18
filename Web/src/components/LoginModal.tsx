@@ -349,14 +349,6 @@ export const LoginModal = () => {
                     <span className="hidden sm:inline">{t("contFacebook")}</span>
                   </button>
                 </div>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value as "en" | "es")}
-                  className="bg-transparent text-xs font-bold text-slate-400 hover:text-slate-600 transition px-2 py-1 focus:outline-none cursor-pointer mt-2"
-                >
-                  <option value="es">Español (Latinoamerica)</option>
-                  <option value="en">English (US)</option>
-                </select>
               </div>
             )}
           </div>

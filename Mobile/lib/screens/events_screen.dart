@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -63,12 +65,12 @@ class _EventsScreenState extends State<EventsScreen> {
     return '\$${n.toStringAsFixed(2)}';
   }
 
-  String _imageUrl(Map<String, dynamic> e) {
-    final key = '${e['imageKey'] ?? ''}'.trim();
-    if (key.isEmpty) return '';
-    if (key.startsWith('http')) return key;
-    return 'https://images.unsplash.com/photo-$key?q=80&w=600&fit=crop';
-  }
+  // String _imageUrl(Map<String, dynamic> e) {
+  //   final key = '${e['imageKey'] ?? ''}'.trim();
+  //   if (key.isEmpty) return '';
+  //   if (key.startsWith('http')) return key;
+  //   return 'https://images.unsplash.com/photo-$key?q=80&w=600&fit=crop';
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -144,19 +146,47 @@ class _EventsScreenState extends State<EventsScreen> {
         children: [
           Builder(
             builder: (context) {
-              final url = _imageUrl(event);
+              final key = '${event['imageKey'] ?? ''}'.trim();
+              if (key.isEmpty) {
+                return Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    color: AppColors.grey200,
+                  ),
+                  child: Icon(Icons.image_not_supported_outlined, color: AppColors.grey400, size: 40),
+                );
+              }
+              if (key.startsWith('data:image/')) {
+                try {
+                  final base64String = key.split(',').last;
+                  final bytes = base64Decode(base64String);
+                  return ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    child: Image.memory(
+                      bytes,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  );
+                } catch (_) {
+                  // Fallback to placeholder if corrupt
+                }
+              }
+              final url = key.startsWith('http') 
+                  ? key 
+                  : 'https://images.unsplash.com/photo-$key?q=80&w=600&fit=crop';
               return Container(
                 height: 200,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  color: url.isEmpty ? AppColors.grey200 : null,
-                  image: url.isEmpty
-                      ? null
-                      : DecorationImage(
-                          image: NetworkImage(url),
-                          fit: BoxFit.cover,
-                        ),
+                  image: DecorationImage(
+                    image: NetworkImage(url),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               );
             },

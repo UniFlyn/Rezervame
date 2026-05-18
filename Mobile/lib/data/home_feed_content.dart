@@ -191,7 +191,7 @@ void hydrateHomeFeedFromVenues(
       durationMinutes: v.serviceDurationMinutes ?? 45,
       unsplashId: img,
       venueId: v.id,
-      networkImageUrl: v.imageUrl,
+      networkImageUrl: v.serviceImageUrl,
     );
   }).toList();
 

@@ -1076,7 +1076,25 @@ export class AppController {
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
         where,
-        include: { bookings: true },
+        include: { 
+          bookings: {
+            include: {
+              business: true,
+              service: true,
+              staff: true,
+            },
+          },
+          reviews: {
+            include: {
+              business: true,
+            },
+          },
+          favorites: {
+            include: {
+              business: true,
+            },
+          },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (p - 1) * l,
         take: l,
@@ -1088,9 +1106,37 @@ export class AppController {
         id: u.id,
         name: u.name,
         email: u.email,
+        phone: u.phone,
+        avatar: u.avatar,
+        address: u.address,
+        gender: u.gender,
+        age: u.age,
         status: u.status,
-        bookings: u.bookings.length,
         joinedDate: u.createdAt,
+        bookingsCount: u.bookings.length,
+        bookings: u.bookings.map((b) => ({
+          id: b.id,
+          date: b.date,
+          status: b.status,
+          price: b.price,
+          taxAmount: b.taxAmount,
+          serviceName: b.service?.name || 'Service',
+          businessName: b.business?.name || 'Business',
+          staffName: b.staff?.name || 'Any Staff',
+        })),
+        reviews: u.reviews.map((r) => ({
+          id: r.id,
+          rating: r.rating,
+          comment: r.comment,
+          date: r.date,
+          serviceName: r.serviceName,
+          staffName: r.staffName,
+          businessName: r.business?.name || 'Business',
+        })),
+        favorites: u.favorites.map((f) => ({
+          id: f.id,
+          businessName: f.business?.name || 'Business',
+        })),
       })),
       total,
       page: p,
@@ -1647,19 +1693,35 @@ export class AppController {
   @Post('business/:id/upgrade')
   async upgradeBusinessPlan(
     @Param('id') id: string,
-    @Body() body: { plan: string },
+    @Body() body: { plan?: string; planId?: string },
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
-    const { plan } = body;
-    if (!['Basic', 'Premium', 'Enterprise'].includes(plan)) {
-      throw new BadRequestException('Invalid plan');
+    const { plan, planId } = body;
+
+    let dbPlan = null;
+    if (planId) {
+      dbPlan = await this.prisma.subscriptionPlan.findUnique({ where: { id: planId } });
+    } else if (plan) {
+      dbPlan = await this.prisma.subscriptionPlan.findFirst({
+        where: { name: { equals: plan, mode: 'insensitive' } },
+      });
     }
+
+    if (!dbPlan) {
+      throw new BadRequestException('Invalid subscription plan selected');
+    }
+
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
+
     return this.prisma.business.update({
       where: { id },
-      data: { plan, planExpires: expiresAt },
+      data: { 
+        plan: dbPlan.name, 
+        planId: dbPlan.id, 
+        planExpires: expiresAt 
+      },
     });
   }
 
@@ -2191,7 +2253,7 @@ export class AppController {
       },
     });
 
-    };
+    return transaction;
   }
 
   @Patch('business/:id/bookings/:bookingId/propose-reschedule')
@@ -3169,22 +3231,22 @@ export class AppController {
       where,
       include: {
         reviews: { select: { businessRating: true } },
-        services: { where: { active: true }, orderBy: { price: 'asc' } },
+        services: { orderBy: { price: 'asc' } },
       },
     });
 
     const minR = parseFloat(minRating || '0');
 
-    let mapped = businesses.map((b) => {
-      const rStats = b.reviews;
-      const validRatings = rStats.filter(r => r.businessRating !== null);
+    let mapped = businesses.map((b: any) => {
+      const rStats = b.reviews || [];
+      const validRatings = rStats.filter((r: any) => r.businessRating !== null);
       const count = rStats.length;
       const avg = validRatings.length > 0 
-        ? validRatings.reduce((sum, r) => sum + r.businessRating, 0) / validRatings.length 
+        ? validRatings.reduce((sum: number, r: any) => sum + r.businessRating, 0) / validRatings.length 
         : 0;
-      const minPrice = b.services[0]?.price ?? 0;
+      const minPrice = b.services?.[0]?.price ?? 0;
       
-      const distance = distanceBetween(geo.lat, geo.lng, b.latitude, b.longitude);
+      const distance = haversineKm(geo?.lat ?? 0, geo?.lng ?? 0, b.latitude ?? 0, b.longitude ?? 0);
       
       return {
         id: b.id,
@@ -3268,6 +3330,14 @@ export class AppController {
       price: e.price,
       imageKey: e.imageKey,
     }));
+  }
+
+  @Get('public/plans')
+  async getPublicPlans() {
+    return this.prisma.subscriptionPlan.findMany({
+      where: { active: true },
+      orderBy: { price: 'asc' },
+    });
   }
 
   @Get('public/categories')

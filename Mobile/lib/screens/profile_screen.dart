@@ -14,7 +14,6 @@ import 'invoices_screen.dart';
 import 'jobs_screen.dart';
 import 'login_screen.dart';
 import 'pricing_screen.dart';
-import '../widgets/language_picker_sheet.dart';
 import 'static_info_screen.dart';
 
 /// Profile / My Account — menu structure and copy from Mobile `SettingsScreen`, MobileNew visuals.
@@ -225,7 +224,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'changePassword'.tr(),
               onTap: _showChangePasswordSheet,
             ),
-            _languageTile(),
             const SizedBox(height: 8),
             _sectionHeader('business'.tr()),
             _menuTile(
@@ -397,35 +395,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _languageTile() {
-    final code = context.locale.languageCode.toUpperCase();
-    return ListTile(
-      onTap: () async {
-        final picked = await showAppLanguagePicker(
-          context,
-          selectedCode: context.locale.languageCode,
-        );
-        if (!mounted) return;
-        if (picked != null) {
-          context.setLocale(Locale(picked));
-          setState(() {});
-        }
-      },
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-      horizontalTitleGap: 14,
-      minLeadingWidth: 40,
-      minVerticalPadding: 10,
-      titleAlignment: ListTileTitleAlignment.center,
-      leading: _menuLeadingIcon(Icons.language),
-      title: Text('language'.tr(), style: AppTypography.homeSectionTitle.copyWith(color: AppColors.grey900)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(code, style: AppTypography.homeSectionTitle.copyWith(color: AppColors.grey900, fontWeight: FontWeight.w700)),
-          const SizedBox(width: 2),
-          const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.grey400, size: 20),
-        ],
-      ),
-    );
-  }
+
 }

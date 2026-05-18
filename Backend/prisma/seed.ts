@@ -536,6 +536,37 @@ async function main() {
     });
   }
 
+  const basicPlan = await prisma.subscriptionPlan.upsert({
+    where: { id: 'basic' },
+    update: {},
+    create: {
+      id: 'basic',
+      name: 'Basic',
+      price: 0,
+      billingCycle: 'monthly',
+      features: ['Up to 50 bookings/month', 'Basic business profile', 'Email support'],
+      active: true,
+    },
+  });
+
+  const premiumPlan = await prisma.subscriptionPlan.upsert({
+    where: { id: 'premium' },
+    update: {},
+    create: {
+      id: 'premium',
+      name: 'Premium',
+      price: 29,
+      billingCycle: 'monthly',
+      features: ['Unlimited bookings', 'Marketing & Promotions', 'Advanced Analytics', '24/7 Priority support'],
+      active: true,
+    },
+  });
+
+  await prisma.business.updateMany({
+    where: { email: { in: ['owner@rezervame.com', 'studio@rezervame.com', 'spa@rezervame.com'] } },
+    data: { planId: premiumPlan.id, plan: 'Premium' },
+  });
+
   await backfillMerchantNumbers(prisma);
 }
 

@@ -6,8 +6,8 @@ import { Search, Calendar, CheckCircle } from "lucide-react";
 export default function HowItWorksPage() {
   return (
     <StaticPageLayout 
-      title="Cómo Funciona" 
-      subtitle="Descubre lo fácil que es reservar tus servicios favoritos en segundos."
+      title="How It Works" 
+      subtitle="Discover how easy it is to book your favorite services in seconds."
       breadcrumb="How It Works"
     >
       <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mt-10">
@@ -15,31 +15,40 @@ export default function HowItWorksPage() {
            <div className="w-16 h-16 bg-[#ff5a5f] text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-[#ff5a5f]/20">
               <Search size={32} />
            </div>
-           <h3 className="text-xl font-black mb-4 uppercase">1. Explora</h3>
-           <p className="text-sm font-bold text-slate-500">Busca por categoría, ubicación o calificación para encontrar el lugar perfecto.</p>
+           <h3 className="text-xl font-black mb-4 uppercase">1. Explore</h3>
+           <p className="text-sm font-bold text-slate-500">Search by category, location, or rating to find the perfect spot.</p>
         </div>
         <div className="text-center p-8 bg-slate-50 rounded-3xl border border-slate-100">
            <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
               <Calendar size={32} />
            </div>
-           <h3 className="text-xl font-black mb-4 uppercase">2. Reserva</h3>
-           <p className="text-sm font-bold text-slate-500">Elige tu servicio, fecha, hora y profesional favorito en tiempo real.</p>
+           <h3 className="text-xl font-black mb-4 uppercase">2. Book</h3>
+           <p className="text-sm font-bold text-slate-500">Choose your service, date, time, and favorite professional in real-time.</p>
         </div>
         <div className="text-center p-8 bg-slate-50 rounded-3xl border border-slate-100">
            <div className="w-16 h-16 bg-green-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-100">
               <CheckCircle size={32} />
            </div>
-           <h3 className="text-xl font-black mb-4 uppercase">3. Disfruta</h3>
-           <p className="text-sm font-bold text-slate-500">Recibe recordatorios y disfruta de una experiencia premium sin esperas.</p>
+           <h3 className="text-xl font-black mb-4 uppercase">3. Enjoy</h3>
+           <p className="text-sm font-bold text-slate-500">Receive friendly reminders and enjoy a premium experience without waiting.</p>
         </div>
       </div>
 
-      <div className="mt-20">
-        <h2>Beneficios para ti</h2>
-        <ul>
-          <li><strong>Disponibilidad Real:</strong> Olvida las llamadas, ve los huecos libres al instante.</li>
-          <li><strong>Recordatorios:</strong> Te avisamos para que nunca pierdas una cita.</li>
-          <li><strong>Pagos Seguros:</strong> Paga en el local o a través de la app con total seguridad.</li>
+      <div className="mt-20 space-y-6">
+        <h2 className="text-2xl font-black uppercase tracking-wider text-slate-900">Benefits For You</h2>
+        <ul className="space-y-4">
+          <li className="text-slate-600 font-bold">
+            <strong className="text-slate-900 block text-sm uppercase tracking-wider mb-1">Real-time Availability:</strong> 
+            Forget making phone calls—view open slots and book instantly.
+          </li>
+          <li className="text-slate-600 font-bold">
+            <strong className="text-slate-900 block text-sm uppercase tracking-wider mb-1">Friendly Reminders:</strong> 
+            We send you notifications so you never miss an appointment.
+          </li>
+          <li className="text-slate-600 font-bold">
+            <strong className="text-slate-900 block text-sm uppercase tracking-wider mb-1">Secure Transactions:</strong> 
+            Pay securely at the venue or directly inside the app.
+          </li>
         </ul>
       </div>
     </StaticPageLayout>

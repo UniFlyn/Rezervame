@@ -444,12 +444,16 @@ class ApiRepository {
     required int businessRating,
     required String comment,
   }) async {
-    final response = await _post('/mobile/reviews', {
-      'bookingId': bookingId,
-      'staffRating': staffRating,
-      'businessRating': businessRating,
-      'comment': comment,
-    });
-    return response != null;
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/reviews'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'bookingId': bookingId,
+        'staffRating': staffRating,
+        'businessRating': businessRating,
+        'comment': comment,
+      }),
+    );
+    return res.statusCode >= 200 && res.statusCode < 300;
   }
 }

@@ -185,12 +185,12 @@ export const Header = () => {
                        {notifications.map((n) => (
                          <div key={n.id} className="p-5 border-b border-slate-50 hover:bg-slate-50/80 transition cursor-pointer flex gap-4 items-start group">
                             <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0 group-hover:scale-110 transition">
-                               {n.icon}
+                               {getIcon(n.type)}
                             </div>
                             <div className="flex-1">
                                <h4 className="text-sm font-black text-slate-800 mb-1">{n.title}</h4>
-                               <p className="text-xs font-bold text-slate-400 leading-relaxed mb-2">{n.desc}</p>
-                               <span className="text-[10px] font-black text-slate-300 uppercase">{n.time}</span>
+                               <p className="text-xs font-bold text-slate-400 leading-relaxed mb-2">{n.body}</p>
+                               <span className="text-[10px] font-black text-slate-300 uppercase">{getRelativeTime(n.createdAt)}</span>
                             </div>
                          </div>
                        ))}

@@ -60,15 +60,55 @@ export default function BusinessBookingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const pageSize = 10;
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [confirmApprovalBooking, setConfirmApprovalBooking] = useState<any | null>(null);
 
-  const handleUpdateStatus = async (bookingId: string, newStatus: string) => {
+  useEffect(() => {
+    if (!business) return;
+    const fetchStaff = async () => {
+      try {
+        const res = await apiGet<{ data: any[] }>(`/business/${business.id}/staff?limit=100`, 'BUSINESS');
+        setStaffList(res.data || []);
+      } catch (err) {
+        console.error("Failed to fetch staff", err);
+      }
+    };
+    fetchStaff();
+  }, [business]);
+
+  const handleUpdateStatus = async (bookingId: string, newStatus: string, updatedStaffId?: string | null) => {
     if (!business) return;
     setUpdatingId(bookingId);
     try {
-      await apiPatch(`/bookings/${bookingId}`, { status: newStatus }, 'BUSINESS');
-      setBookingsData(prev => prev.map(b => b.id === bookingId ? { ...b, status: newStatus } : b));
+      const payload: any = { status: newStatus };
+      if (updatedStaffId !== undefined) {
+        payload.staffId = updatedStaffId;
+      }
+      await apiPatch(`/bookings/${bookingId}`, payload, 'BUSINESS');
+      
+      setBookingsData(prev => prev.map(b => {
+        if (b.id === bookingId) {
+          const matchingStaff = staffList.find(s => s.id === updatedStaffId);
+          return { 
+            ...b, 
+            status: newStatus,
+            staffId: updatedStaffId !== undefined ? updatedStaffId : b.staffId,
+            staff: matchingStaff ? { id: updatedStaffId, name: matchingStaff.name } : b.staff
+          };
+        }
+        return b;
+      }));
+
       if (selectedBooking?.id === bookingId) {
-        setSelectedBooking((prev: any) => ({ ...prev, status: newStatus }));
+        setSelectedBooking((prev: any) => {
+          const matchingStaff = staffList.find(s => s.id === updatedStaffId);
+          return {
+            ...prev,
+            status: newStatus,
+            staffId: updatedStaffId !== undefined ? updatedStaffId : prev.staffId,
+            staff: matchingStaff ? { id: updatedStaffId, name: matchingStaff.name } : prev.staff
+          };
+        });
       }
     } catch (err) {
       console.error("Failed to update status", err);
@@ -218,11 +258,11 @@ export default function BusinessBookingsPage() {
                       {booking.status === 'Pending' && (
                         <>
                           <button
-                            onClick={() => handleUpdateStatus(booking.id, 'Approved')}
+                            onClick={() => setConfirmApprovalBooking(booking)}
                             disabled={updatingId === booking.id}
                             className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-[10px] font-black uppercase rounded-lg transition-all shadow-sm shadow-green-200 disabled:opacity-50"
                           >
-                            {updatingId === booking.id ? '...' : 'Approve'}
+                            Approve
                           </button>
                           <button
                             onClick={() => handleUpdateStatus(booking.id, 'Rejected')}
@@ -331,13 +371,47 @@ export default function BusinessBookingsPage() {
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Price</label>
                    <p className="text-sm font-black text-primary tracking-tighter">${Number(selectedBooking.price || 0).toFixed(2)}</p>
                 </div>
+                <div className="col-span-2">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Professional (Reassign if needed)</label>
+                   {selectedBooking.status === 'Pending' ? (
+                     <div className="relative">
+                       <select
+                         value={selectedBooking.staffId || ""}
+                         onChange={(e) => {
+                           const newStaffId = e.target.value || null;
+                           const chosenStaff = staffList.find(s => s.id === newStaffId);
+                           setSelectedBooking((prev: any) => ({
+                             ...prev,
+                             staffId: newStaffId,
+                             staff: chosenStaff ? { id: newStaffId, name: chosenStaff.name } : null
+                           }));
+                           setBookingsData(prev => prev.map(b => 
+                             b.id === selectedBooking.id 
+                               ? { ...b, staffId: newStaffId, staff: chosenStaff ? { id: newStaffId, name: chosenStaff.name } : null } 
+                               : b
+                           ));
+                         }}
+                         className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none transition-all shadow-sm"
+                       >
+                         <option value="">Any Staff (No specific staff)</option>
+                         {staffList.map((s) => (
+                           <option key={s.id} value={s.id}>{s.name} ({s.role || "Professional"})</option>
+                         ))}
+                       </select>
+                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                     </div>
+                   ) : (
+                     <p className="text-sm font-black text-slate-900">{selectedBooking.staff?.name || 'Any Staff'}</p>
+                   )}
+                </div>
               </div>
 
               {/* Action Buttons */}
               {selectedBooking.status === 'Pending' && (
                 <div className="flex gap-4 pt-4">
                   <button
-                    onClick={() => handleUpdateStatus(selectedBooking.id, 'Approved')}
+                    type="button"
+                    onClick={() => setConfirmApprovalBooking(selectedBooking)}
                     disabled={updatingId === selectedBooking.id}
                     className="flex-1 py-4 bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-2xl transition-all shadow-xl shadow-green-200 disabled:opacity-50"
                   >
@@ -368,6 +442,74 @@ export default function BusinessBookingsPage() {
                 <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                   Business Management Portal
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmApprovalBooking && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-[40px] shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300 overflow-hidden">
+            {/* Upper banner */}
+            <div className="bg-emerald-600 p-8 text-white text-center relative">
+              <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
+                <CheckCircle className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-black uppercase tracking-tight">Confirm Booking Approval</h3>
+              <p className="text-xs text-emerald-100 mt-1">Please review the details below before approving.</p>
+            </div>
+
+            {/* Details panel */}
+            <div className="p-8 space-y-6">
+              <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100 text-xs font-bold text-slate-600">
+                <div className="flex justify-between">
+                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Customer</span>
+                  <span className="text-slate-900 font-black">{confirmApprovalBooking.customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Service</span>
+                  <span className="text-slate-900 font-black">{confirmApprovalBooking.service?.name || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Assigned Staff</span>
+                  <span className="text-primary font-black">{confirmApprovalBooking.staff?.name || "Any Staff"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Date & Time</span>
+                  <span className="text-slate-900 font-black">{formatDate(confirmApprovalBooking.date)}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200/60 pt-3">
+                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Total price</span>
+                  <span className="text-slate-900 font-black text-sm">${Number(confirmApprovalBooking.price || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmApprovalBooking(null)}
+                  className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black uppercase rounded-2xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleUpdateStatus(
+                      confirmApprovalBooking.id, 
+                      'Approved', 
+                      confirmApprovalBooking.staffId
+                    );
+                    setConfirmApprovalBooking(null);
+                    setSelectedBooking(null);
+                  }}
+                  className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-2xl transition-all shadow-xl shadow-emerald-200"
+                >
+                  Yes, Approve
+                </button>
               </div>
             </div>
           </div>

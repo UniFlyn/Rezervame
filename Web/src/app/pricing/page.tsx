@@ -1,18 +1,34 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StaticPageLayout } from "../../components/StaticPageLayout";
-import { Zap, Shield, Star, Users, Loader2, CheckCircle } from "lucide-react";
+import { Zap, Star, Loader2, CheckCircle } from "lucide-react";
 import { useBusinessStore } from "../../store/businessStore";
-import { apiPost } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 
 export default function PricingPage() {
   const { business, hydrate } = useBusinessStore();
+  const [plans, setPlans] = useState<any[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const [upgrading, setUpgrading] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleUpgrade = async (plan: string) => {
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const fetched = await apiGet<any[]>("/public/plans");
+        setPlans(fetched);
+      } catch (err) {
+        toastError("Error", "Could not load subscription plans.");
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+    void fetchPlans();
+  }, []);
+
+  const handleUpgrade = async (planName: string, planId: string) => {
     if (!business) {
       router.push("/business/login");
       return;
@@ -23,10 +39,10 @@ export default function PricingPage() {
       return;
     }
 
-    setUpgrading(plan);
+    setUpgrading(planId);
     try {
-      await apiPost(`/business/${business.id}/upgrade`, { plan }, 'BUSINESS');
-      toastSuccess(`Upgraded to ${plan}`, "Your plan has been updated successfully.");
+      await apiPost(`/business/${business.id}/upgrade`, { plan: planName, planId }, 'BUSINESS');
+      toastSuccess(`Upgraded to ${planName}`, "Your plan has been updated successfully.");
       await hydrate();
     } catch (err) {
       toastError("Upgrade failed", "There was an error processing your upgrade.");
@@ -35,69 +51,100 @@ export default function PricingPage() {
     }
   };
 
-  const isCurrentPlan = (plan: string) => {
+  const isCurrentPlan = (planName: string) => {
     const current = (business as any)?.plan || "Basic";
-    return current === plan;
+    return current.toLowerCase() === planName.toLowerCase();
   };
+
+  if (loadingPlans) {
+    return (
+      <StaticPageLayout 
+        title="Plans & Pricing" 
+        subtitle="Flexible solutions for businesses of all sizes. Choose the plan that best fits you."
+        breadcrumb="Pricing"
+      >
+        <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-[#ff5a5f]" />
+          <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Loading subscription tiers...</p>
+        </div>
+      </StaticPageLayout>
+    );
+  }
 
   return (
     <StaticPageLayout 
-      title="Planes y Precios" 
-      subtitle="Soluciones flexibles para negocios de todos los tamaños. Elige el plan que mejor se adapte a ti."
+      title="Plans & Pricing" 
+      subtitle="Flexible solutions for businesses of all sizes. Choose the plan that best fits you."
       breadcrumb="Pricing"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
-        {/* Basic Plan */}
-        <div className={`p-10 bg-slate-50 rounded-[40px] border flex flex-col items-center text-center transition-all ${isCurrentPlan("Basic") ? 'border-[#ff5a5f] bg-white ring-4 ring-[#ff5a5f]/10' : 'border-slate-100'}`}>
-           <Zap className="w-12 h-12 text-slate-400 mb-6" />
-           {isCurrentPlan("Basic") && (
-             <div className="bg-[#ff5a5f] text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4">
-                Plan Actual
-             </div>
-           )}
-           <h3 className="text-2xl font-black uppercase mb-2">Plan Básico</h3>
-           <p className="text-4xl font-black text-slate-900 mb-6">$0<span className="text-lg text-slate-400">/Mes</span></p>
-           <ul className="text-left w-full space-y-4 mb-10">
-              <li className="flex items-center gap-3 font-bold text-slate-500"><CheckIcon className="text-green-500 w-5 h-5" /> Hasta 50 reservas/mes</li>
-              <li className="flex items-center gap-3 font-bold text-slate-500"><CheckIcon className="text-green-500 w-5 h-5" /> Perfil de negocio básico</li>
-              <li className="flex items-center gap-3 font-bold text-slate-500"><CheckIcon className="text-green-500 w-5 h-5" /> Soporte por email</li>
-           </ul>
-           <button 
-             disabled={isCurrentPlan("Basic") || upgrading !== null}
-             onClick={() => handleUpgrade("Basic")}
-             className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${isCurrentPlan("Basic") ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
-           >
-             {isCurrentPlan("Basic") ? "Plan Activo" : "Seleccionar Básico"}
-           </button>
-        </div>
-
-        {/* Premium Plan */}
-        <div className={`p-10 bg-white rounded-[40px] border-4 flex flex-col items-center text-center relative shadow-2xl transition-all ${isCurrentPlan("Premium") ? 'border-amber-400 shadow-amber-400/10' : 'border-[#ff5a5f] shadow-[#ff5a5f]/10'}`}>
-           {!isCurrentPlan("Premium") && (
-             <div className="absolute -top-5 bg-[#ff5a5f] text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">Recomendado</div>
-           )}
-           {isCurrentPlan("Premium") && (
-             <div className="absolute -top-5 bg-amber-400 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-               <CheckCircle size={14} /> Plan Premium Activo
-             </div>
-           )}
-           <Star className={`w-12 h-12 mb-6 ${isCurrentPlan("Premium") ? 'text-amber-400' : 'text-[#ff5a5f]'}`} />
-           <h3 className="text-2xl font-black uppercase mb-2">Plan Premium</h3>
-           <p className="text-4xl font-black text-slate-900 mb-6">$29<span className="text-lg text-slate-400">/Mes</span></p>
-           <ul className="text-left w-full space-y-4 mb-10">
-              <li className="flex items-center gap-3 font-bold text-slate-500"><CheckIcon className="text-[#ff5a5f] w-5 h-5" /> Reservas ilimitadas</li>
-              <li className="flex items-center gap-3 font-bold text-slate-500"><CheckIcon className="text-[#ff5a5f] w-5 h-5" /> Marketing y Promociones</li>
-              <li className="flex items-center gap-3 font-bold text-slate-500"><CheckIcon className="text-[#ff5a5f] w-5 h-5" /> Analíticas avanzadas</li>
-              <li className="flex items-center gap-3 font-bold text-slate-500"><CheckIcon className="text-[#ff5a5f] w-5 h-5" /> Soporte prioritario 24/7</li>
-           </ul>
-           <button 
-             disabled={isCurrentPlan("Premium") || upgrading !== null}
-             onClick={() => handleUpgrade("Premium")}
-             className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl ${isCurrentPlan("Premium") ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-[#ff5a5f] text-white hover:bg-[#e0454a] shadow-[#ff5a5f]/30'}`}
-           >
-             {upgrading === "Premium" ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : isCurrentPlan("Premium") ? "Plan Activo" : "Activar Premium"}
-           </button>
-        </div>
+        {plans.map((plan) => {
+          const active = isCurrentPlan(plan.name);
+          const isPremium = plan.price > 0;
+          return (
+            <div 
+              key={plan.id} 
+              className={`p-10 rounded-[40px] border flex flex-col items-center text-center transition-all ${
+                active 
+                  ? isPremium 
+                    ? 'border-amber-400 bg-white ring-4 ring-amber-400/10 shadow-2xl relative' 
+                    : 'border-[#ff5a5f] bg-white ring-4 ring-[#ff5a5f]/10 shadow-2xl relative'
+                  : 'bg-slate-50 border-slate-100'
+              }`}
+            >
+              {isPremium && !active && (
+                <div className="absolute -top-5 bg-[#ff5a5f] text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">Recommended</div>
+              )}
+              {active && (
+                <div className={`absolute -top-5 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${
+                  isPremium ? 'bg-amber-400' : 'bg-[#ff5a5f]'
+                }`}>
+                  <CheckCircle size={14} /> Active Plan
+                </div>
+              )}
+              
+              {isPremium ? (
+                <Star className={`w-12 h-12 mb-6 ${active ? 'text-amber-400' : 'text-[#ff5a5f]'}`} />
+              ) : (
+                <Zap className="w-12 h-12 text-slate-400 mb-6" />
+              )}
+              
+              <h3 className="text-2xl font-black uppercase mb-2">{plan.name}</h3>
+              <p className="text-4xl font-black text-slate-900 mb-6">
+                ${plan.price}
+                <span className="text-lg text-slate-400">/{plan.billingCycle === 'monthly' ? 'Month' : 'Year'}</span>
+              </p>
+              
+              <ul className="text-left w-full space-y-4 mb-10">
+                {plan.features.map((feature: string, idx: number) => (
+                  <li key={idx} className="flex items-center gap-3 font-bold text-slate-500">
+                    <CheckIcon className={`w-5 h-5 ${isPremium ? 'text-[#ff5a5f]' : 'text-green-500'}`} /> 
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              
+              <button 
+                disabled={active || upgrading !== null}
+                onClick={() => handleUpgrade(plan.name, plan.id)}
+                className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${
+                  active 
+                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed' 
+                    : isPremium 
+                      ? 'bg-[#ff5a5f] text-white hover:bg-[#e0454a] shadow-[#ff5a5f]/30 shadow-xl' 
+                      : 'bg-slate-900 text-white hover:bg-slate-800'
+                }`}
+              >
+                {upgrading === plan.id 
+                  ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> 
+                  : active 
+                    ? "Active Plan" 
+                    : `Select ${plan.name}`
+                }
+              </button>
+            </div>
+          );
+        })}
       </div>
     </StaticPageLayout>
   );

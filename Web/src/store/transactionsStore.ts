@@ -12,6 +12,7 @@ export interface Transaction {
   status: string;
   date: string;
   type?: 'Earning' | 'Withdrawal';
+  description?: string;
 }
 
 interface TransactionsState {

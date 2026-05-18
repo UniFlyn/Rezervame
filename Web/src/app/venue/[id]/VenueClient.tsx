@@ -397,7 +397,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             .split(/\s+/)
             .filter(Boolean)
             .slice(0, 2)
-            .map((p) => p[0]?.toUpperCase())
+            .map((p: string) => p[0]?.toUpperCase())
             .join("");
             
           return {
@@ -443,15 +443,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             };
           }),
           team: staffList.map((m: any) => {
-            const row = m as {
-              id: string;
-              name: string;
-              role: string;
-              image?: string | null;
-              skills?: string[];
-              serviceIds?: string[];
-              availability?: string;
-            };
+            const row = m as any;
             const img = (row.image || "").trim();
             const svcIds = Array.isArray(row.serviceIds) ? row.serviceIds.map(String) : [];
             return {
