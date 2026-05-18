@@ -132,16 +132,17 @@ function mapUserBookingGroup(
     };
   });
 
+  const activeItems = items.filter(i => i.status !== "cancelled");
   const mainStatus: Reservation["status"] =
-    items.every(i => i.status === "completed")
-      ? "completed"
-      : items.some(i => i.status === "cancelled")
-        ? "cancelled"
-        : items.every(i => i.status === "pending")
+    activeItems.length === 0
+      ? "cancelled"
+      : activeItems.every(i => i.status === "completed")
+        ? "completed"
+        : activeItems.some(i => i.status === "pending")
           ? "pending"
-          : items.some(i => i.status === "rescheduled")
+          : activeItems.some(i => i.status === "rescheduled")
             ? "rescheduled"
-            : items.some(i => i.status === "paid")
+            : activeItems.some(i => i.status === "paid")
               ? "paid"
               : "confirmed";
 
