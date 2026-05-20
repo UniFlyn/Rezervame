@@ -14,6 +14,7 @@ import {
   Mail,
   Instagram,
   Youtube,
+  Twitter,
   X,
   Scissors,
 } from "lucide-react";
@@ -57,7 +58,7 @@ export type VenueState = {
   services: VenueService[];
   team: VenueTeam[];
   schedule: { day: string; hours: string }[];
-  socials: { instagram: string; tiktok: string; youtube: string };
+  socials: { instagram: string; tiktok: string; youtube: string; x: string };
   amenities: VenueAmenity[];
   contactPhone: string;
   contactEmail: string;
@@ -114,7 +115,7 @@ function emptyVenue(venueId: string): VenueState {
     services: [],
     team: [],
     schedule: [],
-    socials: { instagram: "", tiktok: "", youtube: "" },
+    socials: { instagram: "", tiktok: "", youtube: "", x: "" },
     amenities: [],
     contactPhone: "",
     contactEmail: "",
@@ -302,6 +303,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           socialInstagram?: string;
           socialTiktok?: string;
           socialYoutube?: string;
+          socialX?: string;
+          workingHours?: string;
           amenities?: Array<{
             key: string;
             labelEn?: string;
@@ -460,11 +463,47 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               availability: String(row.availability ?? ""),
             };
           }),
-          schedule: [],
+          schedule: (() => {
+            try {
+              if (b.workingHours) {
+                const parsed = JSON.parse(b.workingHours);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  return parsed.map((item: any) => {
+                    let hoursStr = "";
+                    if (item.hours !== undefined) {
+                      hoursStr = String(item.hours || "");
+                    } else if (item.open === false) {
+                      hoursStr = "Closed";
+                    } else if (item.start && item.end) {
+                      hoursStr = `${item.start} - ${item.end}`;
+                    } else {
+                      hoursStr = "Closed";
+                    }
+                    return {
+                      day: String(item.day || ""),
+                      hours: hoursStr,
+                    };
+                  });
+                }
+              }
+            } catch (e) {
+              console.error("Error parsing workingHours JSON:", e);
+            }
+            return [
+              { day: "Monday", hours: "9:00 AM - 6:00 PM" },
+              { day: "Tuesday", hours: "9:00 AM - 6:00 PM" },
+              { day: "Wednesday", hours: "9:00 AM - 6:00 PM" },
+              { day: "Thursday", hours: "9:00 AM - 6:00 PM" },
+              { day: "Friday", hours: "9:00 AM - 6:00 PM" },
+              { day: "Saturday", hours: "10:00 AM - 4:00 PM" },
+              { day: "Sunday", hours: "Closed" },
+            ];
+          })(),
           socials: {
             instagram: (b.socialInstagram || "").trim(),
             tiktok: (b.socialTiktok || "").trim(),
             youtube: (b.socialYoutube || "").trim(),
+            x: (b.socialX || "").trim(),
           },
           contactPhone,
           contactEmail,
@@ -1035,6 +1074,9 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                        ) : null}
                        {VENUE_DATA.socials.youtube ? (
                        <a href={VENUE_DATA.socials.youtube.startsWith("http") ? VENUE_DATA.socials.youtube : `https://youtube.com/${VENUE_DATA.socials.youtube.replace(/^\//, "")}`} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-2xl bg-[#ff0000] flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all"><Youtube size={24} /></a>
+                       ) : null}
+                       {VENUE_DATA.socials.x ? (
+                       <a href={VENUE_DATA.socials.x.startsWith("http") ? VENUE_DATA.socials.x : `https://x.com/${VENUE_DATA.socials.x.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-2xl bg-[#0f1419] flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all"><Twitter size={24} /></a>
                        ) : null}
                    </div>
                </div>

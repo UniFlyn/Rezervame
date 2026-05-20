@@ -12,7 +12,6 @@ import 'events_screen.dart';
 import 'notifications_screen.dart';
 import 'search_results_screen.dart';
 import 'service_detail_screen.dart';
-import '../utils/booking_cart.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,18 +40,12 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _bannerPageController = PageController();
     _userSessionFuture = _api.fetchUserSession();
-    BookingCart.instance.addListener(_onCartChanged);
   }
 
   @override
   void dispose() {
     _bannerPageController.dispose();
-    BookingCart.instance.removeListener(_onCartChanged);
     super.dispose();
-  }
-
-  void _onCartChanged() {
-    if (mounted) setState(() {});
   }
 
   void _onPromoCta(HomePromoBannerItem item) {
@@ -418,9 +411,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ' $reviewsLabel',
                             style: AppTypography.body200.copyWith(color: AppColors.grey500),
                           ),
-                          const Spacer(),
-                          if (BookingCart.instance.isNotEmpty && BookingCart.instance.businessId == v.businessId)
-                            const Icon(Icons.check_circle, color: Colors.green, size: 16),
                         ],
                       ),
                     ],

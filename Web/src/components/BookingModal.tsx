@@ -45,6 +45,9 @@ export type BookingModalVenueData = {
   name?: string;
   services: VenueServiceRow[];
   team: VenueTeamRow[];
+  schedule?: { day: string; hours: string }[];
+  taxPercentage?: number;
+  serviceFee?: number;
 };
 
 interface BookingModalProps {
@@ -61,6 +64,62 @@ type Step = "SCHEDULE" | "SUMMARY" | "STAFF_LIST" | "PROFESSIONAL_DETAIL" | "CHE
 
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function generateSlotsForDay(schedule: { day: string; hours: string }[] | undefined, day: Date): string[] {
+  const defaultSlots = [
+    "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+    "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
+    "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
+    "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM"
+  ];
+  if (!schedule || schedule.length === 0) return defaultSlots;
+
+  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayName = weekdays[day.getDay()];
+  const matching = schedule.find(s => s.day.toLowerCase() === dayName.toLowerCase());
+  if (!matching) return defaultSlots;
+
+  const hoursStr = matching.hours.trim();
+  if (hoursStr.toLowerCase() === "closed") {
+    return [];
+  }
+
+  const parts = hoursStr.split("-");
+  if (parts.length !== 2) return defaultSlots;
+
+  const startRaw = parts[0].trim();
+  const endRaw = parts[1].trim();
+
+  const parseToMinutes = (t: string): number => {
+    const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!m) return 540; // Default 9:00 AM
+    let h = parseInt(m[1], 10);
+    const mins = parseInt(m[2], 10);
+    const ampm = m[3].toUpperCase();
+    if (ampm === "PM" && h !== 12) h += 12;
+    if (ampm === "AM" && h === 12) h = 0;
+    return h * 60 + mins;
+  };
+
+  const startMins = parseToMinutes(startRaw);
+  let endMins = parseToMinutes(endRaw);
+
+  if (endMins <= startMins) {
+    endMins = startMins + 540;
+  }
+
+  const slots: string[] = [];
+  for (let mins = startMins; mins < endMins; mins += 30) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const displayHour = h % 12 === 0 ? 12 : h % 12;
+    const formatted = `${String(displayHour).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+    slots.push(formatted);
+  }
+
+  return slots;
 }
 
 function addDays(base: Date, n: number): Date {
@@ -247,12 +306,80 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     [venueData.services, selectedServiceIds, getServicePrice],
   );
 
-  const totalPrice = useMemo(
+  const subtotal = useMemo(
     () => selectedServices.reduce((acc, s) => acc + s.finalPrice || 0, 0),
     [selectedServices],
   );
 
+  const taxAmount = useMemo(
+    () => (subtotal * (venueData.taxPercentage || 0)) / 100,
+    [subtotal, venueData.taxPercentage]
+  );
+
+  const serviceFee = useMemo(
+    () => venueData.serviceFee ?? 10,
+    [venueData.serviceFee]
+  );
+
+  const totalPrice = useMemo(
+    () => subtotal + taxAmount + serviceFee,
+    [subtotal, taxAmount, serviceFee],
+  );
+
   const selectedDay = dayStrip[selectedDayIndex] ?? startOfLocalDay(new Date());
+
+  const [busySlots, setBusySlots] = useState<Record<string, Array<{ start: string; end: string }>>>({});
+
+  useEffect(() => {
+    if (!isOpen || !venueData.team.length) return;
+    const ymd = `${selectedDay.getFullYear()}-${String(selectedDay.getMonth() + 1).padStart(2, "0")}-${String(selectedDay.getDate()).padStart(2, "0")}`;
+    
+    venueData.team.forEach(async (member) => {
+      const cacheKey = `${member.id}_${ymd}`;
+      if (busySlots[cacheKey]) return;
+
+      try {
+        const slots = await apiGet<Array<{ start: string; end: string }>>(`/mobile/staff/${member.id}/busy-slots?date=${ymd}`, "USER");
+        setBusySlots(prev => ({
+          ...prev,
+          [cacheKey]: Array.isArray(slots) ? slots : []
+        }));
+      } catch (err) {
+        console.error("Failed to load busy slots for staff", member.id, err);
+      }
+    });
+  }, [isOpen, selectedDay, venueData.team]);
+
+  const isStaffBusyAtSelectedTime = useCallback((staffId: string, timeStr: string) => {
+    const ymd = `${selectedDay.getFullYear()}-${String(selectedDay.getMonth() + 1).padStart(2, "0")}-${String(selectedDay.getDate()).padStart(2, "0")}`;
+    const cacheKey = `${staffId}_${ymd}`;
+    const slots = busySlots[cacheKey];
+    if (!slots || slots.length === 0) return false;
+
+    const targetStart = combineDateAndTime(selectedDay, timeStr).getTime();
+    const targetEnd = targetStart + 30 * 60000;
+
+    return slots.some(slot => {
+      const bStart = new Date(slot.start).getTime();
+      const bEnd = new Date(slot.end).getTime();
+      return (targetStart < bEnd && targetEnd > bStart);
+    });
+  }, [selectedDay, busySlots]);
+
+  useEffect(() => {
+    const slots = generateSlotsForDay(venueData.schedule, selectedDay);
+    if (slots.length > 0 && !slots.includes(selectedTime)) {
+      const firstSvcId = selectedServiceIds[0];
+      const eligibleStaff = firstSvcId ? venueData.team.filter(p => staffOffersService(p, firstSvcId) && staffAvailableOnDay(p.availability, selectedDay)) : [];
+      
+      const availableSlot = slots.find(time => {
+        if (!firstSvcId || eligibleStaff.length === 0) return true;
+        return eligibleStaff.some(p => !isStaffBusyAtSelectedTime(p.id, time));
+      });
+
+      setSelectedTime(availableSlot || slots[0]);
+    }
+  }, [selectedDay, venueData.schedule, selectedServiceIds, venueData.team, isStaffBusyAtSelectedTime]);
 
   const slotStart = useMemo(
     () => combineDateAndTime(selectedDay, selectedTime),
@@ -295,6 +422,16 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     const iso = start.toISOString();
     setIsProcessing(true);
     try {
+      for (const svc of selectedServices) {
+        const staffRaw = assignments[svc.cartIndex];
+        if (staffRaw && isStaffBusyAtSelectedTime(staffRaw, selectedTime)) {
+          const staffName = venueData.team.find(m => m.id === staffRaw)?.name || "Professional";
+          toastError("Already Booked", `${staffName} is already booked at ${selectedTime}. Please select another slot.`);
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       for (const svc of selectedServices) {
         const staffRaw = assignments[svc.cartIndex];
         const body: {
@@ -389,69 +526,94 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     }
   };
 
-  const renderSchedule = () => (
-    <div className="flex flex-col items-center">
-      <h2 className="text-xl font-black text-slate-900 mb-8 capitalize">{monthTitle}</h2>
+  const renderSchedule = () => {
+    const slots = generateSlotsForDay(venueData.schedule, selectedDay);
+    return (
+      <div className="flex flex-col items-center">
+        <h2 className="text-xl font-black text-slate-900 mb-8 capitalize">{monthTitle}</h2>
 
-      <div className="flex items-center gap-4 mb-10 w-full justify-center">
-        <button
-          type="button"
-          disabled={dayOffset <= 0}
-          onClick={() => {
-            setDayOffset((d) => Math.max(0, d - 7));
-            setSelectedDayIndex(0);
-          }}
-          className="p-2 text-slate-400 hover:text-slate-900 disabled:opacity-30"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          {dayStrip.map((day, idx) => (
-            <button
-              type="button"
-              key={day.toISOString()}
-              onClick={() => setSelectedDayIndex(idx)}
-              className={`flex flex-col items-center justify-center min-w-[55px] h-[75px] rounded-2xl border-2 transition-all ${
-                selectedDayIndex === idx
-                  ? "bg-[#ff5a5f] border-[#ff5a5f] text-white shadow-lg shadow-[#ff5a5f]/30"
-                  : "border-slate-100 text-slate-400 hover:border-slate-200"
-              }`}
-            >
-              <span className="text-[10px] font-black uppercase tracking-widest">
-                {new Intl.DateTimeFormat(dateLocale, { weekday: "short" }).format(day)}
-              </span>
-              <span className="text-xl font-black mt-1">{day.getDate()}</span>
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setDayOffset((d) => d + 7);
-            setSelectedDayIndex(0);
-          }}
-          className="p-2 text-slate-400 hover:text-slate-900"
-        >
-          <ChevronRight size={20} />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 mb-10 w-full max-w-[400px]">
-        {["09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM"].map((time) => (
+        <div className="flex items-center gap-4 mb-10 w-full justify-center">
           <button
             type="button"
-            key={time}
-            onClick={() => setSelectedTime(time)}
-            className={`py-2.5 rounded-2xl border-2 text-[10px] font-black transition-all ${
-              selectedTime === time
-                ? "border-[#ff5a5f] text-[#ff5a5f] bg-[#ff5a5f]/5"
-                : "border-slate-100 text-slate-400 hover:border-slate-200"
-            }`}
+            disabled={dayOffset <= 0}
+            onClick={() => {
+              setDayOffset((d) => Math.max(0, d - 7));
+              setSelectedDayIndex(0);
+            }}
+            className="p-2 text-slate-400 hover:text-slate-900 disabled:opacity-30"
           >
-            {time}
+            <ChevronLeft size={20} />
           </button>
-        ))}
-      </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            {dayStrip.map((day, idx) => (
+              <button
+                type="button"
+                key={day.toISOString()}
+                onClick={() => setSelectedDayIndex(idx)}
+                className={`flex flex-col items-center justify-center min-w-[55px] h-[75px] rounded-2xl border-2 transition-all ${
+                  selectedDayIndex === idx
+                    ? "bg-[#ff5a5f] border-[#ff5a5f] text-white shadow-lg shadow-[#ff5a5f]/30"
+                    : "border-slate-100 text-slate-400 hover:border-slate-200"
+                }`}
+              >
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  {new Intl.DateTimeFormat(dateLocale, { weekday: "short" }).format(day)}
+                </span>
+                <span className="text-xl font-black mt-1">{day.getDate()}</span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDayOffset((d) => d + 7);
+              setSelectedDayIndex(0);
+            }}
+            className="p-2 text-slate-400 hover:text-slate-900"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+
+        {slots.length === 0 ? (
+          <div className="text-center py-6 mb-10 w-full bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <p className="text-sm font-bold uppercase tracking-widest text-slate-400 m-0">Venue is closed on this day</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 mb-10 w-full max-w-[400px] max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+            {slots.map((time) => {
+              let anyStaffAvailable = false;
+              const firstSvcId = selectedServiceIds[0];
+              if (firstSvcId) {
+                const eligibleStaff = venueData.team.filter(p => staffOffersService(p, firstSvcId) && staffAvailableOnDay(p.availability, selectedDay));
+                anyStaffAvailable = eligibleStaff.length === 0 || eligibleStaff.some(p => !isStaffBusyAtSelectedTime(p.id, time));
+              } else {
+                anyStaffAvailable = true;
+              }
+
+              return (
+                <button
+                  type="button"
+                  key={time}
+                  disabled={!anyStaffAvailable}
+                  onClick={() => setSelectedTime(time)}
+                  className={`py-2.5 rounded-2xl border-2 text-[10px] font-black transition-all ${
+                    !anyStaffAvailable
+                      ? "border-slate-50 bg-slate-50 text-slate-300 cursor-not-allowed"
+                      : selectedTime === time
+                      ? "border-[#ff5a5f] text-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
+                      : "border-slate-100 text-slate-700 hover:border-slate-200 hover:bg-slate-50/50"
+                  }`}
+                >
+                  {time}
+                  {!anyStaffAvailable && (
+                    <span className="block text-[8px] font-bold text-slate-400 mt-0.5 tracking-tight uppercase">Busy</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
       <button
         type="button"
@@ -461,7 +623,8 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         {t("bookingContinue")}
       </button>
     </div>
-  );
+    );
+  };
 
   const renderSummary = () => (
     <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
@@ -699,48 +862,60 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
 
         <div className="grid grid-cols-1 gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
           {availableStaff.length > 0 ? (
-            availableStaff.map((member) => (
-              <div
-                key={member.id}
-                onClick={() => {
-                  setAssignments((prev) => ({ ...prev, [activeCartIndexForChange]: member.id }));
-                  setStep("SUMMARY");
-                  setActiveCartIndexForChange(null);
-                }}
-                className={`flex items-center gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                  assignments[activeCartIndexForChange] === member.id
-                    ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
-                    : "border-slate-100 bg-white hover:border-slate-200"
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <img src={member.img} alt="" className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-sm" />
-                    <div className="absolute -top-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white" />
-                  </div>
-                  <div>
-                    <p className="font-black text-slate-900 text-sm group-hover:text-[#ff5a5f] transition-colors">
-                      {member.name}
-                    </p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{member.role}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Star size={10} className="fill-amber-400 text-amber-400" />
-                      <span className="text-[10px] font-black text-slate-700">{member.rating > 0 ? member.rating : "—"}</span>
+            availableStaff.map((member) => {
+              const isBusy = isStaffBusyAtSelectedTime(member.id, selectedTime);
+              return (
+                <div
+                  key={member.id}
+                  onClick={() => {
+                    if (isBusy) return;
+                    setAssignments((prev) => ({ ...prev, [activeCartIndexForChange!]: member.id }));
+                    setStep("SUMMARY");
+                    setActiveCartIndexForChange(null);
+                  }}
+                  className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
+                    isBusy
+                      ? "border-slate-100 bg-slate-50/50 opacity-70 cursor-not-allowed"
+                      : assignments[activeCartIndexForChange!] === member.id
+                      ? "border-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
+                      : "border-slate-100 bg-white hover:border-slate-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <img src={member.img} alt="" className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-sm" />
+                      {!isBusy && <div className="absolute -top-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white" />}
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-sm group-hover:text-[#ff5a5f] transition-colors">
+                        {member.name}
+                      </p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{member.role}</p>
+                      {isBusy ? (
+                        <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-red-50 text-red-500 border border-red-100">
+                          {language === "en" ? "Busy" : "Ocupado"}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star size={10} className="fill-amber-400 text-amber-400" />
+                          <span className="text-[10px] font-black text-slate-700">{member.rating > 0 ? member.rating : "—"}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
+                  <div
+                    className="p-3 text-slate-300 ml-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedProfForDetail(member);
+                      setStep("PROFESSIONAL_DETAIL");
+                    }}
+                  >
+                    <Info size={20} />
+                  </div>
                 </div>
-                <div
-                  className="p-3 text-slate-300 ml-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedProfForDetail(member);
-                    setStep("PROFESSIONAL_DETAIL");
-                  }}
-                >
-                  <Info size={20} />
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <p className="text-slate-400 text-sm font-bold p-4">No staff available for this slot.</p>
           )}
@@ -856,8 +1031,20 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           })}
         </div>
 
-        <div className="pt-4 border-t-2 border-dashed border-slate-200">
+        <div className="pt-4 border-t-2 border-dashed border-slate-200 space-y-3">
           <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === "en" ? "Subtotal" : "Subtotal"}</span>
+            <span className="text-sm font-black text-slate-600">${subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === "en" ? "Service Fee" : "Tarifa de Servicio"}</span>
+            <span className="text-sm font-black text-slate-600">${serviceFee.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between items-center pb-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === "en" ? "Tax" : "Impuesto"}</span>
+            <span className="text-sm font-black text-slate-600">${taxAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-slate-100">
             <span className="text-xs font-black text-slate-900 uppercase tracking-widest">{t('totalToPay')}</span>
             <span className="text-2xl font-black text-[#ff5a5f]">${totalPrice.toFixed(2)}</span>
           </div>

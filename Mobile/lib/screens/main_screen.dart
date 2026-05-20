@@ -7,8 +7,6 @@ import 'favorite_screen.dart';
 import 'profile_screen.dart';
 import 'booking_history_screen.dart';
 import 'search_hub_screen.dart';
-import 'booking_calendar_screen.dart';
-import '../utils/booking_cart.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -28,22 +26,6 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    BookingCart.instance.addListener(_onCartChanged);
-  }
-
-  @override
-  void dispose() {
-    BookingCart.instance.removeListener(_onCartChanged);
-    super.dispose();
-  }
-
-  void _onCartChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
@@ -51,59 +33,14 @@ class _MainScreenState extends State<MainScreen> {
         children: _screens,
       ),
       bottomNavigationBar: _buildBottomNav(),
-      floatingActionButton: BookingCart.instance.isNotEmpty
-          ? FloatingActionButton(
-              onPressed: () {
-                final cart = BookingCart.instance;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BookingCalendarScreen(
-                      venueName: cart.venueName ?? '',
-                      heroImageUrl: cart.heroImageUrl ?? '',
-                      cartLines: cart.lines,
-                      specialists: cart.specialists,
-                      businessId: cart.businessId,
-                    ),
-                  ),
-                );
-              },
-              backgroundColor: AppColors.primary500,
-              shape: const CircleBorder(),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(Icons.shopping_bag_outlined, color: AppColors.white),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: AppColors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '${BookingCart.instance.itemCount}',
-                        style: const TextStyle(
-                          color: AppColors.primary500,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : FloatingActionButton(
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingHistoryScreen()));
-              },
-              backgroundColor: AppColors.primary500,
-              shape: const CircleBorder(),
-              child: const Icon(Icons.calendar_today_outlined, color: AppColors.white),
-            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingHistoryScreen()));
+        },
+        backgroundColor: AppColors.primary500,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.calendar_today_outlined, color: AppColors.white),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }

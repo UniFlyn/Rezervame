@@ -4,6 +4,7 @@ import '../data/api_repository.dart';
 import '../models/app_notification.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/avatar_image_util.dart';
 import 'business_registration_flow.dart';
 import 'customer_service_screen.dart';
 import 'edit_profile_screen.dart';
@@ -28,7 +29,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ApiRepository _api = ApiRepository();
-  late final Future<Map<String, dynamic>?> _sessionFuture;
+  Future<Map<String, dynamic>?>? _sessionFuture;
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).take(2).toList();
@@ -39,7 +40,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionFuture = _api.fetchUserSession();
+    _reloadSession();
+  }
+
+  void _reloadSession() {
+    setState(() {
+      _sessionFuture = _api.fetchUserSession();
+    });
   }
 
   void _navigateToStatic(String title, List<StaticSection> sections) {
@@ -213,20 +220,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final displayName = name.isNotEmpty ? name : 'profileGuestUser'.tr();
                   final displayEmail = email.isNotEmpty ? email : 'profileSignInPrompt'.tr();
 
-                  final Widget avatar = avatarUrl.startsWith('http')
-                      ? CircleAvatar(
-                          radius: 40,
-                          backgroundColor: AppColors.grey100,
-                          backgroundImage: NetworkImage(avatarUrl),
-                        )
-                      : CircleAvatar(
-                          radius: 40,
-                          backgroundColor: AppColors.grey100,
-                          child: Text(
-                            _initials(name.isNotEmpty ? name : displayName),
-                            style: AppTypography.heading300.copyWith(color: AppColors.grey700, fontSize: 20),
-                          ),
-                        );
+                  final Widget avatar = buildProfileAvatar(
+                    imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
+                    initials: _initials(name.isNotEmpty ? name : displayName),
+                    radius: 40,
+                  );
 
                   return Row(
                     children: [
@@ -235,10 +233,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           avatar,
                           GestureDetector(
-                            onTap: () => Navigator.push<void>(
-                              context,
-                              MaterialPageRoute<void>(builder: (context) => const EditProfileScreen()),
-                            ),
+                            onTap: () async {
+                              final updated = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute<bool>(builder: (context) => const EditProfileScreen()),
+                              );
+                              if (updated == true) _reloadSession();
+                            },
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: const BoxDecoration(color: AppColors.primary500, shape: BoxShape.circle),

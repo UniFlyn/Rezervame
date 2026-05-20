@@ -23,6 +23,7 @@ export interface Business {
   socialInstagram?: string;
   socialX?: string;
   socialTiktok?: string;
+  workingHours?: string;
   balance: number;
   revenue: number;
   notifyBookingEmail?: boolean;
@@ -31,6 +32,8 @@ export interface Business {
   /** Business onboarding / moderation status from API (`Business.status`). */
   status?: string;
   taxPercentage?: number;
+  planId?: string;
+  plan?: string;
 }
 
 interface BusinessState {

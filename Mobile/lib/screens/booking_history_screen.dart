@@ -39,16 +39,34 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 
   Future<void> _loadData({bool refresh = true}) async {
     if (refresh) setState(() => _loading = true);
-    final locale = context.locale.languageCode;
-    final data = await _repo.fetchBookings(page: _historyPage, limit: 10, locale: locale);
-    if (!mounted) return;
-    setState(() {
-      _ongoingData = (data['ongoing'] as List<Map<String, dynamic>>?) ?? [];
-      _historyData = (data['history'] as List<Map<String, dynamic>>?) ?? [];
-      _historyTotalPages = (data['totalPages'] as int?) ?? 1;
-      _historyTotal = (data['total'] as int?) ?? _historyData.length;
-      _loading = false;
-    });
+    try {
+      final locale = context.locale.languageCode;
+      final data = await _repo.fetchBookings(page: _historyPage, limit: 10, locale: locale);
+      if (!mounted) return;
+      setState(() {
+        _ongoingData = (data['ongoing'] as List<Map<String, dynamic>>?) ?? [];
+        _historyData = (data['history'] as List<Map<String, dynamic>>?) ?? [];
+        _historyTotalPages = (data['totalPages'] as int?) ?? 1;
+        _historyTotal = (data['total'] as int?) ?? _historyData.length;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _ongoingData = [];
+        _historyData = [];
+        _historyTotalPages = 1;
+        _historyTotal = 0;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEn ? 'Could not load reservations. Pull to refresh.' : 'No se pudieron cargar las reservas. Desliza para actualizar.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   List<String> _imageUrls(Map<String, dynamic> data) {

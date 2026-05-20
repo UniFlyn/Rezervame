@@ -60,6 +60,8 @@ export default function BusinessJoinPage() {
   const [insuranceDocumentImage, setInsuranceDocumentImage] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [plans, setPlans] = useState<any[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("basic");
 
   const tx = language === "es"
     ? {
@@ -221,6 +223,45 @@ export default function BusinessJoinPage() {
           "We could not load service categories. You can still continue if categories appear later.",
         );
       });
+
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+    fetch(`${API_BASE}/public/plans`, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error("Plans failed to fetch");
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setPlans(data);
+        } else {
+          throw new Error("No plans");
+        }
+      })
+      .catch(() => {
+        setPlans([
+          {
+            id: 'basic',
+            name: 'Basic',
+            price: 0,
+            billingCycle: 'monthly',
+            features: ['Up to 50 bookings/month', 'Basic business profile', 'Email support'],
+          },
+          {
+            id: 'premium',
+            name: 'Premium',
+            price: 29.0,
+            billingCycle: 'monthly',
+            features: ['Unlimited bookings', 'Marketing & Promotions', 'Advanced Analytics', '24/7 Priority support'],
+          },
+          {
+            id: 'gold',
+            name: 'Gold',
+            price: 29.99,
+            billingCycle: 'monthly',
+            features: ['Unlimited Staff', 'Unlimited Service'],
+          },
+        ]);
+      });
   }, []);
 
   useEffect(() => {
@@ -318,6 +359,7 @@ export default function BusinessJoinPage() {
         licenseDocumentImage,
         insuranceDocumentImage,
         password,
+        planId: selectedPlanId,
         services: services
           .filter((s) => s.name.trim() && Number(s.duration) > 0)
           .map((s) => ({
@@ -712,6 +754,74 @@ export default function BusinessJoinPage() {
                                   </div>
                                </div>
                             </div>
+
+                            {/* SUBSCRIPTION TIER PICKER */}
+                            <div className="space-y-6 pt-6 border-t border-slate-100">
+                               <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-gradient-to-tr from-[#ff5a5f] to-amber-500 rounded-lg flex items-center justify-center text-white shadow-md shadow-[#ff5a5f]/20">
+                                     <Sparkles size={16} />
+                                  </div>
+                                  <div>
+                                     <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 italic">
+                                        {language === "es" ? "Selecciona tu Plan de Suscripción" : "Select Your Subscription Plan"}
+                                     </h3>
+                                     <p className="text-xs font-bold text-slate-400">
+                                        {language === "es" ? "Empieza gratis o elige funciones avanzadas" : "Start free or choose advanced capabilities"}
+                                     </p>
+                                  </div>
+                               </div>
+
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                                  {plans.map((p) => {
+                                     const isSelected = selectedPlanId === p.id;
+                                     return (
+                                        <div
+                                           key={p.id}
+                                           onClick={() => setSelectedPlanId(p.id)}
+                                           className={`relative rounded-[2.5rem] border-2 p-8 flex flex-col justify-between transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl ${
+                                              isSelected
+                                                 ? "border-[#ff5a5f] bg-[#ff5a5f]/5 shadow-[#ff5a5f]/5"
+                                                 : "border-slate-100 bg-white hover:border-slate-300"
+                                           }`}
+                                        >
+                                           {isSelected && (
+                                              <div className="absolute top-6 right-6 w-8 h-8 bg-[#ff5a5f] rounded-full flex items-center justify-center text-white shadow-lg animate-in zoom-in duration-300">
+                                                 <Check size={16} strokeWidth={3} />
+                                              </div>
+                                           )}
+                                           
+                                           <div className="space-y-4">
+                                              <div>
+                                                 <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
+                                                    isSelected ? "bg-[#ff5a5f] text-white" : "bg-slate-100 text-slate-500"
+                                                 }`}>
+                                                    {p.name}
+                                                 </span>
+                                              </div>
+
+                                              <div className="flex items-baseline gap-1">
+                                                 <span className="text-3xl font-black tracking-tighter text-slate-900">
+                                                    ${p.price.toFixed(2)}
+                                                 </span>
+                                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    / {p.billingCycle === "yearly" ? (language === "es" ? "año" : "year") : (language === "es" ? "mes" : "month")}
+                                                 </span>
+                                              </div>
+
+                                              <ul className="space-y-3 pt-2">
+                                                 {(p.features || []).map((f: string, idx: number) => (
+                                                    <li key={idx} className="flex items-start gap-2 text-xs font-bold text-slate-600 italic">
+                                                       <Check className="text-emerald-500 shrink-0 mt-0.5" size={12} strokeWidth={3} />
+                                                       <span>{f}</span>
+                                                    </li>
+                                                 ))}
+                                              </ul>
+                                           </div>
+                                        </div>
+                                     );
+                                  })}
+                               </div>
+                            </div>
                          </div>
                       </div>
                     )}
@@ -927,10 +1037,18 @@ export default function BusinessJoinPage() {
                                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{tx.contactReview}</p>
                                   <p className="text-lg font-bold text-slate-800">{businessPhone || "—"}</p>
                                </div>
-                              <div>
+                               <div>
                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{tx.taxIdLabel}</p>
                                  <p className="text-lg font-bold text-slate-800">{taxId || "—"}</p>
-                              </div>
+                               </div>
+                               <div>
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                                     {language === "es" ? "Plan de Suscripción" : "Subscription Plan"}
+                                  </p>
+                                  <p className="text-lg font-black text-[#ff5a5f] uppercase tracking-wide">
+                                     {plans.find((p) => p.id === selectedPlanId)?.name || "Basic"}
+                                  </p>
+                               </div>
                             </div>
 
                             <div>

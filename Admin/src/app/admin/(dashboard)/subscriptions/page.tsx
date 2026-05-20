@@ -151,12 +151,12 @@ export default function SubscriptionsPage() {
             Manage platform subscription tiers and monitor real-time business aggregates.
           </p>
         </div>
-        <button 
+        <button
           onClick={handleCreate}
-          className="bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-2 hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95"
+          className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition shadow-lg active:scale-95 shrink-0"
         >
-          <Plus size={18} />
-          Create New Plan
+          <Plus size={16} />
+          New Tier
         </button>
       </div>
 
@@ -204,18 +204,20 @@ export default function SubscriptionsPage() {
                  ))}
                </div>
 
-               <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
-                  <button 
+               <div className="pt-8 border-t border-slate-50 flex items-center justify-between gap-4">
+                  <button
                     onClick={() => handleEdit(plan)}
-                    className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl transition"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition text-[10px] font-black uppercase tracking-wider"
                   >
-                    <Edit3 size={18} />
+                    <Edit3 size={12} />
+                    Edit
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDelete(plan.id)}
-                    className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-100 text-rose-600 hover:bg-rose-50 transition text-[10px] font-black uppercase tracking-wider"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={12} />
+                    Delete
                   </button>
                </div>
             </div>

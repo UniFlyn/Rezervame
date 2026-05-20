@@ -118,6 +118,29 @@ class VenueListing {
         if (amenityLabelsEs.isNotEmpty) 'amenityLabelsEs': amenityLabelsEs,
       };
 
+  /// Deterministic positive int from a string key (FNV-1a). Stable across app runs.
+  static int stableHash32(String input) {
+    var hash = 0x811c9dc5;
+    for (final unit in input.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return hash == 0 ? 1 : hash;
+  }
+
+  /// UI list id when API returns a non-numeric id — prefer [businessId] for uniqueness.
+  static int resolveListingId(dynamic rawId, {String? businessId}) {
+    if (rawId is int) return rawId;
+    if (rawId is num) return rawId.toInt();
+    final parsed = int.tryParse('$rawId');
+    if (parsed != null) return parsed;
+    final biz = (businessId ?? '').trim();
+    if (biz.isNotEmpty) return stableHash32(biz);
+    final key = '$rawId'.trim();
+    if (key.isNotEmpty) return stableHash32(key);
+    return 0;
+  }
+
   /// Build a listing from `/api/mobile/favorites` rows or legacy mock maps.
   factory VenueListing.fromFavoriteMap(Map<String, dynamic> fav) {
     final reviewsRaw = fav['reviews']?.toString() ?? '';

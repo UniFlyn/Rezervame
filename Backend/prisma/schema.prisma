@@ -156,6 +156,7 @@ model Business {
   socialInstagram          String?
   socialX                  String?
   socialTiktok             String?
+  workingHours             String?
   taxPercentage            Float          @default(0)
   promotions               Promotion[]
   plan                     String         @default("Basic")
@@ -245,6 +246,7 @@ model Booking {
   transaction    Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   taxAmount      Float          @default(0)
   isReviewed     Boolean        @default(false)
+  paymentMethod  String?        // Preferred method selected at checkout (Online, Card Payment, etc.)
 }
 
 model Review {

@@ -80,9 +80,9 @@ class ApiRepository {
       if (decoded is Map && decoded['message'] != null) {
         throw Exception('${decoded['message']}');
       }
-    } catch (e) {
-      if (e is Exception) throw e;
-    }
+    } on Exception {
+      rethrow;
+    } catch (_) {}
     throw Exception(fallback);
   }
 
@@ -212,29 +212,47 @@ class ApiRepository {
     return {'data': data, 'totalPages': totalPages, 'total': total};
   }
 
+  List<Map<String, dynamic>> _bookingRowsFromJson(dynamic raw) {
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
   Future<Map<String, dynamic>> fetchBookings({int page = 1, int limit = 10, String locale = 'en'}) async {
     final uri = Uri.parse('$_baseUrl/mobile/bookings').replace(queryParameters: {
       'page': '$page',
       'limit': '$limit',
     });
-    final res = await http.get(uri, headers: await _headers(auth: true));
-    if (res.statusCode == 401) {
-      return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
-    }
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
-    }
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final ongoingRaw = (data['ongoing'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
-    final historyBlock = data['history'] as Map<String, dynamic>?;
-    final historyRaw = (historyBlock?['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    try {
+      final res = await http
+          .get(uri, headers: await _headers(auth: true))
+          .timeout(const Duration(seconds: 30));
+      if (res.statusCode == 401) {
+        return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
+      }
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
+      }
+      final decoded = jsonDecode(res.body);
+      if (decoded is! Map) {
+        return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
+      }
+      final data = Map<String, dynamic>.from(decoded);
+      final ongoingRaw = _bookingRowsFromJson(data['ongoing']);
+      final historyBlock = data['history'] is Map ? Map<String, dynamic>.from(data['history'] as Map) : null;
+      final historyRaw = _bookingRowsFromJson(historyBlock?['data']);
 
-    return {
-      'ongoing': groupAndMapBookings(ongoingRaw, locale: locale),
-      'history': groupAndMapBookings(historyRaw, locale: locale),
-      'totalPages': historyBlock?['totalPages'] ?? 1,
-      'total': historyBlock?['total'] ?? historyRaw.length,
-    };
+      return {
+        'ongoing': groupAndMapBookings(ongoingRaw, locale: locale),
+        'history': groupAndMapBookings(historyRaw, locale: locale),
+        'totalPages': (historyBlock?['totalPages'] as num?)?.toInt() ?? 1,
+        'total': (historyBlock?['total'] as num?)?.toInt() ?? historyRaw.length,
+      };
+    } catch (_) {
+      return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchBookingGroup(String bookingId) async {
@@ -381,7 +399,7 @@ class ApiRepository {
     final items = (body['data'] as List<dynamic>).cast<Map<String, dynamic>>();
     return items.map((it) {
       return VenueListing(
-        id: it['id'] is num ? (it['id'] as num).toInt() : (int.tryParse('${it['id']}') ?? '${it['id']}'.hashCode.abs()),
+        id: VenueListing.resolveListingId(it['id'], businessId: it['businessId'] as String?),
         businessId: it['businessId'] as String?,
         name: '${it['name']}',
         categoryKey: '${it['categoryKey']}',
@@ -426,7 +444,7 @@ class ApiRepository {
     final items = (body['data'] as List<dynamic>).cast<Map<String, dynamic>>();
     final venues = items.map((it) {
       return VenueListing(
-        id: it['id'] is num ? (it['id'] as num).toInt() : (int.tryParse('${it['id']}') ?? '${it['id']}'.hashCode.abs()),
+        id: VenueListing.resolveListingId(it['id'], businessId: it['businessId'] as String?),
         businessId: it['businessId'] as String?,
         name: '${it['name']}',
         categoryKey: '${it['categoryKey']}',
@@ -675,6 +693,7 @@ class ApiRepository {
     required String phone,
     required String email,
     String? avatar,
+    String? gender,
   }) async {
     final res = await http.patch(
       Uri.parse('$_baseUrl/auth/user-session'),
@@ -684,6 +703,7 @@ class ApiRepository {
         'phone': phone.trim(),
         'email': email.trim().toLowerCase(),
         if (avatar != null) 'avatar': avatar,
+        if (gender != null && gender.trim().isNotEmpty) 'gender': gender.trim(),
       }),
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -762,6 +782,7 @@ class ApiRepository {
     required String date,
     String? staffId,
     String? familyMemberId,
+    String? paymentMethod,
   }) async {
     final res = await http.post(
       Uri.parse('$_baseUrl/mobile/bookings'),
@@ -772,6 +793,7 @@ class ApiRepository {
         'date': date,
         if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
         if (familyMemberId != null && familyMemberId.isNotEmpty) 'familyMemberId': familyMemberId,
+        if (paymentMethod != null && paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
       }),
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {

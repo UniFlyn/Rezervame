@@ -40,6 +40,33 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     return parts.map((s) => s[0].toUpperCase()).join();
   }
 
+  String _staffDisplayName(Map<String, dynamic> staff) {
+    final name = '${staff['name'] ?? ''}'.trim();
+    return name.isNotEmpty ? name : 'checkoutNoStaffListed'.tr();
+  }
+
+  String? _resolveStaffId(String specialistLabel) {
+    final list = widget.specialists;
+    if (list == null) return null;
+    for (final s in list) {
+      if (_staffDisplayName(s) == specialistLabel) {
+        final id = '${s['id'] ?? ''}'.trim();
+        return id.isNotEmpty ? id : null;
+      }
+    }
+    return null;
+  }
+
+  String _paymentMethodForApi() {
+    switch (_paymentMethod) {
+      case 'Card':
+        return 'Card Payment';
+      case 'Online':
+      default:
+        return 'Online';
+    }
+  }
+
   final ApiRepository _api = ApiRepository();
   late List<BookingCartLine> _lines;
 
@@ -60,7 +87,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     super.initState();
     _lines = List<BookingCartLine>.from(widget.cartLines);
     final list = widget.specialists ?? const [];
-    final defaultStaff = list.isNotEmpty ? list.first['name'] as String : 'checkoutNoStaffListed'.tr();
+    final defaultStaff = list.isNotEmpty ? _staffDisplayName(list.first) : 'checkoutNoStaffListed'.tr();
 
     for (int i = 0; i < _lines.length; i++) {
       _lineSpecialists[i] = defaultStaff;
@@ -97,7 +124,9 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
           _loadedFamilyMembers = fam;
           _familyOptions = [
             'checkoutMyself'.tr(),
-            ...fam.map((m) => m['name'] as String),
+            ...fam
+                .map((m) => '${m['name'] ?? ''}'.trim())
+                .where((name) => name.isNotEmpty),
           ];
         });
       }
@@ -183,7 +212,12 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                     children: list
                         .map(
                           (m) {
-                            final n = m['name'] as String? ?? '';
+                            final rawName = '${m['name'] ?? ''}'.trim();
+                            final hasId = '${m['id'] ?? ''}'.trim().isNotEmpty;
+                            if (rawName.isEmpty && !hasId) {
+                              return const SizedBox.shrink();
+                            }
+                            final n = _staffDisplayName(m);
                             return Material(
                               color: Colors.transparent,
                               child: InkWell(
@@ -344,20 +378,17 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
         final bookingFor = _lineBookingFor[i] ?? 'checkoutMyself'.tr();
         String? familyMemberId;
         if (bookingFor != 'checkoutMyself'.tr()) {
-          final matches = _loadedFamilyMembers.where((m) => m['name'] == bookingFor);
+          final matches = _loadedFamilyMembers.where(
+            (m) => '${m['name'] ?? ''}'.trim() == bookingFor,
+          );
           if (matches.isNotEmpty) {
-            familyMemberId = matches.first['id'] as String?;
+            final id = '${matches.first['id'] ?? ''}'.trim();
+            if (id.isNotEmpty) familyMemberId = id;
           }
         }
 
         final specialist = _lineSpecialists[i] ?? 'checkoutNoStaffListed'.tr();
-        String? staffId;
-        if (widget.specialists != null) {
-          final matches = widget.specialists!.where((s) => s['name'] == specialist);
-          if (matches.isNotEmpty) {
-            staffId = matches.first['id'] as String?;
-          }
-        }
+        final staffId = _resolveStaffId(specialist);
 
         final result = await _api.createBooking(
           businessId: widget.businessId ?? '',
@@ -365,6 +396,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
           date: combinedIso,
           staffId: staffId,
           familyMemberId: familyMemberId,
+          paymentMethod: _paymentMethodForApi(),
         );
         if (result != null && result['id'] != null) {
           createdIds.add('${result['id']}');

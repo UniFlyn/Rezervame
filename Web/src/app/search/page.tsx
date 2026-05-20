@@ -14,12 +14,54 @@ import {
   type PublicCategory,
 } from "@/lib/venueSearch";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
+import { useAuth } from "@/components/AuthProvider";
+import { apiGet, apiDelete, apiPost } from "@/lib/api";
+import { toastSuccess, toastError } from "@/lib/toast";
 import en from "../../../../shared/locales/en.json";
 
 function SearchContent() {
   const { t, language } = useI18n();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      apiGet<any[]>("/mobile/favorites", "USER")
+        .then((res) => {
+          if (Array.isArray(res)) {
+            setFavorites(res.map((f: any) => f.businessId));
+          }
+        })
+        .catch(() => {});
+    } else {
+      setFavorites([]);
+    }
+  }, [isLoggedIn]);
+
+  const handleToggleFavorite = async (businessId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isLoggedIn) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+    const isFav = favorites.includes(businessId);
+    try {
+      if (isFav) {
+        await apiDelete(`/mobile/favorites/${businessId}`, "USER");
+        setFavorites((prev) => prev.filter((id) => id !== businessId));
+        toastSuccess(t("venueFavRemovedTitle") || "Removed from favorites", t("venueFavRemovedBody") || "Removed from favorites");
+      } else {
+        await apiPost("/mobile/favorites", { businessId }, "USER");
+        setFavorites((prev) => [...prev, businessId]);
+        toastSuccess(t("venueFavAddedTitle") || "Added to favorites", t("venueFavAddedBody") || "Added to favorites");
+      }
+    } catch (err) {
+      toastError("Error", "Could not update favorites");
+    }
+  };
   
   // States
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
@@ -201,25 +243,6 @@ function SearchContent() {
                     {t('searchBtn')}
                 </button>
             </div>
-            
-            <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-                <button className="flex items-center gap-2 px-5 py-3 bg-white border-2 border-slate-100 rounded-2xl text-xs font-black text-slate-800 hover:border-slate-300 transition-all shrink-0 uppercase tracking-widest shadow-sm">
-                    <Filter className="w-4 h-4" /> {t('filterTitle')}
-                </button>
-                <div className="h-8 w-px bg-slate-100 mx-2 hidden md:block"></div>
-                <div className="relative flex items-center shrink-0">
-                    <select 
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="pl-5 pr-12 py-3 bg-white border-2 border-slate-100 rounded-2xl text-xs font-black text-slate-800 hover:border-slate-300 transition-all uppercase tracking-widest shadow-sm outline-none appearance-none cursor-pointer"
-                    >
-                        <option value="ratingHighLow">{t('ratingHighLow')}</option>
-                        <option value="priceLowHigh">{t('priceLowHigh')}</option>
-                        <option value="priceHighLow">{t('priceHighLow')}</option>
-                    </select>
-                    <ChevronDown className="w-4 h-4 absolute right-4 text-slate-400 pointer-events-none" />
-                </div>
-            </div>
         </div>
       </div>
 
@@ -351,8 +374,11 @@ function SearchContent() {
                                         {t('popular')}
                                     </div>
                                 )}
-                                <button className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 hover:text-[#ff5a5f] transition-all shadow-lg hover:scale-110">
-                                    <Heart className="w-5 h-5" />
+                                <button 
+                                  onClick={(e) => handleToggleFavorite(res.businessId, e)}
+                                  className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 hover:text-[#ff5a5f] transition-all shadow-lg hover:scale-110 z-10"
+                                >
+                                    <Heart className={`w-5 h-5 transition-colors duration-300 ${favorites.includes(res.businessId) ? 'fill-[#ff5a5f] text-[#ff5a5f]' : 'text-slate-900'}`} />
                                 </button>
                             </div>
                             <div className="flex flex-col justify-between flex-1 pl-0 md:pl-8 py-4 pr-4 mt-4 md:mt-0">
@@ -415,8 +441,11 @@ function SearchContent() {
                                   }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                <button className="absolute top-6 right-6 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 hover:text-[#ff5a5f] transition-all shadow-lg">
-                                    <Heart className="w-5 h-5" />
+                                <button 
+                                  onClick={(e) => handleToggleFavorite(res.businessId, e)}
+                                  className="absolute top-6 right-6 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 hover:text-[#ff5a5f] transition-all shadow-lg z-10"
+                                >
+                                    <Heart className={`w-5 h-5 transition-colors duration-300 ${favorites.includes(res.businessId) ? 'fill-[#ff5a5f] text-[#ff5a5f]' : 'text-slate-900'}`} />
                                 </button>
                                 <div className="absolute bottom-6 left-6 flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-lg border border-white/20">
                                     <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />

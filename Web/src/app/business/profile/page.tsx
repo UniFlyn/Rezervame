@@ -4,8 +4,8 @@ import { useBusinessStore } from '../../../store/businessStore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Instagram, Twitter, Youtube } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Instagram, Twitter, Youtube, Sparkles, CheckCircle } from 'lucide-react';
 import { fetchPublicAmenities, type PublicAmenity } from '@/lib/venueSearch';
 import { amenityLucideIcon } from '@/lib/amenityIcons';
 import { toastError, toastSuccess, toastWarning } from '@/lib/toast';
@@ -88,6 +88,16 @@ export default function ProfilePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [amenityCatalog, setAmenityCatalog] = useState<PublicAmenity[]>([]);
   const [amenityKeysDraft, setAmenityKeysDraft] = useState<string[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [workingHoursDraft, setWorkingHoursDraft] = useState<Array<{ day: string; open: boolean; start: string; end: string }>>([
+    { day: "Monday", open: true, start: "09:00 AM", end: "06:00 PM" },
+    { day: "Tuesday", open: true, start: "09:00 AM", end: "06:00 PM" },
+    { day: "Wednesday", open: true, start: "09:00 AM", end: "06:00 PM" },
+    { day: "Thursday", open: true, start: "09:00 AM", end: "06:00 PM" },
+    { day: "Friday", open: true, start: "09:00 AM", end: "06:00 PM" },
+    { day: "Saturday", open: true, start: "10:00 AM", end: "04:00 PM" },
+    { day: "Sunday", open: false, start: "09:00 AM", end: "06:00 PM" },
+  ]);
 
   const categoryOptions = useMemo(() => {
     const list = [...BUSINESS_CATEGORIES];
@@ -144,6 +154,45 @@ export default function ProfilePage() {
       banner: business.banner || '',
     });
     setAmenityKeysDraft([...(business.amenityKeys ?? [])]);
+    
+    if (business.workingHours) {
+      try {
+        const parsed = JSON.parse(business.workingHours);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const loaded = [
+            { day: "Monday", open: true, start: "09:00 AM", end: "06:00 PM" },
+            { day: "Tuesday", open: true, start: "09:00 AM", end: "06:00 PM" },
+            { day: "Wednesday", open: true, start: "09:00 AM", end: "06:00 PM" },
+            { day: "Thursday", open: true, start: "09:00 AM", end: "06:00 PM" },
+            { day: "Friday", open: true, start: "09:00 AM", end: "06:00 PM" },
+            { day: "Saturday", open: true, start: "10:00 AM", end: "04:00 PM" },
+            { day: "Sunday", open: false, start: "09:00 AM", end: "06:00 PM" },
+          ].map(def => {
+            const match = parsed.find((p: any) => p.day?.toLowerCase() === def.day.toLowerCase());
+            if (match) {
+              const isClosed = match.hours?.toLowerCase() === "closed";
+              let start = "09:00 AM";
+              let end = "06:00 PM";
+              if (!isClosed && match.hours?.includes(" - ")) {
+                const parts = match.hours.split(" - ");
+                start = parts[0]?.trim() || "09:00 AM";
+                end = parts[1]?.trim() || "06:00 PM";
+              }
+              return {
+                day: def.day,
+                open: !isClosed,
+                start,
+                end
+              };
+            }
+            return def;
+          });
+          setWorkingHoursDraft(loaded);
+        }
+      } catch (e) {
+        console.error("Error parsing loaded workingHours:", e);
+      }
+    }
   }, [business, reset]);
 
   useEffect(() => {
@@ -171,6 +220,55 @@ export default function ProfilePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+    fetch(`${API_BASE}/public/plans`, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error("Plans failed to fetch");
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled) {
+          if (Array.isArray(data) && data.length > 0) {
+            setPlans(data);
+          } else {
+            throw new Error("No plans");
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlans([
+            {
+              id: 'basic',
+              name: 'Basic',
+              price: 0,
+              billingCycle: 'monthly',
+              features: ['Up to 50 bookings/month', 'Basic business profile', 'Email support'],
+            },
+            {
+              id: 'premium',
+              name: 'Premium',
+              price: 29.0,
+              billingCycle: 'monthly',
+              features: ['Unlimited bookings', 'Marketing & Promotions', 'Advanced Analytics', '24/7 Priority support'],
+            },
+            {
+              id: 'gold',
+              name: 'Gold',
+              price: 29.99,
+              billingCycle: 'monthly',
+              features: ['Unlimited Staff', 'Unlimited Service'],
+            },
+          ]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const onSubmit = async (data: ProfileFormValues) => {
     setErrorMessage(null);
     try {
@@ -185,6 +283,12 @@ export default function ProfilePage() {
         banner: data.banner,
         categories: data.categories,
         amenityKeys: amenityKeysDraft,
+        workingHours: JSON.stringify(
+          workingHoursDraft.map(item => ({
+            day: item.day,
+            hours: item.open ? `${item.start} - ${item.end}` : "Closed"
+          }))
+        ),
       });
       setSuccess(true);
       toastSuccess('Business profile updated');
@@ -447,6 +551,87 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              <div className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mb-6 border-b border-slate-200/80 pb-4">
+                  <h4 className="text-sm font-black uppercase tracking-tight text-slate-800">Business Hours</h4>
+                  <p className="mt-2 max-w-2xl text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400">
+                    Set your weekly operating hours. Turn off the toggle for days you are closed.
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  {workingHoursDraft.map((item, idx) => (
+                    <div key={item.day} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200/60 bg-white shadow-sm transition-all hover:border-slate-300">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...workingHoursDraft];
+                            updated[idx].open = !updated[idx].open;
+                            setWorkingHoursDraft(updated);
+                          }}
+                          className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${item.open ? 'bg-slate-900' : 'bg-slate-200'}`}
+                        >
+                          <div className={`w-4 h-4 bg-white rounded-full transition-all duration-300 ${item.open ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </button>
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-700 min-w-[90px]">{item.day}</span>
+                      </div>
+                      
+                      {item.open ? (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={item.start}
+                            onChange={(e) => {
+                              const updated = [...workingHoursDraft];
+                              updated[idx].start = e.target.value;
+                              setWorkingHoursDraft(updated);
+                            }}
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer focus:border-slate-400"
+                          >
+                            {Array.from({ length: 24 }).map((_, h) => {
+                              const hour = h % 12 === 0 ? 12 : h % 12;
+                              const ampm = h < 12 ? 'AM' : 'PM';
+                              const formatted = `${String(hour).padStart(2, '0')}:00 ${ampm}`;
+                              const formatted30 = `${String(hour).padStart(2, '0')}:30 ${ampm}`;
+                              return (
+                                <React.Fragment key={h}>
+                                  <option value={formatted}>{formatted}</option>
+                                  <option value={formatted30}>{formatted30}</option>
+                                </React.Fragment>
+                              );
+                            })}
+                          </select>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">to</span>
+                          <select
+                            value={item.end}
+                            onChange={(e) => {
+                              const updated = [...workingHoursDraft];
+                              updated[idx].end = e.target.value;
+                              setWorkingHoursDraft(updated);
+                            }}
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer focus:border-slate-400"
+                          >
+                            {Array.from({ length: 24 }).map((_, h) => {
+                              const hour = h % 12 === 0 ? 12 : h % 12;
+                              const ampm = h < 12 ? 'AM' : 'PM';
+                              const formatted = `${String(hour).padStart(2, '0')}:00 ${ampm}`;
+                              const formatted30 = `${String(hour).padStart(2, '0')}:30 ${ampm}`;
+                              return (
+                                <React.Fragment key={h}>
+                                  <option value={formatted}>{formatted}</option>
+                                  <option value={formatted30}>{formatted30}</option>
+                                </React.Fragment>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400 py-1.5 px-4 bg-slate-50 border border-slate-100 rounded-lg">Closed</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {(errors.logo || errors.banner) && (
                 <p className={errCls}>{errors.logo?.message || errors.banner?.message}</p>
               )}
@@ -490,6 +675,86 @@ export default function ProfilePage() {
                 }}
               />
             </label>
+          </div>
+
+          {/* PLAN MANAGEMENT CARD */}
+          <div className="mt-8 rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200/50 sm:rounded-[40px] sm:p-8 md:p-10">
+            <div className="mb-6 border-b border-slate-100 pb-6">
+              <div className="flex items-center gap-3">
+                 <div className="w-8 h-8 bg-gradient-to-tr from-[#ff5a5f] to-amber-500 rounded-lg flex items-center justify-center text-white shadow-md shadow-[#ff5a5f]/20">
+                    <Sparkles size={16} />
+                 </div>
+                 <div>
+                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-800">Subscription Plan</h3>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                       Manage your merchant subscription tier
+                    </p>
+                 </div>
+              </div>
+            </div>
+
+            {/* Current Active Plan Banner */}
+            <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-6 text-white shadow-lg mb-6">
+               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5a5f]">Active Plan</p>
+               <h4 className="text-2xl font-black uppercase tracking-tight mt-1">
+                  {business?.plan || 'Basic'}
+               </h4>
+               <div className="mt-4 flex items-center gap-2 text-xs font-bold text-slate-300">
+                  <CheckCircle className="text-emerald-400" size={14} />
+                  <span>Seeded Enterprise Ready</span>
+               </div>
+            </div>
+
+            {/* Plan Switcher Grid */}
+            <div className="space-y-4">
+               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Change Plan</p>
+               <div className="grid grid-cols-1 gap-3">
+                  {plans.map((p) => {
+                     const isCurrent = (business?.planId === p.id) || (!business?.planId && p.id === 'basic') || (business?.plan?.toLowerCase() === p.id.toLowerCase()) || (business?.plan?.toLowerCase() === p.name.toLowerCase());
+                     return (
+                        <button
+                           key={p.id}
+                           type="button"
+                           onClick={async () => {
+                              if (isCurrent) return;
+                              try {
+                                 await updateBusiness({ planId: p.id, plan: p.name });
+                                 toastSuccess(`Upgraded to ${p.name} plan successfully!`);
+                              } catch (err) {
+                                 toastError('Upgrade failed', err instanceof Error ? err.message : 'Upgrade request failed');
+                              }
+                           }}
+                           className={`relative w-full rounded-2xl border-2 p-4 text-left transition-all duration-300 flex items-center justify-between ${
+                              isCurrent
+                                 ? 'border-[#ff5a5f] bg-[#ff5a5f]/5 shadow-[#ff5a5f]/5 cursor-default'
+                                 : 'border-slate-100 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                           }`}
+                        >
+                           <div>
+                              <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
+                                 isCurrent ? 'bg-[#ff5a5f] text-white' : 'bg-slate-200 text-slate-600'
+                              }`}>
+                                 {p.name}
+                              </span>
+                              <p className="text-sm font-black text-slate-900 mt-1">
+                                 ${p.price.toFixed(2)} <span className="text-[10px] text-slate-400 font-bold">/ {p.billingCycle === 'yearly' ? 'year' : 'month'}</span>
+                              </p>
+                           </div>
+
+                           {isCurrent ? (
+                              <span className="text-[9px] font-black uppercase tracking-widest text-[#ff5a5f] bg-[#ff5a5f]/10 px-3 py-1.5 rounded-xl">
+                                 Active
+                              </span>
+                           ) : (
+                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50">
+                                 Switch
+                              </span>
+                           )}
+                        </button>
+                     );
+                  })}
+               </div>
+            </div>
           </div>
         </div>
       </div>

@@ -153,6 +153,12 @@ String mapItemStatusWeb(String? raw, {bool hasTransaction = false}) {
   return 'pending';
 }
 
+double _bookingPrice(Map<String, dynamic> item) {
+  final p = item['price'];
+  if (p is num) return p.toDouble();
+  return double.tryParse('$p') ?? 0;
+}
+
 String refNumberFromId(String id) {
   var hash = 0;
   for (var i = 0; i < id.length; i++) {
@@ -203,7 +209,7 @@ Map<String, dynamic> mapUserBookingGroup(List<Map<String, dynamic>> group, {Stri
     final itemStaff = item['staff'] as Map<String, dynamic>?;
     final fm = item['familyMember'] as Map<String, dynamic>?;
     final txId = item['transactionId'];
-    final priceNum = (item['price'] as num?) ?? 0;
+    final priceNum = _bookingPrice(item);
     return {
       'id': '${item['id']}',
       'name': '${itemSvc?['name'] ?? 'Service'}',
@@ -234,12 +240,14 @@ Map<String, dynamic> mapUserBookingGroup(List<Map<String, dynamic>> group, {Stri
     mainStatus = 'confirmed';
   }
 
-  final subtotal = group.fold<double>(0, (sum, item) => sum + ((item['price'] as num?) ?? 0).toDouble());
+  final subtotal = group.fold<double>(0, (sum, item) => sum + _bookingPrice(item));
   final taxAmount = group.fold<double>(0, (sum, item) {
-    final stored = (item['taxAmount'] as num?) ?? 0;
-    if (stored > 0) return sum + stored.toDouble();
-    final taxPct = (biz?['taxPercentage'] as num?) ?? 0;
-    return sum + (((item['price'] as num?) ?? 0).toDouble() * taxPct / 100);
+    final storedRaw = item['taxAmount'];
+    final stored = storedRaw is num ? storedRaw.toDouble() : (double.tryParse('$storedRaw') ?? 0);
+    if (stored > 0) return sum + stored;
+    final taxPctRaw = biz?['taxPercentage'];
+    final taxPct = taxPctRaw is num ? taxPctRaw.toDouble() : (double.tryParse('$taxPctRaw') ?? 0);
+    return sum + (_bookingPrice(item) * taxPct / 100);
   });
   final total = subtotal + taxAmount;
   final taxPct = (biz?['taxPercentage'] as num?) ?? 0;
@@ -275,7 +283,9 @@ Map<String, dynamic> mapUserBookingGroup(List<Map<String, dynamic>> group, {Stri
     'businessId': '${b['businessId'] ?? biz?['id'] ?? ''}',
     'items': items,
     'isReviewed': items.every((i) => i['isReviewed'] == true),
-    'paymentMethod': b['transaction'] is Map ? '${(b['transaction'] as Map)['paymentMethod'] ?? ''}' : '',
+    'paymentMethod': b['transaction'] is Map
+        ? '${(b['transaction'] as Map)['paymentMethod'] ?? ''}'
+        : '${b['paymentMethod'] ?? ''}',
   };
 }
 

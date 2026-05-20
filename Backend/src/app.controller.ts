@@ -79,6 +79,44 @@ function parseUserGeoQuery(userLat?: string, userLng?: string): { lat?: number; 
   return { lat, lng };
 }
 
+async function ensureHardcodedPlans(prisma: any) {
+  const count = await prisma.subscriptionPlan.count();
+  if (count > 0) return;
+
+  const plans = [
+    {
+      id: 'basic',
+      name: 'Basic',
+      price: 0,
+      billingCycle: 'monthly',
+      features: ['Up to 50 bookings/month', 'Basic business profile', 'Email support'],
+      active: true,
+    },
+    {
+      id: 'premium',
+      name: 'Premium',
+      price: 29.0,
+      billingCycle: 'monthly',
+      features: ['Unlimited bookings', 'Marketing & Promotions', 'Advanced Analytics', '24/7 Priority support'],
+      active: true,
+    },
+    {
+      id: 'gold',
+      name: 'Gold',
+      price: 29.99,
+      billingCycle: 'monthly',
+      features: ['Unlimited Staff', 'Unlimited Service'],
+      active: true,
+    },
+  ];
+
+  for (const plan of plans) {
+    await prisma.subscriptionPlan.create({
+      data: plan,
+    });
+  }
+}
+
 /** Human-facing category labels for listings (array + joined string for legacy clients). */
 function displayCategoryLabels(b: Business): string[] {
   const raw = b.categoryLabels ?? [];
@@ -148,6 +186,25 @@ function safeImageUrl(url: any): string | null {
   return s;
 }
 
+/** Strip oversized inline images from booking payloads (mobile list/detail). */
+function sanitizeMobileBooking(b: any) {
+  const out = { ...b };
+  if (b.business) {
+    out.business = {
+      ...b.business,
+      logoUrl: safeImageUrl(b.business.logoUrl),
+      bannerUrl: safeImageUrl(b.business.bannerUrl),
+    };
+  }
+  if (b.service) {
+    out.service = {
+      ...b.service,
+      imageUrl: safeImageUrl(b.service.imageUrl),
+    };
+  }
+  return out;
+}
+
 function mapBusiness(b: Business | null) {
   if (!b) return null;
   const categories = displayCategoryLabels(b);
@@ -173,6 +230,7 @@ function mapBusiness(b: Business | null) {
     socialInstagram: b.socialInstagram || '',
     socialX: b.socialX || '',
     socialTiktok: b.socialTiktok || '',
+    workingHours: b.workingHours || '',
     notifyBookingEmail: b.notifyBookingEmail,
     notifyCancellationEmail: b.notifyCancellationEmail,
     notifyDailySummary: b.notifyDailySummary,
@@ -180,6 +238,8 @@ function mapBusiness(b: Business | null) {
     categoryKeys: b.categoryKeys ?? [],
     amenityKeys: b.amenityKeys ?? [],
     status: b.status,
+    planId: b.planId ?? 'basic',
+    plan: b.plan ?? 'Basic',
   };
 }
 
@@ -217,12 +277,15 @@ function mapBusinessPatch(body: UpdateBusinessPanelDto): Record<string, unknown>
   if (body.socialInstagram !== undefined) data.socialInstagram = body.socialInstagram;
   if (body.socialX !== undefined) data.socialX = body.socialX;
   if (body.socialTiktok !== undefined) data.socialTiktok = body.socialTiktok;
+  if (body.workingHours !== undefined) data.workingHours = body.workingHours;
   if (body.notifyBookingEmail !== undefined) data.notifyBookingEmail = body.notifyBookingEmail;
   if (body.notifyCancellationEmail !== undefined) data.notifyCancellationEmail = body.notifyCancellationEmail;
   if (body.notifyDailySummary !== undefined) data.notifyDailySummary = body.notifyDailySummary;
   if (body.latitude !== undefined) data.latitude = body.latitude;
   if (body.longitude !== undefined) data.longitude = body.longitude;
   if (body.taxPercentage !== undefined) data.taxPercentage = body.taxPercentage;
+  if (body.planId !== undefined) data.planId = body.planId;
+  if (body.plan !== undefined) data.plan = body.plan;
   return data;
 }
 
@@ -338,7 +401,7 @@ export class AppController {
   @Patch('auth/user-session')
   async updateUserSession(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { name?: string; phone?: string; email?: string; avatar?: string }
+    @Body() body: { name?: string; phone?: string; email?: string; avatar?: string; gender?: string }
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
     
@@ -359,6 +422,7 @@ export class AppController {
         ...(body.phone !== undefined ? { phone: body.phone.trim() } : {}),
         ...(body.email !== undefined ? { email: body.email.trim().toLowerCase() } : {}),
         ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
+        ...(body.gender !== undefined ? { gender: body.gender.trim() || null } : {}),
       }
     });
 
@@ -1327,6 +1391,7 @@ export class AppController {
   @Get('admin/plans')
   async getAdminPlans(@Headers('authorization') authorization?: string) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    await ensureHardcodedPlans(this.prisma);
     return this.prisma.subscriptionPlan.findMany({ orderBy: { price: 'asc' } });
   }
 
@@ -1656,12 +1721,18 @@ export class AppController {
     const reviewsStr = String(totalReviews);
     const geo = parseUserGeoQuery(userLat, userLng);
     const distanceLabel = distanceLabelBetween(geo.lat, geo.lng, b.latitude, b.longitude);
+    
+    // Fetch global admin configuration for service fee
+    const adminConfig = await this.prisma.systemConfig.findFirst();
+    const serviceFee = adminConfig?.defaultCommission ?? 10;
+
     return {
       ...base,
       rating: ratingStr,
       reviews: reviewsStr,
       distanceLabel,
       taxPercentage: b.taxPercentage || 0,
+      serviceFee,
       amenities: rows.map((a) => ({
         key: a.key,
         labelEn: a.labelEn,
@@ -1779,6 +1850,20 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
+    const business = await this.prisma.business.findUnique({ where: { id } });
+    if (business) {
+      const plan = business.plan || 'Basic';
+      let serviceLimit = 5; // Basic default
+      if (plan === 'Premium') serviceLimit = 10;
+      else if (plan === 'Gold' || plan === 'Enterprise') serviceLimit = 99999;
+
+      const currentServiceCount = await this.prisma.service.count({ where: { businessId: id } });
+      if (currentServiceCount >= serviceLimit) {
+        throw new BadRequestException(
+          `Service limit reached. Your current plan (${plan}) allows up to ${serviceLimit} services. Please upgrade to a higher plan to add more services.`,
+        );
+      }
+    }
     const imageUrl =
       typeof body.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null;
     return this.prisma.service.create({
@@ -1868,6 +1953,12 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
+    const business = await this.prisma.business.findUnique({ where: { id } });
+    if (business && business.plan === 'Basic') {
+      throw new BadRequestException(
+        'Promotions and Marketing features are not available under the Basic plan. Please upgrade to Premium or higher to run promotions.',
+      );
+    }
     // Validate service belongs to this business
     const svc = await this.prisma.service.findFirst({ where: { id: body.serviceId, businessId: id } });
     if (!svc) throw new BadRequestException('Service not found for this business');
@@ -2021,6 +2112,20 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
+    const business = await this.prisma.business.findUnique({ where: { id } });
+    if (business) {
+      const plan = business.plan || 'Basic';
+      let staffLimit = 2; // Basic default
+      if (plan === 'Premium') staffLimit = 5;
+      else if (plan === 'Gold' || plan === 'Enterprise') staffLimit = 99999;
+
+      const currentStaffCount = await this.prisma.staff.count({ where: { businessId: id } });
+      if (currentStaffCount >= staffLimit) {
+        throw new BadRequestException(
+          `Staff limit reached. Your current plan (${plan}) allows up to ${staffLimit} staff members. Please upgrade to a higher plan to add more staff.`,
+        );
+      }
+    }
     return this.prisma.staff.create({
       data: {
         businessId: id,
@@ -2753,7 +2858,7 @@ export class AppController {
     if (!booking) throw new BadRequestException('Booking not found');
 
     // Find all bookings for this user, at this business, on this exact date/time
-    return this.prisma.booking.findMany({
+    const group = await this.prisma.booking.findMany({
       where: {
         userId: user.id,
         businessId: booking.businessId,
@@ -2762,6 +2867,7 @@ export class AppController {
       include: { business: true, service: true, staff: true, familyMember: true },
       orderBy: { date: 'asc' },
     });
+    return group.map(sanitizeMobileBooking);
   }
 
   @Get('mobile/bookings')
@@ -2796,9 +2902,9 @@ export class AppController {
     ]);
 
     return {
-      ongoing,
+      ongoing: ongoing.map(sanitizeMobileBooking),
       history: {
-        data: history,
+        data: history.map(sanitizeMobileBooking),
         total: historyTotal,
         page: p,
         limit: l,
@@ -2813,6 +2919,39 @@ export class AppController {
     return this.prisma.familyMember.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  @Get('mobile/staff/:id/busy-slots')
+  async getStaffBusySlots(
+    @Param('id') staffId: string,
+    @Query('date') dateStr: string,
+  ) {
+    const dayStart = new Date(dateStr);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dateStr);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        staffId,
+        status: { notIn: ['Cancelled', 'Rejected'] },
+        date: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+      },
+      include: { service: true },
+    });
+
+    return bookings.map((b) => {
+      const start = new Date(b.date);
+      const duration = b.service?.duration || 30;
+      const end = new Date(start.getTime() + duration * 60000);
+      return {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      };
     });
   }
 
@@ -3023,12 +3162,39 @@ export class AppController {
   @Post('mobile/bookings')
   async createMobileBooking(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { businessId: string; serviceId: string; date: string; staffId?: string; familyMemberId?: string },
+    @Body() body: {
+      businessId: string;
+      serviceId: string;
+      date: string;
+      staffId?: string;
+      familyMemberId?: string;
+      paymentMethod?: string;
+    },
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
     const business = await this.prisma.business.findUnique({ where: { id: body.businessId } });
     if (!business || business.status !== 'active') {
       throw new BadRequestException('Business is not available for booking');
+    }
+
+    if (business.plan === 'Basic') {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const monthlyBookingCount = await this.prisma.booking.count({
+        where: {
+          businessId: body.businessId,
+          date: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
+        },
+      });
+      if (monthlyBookingCount >= 50) {
+        throw new BadRequestException(
+          'This venue has reached its monthly limit of 50 bookings under the Basic plan. Please upgrade to a higher tier.',
+        );
+      }
     }
     const service = await this.prisma.service.findFirst({
       where: { id: body.serviceId, businessId: body.businessId },
@@ -3048,6 +3214,39 @@ export class AppController {
           throw new BadRequestException('Selected staff does not offer this service');
         }
         staffId = st.id;
+      }
+    }
+
+    if (staffId) {
+      const durationMin = service.duration || 30;
+      const sStart = date.getTime();
+      const sEnd = sStart + durationMin * 60000;
+
+      const dayStart = new Date(date);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const staffBookings = await this.prisma.booking.findMany({
+        where: {
+          staffId,
+          status: { notIn: ['Cancelled', 'Rejected'] },
+          date: {
+            gte: dayStart,
+            lte: dayEnd,
+          }
+        },
+        include: { service: true }
+      });
+
+      const hasOverlap = staffBookings.some(b => {
+        const bStart = new Date(b.date).getTime();
+        const bEnd = bStart + (b.service?.duration || 30) * 60000;
+        return (sStart < bEnd && sEnd > bStart);
+      });
+
+      if (hasOverlap) {
+        throw new BadRequestException('The selected professional is already booked at this time. Please select another slot.');
       }
     }
     let customerName = user.name;
@@ -3082,6 +3281,9 @@ export class AppController {
     const taxPercentage = business.taxPercentage || 0;
     const taxAmount = (finalPrice * taxPercentage) / 100;
 
+    const rawPaymentMethod = typeof body.paymentMethod === 'string' ? body.paymentMethod.trim() : '';
+    const paymentMethod = rawPaymentMethod || 'Online';
+
     const booking = await this.prisma.booking.create({
       data: {
         userId: user.id,
@@ -3094,6 +3296,7 @@ export class AppController {
         status,
         price: finalPrice,
         taxAmount,
+        paymentMethod,
       },
     });
 
@@ -3245,6 +3448,9 @@ export class AppController {
         ? validRatings.reduce((sum: number, r: any) => sum + r.businessRating, 0) / validRatings.length 
         : 0;
       const minPrice = b.services?.[0]?.price ?? 0;
+      const firstServiceImage = (b.services || [])
+        .map((s: { imageUrl?: string | null }) => safeImageUrl(s.imageUrl))
+        .find((u: string | null) => u && (u.startsWith('http') || u.startsWith('data:')));
       
       const distance = haversineKm(geo?.lat ?? 0, geo?.lng ?? 0, b.latitude ?? 0, b.longitude ?? 0);
       
@@ -3258,9 +3464,12 @@ export class AppController {
         price: minPrice.toFixed(2),
         lat: b.latitude ?? 0,
         lng: b.longitude ?? 0,
-        imageUrl: b.logoUrl,
-        bannerUrl: b.bannerUrl,
-        logoUrl: b.logoUrl,
+        serviceName: b.services?.[0]?.name ?? null,
+        serviceDurationMinutes: b.services?.[0]?.duration ?? null,
+        serviceImageUrl: firstServiceImage,
+        imageUrl: firstServiceImage ?? safeImageUrl(b.bannerUrl) ?? safeImageUrl(b.logoUrl),
+        bannerUrl: safeImageUrl(b.bannerUrl),
+        logoUrl: safeImageUrl(b.logoUrl),
         locationLabel: b.address.split(',')[0],
         distanceLabel: distanceLabelBetween(geo.lat, geo.lng, b.latitude, b.longitude),
         distance,
@@ -3334,6 +3543,7 @@ export class AppController {
 
   @Get('public/plans')
   async getPublicPlans() {
+    await ensureHardcodedPlans(this.prisma);
     return this.prisma.subscriptionPlan.findMany({
       where: { active: true },
       orderBy: { price: 'asc' },
@@ -3413,6 +3623,7 @@ export class AppController {
       licenseDocumentImage?: string;
       insuranceDocumentImage?: string;
       password?: string;
+      planId?: string;
     },
   ) {
     const name = (body.name || '').trim();
@@ -3427,6 +3638,7 @@ export class AppController {
     const idDocumentImage = String(body.idDocumentImage || '').trim();
     const licenseDocumentImage = String(body.licenseDocumentImage || '').trim();
     const insuranceDocumentImage = String(body.insuranceDocumentImage || '').trim();
+    const inputPlanId = String(body.planId || 'basic').trim();
 
     if (!name || !taxId || !owner || !email || !phone || !address) {
       throw new BadRequestException('name, taxId, owner, email, phone, and address are required');
@@ -3443,6 +3655,13 @@ export class AppController {
 
     const existing = await this.prisma.business.findUnique({ where: { email } });
     if (existing) throw new BadRequestException('business already exists for this email');
+
+    await ensureHardcodedPlans(this.prisma);
+    const selectedPlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: inputPlanId },
+    });
+    const finalPlanId = selectedPlan ? selectedPlan.id : 'basic';
+    const finalPlanName = selectedPlan ? selectedPlan.name : 'Basic';
 
     const merchantNumber = await allocateMerchantNumber(this.prisma);
     
@@ -3479,6 +3698,8 @@ export class AppController {
           idDocumentImage,
           licenseDocumentImage,
           insuranceDocumentImage,
+          plan: finalPlanName,
+          planId: finalPlanId,
           services: {
             create: services.map((s) => ({
               name: (s.name || '').trim() || 'Service',

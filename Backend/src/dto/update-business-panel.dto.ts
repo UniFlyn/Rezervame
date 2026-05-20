@@ -70,6 +70,10 @@ export class UpdateBusinessPanelDto {
   socialTiktok?: string;
 
   @IsOptional()
+  @IsString()
+  workingHours?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   balance?: number;
@@ -100,4 +104,12 @@ export class UpdateBusinessPanelDto {
   @Type(() => Number)
   @IsNumber()
   taxPercentage?: number;
+
+  @IsOptional()
+  @IsString()
+  planId?: string;
+
+  @IsOptional()
+  @IsString()
+  plan?: string;
 }
