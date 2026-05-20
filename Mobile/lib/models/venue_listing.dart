@@ -1,3 +1,5 @@
+import '../utils/image_url.dart';
+
 /// Shared venue model used by home, search, category, and service detail flows.
 /// Mirrors the map shape used in the legacy Mobile app for filters and map pins.
 class VenueListing {
@@ -51,24 +53,47 @@ class VenueListing {
   final List<String> amenityLabelsEn;
   final List<String> amenityLabelsEs;
 
+  /// Prefer service image, then banner, then logo (same order as Web `businessListingImageSrc`).
   String get heroImageUrl {
-    if (serviceImageUrl != null && serviceImageUrl!.isNotEmpty) return serviceImageUrl!;
-    if (bannerUrl != null && bannerUrl!.isNotEmpty) return bannerUrl!;
-    if (logoUrl != null && logoUrl!.isNotEmpty) return logoUrl!;
-    if (unsplashImgId != null && unsplashImgId!.isNotEmpty) {
-      return 'https://images.unsplash.com/photo-$unsplashImgId?q=80&w=800&fit=crop';
+    for (final candidate in [serviceImageUrl, bannerUrl, logoUrl]) {
+      final resolved = resolveMediaUrl(candidate);
+      if (resolved != null) return resolved;
+    }
+    final id = extractUnsplashPhotoId(unsplashImgId);
+    if (id != null) {
+      return 'https://images.unsplash.com/photo-$id?q=80&w=800&fit=crop';
     }
     return '';
   }
 
   String get listImageUrl {
-    if (serviceImageUrl != null && serviceImageUrl!.isNotEmpty) return serviceImageUrl!;
-    if (logoUrl != null && logoUrl!.isNotEmpty) return logoUrl!;
-    if (bannerUrl != null && bannerUrl!.isNotEmpty) return bannerUrl!;
-    if (unsplashImgId != null && unsplashImgId!.isNotEmpty) {
-      return 'https://images.unsplash.com/photo-$unsplashImgId?q=80&w=500&fit=crop';
+    for (final candidate in [serviceImageUrl, bannerUrl, logoUrl]) {
+      final resolved = resolveMediaUrl(candidate);
+      if (resolved != null) return resolved;
+    }
+    final id = extractUnsplashPhotoId(unsplashImgId);
+    if (id != null) {
+      return 'https://images.unsplash.com/photo-$id?q=80&w=500&fit=crop';
     }
     return '';
+  }
+
+  /// URLs to try in order for [ChainedNetworkImage].
+  List<String> get imageUrlChain {
+    final out = <String>[];
+    void add(String? u) {
+      final resolved = resolveMediaUrl(u);
+      if (resolved != null && !out.contains(resolved)) out.add(resolved);
+    }
+    add(serviceImageUrl);
+    add(bannerUrl);
+    add(logoUrl);
+    final id = extractUnsplashPhotoId(unsplashImgId);
+    if (id != null) {
+      final u = 'https://images.unsplash.com/photo-$id?q=80&w=500&fit=crop';
+      if (!out.contains(u)) out.add(u);
+    }
+    return out;
   }
 
   Map<String, dynamic> toSearchMap() => {
@@ -86,6 +111,7 @@ class VenueListing {
         if (serviceImageUrl != null) 'serviceImageUrl': serviceImageUrl,
         if (logoUrl != null) 'logoUrl': logoUrl,
         if (bannerUrl != null) 'bannerUrl': bannerUrl,
+        'imageUrl': listImageUrl.isNotEmpty ? listImageUrl : null,
         if (primaryServiceName != null) 'primaryServiceName': primaryServiceName,
         if (serviceDurationMinutes != null) 'serviceDurationMinutes': serviceDurationMinutes,
         if (amenityLabelsEn.isNotEmpty) 'amenityLabelsEn': amenityLabelsEn,

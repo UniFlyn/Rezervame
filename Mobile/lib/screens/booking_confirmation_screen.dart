@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
-import 'reservation_details_screen.dart';
+import '../widgets/reservation_detail_sheet.dart';
 
 /// Full-screen confirmation after payment — layout aligned to reference “Booking Confirmed” screen.
 class BookingConfirmationScreen extends StatelessWidget {
@@ -12,22 +12,29 @@ class BookingConfirmationScreen extends StatelessWidget {
   final Map<String, dynamic> bookingDetails;
 
   Map<String, dynamic> get _reservationForDetails {
-    final rawImg = bookingDetails['img'] as String? ?? '';
+    final rawImg = bookingDetails['img'] as String? ?? bookingDetails['imageUrl'] ?? '';
+    final primaryId = bookingDetails['primaryBookingId'] ?? bookingDetails['id'];
+    final ids = bookingDetails['bookingIds'] as List<dynamic>?;
     return {
+      'id': primaryId,
+      'bookingIds': ids?.map((e) => '$e').toList() ?? (primaryId != null ? ['$primaryId'] : []),
+      'businessId': bookingDetails['businessId'],
       'venueName': bookingDetails['venueName'] ?? '',
       'service': bookingDetails['service'] ?? '',
+      'serviceName': bookingDetails['service'] ?? '',
       'date': bookingDetails['date'] ?? '',
       'time': bookingDetails['time'] ?? '',
-      'status': 'resConfirmed',
+      'status': 'pending',
       'price': bookingDetails['price'] ?? r'$0.00',
       'img': rawImg,
+      'imageUrl': rawImg,
       'professionalName': bookingDetails['professional'] ?? '',
+      'address': bookingDetails['address'] ?? '',
     };
   }
 
   @override
   Widget build(BuildContext context) {
-    final venue = bookingDetails['venueName'] as String? ?? '';
     final professional = bookingDetails['professional'] as String? ?? '—';
     final service = bookingDetails['service'] as String? ?? '—';
     final date = bookingDetails['date'] as String? ?? '—';
@@ -48,7 +55,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     _buildSuccessMark(),
                     const SizedBox(height: 28),
                     Text(
-                      'bookingConfirmed'.tr(),
+                      'Booking Submitted!',
                       textAlign: TextAlign.center,
                       style: AppTypography.heading300.copyWith(
                         color: AppColors.grey900,
@@ -58,7 +65,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'bookingSuccessMsg'.tr(namedArgs: {'venue': venue}),
+                      'Your booking request has been sent. The business will review and confirm shortly.',
                       textAlign: TextAlign.center,
                       style: AppTypography.body200.copyWith(
                         color: AppColors.grey500,
@@ -125,12 +132,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   TextButton(
                     onPressed: () {
-                      Navigator.push<void>(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (context) => ReservationDetailsScreen(reservation: _reservationForDetails),
-                        ),
-                      );
+                      showReservationDetailSheet(context, reservation: _reservationForDetails);
                     },
                     style: TextButton.styleFrom(
                       minimumSize: const Size(double.infinity, 52),

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
-import 'signup_screen.dart';
-import 'forgot_password_screen.dart';
 import 'main_screen.dart';
+
+enum _AuthStep { email, password, signup }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,14 +17,102 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+
+  _AuthStep _step = _AuthStep.email;
   bool _isPasswordVisible = false;
   bool _loading = false;
+  final _api = ApiRepository();
 
   @override
-  void initState() {
-    super.initState();
-    _emailController.text = 'customer@rezervame.com';
-    _passwordController.text = 'password';
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _finishAuth() async {
+    await _api.bootstrapMobileData();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const MainScreen()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _checkEmail() async {
+    final email = _emailController.text.trim().toLowerCase();
+    if (email.isEmpty) {
+      _showError('Please enter your email.');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final exists = await _api.checkEmailExists(email);
+      if (!mounted) return;
+      setState(() {
+        _step = exists ? _AuthStep.password : _AuthStep.signup;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  Future<void> _login() async {
+    setState(() => _loading = true);
+    final ok = await _api.login(_emailController.text.trim(), _passwordController.text);
+    if (!mounted) return;
+    if (ok) {
+      await _finishAuth();
+    } else {
+      setState(() => _loading = false);
+      _showError('Invalid email or password.');
+    }
+  }
+
+  Future<void> _register() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      _showError('Please enter your name.');
+      return;
+    }
+    if (_passwordController.text.length < 6) {
+      _showError('Password must be at least 6 characters.');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final ok = await _api.register(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        name: name,
+        phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      );
+      if (!mounted) return;
+      if (ok) {
+        await _finishAuth();
+      } else {
+        setState(() => _loading = false);
+        _showError('Registration failed.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -37,57 +126,75 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
-                child: Image.asset(
-                  'assets/logo/logo_square.png',
-                  height: 120,
-                  width: 120,
-                ),
+                child: Image.asset('assets/logo/logo_square.png', height: 120, width: 120),
               ),
               const SizedBox(height: 48),
               Text(
-                'Welcome Back!',
+                _step == _AuthStep.signup ? 'Create Account' : 'Welcome Back!',
                 style: AppTypography.screenTitle.copyWith(color: AppColors.grey900),
               ),
               const SizedBox(height: 8),
               Text(
-                'Log in to your account and continue your beauty journey.',
+                _step == _AuthStep.signup
+                    ? 'Sign up to get started on your beauty journey.'
+                    : _step == _AuthStep.password
+                        ? 'Enter your password to continue.'
+                        : 'Log in or sign up with your email.',
                 style: AppTypography.screenSubtitle.copyWith(color: AppColors.grey500, height: 1.5),
               ),
               const SizedBox(height: 32),
-              _buildLabel('Email'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _emailController,
-                hintText: 'name@email.com',
-                prefixIcon: Icons.email_outlined,
-              ),
-              const SizedBox(height: 20),
-              _buildLabel('Password'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _passwordController,
-                hintText: 'Enter your password',
-                prefixIcon: Icons.lock_outline,
-                isPassword: true,
-                isPasswordVisible: _isPasswordVisible,
-                onVisibilityToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
-                    );
-                  },
-                  child: Text(
-                    'Forgot Password?',
-                    style: AppTypography.heading200.copyWith(color: AppColors.primary500),
-                  ),
+              if (_step != _AuthStep.email) ...[
+                _buildLabel('Email'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  controller: _emailController,
+                  hintText: 'name@email.com',
+                  prefixIcon: Icons.email_outlined,
+                  readOnly: true,
                 ),
-              ),
+                const SizedBox(height: 20),
+              ],
+              if (_step == _AuthStep.email) ...[
+                _buildLabel('Email'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  controller: _emailController,
+                  hintText: 'name@email.com',
+                  prefixIcon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+              ],
+              if (_step == _AuthStep.signup) ...[
+                _buildLabel('Full Name'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  controller: _nameController,
+                  hintText: 'John Doe',
+                  prefixIcon: Icons.person_outline,
+                ),
+                const SizedBox(height: 20),
+                _buildLabel('Phone (optional)'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  controller: _phoneController,
+                  hintText: '+507 6000-0000',
+                  prefixIcon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 20),
+              ],
+              if (_step == _AuthStep.password || _step == _AuthStep.signup) ...[
+                _buildLabel('Password'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  controller: _passwordController,
+                  hintText: 'Enter your password',
+                  prefixIcon: Icons.lock_outline,
+                  isPassword: true,
+                  isPasswordVisible: _isPasswordVisible,
+                  onVisibilityToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                ),
+              ],
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -97,28 +204,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? null
                       : () async {
                           FocusScope.of(context).unfocus();
-                          setState(() => _loading = true);
-                          final ok = await ApiRepository().login(
-                            _emailController.text.trim(),
-                            _passwordController.text,
-                          );
-                          if (!context.mounted) return;
-                          setState(() => _loading = false);
-                          if (ok) {
-                            await ApiRepository().bootstrapMobileData();
-                            if (!context.mounted) return;
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(builder: (context) => const MainScreen()),
-                              (route) => false,
-                            );
-                          } else {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Invalid login. Use customer@rezervame.com / password with API running.'),
-                              ),
-                            );
+                          switch (_step) {
+                            case _AuthStep.email:
+                              await _checkEmail();
+                            case _AuthStep.password:
+                              await _login();
+                            case _AuthStep.signup:
+                              await _register();
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -134,51 +226,32 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
                       : Text(
-                          'Log In',
+                          _step == _AuthStep.email
+                              ? 'Continue'
+                              : _step == _AuthStep.signup
+                                  ? 'Sign Up'
+                                  : 'Log In',
                           style: AppTypography.buttonLarge,
                         ),
                 ),
               ),
-              const SizedBox(height: 32),
-              Center(
-                child: Text(
-                  'Or continue with',
-                  style: AppTypography.body100.copyWith(color: AppColors.grey400),
-                ),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildSocialButton(Icons.g_mobiledata, 'Google'),
-                  const SizedBox(width: 16),
-                  _buildSocialButton(Icons.apple, 'Apple'),
-                  const SizedBox(width: 16),
-                  _buildSocialButton(Icons.facebook, 'Facebook'),
-                ],
-              ),
-              const SizedBox(height: 48),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Don't have an account?",
-                    style: AppTypography.body200.copyWith(color: AppColors.grey500),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const SignUpScreen()),
-                      );
-                    },
+              if (_step != _AuthStep.email) ...[
+                const SizedBox(height: 16),
+                Center(
+                  child: TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => setState(() {
+                              _step = _AuthStep.email;
+                              _passwordController.clear();
+                            }),
                     child: Text(
-                      'Sign Up',
-                      style: AppTypography.heading300.copyWith(color: AppColors.primary500),
+                      'Use a different email',
+                      style: AppTypography.heading200.copyWith(color: AppColors.primary500),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),
@@ -187,10 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: AppTypography.heading200.copyWith(color: AppColors.grey900),
-    );
+    return Text(text, style: AppTypography.heading200.copyWith(color: AppColors.grey900));
   }
 
   Widget _buildTextField({
@@ -200,9 +270,13 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isPassword = false,
     bool isPasswordVisible = false,
     VoidCallback? onVisibilityToggle,
+    bool readOnly = false,
+    TextInputType? keyboardType,
   }) {
     return TextField(
       controller: controller,
+      readOnly: readOnly,
+      keyboardType: keyboardType,
       obscureText: isPassword && !isPasswordVisible,
       style: AppTypography.body300.copyWith(color: AppColors.grey900),
       decoration: InputDecoration(
@@ -221,10 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               )
             : null,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppColors.grey100, width: 1),
@@ -232,22 +303,6 @@ class _LoginScreenState extends State<LoginScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppColors.primary500, width: 2),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton(IconData icon, String label) {
-    return Expanded(
-      child: Container(
-        height: 60,
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.grey100),
-        ),
-        child: Center(
-          child: Icon(icon, size: 32, color: AppColors.grey900),
         ),
       ),
     );

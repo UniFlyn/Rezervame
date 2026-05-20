@@ -1,13 +1,14 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../data/api_repository.dart';
 import '../models/booking_cart_line.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/booking_cart.dart';
 import '../widgets/chained_network_image.dart';
 import 'booking_confirmation_screen.dart';
 
-/// Checkout presented as an editable cart: remove lines, change specialist / family member.
 class CheckoutSummaryScreen extends StatefulWidget {
   const CheckoutSummaryScreen({
     super.key,
@@ -16,7 +17,8 @@ class CheckoutSummaryScreen extends StatefulWidget {
     required this.bookingDate,
     required this.bookingTime,
     required this.cartLines,
-    this.specialistNames,
+    this.specialists,
+    this.businessId,
   });
 
   final String venueName;
@@ -24,7 +26,8 @@ class CheckoutSummaryScreen extends StatefulWidget {
   final DateTime bookingDate;
   final String bookingTime;
   final List<BookingCartLine> cartLines;
-  final List<String>? specialistNames;
+  final List<Map<String, dynamic>>? specialists;
+  final String? businessId;
 
   @override
   State<CheckoutSummaryScreen> createState() => _CheckoutSummaryScreenState();
@@ -37,28 +40,74 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     return parts.map((s) => s[0].toUpperCase()).join();
   }
 
+  final ApiRepository _api = ApiRepository();
   late List<BookingCartLine> _lines;
-  late String _specialist;
-  late String _bookingFor;
+
+  // Maps from cartLine index to selected staff name and family guest name
+  final Map<int, String> _lineSpecialists = {};
+  final Map<int, String> _lineBookingFor = {};
+
   late List<String> _familyOptions;
+  List<Map<String, dynamic>> _loadedFamilyMembers = [];
+  bool _submitting = false;
+  String _paymentMethod = 'Online';
+
+  double _taxPercentage = 0;
+  double _serviceFee = 10;
 
   @override
   void initState() {
     super.initState();
     _lines = List<BookingCartLine>.from(widget.cartLines);
-    final names = widget.specialistNames ?? const <String>[];
-    _specialist = names.isNotEmpty ? names.first : 'checkoutNoStaffListed'.tr();
-    _bookingFor = 'checkoutMyself'.tr();
+    final list = widget.specialists ?? const [];
+    final defaultStaff = list.isNotEmpty ? list.first['name'] as String : 'checkoutNoStaffListed'.tr();
+
+    for (int i = 0; i < _lines.length; i++) {
+      _lineSpecialists[i] = defaultStaff;
+      _lineBookingFor[i] = 'checkoutMyself'.tr();
+    }
+
     _familyOptions = [
       'checkoutMyself'.tr(),
     ];
+    _loadFamily();
+    _loadBusinessProfile();
+  }
+
+  Future<void> _loadBusinessProfile() async {
+    if (widget.businessId == null) return;
+    try {
+      final biz = await _api.fetchBusinessPublicProfile(widget.businessId!);
+      if (mounted && biz != null) {
+        setState(() {
+          _taxPercentage = double.tryParse('${biz['taxPercentage']}') ?? 0.0;
+          _serviceFee = double.tryParse('${biz['serviceFee']}') ?? 10.0;
+        });
+      }
+    } catch (e) {
+      // Keep default
+    }
+  }
+
+  Future<void> _loadFamily() async {
+    try {
+      final fam = await _api.fetchFamilyMembers();
+      if (mounted) {
+        setState(() {
+          _loadedFamilyMembers = fam;
+          _familyOptions = [
+            'checkoutMyself'.tr(),
+            ...fam.map((m) => m['name'] as String),
+          ];
+        });
+      }
+    } catch (e) {
+      // Keep default
+    }
   }
 
   double get _subtotal => _lines.fold<double>(0, (a, b) => a + b.priceValue);
-
-  static const double _serviceFee = 10;
-  static const double _tax = 5;
-
+  double get _tax => (_subtotal * _taxPercentage) / 100;
   double get _total => _subtotal + _serviceFee + _tax;
 
   String get _formattedDate =>
@@ -66,12 +115,27 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
 
   String _money(double v) => '\$${v.toStringAsFixed(2)}';
 
-  void _removeLine(String id) {
-    setState(() => _lines.removeWhere((e) => e.id == id));
+  void _removeLine(int index) {
+    setState(() {
+      _lines.removeAt(index);
+      // Shift keys in our maps to match new indices
+      final nextSpecialists = <int, String>{};
+      final nextBookingFor = <int, String>{};
+      for (int i = 0; i < _lines.length; i++) {
+        final oldIndex = i >= index ? i + 1 : i;
+        nextSpecialists[i] = _lineSpecialists[oldIndex] ?? 'checkoutNoStaffListed'.tr();
+        nextBookingFor[i] = _lineBookingFor[oldIndex] ?? 'checkoutMyself'.tr();
+      }
+      _lineSpecialists.clear();
+      _lineSpecialists.addAll(nextSpecialists);
+      _lineBookingFor.clear();
+      _lineBookingFor.addAll(nextBookingFor);
+    });
   }
 
-  Future<void> _pickSpecialist() async {
-    final names = widget.specialistNames ?? const <String>[];
+  Future<void> _pickSpecialistForLine(int index) async {
+    final list = widget.specialists ?? const [];
+    final current = _lineSpecialists[index] ?? 'checkoutNoStaffListed'.tr();
     final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -100,7 +164,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                   style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900),
                 ),
               ),
-              if (names.isEmpty)
+              if (list.isEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
                   child: Text(
@@ -110,51 +174,58 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                 )
               else
                 RadioGroup<String>(
-                  groupValue: _specialist,
+                  groupValue: current,
                   onChanged: (v) {
                     if (v != null) Navigator.pop(ctx, v);
                   },
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: names
+                    children: list
                         .map(
-                          (n) => Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => Navigator.pop(ctx, n),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Radio<String>(
-                                      value: n,
-                                      activeColor: AppColors.primary500,
-                                    ),
-                                    CircleAvatar(
-                                      radius: 22,
-                                      backgroundColor: AppColors.primary50,
-                                      child: Text(
-                                        _initials(n),
-                                        style: AppTypography.body200.copyWith(
-                                          color: AppColors.primary500,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13,
+                          (m) {
+                            final n = m['name'] as String? ?? '';
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(ctx, n),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Radio<String>(
+                                        value: n,
+                                        groupValue: current,
+                                        onChanged: (v) {
+                                          if (v != null) Navigator.pop(ctx, v);
+                                        },
+                                        activeColor: AppColors.primary500,
+                                      ),
+                                      CircleAvatar(
+                                        radius: 22,
+                                        backgroundColor: AppColors.primary50,
+                                        child: Text(
+                                          _initials(n),
+                                          style: AppTypography.body200.copyWith(
+                                            color: AppColors.primary500,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Text(
-                                        n,
-                                        style: AppTypography.body200.copyWith(color: AppColors.grey900),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Text(
+                                          n,
+                                          style: AppTypography.body200.copyWith(color: AppColors.grey900),
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         )
                         .toList(),
                   ),
@@ -175,10 +246,13 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
         ),
       ),
     );
-    if (picked != null) setState(() => _specialist = picked);
+    if (picked != null) {
+      setState(() => _lineSpecialists[index] = picked);
+    }
   }
 
-  Future<void> _pickFamily() async {
+  Future<void> _pickFamilyForLine(int index) async {
+    final current = _lineBookingFor[index] ?? 'checkoutMyself'.tr();
     final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -208,7 +282,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                 ),
               ),
               RadioGroup<String>(
-                groupValue: _bookingFor,
+                groupValue: current,
                 onChanged: (v) {
                   if (v != null) Navigator.pop(ctx, v);
                 },
@@ -218,6 +292,10 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                       .map(
                         (n) => RadioListTile<String>(
                           value: n,
+                          groupValue: current,
+                          onChanged: (v) {
+                            if (v != null) Navigator.pop(ctx, v);
+                          },
                           activeColor: AppColors.primary500,
                           title: Text(n, style: AppTypography.body200.copyWith(color: AppColors.grey900)),
                         ),
@@ -231,7 +309,92 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
         ),
       ),
     );
-    if (picked != null) setState(() => _bookingFor = picked);
+    if (picked != null) {
+      setState(() => _lineBookingFor[index] = picked);
+    }
+  }
+
+  DateTime _combineDateTime(DateTime date, String timeStr) {
+    final timeClean = timeStr.trim().toUpperCase();
+    final parts = timeClean.split(' ');
+    final hms = parts[0].split(':');
+    var hour = int.parse(hms[0]);
+    final minute = int.parse(hms[1]);
+    final ampm = parts.length > 1 ? parts[1] : 'AM';
+    if (ampm == 'PM' && hour < 12) {
+      hour += 12;
+    } else if (ampm == 'AM' && hour == 12) {
+      hour = 0;
+    }
+    return DateTime(date.year, date.month, date.day, hour, minute);
+  }
+
+  Future<void> _submitBookings() async {
+    setState(() => _submitting = true);
+
+    try {
+      final combinedDate = _combineDateTime(widget.bookingDate, widget.bookingTime);
+      final combinedIso = combinedDate.toIso8601String();
+
+      // Create bookings sequentially for each service in the cart with their individual staff/guest selections!
+      final createdIds = <String>[];
+      for (int i = 0; i < _lines.length; i++) {
+        final line = _lines[i];
+
+        final bookingFor = _lineBookingFor[i] ?? 'checkoutMyself'.tr();
+        String? familyMemberId;
+        if (bookingFor != 'checkoutMyself'.tr()) {
+          final matches = _loadedFamilyMembers.where((m) => m['name'] == bookingFor);
+          if (matches.isNotEmpty) {
+            familyMemberId = matches.first['id'] as String?;
+          }
+        }
+
+        final specialist = _lineSpecialists[i] ?? 'checkoutNoStaffListed'.tr();
+        String? staffId;
+        if (widget.specialists != null) {
+          final matches = widget.specialists!.where((s) => s['name'] == specialist);
+          if (matches.isNotEmpty) {
+            staffId = matches.first['id'] as String?;
+          }
+        }
+
+        final result = await _api.createBooking(
+          businessId: widget.businessId ?? '',
+          serviceId: line.id,
+          date: combinedIso,
+          staffId: staffId,
+          familyMemberId: familyMemberId,
+        );
+        if (result != null && result['id'] != null) {
+          createdIds.add('${result['id']}');
+        }
+      }
+
+      BookingCart.instance.clear();
+
+      if (!mounted) return;
+      _navigateToBookingConfirmation(createdIds);
+    } catch (e) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Booking Error'),
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override
@@ -251,55 +414,72 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
           style: AppTypography.appBarTitle.copyWith(color: AppColors.grey900),
         ),
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('checkoutYourItems'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
-                  const SizedBox(height: 16),
-                  if (_lines.isEmpty)
-                    _buildEmptyCart()
-                  else ...[
-                    ..._lines.map(_buildCartLine),
-                    const SizedBox(height: 28),
-                    Text('checkoutAppointment'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
-                    const SizedBox(height: 16),
-                    _buildAppointmentCard(),
-                    const SizedBox(height: 28),
-                    Text('bookingPaymentMethod'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
-                    const SizedBox(height: 16),
-                    _buildPaymentMethod(),
-                    const SizedBox(height: 28),
-                    Text('bookingPriceBreakdown'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
-                    const SizedBox(height: 16),
-                    _buildPriceBreakdown(),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _lines.isEmpty ? null : _navigateToBookingConfirmation,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary500,
-                  foregroundColor: AppColors.white,
-                  elevation: 0,
-                  disabledBackgroundColor: AppColors.grey200,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('checkoutYourItems'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
+                      const SizedBox(height: 16),
+                      if (_lines.isEmpty)
+                        _buildEmptyCart()
+                      else ...[
+                        ...List.generate(_lines.length, (index) => _buildCartLine(_lines[index], index)),
+                        const SizedBox(height: 28),
+                        Text('checkoutAppointment'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
+                        const SizedBox(height: 16),
+                        _buildAppointmentCard(),
+                        const SizedBox(height: 28),
+                        Text('bookingPaymentMethod'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
+                        const SizedBox(height: 16),
+                        _buildPaymentMethod(),
+                        const SizedBox(height: 28),
+                        Text('bookingPriceBreakdown'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
+                        const SizedBox(height: 16),
+                        _buildPriceBreakdown(),
+                      ],
+                    ],
+                  ),
                 ),
-                child: Text('bookingPayNow'.tr(), style: AppTypography.buttonLarge),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: (_lines.isEmpty || _submitting) ? null : _submitBookings,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary500,
+                      foregroundColor: AppColors.white,
+                      elevation: 0,
+                      disabledBackgroundColor: AppColors.grey200,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2),
+                          )
+                        : Text('bookingConfirmCalendar'.tr(), style: AppTypography.buttonLarge),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_submitting)
+            Container(
+              color: Colors.black.withValues(alpha: 0.3),
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColors.primary500),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -331,36 +511,152 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     );
   }
 
-  Widget _buildCartLine(BookingCartLine line) {
+  Widget _buildCartLine(BookingCartLine line, int index) {
+    final specialistName = _lineSpecialists[index] ?? 'checkoutNoStaffListed'.tr();
+    final bookingForName = _lineBookingFor[index] ?? 'checkoutMyself'.tr();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.grey25,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.grey100),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(line.name, style: AppTypography.heading200.copyWith(color: AppColors.grey900, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  Text(line.durationLabel, style: AppTypography.body100.copyWith(color: AppColors.grey500)),
-                ],
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        line.name,
+                        style: AppTypography.heading200.copyWith(
+                          color: AppColors.grey900,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        line.durationLabel,
+                        style: AppTypography.body100.copyWith(color: AppColors.grey500),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  line.priceLabel,
+                  style: AppTypography.heading200.copyWith(
+                    color: AppColors.primary500,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () => _removeLine(index),
+                  icon: const Icon(Icons.close_rounded, color: AppColors.grey400, size: 22),
+                  tooltip: 'checkoutRemoveLine'.tr(),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                ),
+              ],
             ),
-            Text(line.priceLabel, style: AppTypography.heading200.copyWith(color: AppColors.primary500, fontWeight: FontWeight.w800)),
-            IconButton(
-              onPressed: () => _removeLine(line.id),
-              icon: const Icon(Icons.close_rounded, color: AppColors.grey400, size: 22),
-              tooltip: 'checkoutRemoveLine'.tr(),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            const Divider(height: 24, color: AppColors.grey100),
+            Row(
+              children: [
+                // Specialist Selection Pill
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickSpecialistForLine(index),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.grey100),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.psychology_outlined, color: AppColors.primary500, size: 16),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'checkoutSpecialist'.tr(),
+                                  style: AppTypography.body100.copyWith(color: AppColors.grey400, fontSize: 9),
+                                ),
+                                Text(
+                                  specialistName,
+                                  style: AppTypography.body200.copyWith(
+                                    color: AppColors.grey900,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.keyboard_arrow_down, color: AppColors.grey400, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Guest Selection Pill
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickFamilyForLine(index),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.grey100),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.people_alt_outlined, color: AppColors.primary500, size: 16),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'checkoutBookFor'.tr(),
+                                  style: AppTypography.body100.copyWith(color: AppColors.grey400, fontSize: 9),
+                                ),
+                                Text(
+                                  bookingForName,
+                                  style: AppTypography.body200.copyWith(
+                                    color: AppColors.grey900,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.keyboard_arrow_down, color: AppColors.grey400, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -379,6 +675,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
       child: Column(
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -401,53 +698,18 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                   ],
                 ),
               ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text('bookingChange'.tr(), style: AppTypography.buttonSmall.copyWith(color: AppColors.primary500)),
+              ),
             ],
           ),
-          const Divider(height: 28, color: AppColors.grey100),
-          _tappableRow(
-            label: 'checkoutSpecialist'.tr(),
-            value: _specialist,
-            actionLabel: 'bookingChange'.tr(),
-            onTap: _pickSpecialist,
-          ),
-          const SizedBox(height: 12),
-          _tappableRow(
-            label: 'checkoutBookFor'.tr(),
-            value: _bookingFor,
-            actionLabel: 'bookingChange'.tr(),
-            onTap: _pickFamily,
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _tappableRow({
-    required String label,
-    required String value,
-    required String actionLabel,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: AppTypography.body100.copyWith(color: AppColors.grey500)),
-                  const SizedBox(height: 2),
-                  Text(value, style: AppTypography.body200.copyWith(color: AppColors.grey900, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-            Text(actionLabel, style: AppTypography.buttonSmall.copyWith(color: AppColors.primary500)),
-          ],
-        ),
       ),
     );
   }
@@ -456,10 +718,35 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     return Material(
       color: AppColors.white,
       child: InkWell(
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('bookingCreditDebit'.tr()), behavior: SnackBarBehavior.floating),
+        onTap: () async {
+          final picked = await showModalBottomSheet<String>(
+            context: context,
+            backgroundColor: Colors.transparent,
+            builder: (ctx) => Container(
+              decoration: const BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.credit_card, color: AppColors.primary500),
+                      title: const Text('Online'),
+                      onTap: () => Navigator.pop(ctx, 'Online'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary500),
+                      title: const Text('Card'),
+                      onTap: () => Navigator.pop(ctx, 'Card'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
+          if (picked != null) setState(() => _paymentMethod = picked);
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
@@ -473,7 +760,12 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
             children: [
               const Icon(Icons.credit_card, color: AppColors.primary500),
               const SizedBox(width: 16),
-              Expanded(child: Text('checkoutPaymentPending'.tr(), style: AppTypography.body200.copyWith(color: AppColors.grey900))),
+              Expanded(
+                child: Text(
+                  _paymentMethod,
+                  style: AppTypography.body200.copyWith(color: AppColors.grey900),
+                ),
+              ),
               Text('bookingChange'.tr(), style: AppTypography.buttonSmall.copyWith(color: AppColors.primary500)),
             ],
           ),
@@ -503,14 +795,21 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          label,
-          style: isTotal ? AppTypography.heading300 : AppTypography.body200.copyWith(color: AppColors.grey500),
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isTotal ? FontWeight.w900 : FontWeight.bold,
+            letterSpacing: 1.5,
+            color: isTotal ? AppColors.grey900 : AppColors.grey400,
+          ),
         ),
         Text(
           value,
-          style: isTotal
-              ? AppTypography.heading400.copyWith(color: AppColors.primary500)
-              : AppTypography.heading200.copyWith(color: AppColors.grey900),
+          style: TextStyle(
+            fontSize: isTotal ? 24 : 14,
+            fontWeight: FontWeight.w900,
+            color: isTotal ? AppColors.primary500 : AppColors.grey600,
+          ),
         ),
       ],
     );
@@ -522,24 +821,51 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     return '';
   }
 
-  void _navigateToBookingConfirmation() {
+  void _navigateToBookingConfirmation(List<String> bookingIds) {
     final serviceSummary = _lines.map((e) => e.name).join(', ');
-    Navigator.push<void>(
+    final specialistsSummary = _lineSpecialists.values.toSet().join(', ');
+    final bookingForSummary = _lineBookingFor.values.toSet().join(', ');
+    Navigator.pushAndRemoveUntil<void>(
       context,
       MaterialPageRoute<void>(
         builder: (context) => BookingConfirmationScreen(
           bookingDetails: {
             'venueName': widget.venueName,
-            'professional': _specialist,
+            'professional': specialistsSummary,
             'service': serviceSummary,
             'date': _formattedDate,
             'time': widget.bookingTime,
             'price': _money(_total),
             'img': _unsplashIdFromHeroUrl(widget.heroImageUrl),
-            'bookingFor': _bookingFor,
+            'bookingFor': bookingForSummary,
+            'bookingIds': bookingIds,
+            'primaryBookingId': bookingIds.isNotEmpty ? bookingIds.first : null,
+            'businessId': widget.businessId,
+            'imageUrl': widget.heroImageUrl,
+            'address': '',
           },
         ),
       ),
+      (route) => route.isFirst,
     );
+  }
+}
+
+// Inline RadioGroup implementation to ensure we don't depend on external widget definition
+class RadioGroup<T> extends StatelessWidget {
+  const RadioGroup({
+    super.key,
+    required this.groupValue,
+    required this.onChanged,
+    required this.child,
+  });
+
+  final T groupValue;
+  final ValueChanged<T?> onChanged;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return child;
   }
 }

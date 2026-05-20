@@ -6,6 +6,7 @@ import '../data/api_repository.dart';
 import '../models/venue_listing.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/image_url.dart';
 import '../widgets/chained_network_image.dart';
 import 'service_detail_screen.dart';
 
@@ -50,9 +51,9 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   List<Map<String, dynamic>> _sourceResults = [];
   List<Map<String, dynamic>> _filteredResults = [];
   bool _catalogLoading = true;
-  // bool _loadingMore = false;
+  bool _loadingMore = false;
   int _currentPage = 1;
-  // int _totalPages = 1;
+  int _totalPages = 1;
 
   static const List<String?> _chipCategoryKeys = [null, 'hairService', 'beautyService', 'spaService', 'nailCare'];
 
@@ -110,22 +111,22 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         _sourceResults.addAll(mapped);
       }
       
-      // _totalPages = res['totalPages'] ?? 1;
+      _totalPages = res['totalPages'] ?? 1;
       _catalogLoading = false;
-      // _loadingMore = false;
+      _loadingMore = false;
     });
     _applyFilter();
   }
 
-  // void _loadMore() {
-  //   if (_currentPage < _totalPages && !_loadingMore) {
-  //     setState(() {
-  //       _loadingMore = true;
-  //       _currentPage++;
-  //     });
-  //     _bootstrapCatalog(refresh: false);
-  //   }
-  // }
+  void _loadMore() {
+    if (_currentPage < _totalPages && !_loadingMore && !_catalogLoading) {
+      setState(() {
+        _loadingMore = true;
+        _currentPage++;
+      });
+      _bootstrapCatalog(refresh: false);
+    }
+  }
 
   void _triggerSearch() {
     _bootstrapCatalog(refresh: true);
@@ -252,11 +253,16 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   }
 
   String _listImageUrl(Map<String, dynamic> res, {int width = 500}) {
-    final custom = res['imageUrl'] as String?;
-    if (custom != null && custom.isNotEmpty) return custom;
+    for (final key in ['serviceImageUrl', 'bannerUrl', 'logoUrl', 'imageUrl']) {
+      final resolved = resolveMediaUrl(res[key] as String?);
+      if (resolved != null) return resolved;
+    }
     final img = res['img'] as String? ?? '';
-    if (img.isEmpty) return custom ?? '';
-    return 'https://images.unsplash.com/photo-$img?q=80&w=$width&fit=crop';
+    final id = extractUnsplashPhotoId(img);
+    if (id != null) {
+      return 'https://images.unsplash.com/photo-$id?q=80&w=$width&fit=crop';
+    }
+    return '';
   }
 
   String _chipLabel(int i) {
@@ -348,7 +354,14 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     ],
                   ),
                 )
-              : SingleChildScrollView(
+              : NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200) {
+                  _loadMore();
+                }
+                return false;
+              },
+              child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,6 +448,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 ],
               ),
             ),
+              ),
     );
   }
 

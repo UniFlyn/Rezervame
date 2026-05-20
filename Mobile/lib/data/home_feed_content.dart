@@ -61,6 +61,7 @@ class HomeFeaturedItem {
     required this.venueId,
     this.displayServiceName,
     this.networkImageUrl,
+    this.imageUrls = const [],
   });
 
   final String serviceTitleKey;
@@ -75,6 +76,8 @@ class HomeFeaturedItem {
   final String? displayServiceName;
   /// Business logo/banner from API when present.
   final String? networkImageUrl;
+  /// Resolved URL chain for [ChainedNetworkImage].
+  final List<String> imageUrls;
 }
 
 class HomeBeauticianItem {
@@ -93,15 +96,19 @@ class HomeTopVenueItem {
     required this.price,
     required this.unsplashId,
     required this.tagKeys,
+    this.businessId,
+    this.imageUrls = const [],
   });
 
   final int id;
+  final String? businessId;
   final String name;
   final String rating;
   final int reviewCount;
   final String price;
   final String unsplashId;
   final List<String> tagKeys;
+  final List<String> imageUrls;
 }
 
 List<HomeBrowseCategoryItem> kHomeBrowseCategories = [];
@@ -166,21 +173,22 @@ void hydrateHomeFeedFromVenues(
   }
 
   kHomeNearbyStrip = sorted.take(5).map((v) {
-    final img = v.unsplashImgId ?? '';
     return HomeTopVenueItem(
       id: v.id,
+      businessId: v.businessId,
       name: v.name,
       rating: v.rating,
       reviewCount: int.tryParse(v.reviews) ?? 0,
       price: v.price,
-      unsplashId: img,
+      unsplashId: v.unsplashImgId ?? '',
       tagKeys: const ['tagCut'],
+      imageUrls: v.imageUrlChain,
     );
   }).toList();
 
   kHomeFeatured = sorted.take(4).map((v) {
-    final img = v.unsplashImgId ?? '';
     final svcName = v.primaryServiceName?.trim();
+    final chain = v.imageUrlChain;
     return HomeFeaturedItem(
       serviceTitleKey: 'featCut',
       displayServiceName: (svcName != null && svcName.isNotEmpty) ? svcName : null,
@@ -189,9 +197,10 @@ void hydrateHomeFeedFromVenues(
       rating: v.rating,
       reviewCount: int.tryParse(v.reviews) ?? 0,
       durationMinutes: v.serviceDurationMinutes ?? 45,
-      unsplashId: img,
+      unsplashId: v.unsplashImgId ?? '',
       venueId: v.id,
-      networkImageUrl: v.serviceImageUrl,
+      networkImageUrl: chain.isNotEmpty ? chain.first : null,
+      imageUrls: chain,
     );
   }).toList();
 

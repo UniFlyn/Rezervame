@@ -20,6 +20,55 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String _selectedGender = 'Female';
   String? _avatarUrl;
   bool _loading = true;
+  bool _submitting = false;
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name cannot be empty'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email cannot be empty'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await _api.updateUserProfile(name: name, phone: phone, email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully'), behavior: SnackBarBehavior.floating),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Error'),
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).take(2).toList();
@@ -95,14 +144,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _submitting ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary500,
                         foregroundColor: AppColors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: Text('Save Changes', style: AppTypography.buttonLarge),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2),
+                            )
+                          : Text('Save Changes', style: AppTypography.buttonLarge),
                     ),
                   ),
                 ],

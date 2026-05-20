@@ -17,8 +17,29 @@ class InvoicesScreen extends StatefulWidget {
 
 class _InvoicesScreenState extends State<InvoicesScreen> {
   final _repo = ApiRepository();
+  List<UserInvoice> _items = [];
+  bool _loading = true;
+  int _page = 1;
+  int _totalPages = 1;
+  int _total = 0;
 
-  late final Future<List<UserInvoice>> _futureInvoices = _repo.fetchInvoices();
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final result = await _repo.fetchInvoices(page: _page, limit: 10);
+    if (!mounted) return;
+    setState(() {
+      _items = (result['data'] as List<UserInvoice>?) ?? [];
+      _totalPages = (result['totalPages'] as int?) ?? 1;
+      _total = (result['total'] as int?) ?? _items.length;
+      _loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,39 +52,74 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.grey900, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
         title: Text(
           'invoicesMenu'.tr(),
           style: AppTypography.appBarTitle.copyWith(color: AppColors.grey900),
         ),
       ),
-      body: FutureBuilder<List<UserInvoice>>(
-        future: _futureInvoices,
-        builder: (context, snapshot) {
-          final items = snapshot.data ?? const <UserInvoice>[];
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (items.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Text(
-                  'invoicesEmpty'.tr(),
-                  textAlign: TextAlign.center,
-                  style: AppTypography.body200.copyWith(color: AppColors.grey500),
-                ),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _InvoiceTile(invoice: items[index]),
-          );
-        },
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary500))
+          : RefreshIndicator(
+              color: AppColors.primary500,
+              onRefresh: _load,
+              child: _items.isEmpty
+                  ? ListView(
+                      children: [
+                        SizedBox(height: MediaQuery.sizeOf(context).height * 0.25),
+                        Center(
+                          child: Text(
+                            'invoicesEmpty'.tr(),
+                            textAlign: TextAlign.center,
+                            style: AppTypography.body200.copyWith(color: AppColors.grey500),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                      itemCount: _items.length + (_totalPages > 1 ? 1 : 0),
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        if (index == _items.length) {
+                          return _buildPagination();
+                        }
+                        return _InvoiceTile(invoice: _items[index]);
+                      },
+                    ),
+            ),
+    );
+  }
+
+  Widget _buildPagination() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            onPressed: _page > 1
+                ? () {
+                    setState(() => _page--);
+                    _load();
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_left_rounded),
+          ),
+          Text('$_page / $_totalPages', style: AppTypography.body200.copyWith(fontWeight: FontWeight.w700)),
+          if (_total > 0)
+            Text('  ($_total)', style: AppTypography.body100.copyWith(color: AppColors.grey400)),
+          IconButton(
+            onPressed: _page < _totalPages
+                ? () {
+                    setState(() => _page++);
+                    _load();
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_right_rounded),
+          ),
+        ],
       ),
     );
   }
@@ -123,15 +179,9 @@ class _InvoiceTile extends StatelessWidget {
                       style: AppTypography.heading200.copyWith(color: AppColors.grey900, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      invoice.number,
-                      style: AppTypography.body100.copyWith(color: AppColors.grey500),
-                    ),
+                    Text(invoice.number, style: AppTypography.body100.copyWith(color: AppColors.grey500)),
                     const SizedBox(height: 2),
-                    Text(
-                      invoice.issuedDate,
-                      style: AppTypography.body100.copyWith(color: AppColors.grey400),
-                    ),
+                    Text(invoice.issuedDate, style: AppTypography.body100.copyWith(color: AppColors.grey400)),
                   ],
                 ),
               ),

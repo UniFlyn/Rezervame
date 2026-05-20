@@ -1,9 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../data/api_repository.dart';
 import '../models/booking_cart_line.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/booking_utils.dart';
 import 'checkout_summary_screen.dart';
 
 class BookingCalendarScreen extends StatefulWidget {
@@ -12,36 +14,97 @@ class BookingCalendarScreen extends StatefulWidget {
     this.venueName,
     this.heroImageUrl,
     this.cartLines = const [],
-    this.specialistNames,
+    this.specialists,
+    this.businessId,
   });
 
   final String? venueName;
   final String? heroImageUrl;
   final List<BookingCartLine> cartLines;
-  final List<String>? specialistNames;
+  final List<Map<String, dynamic>>? specialists;
+  final String? businessId;
 
   @override
   State<BookingCalendarScreen> createState() => _BookingCalendarScreenState();
 }
 
 class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
+  final ApiRepository _api = ApiRepository();
   DateTime _selectedDate = DateTime.now();
   String _selectedTime = '10:00 AM';
+  List<Map<String, dynamic>> _schedule = [];
+  List<String> _timeSlots = [];
+  final Map<String, List<Map<String, dynamic>>> _busySlots = {};
+  bool _loading = true;
 
-  final List<String> _timeSlots = [
-    '09:00 AM',
-    '10:00 AM',
-    '11:00 AM',
-    '01:00 PM',
-    '02:00 PM',
-    '03:00 PM',
-    '04:00 PM',
-    '05:00 PM',
-  ];
+  String get _venueName => widget.venueName ?? 'Venue';
 
-  String get _venueName => widget.venueName ?? 'Euphoria Spa & Beauty Lounge';
+  @override
+  void initState() {
+    super.initState();
+    _loadSchedule();
+  }
 
-  String get _heroImageUrl => widget.heroImageUrl ?? '';
+  Future<void> _loadSchedule() async {
+    if (widget.businessId == null) {
+      _refreshSlots();
+      return;
+    }
+    try {
+      final biz = await _api.fetchBusinessPublicProfile(widget.businessId!);
+      if (mounted) {
+        setState(() {
+          _schedule = parseScheduleFromBusiness(biz);
+        });
+      }
+    } catch (_) {}
+    await _refreshSlots();
+  }
+
+  Future<void> _refreshSlots() async {
+    setState(() => _loading = true);
+    final slots = generateSlotsForDay(_schedule, _selectedDate);
+    await _loadBusySlots();
+    if (!mounted) return;
+
+    final team = widget.specialists ?? [];
+    final filtered = slots.where((time) {
+      if (team.isEmpty) return true;
+      final eligible = team.where((m) => staffAvailableOnDay('${m['availability'] ?? ''}', _selectedDate)).toList();
+      if (eligible.isEmpty) return true;
+      return eligible.any((m) {
+        final key = '${m['id']}_${_ymd(_selectedDate)}';
+        return !isStaffBusyAtTime(_busySlots[key] ?? [], _selectedDate, time);
+      });
+    }).toList();
+
+    setState(() {
+      _timeSlots = filtered.isEmpty ? slots : filtered;
+      if (_timeSlots.isNotEmpty && !_timeSlots.contains(_selectedTime)) {
+        _selectedTime = _timeSlots.first;
+      }
+      _loading = false;
+    });
+  }
+
+  Future<void> _loadBusySlots() async {
+    final team = widget.specialists ?? [];
+    final ymd = _ymd(_selectedDate);
+    for (final member in team) {
+      final id = '${member['id'] ?? ''}';
+      if (id.isEmpty) continue;
+      final key = '${id}_$ymd';
+      if (_busySlots.containsKey(key)) continue;
+      try {
+        final slots = await _api.fetchStaffBusySlots(id, _selectedDate);
+        _busySlots[key] = slots;
+      } catch (_) {
+        _busySlots[key] = [];
+      }
+    }
+  }
+
+  String _ymd(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -71,33 +134,51 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
             const SizedBox(height: 32),
             _buildSectionTitle('Select Time'),
             const SizedBox(height: 16),
-            _buildTimeGrid(),
+            if (_loading)
+              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+            else if (_timeSlots.isEmpty)
+              Text(
+                'No available times for this date.',
+                style: AppTypography.body200.copyWith(color: AppColors.grey500),
+              )
+            else
+              _buildTimeGrid(),
             const SizedBox(height: 48),
             SizedBox(
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: () {
-                  if (widget.cartLines.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('checkoutEmptyCart'.tr())),
-                    );
-                    return;
-                  }
-                  Navigator.push<void>(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (context) => CheckoutSummaryScreen(
-                        venueName: _venueName,
-                        heroImageUrl: _heroImageUrl,
-                        bookingDate: _selectedDate,
-                        bookingTime: _selectedTime,
-                        cartLines: List<BookingCartLine>.from(widget.cartLines),
-                        specialistNames: widget.specialistNames,
-                      ),
-                    ),
-                  );
-                },
+                onPressed: _timeSlots.isEmpty
+                    ? null
+                    : () {
+                        if (widget.cartLines.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('checkoutEmptyCart'.tr())),
+                          );
+                          return;
+                        }
+                        final selected = combineDateAndTime(_selectedDate, _selectedTime);
+                        if (selected.isBefore(DateTime.now().subtract(const Duration(minutes: 1)))) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please choose a future date and time.')),
+                          );
+                          return;
+                        }
+                        Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (context) => CheckoutSummaryScreen(
+                              venueName: _venueName,
+                              heroImageUrl: widget.heroImageUrl ?? '',
+                              bookingDate: _selectedDate,
+                              bookingTime: _selectedTime,
+                              cartLines: List<BookingCartLine>.from(widget.cartLines),
+                              specialists: widget.specialists,
+                              businessId: widget.businessId,
+                            ),
+                          ),
+                        );
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary500,
                   foregroundColor: AppColors.white,
@@ -114,10 +195,7 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: AppTypography.homeSectionTitle.copyWith(color: AppColors.grey900),
-    );
+    return Text(title, style: AppTypography.homeSectionTitle.copyWith(color: AppColors.grey900));
   }
 
   Widget _buildCalendar() {
@@ -131,8 +209,11 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
       child: CalendarDatePicker(
         initialDate: _selectedDate,
         firstDate: DateTime.now(),
-        lastDate: DateTime.now().add(const Duration(days: 30)),
-        onDateChanged: (date) => setState(() => _selectedDate = date),
+        lastDate: DateTime.now().add(const Duration(days: 60)),
+        onDateChanged: (date) {
+          setState(() => _selectedDate = date);
+          _refreshSlots();
+        },
       ),
     );
   }
@@ -151,15 +232,6 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
               color: isSelected ? AppColors.primary500 : AppColors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: isSelected ? AppColors.primary500 : AppColors.grey100),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primary500.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : [],
             ),
             child: Text(
               time,

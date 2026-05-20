@@ -1,6 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../data/api_repository.dart';
+import '../data/auth_session.dart';
 import '../data/venue_catalog.dart';
 import '../models/venue_listing.dart';
 import '../utils/app_colors.dart';
@@ -19,9 +21,14 @@ class FavoriteScreen extends StatefulWidget {
 }
 
 class _FavoriteScreenState extends State<FavoriteScreen> {
+  final ApiRepository _repo = ApiRepository();
   final TextEditingController _searchController = TextEditingController();
   int _chipIndex = 0;
   bool _gridView = false;
+  bool _loading = true;
+  bool _loggedIn = false;
+  List<VenueListing> _dynamicFavorites = [];
+  String _sortMode = 'name';
 
   static const List<String> _chipCategoryKeys = [
     '', // all
@@ -31,16 +38,55 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadFavorites() async {
+    setState(() => _loading = true);
+    final token = await AuthSession.getToken();
+    if (token == null || token.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _loggedIn = false;
+          _dynamicFavorites = [];
+          _loading = false;
+        });
+      }
+      return;
+    }
+    try {
+      final list = await _repo.fetchFavoriteVenueMaps();
+      final listings = list.map((m) => VenueListing.fromFavoriteMap(m)).toList();
+      if (mounted) {
+        setState(() {
+          _loggedIn = true;
+          _dynamicFavorites = listings;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loggedIn = true;
+          _loading = false;
+        });
+      }
+    }
+  }
+
   List<VenueListing> _filtered(BuildContext context) {
-    Iterable<VenueListing> items = VenueCatalog.all;
+    Iterable<VenueListing> items = _loggedIn ? _dynamicFavorites : VenueCatalog.all;
     final key = _chipCategoryKeys[_chipIndex];
     if (key.isNotEmpty) {
-      items = VenueCatalog.byHomeCategory(key);
+      items = items.where((v) => v.categoryKey.toLowerCase() == key.toLowerCase() || v.categoryKey.tr(context: context).toLowerCase() == key.toLowerCase());
     }
     final q = _searchController.text.trim().toLowerCase();
     if (q.isNotEmpty) {
@@ -50,14 +96,41 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
         return name.contains(q) || cat.contains(q);
       });
     }
-    return items.toList();
+    return items.toList()
+      ..sort((a, b) {
+        switch (_sortMode) {
+          case 'rating':
+            final ar = double.tryParse(a.rating) ?? 0;
+            final br = double.tryParse(b.rating) ?? 0;
+            return br.compareTo(ar);
+          case 'price':
+            final ap = double.tryParse(a.price.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+            final bp = double.tryParse(b.price.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+            return ap.compareTo(bp);
+          case 'name':
+          default:
+            return a.name.compareTo(b.name);
+        }
+      });
   }
 
   void _openDetail(VenueListing listing) {
     Navigator.push<void>(
       context,
       MaterialPageRoute<void>(builder: (context) => ServiceDetailScreen(listing: listing)),
-    );
+    ).then((_) => _loadFavorites());
+  }
+
+  Future<void> _toggleFavorite(String? businessId) async {
+    if (businessId == null) return;
+    try {
+      final ok = await _repo.removeFavorite(businessId);
+      if (ok) {
+        _loadFavorites();
+      }
+    } catch (e) {
+      // Handle error
+    }
   }
 
   void _showMoreMenu() {
@@ -75,12 +148,26 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.sort_rounded, color: AppColors.grey900),
-                title: Text('favMenuSort'.tr(), style: AppTypography.body200.copyWith(color: AppColors.grey900)),
+                title: Text('Sort by name', style: AppTypography.body200.copyWith(color: AppColors.grey900)),
                 onTap: () {
+                  setState(() => _sortMode = 'name');
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('favSortSoon'.tr()), behavior: SnackBarBehavior.floating),
-                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.star_outline_rounded, color: AppColors.grey900),
+                title: Text('Sort by rating', style: AppTypography.body200.copyWith(color: AppColors.grey900)),
+                onTap: () {
+                  setState(() => _sortMode = 'rating');
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.attach_money_rounded, color: AppColors.grey900),
+                title: Text('Sort by price', style: AppTypography.body200.copyWith(color: AppColors.grey900)),
+                onTap: () {
+                  setState(() => _sortMode = 'price');
+                  Navigator.pop(ctx);
                 },
               ),
             ],
@@ -147,133 +234,175 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(FavoriteScreen._horizontalPad, 4, FavoriteScreen._horizontalPad, 12),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              style: AppTypography.body200.copyWith(color: AppColors.grey900),
-              decoration: InputDecoration(
-                hintText: 'searchFieldHint'.tr(),
-                hintStyle: AppTypography.body200.copyWith(color: AppColors.grey400),
-                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.grey400, size: 22),
-                filled: true,
-                fillColor: AppColors.grey25,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.grey200),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 40,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: FavoriteScreen._horizontalPad),
-              scrollDirection: Axis.horizontal,
-              itemCount: 4,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (context, i) {
-                final selected = _chipIndex == i;
-                final labels = [
-                  'favChipAllService'.tr(),
-                  'favChipHairCut'.tr(),
-                  'favChipFacial'.tr(),
-                  'favChipWaxing'.tr(),
-                ];
-                return ChoiceChip(
-                  label: Text(
-                    labels[i],
-                    style: AppTypography.body100.copyWith(
-                      color: selected ? AppColors.white : AppColors.grey600,
-                      fontWeight: FontWeight.w600,
+      body: RefreshIndicator(
+        onRefresh: _loadFavorites,
+        color: AppColors.primary500,
+        child: _loading
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary500),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(FavoriteScreen._horizontalPad, 4, FavoriteScreen._horizontalPad, 12),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      style: AppTypography.body200.copyWith(color: AppColors.grey900),
+                      decoration: InputDecoration(
+                        hintText: 'searchFieldHint'.tr(),
+                        hintStyle: AppTypography.body200.copyWith(color: AppColors.grey400),
+                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.grey400, size: 22),
+                        filled: true,
+                        fillColor: AppColors.grey25,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: AppColors.grey200),
+                        ),
+                      ),
                     ),
                   ),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _chipIndex = i),
-                  backgroundColor: AppColors.white,
-                  selectedColor: AppColors.primary500,
-                  side: BorderSide(color: selected ? AppColors.primary500 : AppColors.grey200),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                  showCheckmark: false,
-                  labelPadding: EdgeInsets.zero,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: filtered.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        VenueCatalog.all.isEmpty ? 'noFavorites'.tr() : 'favNoResults'.tr(),
-                        textAlign: TextAlign.center,
-                        style: AppTypography.body200.copyWith(color: AppColors.grey500),
-                      ),
+                  SizedBox(
+                    height: 40,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: FavoriteScreen._horizontalPad),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: 4,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, i) {
+                        final selected = _chipIndex == i;
+                        final labels = [
+                          'favChipAllService'.tr(),
+                          'favChipHairCut'.tr(),
+                          'favChipFacial'.tr(),
+                          'favChipWaxing'.tr(),
+                        ];
+                        return ChoiceChip(
+                          label: Text(
+                            labels[i],
+                            style: AppTypography.body100.copyWith(
+                              color: selected ? AppColors.white : AppColors.grey600,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          selected: selected,
+                          onSelected: (_) => setState(() => _chipIndex = i),
+                          backgroundColor: AppColors.white,
+                          selectedColor: AppColors.primary500,
+                          side: BorderSide(color: selected ? AppColors.primary500 : AppColors.grey200),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                          showCheckmark: false,
+                          labelPadding: EdgeInsets.zero,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        );
+                      },
                     ),
-                  )
-                : _gridView
-                    ? GridView.builder(
-                        padding: const EdgeInsets.fromLTRB(
-                          FavoriteScreen._horizontalPad,
-                          0,
-                          FavoriteScreen._horizontalPad,
-                          24,
-                        ),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 14,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 0.62,
-                        ),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, index) {
-                          return _FavoriteGridCard(
-                            listing: filtered[index],
-                            onTap: () => _openDetail(filtered[index]),
-                          );
-                        },
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(
-                          FavoriteScreen._horizontalPad,
-                          0,
-                          FavoriteScreen._horizontalPad,
-                          24,
-                        ),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 16),
-                        itemBuilder: (context, index) {
-                          return _FavoriteListHeroCard(
-                            listing: filtered[index],
-                            onTap: () => _openDetail(filtered[index]),
-                          );
-                        },
-                      ),
-          ),
-        ],
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 80, left: 24, right: 24),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      _loggedIn ? Icons.favorite_border : Icons.lock_outline,
+                                      size: 80,
+                                      color: AppColors.grey100,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _loggedIn
+                                          ? 'noFavorites'.tr()
+                                          : 'favoritesSignIn'.tr(),
+                                      textAlign: TextAlign.center,
+                                      style: AppTypography.body200.copyWith(color: AppColors.grey400),
+                                    ),
+                                    if (!_loggedIn) ...[
+                                      const SizedBox(height: 24),
+                                      Text(
+                                        'favoritesPublicCatalogFallback'.tr(),
+                                        textAlign: TextAlign.center,
+                                        style: AppTypography.body100.copyWith(color: AppColors.grey400),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        : _gridView
+                            ? GridView.builder(
+                                padding: const EdgeInsets.fromLTRB(
+                                  FavoriteScreen._horizontalPad,
+                                  0,
+                                  FavoriteScreen._horizontalPad,
+                                  24,
+                                ),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 14,
+                                  crossAxisSpacing: 12,
+                                  childAspectRatio: 0.62,
+                                ),
+                                itemCount: filtered.length,
+                                itemBuilder: (context, index) {
+                                  return _FavoriteGridCard(
+                                    listing: filtered[index],
+                                    onTap: () => _openDetail(filtered[index]),
+                                    onFavoritePressed: () => _toggleFavorite(filtered[index].businessId),
+                                    isLoggedIn: _loggedIn,
+                                  );
+                                },
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(
+                                  FavoriteScreen._horizontalPad,
+                                  0,
+                                  FavoriteScreen._horizontalPad,
+                                  24,
+                                ),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                                itemBuilder: (context, index) {
+                                  return _FavoriteListHeroCard(
+                                    listing: filtered[index],
+                                    onTap: () => _openDetail(filtered[index]),
+                                    onFavoritePressed: () => _toggleFavorite(filtered[index].businessId),
+                                    isLoggedIn: _loggedIn,
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
       ),
     );
   }
 }
 
 class _FavoriteListHeroCard extends StatelessWidget {
-  const _FavoriteListHeroCard({required this.listing, required this.onTap});
+  const _FavoriteListHeroCard({
+    required this.listing,
+    required this.onTap,
+    required this.onFavoritePressed,
+    required this.isLoggedIn,
+  });
 
   final VenueListing listing;
   final VoidCallback onTap;
+  final VoidCallback onFavoritePressed;
+  final bool isLoggedIn;
 
   static const Color _heartRed = Color(0xFFE53935);
 
@@ -317,7 +446,15 @@ class _FavoriteListHeroCard extends StatelessWidget {
                       Positioned(
                         top: 10,
                         right: 10,
-                        child: Icon(Icons.favorite_rounded, color: _heartRed, size: 26, shadows: _iconShadow),
+                        child: GestureDetector(
+                          onTap: onFavoritePressed,
+                          child: Icon(
+                            isLoggedIn ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                            color: isLoggedIn ? _heartRed : AppColors.white,
+                            size: 26,
+                            shadows: _iconShadow,
+                          ),
+                        ),
                       ),
                       Positioned(
                         right: 10,
@@ -411,10 +548,17 @@ class _FavoriteListHeroCard extends StatelessWidget {
 }
 
 class _FavoriteGridCard extends StatelessWidget {
-  const _FavoriteGridCard({required this.listing, required this.onTap});
+  const _FavoriteGridCard({
+    required this.listing,
+    required this.onTap,
+    required this.onFavoritePressed,
+    required this.isLoggedIn,
+  });
 
   final VenueListing listing;
   final VoidCallback onTap;
+  final VoidCallback onFavoritePressed;
+  final bool isLoggedIn;
 
   static const Color _heartRed = Color(0xFFE53935);
 
@@ -453,10 +597,18 @@ class _FavoriteGridCard extends StatelessWidget {
                         urls: ChainedNetworkImage.chainFrom(listing.listImageUrl, listing.unsplashImgId, w: 500),
                         fit: BoxFit.cover,
                       ),
-                      const Positioned(
+                      Positioned(
                         top: 8,
                         right: 8,
-                        child: Icon(Icons.favorite_rounded, color: _heartRed, size: 22, shadows: _FavoriteListHeroCard._iconShadow),
+                        child: GestureDetector(
+                          onTap: onFavoritePressed,
+                          child: Icon(
+                            isLoggedIn ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                            color: isLoggedIn ? _heartRed : AppColors.white,
+                            size: 22,
+                            shadows: _FavoriteListHeroCard._iconShadow,
+                          ),
+                        ),
                       ),
                     ],
                   ),

@@ -8,6 +8,7 @@ import '../data/venue_catalog.dart';
 import '../models/app_notification.dart';
 import '../models/user_invoice.dart';
 import '../models/venue_listing.dart';
+import '../utils/booking_utils.dart';
 import 'api_config.dart';
 import 'auth_session.dart';
 import 'user_location.dart';
@@ -73,14 +74,72 @@ class ApiRepository {
     return h;
   }
 
+  Never _throwApiError(http.Response res, String fallback) {
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map && decoded['message'] != null) {
+        throw Exception('${decoded['message']}');
+      }
+    } catch (e) {
+      if (e is Exception) throw e;
+    }
+    throw Exception(fallback);
+  }
+
   /// Returns true when login succeeded and session was stored.
   Future<bool> login(String email, String password) async {
     final res = await http.post(
       Uri.parse('$_baseUrl/auth/login'),
       headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-      body: jsonEncode({'email': email.trim(), 'password': password}),
+      body: jsonEncode({'email': email.trim().toLowerCase(), 'password': password}),
     );
     if (res.statusCode < 200 || res.statusCode >= 300) return false;
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final user = data['user'] as Map<String, dynamic>?;
+    final token = data['token'] as String?;
+    if (user == null || token == null || user['role'] != 'USER') return false;
+    await AuthSession.setToken(token);
+    return true;
+  }
+
+  Future<bool> checkEmailExists(String email) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/auth/check-email'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({'email': email.trim().toLowerCase()}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Could not verify email');
+    }
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return data['exists'] == true;
+  }
+
+  Future<bool> register({
+    required String email,
+    required String password,
+    required String name,
+    String? phone,
+    String? address,
+    String? gender,
+    int? age,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/auth/register'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim().toLowerCase(),
+        'password': password,
+        'name': name.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+        if (address != null && address.trim().isNotEmpty) 'address': address.trim(),
+        if (gender != null && gender.trim().isNotEmpty) 'gender': gender.trim(),
+        if (age != null) 'age': age,
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Registration failed');
+    }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final user = data['user'] as Map<String, dynamic>?;
     final token = data['token'] as String?;
@@ -101,13 +160,33 @@ class ApiRepository {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
-  Future<List<UserInvoice>> fetchInvoices() async {
-    final res = await http.get(Uri.parse('$_baseUrl/mobile/invoices'), headers: await _headers(auth: true));
-    if (res.statusCode == 401) return [];
-    if (res.statusCode < 200 || res.statusCode >= 300) return [];
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    final items = (body['data'] as List<dynamic>).cast<Map<String, dynamic>>();
-    return items.map((it) {
+  Future<Map<String, dynamic>> fetchInvoices({int page = 1, int limit = 10}) async {
+    final uri = Uri.parse('$_baseUrl/mobile/invoices').replace(queryParameters: {
+      'page': '$page',
+      'limit': '$limit',
+    });
+    final res = await http.get(uri, headers: await _headers(auth: true));
+    if (res.statusCode == 401) {
+      return {'data': <UserInvoice>[], 'totalPages': 1, 'total': 0};
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      return {'data': <UserInvoice>[], 'totalPages': 1, 'total': 0};
+    }
+    final body = jsonDecode(res.body);
+    final List<Map<String, dynamic>> items;
+    int totalPages = 1;
+    int total = 0;
+    if (body is Map<String, dynamic>) {
+      items = (body['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+      totalPages = (body['totalPages'] as int?) ?? 1;
+      total = (body['total'] as int?) ?? items.length;
+    } else if (body is List) {
+      items = body.cast<Map<String, dynamic>>();
+      total = items.length;
+    } else {
+      return {'data': <UserInvoice>[], 'totalPages': 1, 'total': 0};
+    }
+    final data = items.map((it) {
       final lines = ((it['lines'] as List<dynamic>?) ?? [])
           .cast<Map<String, dynamic>>()
           .map((l) => InvoiceLineItem(title: '${l['title']}', amount: '\$${(l['amount'] as num).toStringAsFixed(2)}'))
@@ -130,53 +209,165 @@ class ApiRepository {
         lines: lines,
       );
     }).toList();
+    return {'data': data, 'totalPages': totalPages, 'total': total};
   }
 
-  Future<Map<String, List<Map<String, dynamic>>>> fetchBookings() async {
-    final res = await http.get(Uri.parse('$_baseUrl/mobile/bookings'), headers: await _headers(auth: true));
+  Future<Map<String, dynamic>> fetchBookings({int page = 1, int limit = 10, String locale = 'en'}) async {
+    final uri = Uri.parse('$_baseUrl/mobile/bookings').replace(queryParameters: {
+      'page': '$page',
+      'limit': '$limit',
+    });
+    final res = await http.get(uri, headers: await _headers(auth: true));
     if (res.statusCode == 401) {
-      return {'ongoing': [], 'history': []};
+      return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      return {'ongoing': [], 'history': []};
+      return {'ongoing': <Map<String, dynamic>>[], 'history': <Map<String, dynamic>>[], 'totalPages': 1, 'total': 0};
     }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
-    List<Map<String, dynamic>> mapRows(List<dynamic>? source, bool ongoing) {
-      return (source ?? []).cast<Map<String, dynamic>>().map((it) {
-        final date = DateTime.tryParse('${it['date']}') ?? DateTime.now();
-        final biz = it['business'] as Map<String, dynamic>?;
-        final svc = it['service'] as Map<String, dynamic>?;
-        final staff = it['staff'] as Map<String, dynamic>?;
-        final serviceName = svc != null ? '${svc['name']}' : 'Service';
-        final specialist = '${staff?['name'] ?? ''}'.trim();
-        final logo = '${biz?['logoUrl'] ?? ''}'.trim();
-        final banner = '${biz?['bannerUrl'] ?? ''}'.trim();
-        final venueImg = logo.isNotEmpty ? logo : (banner.isNotEmpty ? banner : '');
-        return {
-          'id': '${it['id']}',
-          'venueName': '${biz?['name'] ?? ''}',
-          'service': serviceName,
-          'specialist': specialist.isNotEmpty ? specialist : '',
-          'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
-          'time': '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
-          'status': ongoing ? 'appointmentOngoing' : 'resPast',
-          'price': '\$${((it['price'] as num?) ?? 0).toStringAsFixed(2)}',
-          'img': '',
-          'imageUrl': venueImg.isNotEmpty ? venueImg : null,
-          'location': '${biz?['address'] ?? ''}',
-          'ticketId': 'RZV-${('${it['id']}').substring(0, 4).toUpperCase()}',
-        };
-      }).toList();
-    }
+    final ongoingRaw = (data['ongoing'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final historyBlock = data['history'] as Map<String, dynamic>?;
+    final historyRaw = (historyBlock?['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
 
     return {
-      'ongoing': mapRows(data['ongoing'] as List<dynamic>?, true),
-      'history': mapRows((data['history'] as Map<String, dynamic>?)?['data'] as List<dynamic>?, false),
+      'ongoing': groupAndMapBookings(ongoingRaw, locale: locale),
+      'history': groupAndMapBookings(historyRaw, locale: locale),
+      'totalPages': historyBlock?['totalPages'] ?? 1,
+      'total': historyBlock?['total'] ?? historyRaw.length,
     };
   }
 
+  Future<List<Map<String, dynamic>>> fetchBookingGroup(String bookingId) async {
+    final res = await http.get(
+      Uri.parse('$_baseUrl/mobile/bookings/$bookingId/group'),
+      headers: await _headers(auth: true),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) return [];
+    final data = jsonDecode(res.body);
+    if (data is! List) return [];
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchStaffBusySlots(String staffId, DateTime day) async {
+    final ymd = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    final res = await http.get(
+      Uri.parse('$_baseUrl/mobile/staff/$staffId/busy-slots?date=$ymd'),
+      headers: await _headers(auth: true),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) return [];
+    final data = jsonDecode(res.body);
+    if (data is! List) return [];
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<bool> cancelBooking(String bookingId) async {
+    final res = await http.patch(
+      Uri.parse('$_baseUrl/mobile/bookings/$bookingId/cancel'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Could not cancel booking');
+    }
+    return true;
+  }
+
+  Future<bool> cancelBookingGroup(List<String> bookingIds) async {
+    for (final id in bookingIds) {
+      await cancelBooking(id);
+    }
+    return true;
+  }
+
+  Future<bool> payBookingGroup({
+    required List<String> bookingIds,
+    String paymentMethod = 'Online',
+    String? businessId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/bookings/pay-group'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'bookingIds': bookingIds,
+        'paymentMethod': paymentMethod,
+        if (businessId != null) 'businessId': businessId,
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Payment failed');
+    }
+    return true;
+  }
+
+  Future<bool> completeBooking(String bookingId) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/bookings/$bookingId/complete'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Could not complete booking');
+    }
+    return true;
+  }
+
+  Future<bool> acceptReschedule(String bookingId) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/bookings/$bookingId/accept-reschedule'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Could not accept reschedule');
+    }
+    return true;
+  }
+
+  Future<bool> submitReviewGroup({
+    required int businessRating,
+    required String comment,
+    required List<Map<String, dynamic>> services,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/reviews/group'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'businessRating': businessRating,
+        'comment': comment,
+        'services': services,
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Failed to submit review');
+    }
+    return true;
+  }
+
+  Future<Map<String, dynamic>?> updateFamilyMember({
+    required String id,
+    required String name,
+    required int age,
+    required String gender,
+    String? email,
+  }) async {
+    final res = await http.patch(
+      Uri.parse('$_baseUrl/mobile/family-members/$id'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name.trim(),
+        'age': age,
+        'gender': gender.trim(),
+        if (email != null) 'email': email.trim().isEmpty ? null : email.trim(),
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Failed to update family member');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Uri> _uriWithUserGeo(String relativePath) async {
-    final base = Uri.parse(_baseUrl);
+    final base = Uri.parse(_baseUrl.endsWith('/') ? _baseUrl : '$_baseUrl/');
     final u = base.resolve(relativePath);
     final g = await UserLocation.getLastKnown();
     if (g == null) return u;
@@ -190,7 +381,7 @@ class ApiRepository {
     final items = (body['data'] as List<dynamic>).cast<Map<String, dynamic>>();
     return items.map((it) {
       return VenueListing(
-        id: (it['id'] as num).toInt(),
+        id: it['id'] is num ? (it['id'] as num).toInt() : (int.tryParse('${it['id']}') ?? '${it['id']}'.hashCode.abs()),
         businessId: it['businessId'] as String?,
         name: '${it['name']}',
         categoryKey: '${it['categoryKey']}',
@@ -200,7 +391,7 @@ class ApiRepository {
         lat: (it['lat'] as num).toDouble(),
         lng: (it['lng'] as num).toDouble(),
         unsplashImgId: it['unsplashImgId'] as String?,
-        serviceImageUrl: it['serviceImageUrl'] as String?,
+        serviceImageUrl: (it['serviceImageUrl'] ?? it['imageUrl']) as String?,
         logoUrl: it['logoUrl'] as String?,
         bannerUrl: it['bannerUrl'] as String?,
         locationLabel: '${it['locationLabel']}',
@@ -235,7 +426,7 @@ class ApiRepository {
     final items = (body['data'] as List<dynamic>).cast<Map<String, dynamic>>();
     final venues = items.map((it) {
       return VenueListing(
-        id: (it['id'] as num).toInt(),
+        id: it['id'] is num ? (it['id'] as num).toInt() : (int.tryParse('${it['id']}') ?? '${it['id']}'.hashCode.abs()),
         businessId: it['businessId'] as String?,
         name: '${it['name']}',
         categoryKey: '${it['categoryKey']}',
@@ -245,7 +436,7 @@ class ApiRepository {
         lat: (it['lat'] as num).toDouble(),
         lng: (it['lng'] as num).toDouble(),
         unsplashImgId: it['unsplashImgId'] as String?,
-        serviceImageUrl: it['serviceImageUrl'] as String?,
+        serviceImageUrl: (it['serviceImageUrl'] ?? it['imageUrl']) as String?,
         logoUrl: it['logoUrl'] as String?,
         bannerUrl: it['bannerUrl'] as String?,
         locationLabel: '${it['locationLabel']}',
@@ -275,26 +466,48 @@ class ApiRepository {
     final res =
         await http.get(Uri.parse('$_baseUrl/business/$businessId/services'), headers: await _headers(auth: false));
     if (res.statusCode < 200 || res.statusCode >= 300) return [];
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    final raw = body['data'] as List<dynamic>;
-    return raw.cast<Map<String, dynamic>>();
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic> && decoded['data'] != null) {
+        final raw = decoded['data'] as List<dynamic>;
+        return raw.cast<Map<String, dynamic>>();
+      } else if (decoded is List<dynamic>) {
+        return decoded.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
   }
 
   Future<List<Map<String, dynamic>>> fetchBusinessStaff(String businessId) async {
     final res =
         await http.get(Uri.parse('$_baseUrl/business/$businessId/staff'), headers: await _headers(auth: false));
     if (res.statusCode < 200 || res.statusCode >= 300) return [];
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    final raw = body['data'] as List<dynamic>;
-    return raw.cast<Map<String, dynamic>>();
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic> && decoded['data'] != null) {
+        final raw = decoded['data'] as List<dynamic>;
+        return raw.cast<Map<String, dynamic>>();
+      } else if (decoded is List<dynamic>) {
+        return decoded.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
   }
 
   Future<List<Map<String, dynamic>>> fetchBusinessReviews(String businessId) async {
     final res =
         await http.get(Uri.parse('$_baseUrl/business/$businessId/reviews'), headers: await _headers(auth: false));
     if (res.statusCode < 200 || res.statusCode >= 300) return [];
-    final raw = jsonDecode(res.body) as List<dynamic>;
-    return raw.cast<Map<String, dynamic>>();
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic> && decoded['data'] != null) {
+        final raw = decoded['data'] as List<dynamic>;
+        return raw.cast<Map<String, dynamic>>();
+      } else if (decoded is List<dynamic>) {
+        return decoded.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
   }
 
   Future<List<String>> _collectStaffDisplayNames(List<VenueListing> venues) async {
@@ -455,5 +668,116 @@ class ApiRepository {
       }),
     );
     return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  Future<Map<String, dynamic>?> updateUserProfile({
+    required String name,
+    required String phone,
+    required String email,
+    String? avatar,
+  }) async {
+    final res = await http.patch(
+      Uri.parse('$_baseUrl/auth/user-session'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name.trim(),
+        'phone': phone.trim(),
+        'email': email.trim().toLowerCase(),
+        if (avatar != null) 'avatar': avatar,
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final decoded = jsonDecode(res.body);
+      throw Exception(decoded is Map && decoded.containsKey('message') ? decoded['message'] : 'Failed to update profile');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<bool> updateUserPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final res = await http.patch(
+      Uri.parse('$_baseUrl/auth/user-password'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final decoded = jsonDecode(res.body);
+      throw Exception(decoded is Map && decoded.containsKey('message') ? decoded['message'] : 'Failed to update password');
+    }
+    return true;
+  }
+
+  Future<List<Map<String, dynamic>>> fetchFamilyMembers() async {
+    final res = await http.get(
+      Uri.parse('$_baseUrl/mobile/family-members'),
+      headers: await _headers(auth: true),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) return [];
+    return (jsonDecode(res.body) as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>?> createFamilyMember({
+    required String name,
+    required int age,
+    required String gender,
+    String? email,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/family-members'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name.trim(),
+        'age': age,
+        'gender': gender.trim(),
+        if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final decoded = jsonDecode(res.body);
+      throw Exception(decoded is Map && decoded.containsKey('message') ? decoded['message'] : 'Failed to add family member');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<bool> deleteFamilyMember(String id) async {
+    final res = await http.delete(
+      Uri.parse('$_baseUrl/mobile/family-members/$id'),
+      headers: await _headers(auth: true),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final decoded = jsonDecode(res.body);
+      throw Exception(decoded is Map && decoded.containsKey('message') ? decoded['message'] : 'Failed to delete family member');
+    }
+    return true;
+  }
+
+  Future<Map<String, dynamic>?> createBooking({
+    required String businessId,
+    required String serviceId,
+    required String date,
+    String? staffId,
+    String? familyMemberId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/bookings'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'businessId': businessId,
+        'serviceId': serviceId,
+        'date': date,
+        if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+        if (familyMemberId != null && familyMemberId.isNotEmpty) 'familyMemberId': familyMemberId,
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final decoded = jsonDecode(res.body);
+      throw Exception(decoded is Map && decoded.containsKey('message') ? decoded['message'] : 'Failed to create booking');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 }

@@ -10,6 +10,8 @@ import 'edit_profile_screen.dart';
 import 'events_screen.dart';
 import 'family_members_screen.dart';
 import 'how_it_works_screen.dart';
+import 'booking_history_screen.dart';
+import 'favorite_screen.dart';
 import 'invoices_screen.dart';
 import 'jobs_screen.dart';
 import 'login_screen.dart';
@@ -50,58 +52,124 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showChangePasswordSheet() {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool submitting = false;
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-          decoration: const BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('changePassword'.tr(), style: AppTypography.screenTitle.copyWith(color: AppColors.grey900)),
-              const SizedBox(height: 24),
-              _passwordField('currentPassword'.tr()),
-              const SizedBox(height: 16),
-              _passwordField('newPassword'.tr()),
-              const SizedBox(height: 16),
-              _passwordField('confirmNewPassword'.tr()),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary500,
-                    foregroundColor: AppColors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 0,
-                  ),
-                  child: Text('updatePassword'.tr(), style: AppTypography.buttonLarge),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          Future<void> submit() async {
+            final currentPassword = currentCtrl.text;
+            final newPassword = newCtrl.text;
+            final confirmPassword = confirmCtrl.text;
+
+            if (currentPassword.isEmpty || newPassword.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('All password fields are required'), behavior: SnackBarBehavior.floating),
+              );
+              return;
+            }
+
+            if (newPassword != confirmPassword) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('New passwords do not match'), behavior: SnackBarBehavior.floating),
+              );
+              return;
+            }
+
+            setModalState(() => submitting = true);
+            try {
+              await _api.updateUserPassword(
+                currentPassword: currentPassword,
+                newPassword: newPassword,
+              );
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Password updated successfully'), behavior: SnackBarBehavior.floating),
+              );
+              Navigator.pop(context);
+            } catch (e) {
+              if (!context.mounted) return;
+              showDialog<void>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Error'),
+                  content: Text(e.toString().replaceAll('Exception: ', '')),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('OK'),
+                    ),
+                  ],
                 ),
+              );
+            } finally {
+              setModalState(() => submitting = false);
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+              decoration: const BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               ),
-            ],
-          ),
-        ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('changePassword'.tr(), style: AppTypography.screenTitle.copyWith(color: AppColors.grey900)),
+                  const SizedBox(height: 24),
+                  _passwordField('currentPassword'.tr(), currentCtrl),
+                  const SizedBox(height: 16),
+                  _passwordField('newPassword'.tr(), newCtrl),
+                  const SizedBox(height: 16),
+                  _passwordField('confirmNewPassword'.tr(), confirmCtrl),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: submitting ? null : submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary500,
+                        foregroundColor: AppColors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                      ),
+                      child: submitting
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2),
+                            )
+                          : Text('updatePassword'.tr(), style: AppTypography.buttonLarge),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _passwordField(String label) {
+  Widget _passwordField(String label, TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: AppTypography.body100.copyWith(color: AppColors.grey700, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         TextField(
+          controller: controller,
           obscureText: true,
           decoration: InputDecoration(
             hintText: '••••••••',
@@ -209,6 +277,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () => Navigator.push<void>(
                 context,
                 MaterialPageRoute<void>(builder: (context) => const EditProfileScreen()),
+              ),
+            ),
+            _menuTile(
+              icon: Icons.calendar_month_outlined,
+              title: 'myReservationsMenu'.tr(),
+              onTap: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(builder: (context) => const BookingHistoryScreen()),
+              ),
+            ),
+            _menuTile(
+              icon: Icons.favorite_border_rounded,
+              title: 'favoritesMenu'.tr(),
+              onTap: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(builder: (context) => const FavoriteScreen()),
               ),
             ),
             _menuTile(
