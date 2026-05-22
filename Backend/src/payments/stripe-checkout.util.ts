@@ -93,6 +93,10 @@ export async function createStripeCheckoutForBookings(
 export async function resolveStripeWebhookSecret(prisma: PrismaService): Promise<string | null> {
   const fromEnv = process.env.STRIPE_WEBHOOK_SECRET?.trim();
   if (fromEnv) return fromEnv;
-  const config = await prisma.systemConfig.findUnique({ where: { id: 1 } });
-  return config?.stripeWebhookSecret?.trim() || null;
+  try {
+    const config = await prisma.systemConfig.findUnique({ where: { id: 1 } });
+    return config?.stripeWebhookSecret?.trim() || null;
+  } catch {
+    return null;
+  }
 }
