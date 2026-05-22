@@ -35,7 +35,7 @@ class _ReviewExperienceSheetState extends State<_ReviewExperienceSheet> {
   final Map<String, int> _staffRatings = {};
   bool _submitting = false;
 
-  bool get _isEn => Localizations.localeOf(context).languageCode != 'es';
+  bool get _isEn => true;
 
   List<Map<String, dynamic>> get _reviewableItems {
     final items = (widget.reservation['items'] as List<dynamic>?) ?? [];

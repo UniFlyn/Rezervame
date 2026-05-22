@@ -11,7 +11,8 @@ type Step = "EMAIL" | "PASSWORD" | "SIGNUP";
 
 export const LoginModal = () => {
   const { t, language, setLanguage } = useI18n();
-  const { isLoginModalOpen, setIsLoginModalOpen, login, register, setPendingAfterLogin, runPendingAfterLogin } = useAuth();
+  const { isLoginModalOpen, setIsLoginModalOpen, login, loginWithGoogle, register, setPendingAfterLogin, runPendingAfterLogin } = useAuth();
+  const [socialLoading, setSocialLoading] = useState(false);
   const router = useRouter();
 
   const [step, setStep] = useState<Step>("EMAIL");
@@ -330,23 +331,29 @@ export const LoginModal = () => {
                 <div className="flex gap-3 w-full">
                   <button
                     type="button"
-                    className="flex-1 flex items-center justify-center gap-2 border border-slate-200 py-3 rounded-xl hover:bg-slate-50 transition font-bold text-[11px]"
+                    disabled={socialLoading}
+                    onClick={async () => {
+                      setSocialLoading(true);
+                      try {
+                        await loginWithGoogle();
+                        await finishSuccess();
+                      } catch (err) {
+                        toastError(
+                          t("authLoginFailedTitle"),
+                          err instanceof Error ? err.message : t("authLoginFailedBody"),
+                        );
+                      } finally {
+                        setSocialLoading(false);
+                      }
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 border border-slate-200 py-3 rounded-xl hover:bg-slate-50 transition font-bold text-[11px] disabled:opacity-60"
                   >
                     <img
                       src="https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-09-512.png"
                       className="w-4 h-4"
                       alt=""
                     />
-                    <span className="hidden sm:inline">{t("contGoogle")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="flex-1 flex items-center justify-center gap-2 border border-slate-200 py-3 rounded-xl hover:bg-slate-50 transition font-bold text-[11px]"
-                  >
-                    <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
-                    </svg>
-                    <span className="hidden sm:inline">{t("contFacebook")}</span>
+                    <span className="hidden sm:inline">{socialLoading ? "..." : t("contGoogle")}</span>
                   </button>
                 </div>
               </div>

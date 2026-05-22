@@ -18,6 +18,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { apiGet, apiDelete, apiPost } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import en from "../../../../shared/locales/en.json";
+import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
 
 function SearchContent() {
   const { t, language } = useI18n();
@@ -161,13 +162,22 @@ function SearchContent() {
     if (legacyCategoryNameFromQuery) return legacyCategoryNameFromQuery;
     if (categoryKeyFromQuery) {
         const cat = categories.find(c => c.key === categoryKeyFromQuery);
-        if (cat) return language === 'en' ? cat.labelEn : cat.labelEs;
+        if (cat) return cat.labelEn;
         return t(categoryKeyFromQuery as keyof typeof en);
     }
     return t("discoverPerfectService");
   }, [legacyCategoryNameFromQuery, categoryKeyFromQuery, t, language, categories]);
 
   const filteredAndSortedResults = venues;
+
+  const { setMeta, clearMeta } = usePageHeaderMeta();
+  useEffect(() => {
+    setMeta({
+      title: searchResultsTitle,
+      subtitle: `${filteredAndSortedResults.length} ${t("searchResultCount")}`,
+    });
+    return () => clearMeta();
+  }, [searchResultsTitle, filteredAndSortedResults.length, t, setMeta, clearMeta]);
 
   const markerBounds = useMemo(() => {
     const list = filteredAndSortedResults;
@@ -227,28 +237,9 @@ function SearchContent() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* SECONDARY SEARCH BAR */}
-      <div className="border-b border-slate-100 bg-white sticky top-[72px] z-20 px-6 py-4">
-        <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row gap-4 items-center">
-            <div className="bg-slate-50 border border-slate-200 p-1.5 rounded-2xl flex w-full max-w-2xl items-center h-[56px] shadow-sm">
-                <div className="flex-1 flex items-center px-4 border-r border-slate-200 h-full">
-                    <Search className="w-5 h-5 text-slate-400 mr-3" />
-                    <input type="text" placeholder={t('searchPlaceholder')} className="w-full h-full text-sm outline-none text-slate-800 bg-transparent placeholder-slate-400 font-bold" />
-                </div>
-                <div className="flex-1 flex items-center px-4 h-full hidden sm:flex">
-                    <MapIcon className="w-5 h-5 text-slate-400 mr-3" />
-                    <input type="text" placeholder={t('locationPlaceholder')} className="w-full h-full text-sm outline-none text-slate-800 bg-transparent placeholder-slate-400 font-bold" />
-                </div>
-                <button className="bg-[#ff5a5f] hover:bg-[#e0454a] text-white px-8 h-full rounded-xl font-black transition-all duration-300 flex-shrink-0 text-sm shadow-lg shadow-[#ff5a5f]/20 uppercase tracking-wider">
-                    {t('searchBtn')}
-                </button>
-            </div>
-        </div>
-      </div>
-
       <div className="flex flex-1 relative">
         {/* SIDEBAR FILTERS - Desktop */}
-        <aside className="hidden lg:block w-[320px] border-r border-slate-100 p-8 sticky top-[160px] h-[calc(100vh-160px)] overflow-y-auto no-scrollbar">
+        <aside className="hidden lg:block w-[300px] border-r border-slate-100 p-6 sticky top-[64px] h-[calc(100vh-64px)] overflow-y-auto no-scrollbar shrink-0">
            <div className="mb-12">
               <h4 className="font-black text-slate-900 text-[11px] uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
                 <span className="w-2 h-2 bg-[#ff5a5f] rounded-full"></span>
@@ -269,7 +260,7 @@ function SearchContent() {
                         {selectedCategories.includes(c.key) && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
                       </div>
                       <span className={`text-sm font-bold transition-all duration-300 ${selectedCategories.includes(c.key) ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>
-                        {language === 'en' ? c.labelEn : c.labelEs}
+                        {c.labelEn}
                       </span>
                     </label>
                  ))}
@@ -306,31 +297,13 @@ function SearchContent() {
               </div>
            </div>
 
-           <div className="bg-slate-50 rounded-[24px] p-6 border border-slate-100">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-black text-slate-900 text-[11px] uppercase tracking-widest">{t('showMap')}</h4>
-                <button 
-                  onClick={() => setShowMap(!showMap)}
-                  className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${showMap ? 'bg-slate-900' : 'bg-slate-200'}`}
-                >
-                  <div className={`w-4 h-4 bg-white rounded-full transition-all duration-300 ${showMap ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                </button>
-              </div>
-              <p className="text-[10px] font-bold text-slate-400 leading-relaxed uppercase tracking-tighter">Habilita esta opción para ver los negocios en el mapa interactivo.</p>
-           </div>
         </aside>
 
         {/* RESULTS SECTION */}
-        <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto h-[calc(100vh-160px)] no-scrollbar bg-slate-50/30">
-           <div className="max-w-6xl mx-auto">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">{searchResultsTitle}</h2>
-                    <p className="text-xs font-black text-[#ff5a5f] mt-2 uppercase tracking-[0.2em] bg-[#ff5a5f]/5 inline-block px-3 py-1 rounded-full border border-[#ff5a5f]/10">
-                        {filteredAndSortedResults.length} {t('searchResultCount')}
-                    </p>
-                 </div>
-                 <div className="flex bg-white p-1.5 rounded-[20px] border-2 border-slate-100 shadow-sm">
+        <main className="flex-1 p-5 md:p-8 overflow-y-auto h-[calc(100vh-64px)] no-scrollbar bg-slate-50/30 min-w-0">
+           <div className="max-w-5xl mx-auto w-full">
+              <div className="flex flex-col md:flex-row justify-end items-start md:items-center gap-4 mb-8">
+                 <div className="flex bg-white p-1 rounded-xl border border-slate-200">
                     <button 
                       onClick={() => setViewMode("list")}
                       className={`flex items-center gap-3 px-6 py-2.5 rounded-2xl text-[11px] font-black transition-all duration-500 uppercase tracking-widest ${viewMode === 'list' ? 'bg-slate-900 text-white shadow-xl translate-y-[-2px]' : 'text-slate-400 hover:text-slate-600'}`}
@@ -357,8 +330,8 @@ function SearchContent() {
               {viewMode === "list" && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {paginatedResults.map((res) => (
-                        <Link href={`/venue/${res.businessId}`} key={res.businessId} className="group flex flex-col md:flex-row bg-white rounded-[32px] border border-slate-100 overflow-hidden hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 p-4 h-auto cursor-pointer">
-                            <div className="relative w-full md:w-72 h-48 md:h-auto overflow-hidden rounded-[24px] flex-shrink-0">
+                        <Link href={`/venue/${res.businessId}`} key={res.businessId} className="group flex flex-row bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-lg transition-all duration-300 p-3 cursor-pointer min-h-[120px]">
+                            <div className="relative w-36 sm:w-44 h-28 sm:h-32 overflow-hidden rounded-xl flex-shrink-0">
                                 <img 
                                   src={businessListingImageSrc(res)} 
                                   className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" 
@@ -381,12 +354,12 @@ function SearchContent() {
                                     <Heart className={`w-5 h-5 transition-colors duration-300 ${favorites.includes(res.businessId) ? 'fill-[#ff5a5f] text-[#ff5a5f]' : 'text-slate-900'}`} />
                                 </button>
                             </div>
-                            <div className="flex flex-col justify-between flex-1 pl-0 md:pl-8 py-4 pr-4 mt-4 md:mt-0">
+                            <div className="flex flex-col justify-between flex-1 pl-4 py-1 min-w-0">
                                 <div>
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="text-[11px] font-black text-[#ff5a5f] uppercase tracking-widest mb-2">{res.category}</p>
-                                            <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight mb-3 group-hover:text-[#ff5a5f] transition-colors">{res.name}</h3>
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] font-bold text-[#ff5a5f] uppercase tracking-wide mb-1">{res.category}</p>
+                                            <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug group-hover:text-[#ff5a5f] transition-colors line-clamp-2">{res.name}</h3>
                                         </div>
                                         <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 shadow-sm">
                                             <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
@@ -394,7 +367,7 @@ function SearchContent() {
                                             <span className="text-[11px] font-bold text-slate-400 border-l border-slate-200 pl-2 leading-none">({res.reviews})</span>
                                         </div>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-500 mt-6">
+                                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 mt-2">
                                         <div className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-1.5 rounded-full border border-slate-100 tracking-tight max-w-full">
                                             {res.locationLabel} • {res.distanceLabel}
                                         </div>
@@ -403,14 +376,14 @@ function SearchContent() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center mt-8 pt-6 border-t border-slate-50">
+                                <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-50">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('priceFrom')}</span>
-                                        <span className="font-black text-2xl text-slate-900 tracking-tight">${res.price.toFixed(2)}</span>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{t('priceFrom')}</span>
+                                        <span className="font-extrabold text-lg text-slate-900">${res.price.toFixed(2)}</span>
                                     </div>
-                                    <button className="bg-[#ff5a5f] hover:bg-[#e0454a] text-white px-10 py-4 rounded-[20px] font-black transition-all duration-500 shadow-xl shadow-[#ff5a5f]/20 uppercase tracking-widest text-xs hover:translate-y-[-4px] active:translate-y-0">
+                                    <span className="bg-[#ff5a5f] text-white px-5 py-2 rounded-lg font-bold text-xs">
                                         {t('bookBtn')}
-                                    </button>
+                                    </span>
                                 </div>
                             </div>
                         </Link>
@@ -509,7 +482,7 @@ function SearchContent() {
 
         {/* MAP SECTION - Desktop */}
         {showMap && (
-           <aside className="hidden xl:block w-[480px] sticky top-[160px] h-[calc(100vh-160px)] border-l border-slate-100 bg-slate-50 overflow-hidden group">
+           <aside className="hidden xl:block w-[420px] sticky top-[64px] h-[calc(100vh-64px)] border-l border-slate-100 bg-slate-50 overflow-hidden group shrink-0">
               <div className="absolute inset-0 bg-slate-200 overflow-hidden">
                 <iframe 
                     width="100%" 
@@ -537,11 +510,11 @@ function SearchContent() {
                                 setActiveMarkerId(res.businessId === activeMarkerId ? null : res.businessId);
                             }}
                             className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${
-                              isActive ? 'z-50' : activeMarkerId != null ? 'z-10 opacity-35 scale-[0.92]' : 'z-10 opacity-90'
+                              isActive ? 'z-50 scale-110' : activeMarkerId != null ? 'z-20 opacity-70 scale-95' : 'z-10 opacity-95'
                             }`}
                             style={{ top: `${topPct}%`, left: `${leftPct}%` }}
                         >
-                            <div className={`border-2 rounded-xl px-2.5 py-1 font-black text-[11px] shadow-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${isActive ? 'bg-slate-900 border-white text-white scale-110 ring-2 ring-white/90' : 'bg-white/95 border-slate-200 text-slate-700 scale-95 saturate-75'}`}>
+                            <div className={`border-2 rounded-lg px-2.5 py-1 font-bold text-[11px] shadow-md transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${isActive ? 'bg-[#ff5a5f] border-white text-white ring-2 ring-white/90' : 'bg-white border-slate-300 text-slate-800'}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-[#ff5a5f]' : 'bg-[#ff5a5f]'}`}></span>
                                 ${res.price.toFixed(0)}
                             </div>
@@ -551,11 +524,17 @@ function SearchContent() {
                     })}
                 </div>
 
-                {/* Bottom sheet — full-width card */}
-                {activeVenue && (
-                    <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 pointer-events-none z-[60]">
-                    <div className="pointer-events-auto mx-auto max-w-lg w-full bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 flex items-center gap-4 animate-in slide-in-from-bottom-4 duration-300">
-                        <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0">
+                {activeVenue && (() => {
+                  const { minLat, maxLat, minLng, maxLng } = markerBounds;
+                  const topPct = maxLat === minLat ? 50 : ((activeVenue.lat - minLat) / (maxLat - minLat)) * 70 + 15;
+                  const leftPct = maxLng === minLng ? 50 : ((activeVenue.lng - minLng) / (maxLng - minLng)) * 70 + 15;
+                  return (
+                    <div
+                      className="absolute z-[60] pointer-events-none"
+                      style={{ top: `${Math.min(topPct + 8, 72)}%`, left: `${Math.min(Math.max(leftPct, 18), 82)}%`, transform: "translate(-50%, 0)" }}
+                    >
+                    <div className="pointer-events-auto w-[220px] bg-white rounded-xl p-3 shadow-xl border border-slate-200 flex flex-col gap-2 animate-in fade-in duration-200">
+                        <div className="w-full aspect-square max-h-[100px] rounded-lg overflow-hidden shrink-0">
                             <img 
                                src={businessListingImageSrc(activeVenue)} 
                                className="w-full h-full object-cover" 
@@ -567,36 +546,35 @@ function SearchContent() {
                                }}
                              />
                         </div>
-                        <div className="flex-1 overflow-hidden">
-                            <div className="flex justify-between items-start">
-                                <p className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-widest truncate">{activeVenue.category}</p>
-                                <button onClick={() => setActiveMarkerId(null)} className="text-slate-300 hover:text-slate-900"><Check className="w-4 h-4 rotate-45" /></button>
-                            </div>
-                            <h4 className="font-black text-slate-900 mt-1 truncate">{activeVenue.name}</h4>
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 mt-2">
-                                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                <span className="text-slate-900">{activeVenue.rating}</span>
-                                <span className="opacity-50">•</span>
-                                <span>${activeVenue.price}</span>
+                        <div className="min-w-0">
+                            <p className="text-[9px] font-bold text-[#ff5a5f] uppercase truncate">{activeVenue.category}</p>
+                            <h4 className="font-extrabold text-sm text-slate-900 line-clamp-2 leading-tight">{activeVenue.name}</h4>
+                            <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mt-1">
+                                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                {activeVenue.rating} · ${activeVenue.price}
                             </div>
                             <button 
+                                type="button"
                                 onClick={() => router.push(`/venue/${activeVenue.businessId}`)}
-                                className="w-full bg-[#ff5a5f] text-white text-[10px] font-black uppercase tracking-widest py-2.5 rounded-xl mt-3 hover:bg-[#e0454a] transition-all"
+                                className="w-full bg-[#ff5a5f] text-white text-[10px] font-bold py-2 rounded-lg mt-2 hover:bg-[#e0454a]"
                             >
                                 {t('viewDetails')}
                             </button>
                         </div>
                     </div>
                     </div>
-                )}
+                  );
+                })()}
               </div>
               
-              <div className="absolute top-8 left-8 flex gap-3">
-                  <div className="bg-slate-900/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> Live Map
-                  </div>
-                  <button onClick={() => setShowMap(false)} className="bg-white/90 backdrop-blur-md text-slate-900 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center gap-2 hover:bg-[#ff5a5f] hover:text-white transition-all">
-                      Hide
+              <div className="absolute top-4 right-4 z-20 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(!showMap)}
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 shadow-md hover:border-[#ff5a5f] hover:text-[#ff5a5f]"
+                  >
+                    <MapIcon className="w-4 h-4" />
+                    {showMap ? ("Hide map") : t("showMap")}
                   </button>
               </div>
            </aside>

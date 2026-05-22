@@ -15,6 +15,13 @@ import {
 } from '@nestjs/common';
 import { Business, Role } from '@prisma/client';
 import { isBusinessPubliclyVisible, requireBusinessOwner, requireUser } from './auth.helpers';
+import { buildAuthResponse } from './auth/auth-response.util';
+import { verifyFirebaseIdToken } from './auth/firebase-auth.util';
+import { hashPassword, maybeUpgradePasswordHash, verifyPassword } from './auth/password.util';
+import { finalizeBookingGroupPayment } from './payments/booking-payment.util';
+import { createStripeCheckoutForBookings } from './payments/stripe-checkout.util';
+import { resolveStripeSecretKey } from './payments/stripe.util';
+import { randomBytes } from 'crypto';
 import { WALK_IN_USER_EMAIL } from './constants';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
@@ -29,7 +36,8 @@ import { CreateFamilyMemberDto, UpdateFamilyMemberDto } from './dto/family-membe
 import { allocateMerchantNumber } from './merchant-number.util';
 import { PrismaService } from './prisma.service';
 
-const BUSINESS_BYPASS_PASSWORD = 'password';
+const BUSINESS_BYPASS_PASSWORD =
+  process.env.NODE_ENV !== 'production' ? process.env.BUSINESS_BYPASS_PASSWORD || 'password' : '';
 
 /** Haversine distance in kilometers (WGS84). */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -336,12 +344,19 @@ export class AppController {
     const user = await this.prisma.user.findFirst({
       where: { OR: [{ email: raw }, { email: lower }] },
     });
-    const isBusinessBypass = user?.role === Role.BUSINESS && body.password === BUSINESS_BYPASS_PASSWORD;
-    if (!user || (user.password !== body.password && !isBusinessBypass)) {
+    const isBusinessBypass =
+      user?.role === Role.BUSINESS &&
+      BUSINESS_BYPASS_PASSWORD &&
+      body.password === BUSINESS_BYPASS_PASSWORD;
+    const passwordOk = user ? await verifyPassword(body.password, user.password) : false;
+    if (!user || (!passwordOk && !isBusinessBypass)) {
       throw new BadRequestException('Invalid credentials');
     }
-    const { password: _pw, ...safe } = user;
-    return { token: `token-${user.id}`, user: safe };
+    const upgraded = await maybeUpgradePasswordHash(body.password, user.password);
+    if (upgraded) {
+      await this.prisma.user.update({ where: { id: user.id }, data: { password: upgraded } });
+    }
+    return buildAuthResponse(user);
   }
 
   @Post('auth/check-email')
@@ -359,7 +374,7 @@ export class AppController {
     const user = await this.prisma.user.create({
       data: {
         email,
-        password: body.password,
+        password: await hashPassword(body.password),
         name: body.name.trim(),
         role: Role.USER,
         phone: body.phone?.trim() || null,
@@ -368,8 +383,45 @@ export class AppController {
         age: body.age ?? null,
       },
     });
-    const { password: _pw, ...safe } = user;
-    return { token: `token-${user.id}`, user: safe };
+    return buildAuthResponse(user);
+  }
+
+  @Post('auth/google')
+  async googleAuth(@Body() body: { idToken: string; name?: string }) {
+    const idToken = (body.idToken || '').trim();
+    if (!idToken) throw new BadRequestException('idToken is required');
+    const firebaseUser = await verifyFirebaseIdToken(idToken);
+    if (!firebaseUser) {
+      throw new BadRequestException('Invalid or expired Google sign-in. Check Firebase server credentials.');
+    }
+    let user = await this.prisma.user.findUnique({ where: { email: firebaseUser.email } });
+    if (!user) {
+      const unusablePassword = randomBytes(32).toString('hex');
+      user = await this.prisma.user.create({
+        data: {
+          email: firebaseUser.email,
+          password: await hashPassword(unusablePassword),
+          name: (body.name || firebaseUser.name || 'User').trim(),
+          role: Role.USER,
+        },
+      });
+    }
+    if (user.role !== Role.USER) {
+      throw new BadRequestException('This email is registered as a business or admin account. Use email login.');
+    }
+    return buildAuthResponse(user);
+  }
+
+  @Get('public/payment-config')
+  async getPaymentConfig() {
+    const stripeSecret = await resolveStripeSecretKey(this.prisma);
+    const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY?.trim() || '';
+    const stripeEnabled = !!stripeSecret && !!stripePublishableKey;
+    return {
+      stripeEnabled,
+      stripePublishableKey: stripeEnabled ? stripePublishableKey : '',
+      cashPayEnabled: true,
+    };
   }
 
   /** Current merchant profile — no persisted client snapshot; call after login or on panel load. */
@@ -449,13 +501,14 @@ export class AppController {
       throw new BadRequestException('Current and new password are required');
     }
 
-    if (user.password !== body.currentPassword) {
+    const currentOk = await verifyPassword(body.currentPassword, user.password);
+    if (!currentOk) {
       throw new BadRequestException('Incorrect current password');
     }
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { password: body.newPassword }
+      data: { password: await hashPassword(body.newPassword) },
     });
 
     return { ok: true };
@@ -3021,6 +3074,35 @@ export class AppController {
     return { ok: true };
   }
 
+  @Post('mobile/bookings/cancel-group')
+  async cancelMobileBookingGroup(
+    @Headers('authorization') authorization?: string,
+    @Body() body: { bookingIds?: string[] } = {},
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const ids = Array.isArray(body.bookingIds) ? body.bookingIds.filter((id) => typeof id === 'string' && id.trim()) : [];
+    if (ids.length === 0) throw new BadRequestException('bookingIds must be a non-empty array');
+
+    const bookings = await this.prisma.booking.findMany({
+      where: { id: { in: ids }, userId: user.id },
+    });
+    if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
+
+    const cancellable = bookings.filter(
+      (b) => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Rejected',
+    );
+    if (cancellable.length === 0) {
+      throw new BadRequestException('No cancellable bookings in this group');
+    }
+
+    await this.prisma.booking.updateMany({
+      where: { id: { in: cancellable.map((b) => b.id) } },
+      data: { status: 'Cancelled' },
+    });
+
+    return { ok: true, cancelled: cancellable.length };
+  }
+
   @Post('mobile/bookings/:id/pay')
   async payMobileBooking(
     @Param('id') id: string,
@@ -3036,10 +3118,9 @@ export class AppController {
     if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
       throw new BadRequestException('Cannot pay for a cancelled booking');
     }
-    // Mark booking as Completed
     await this.prisma.booking.update({
       where: { id },
-      data: { status: 'Completed' },
+      data: { status: 'Paid' },
     });
     // Create transaction so it appears in invoice history
     const transaction = await this.prisma.transaction.create({
@@ -3061,70 +3142,35 @@ export class AppController {
     return { ok: true, transactionId: transaction.id };
   }
 
-  /** Pay for a GROUP of bookings (same venue/date) and produce ONE combined invoice. */
+  /** Pay for a GROUP of bookings (cash / in-person). Card payments use stripe-checkout. */
   @Post('mobile/bookings/pay-group')
   async payMobileBookingGroup(
     @Headers('authorization') authorization?: string,
     @Body() body: { bookingIds: string[]; paymentMethod?: string; businessId?: string } = { bookingIds: [] },
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const method = (body.paymentMethod || 'Cash Payment').trim();
+    if (method === 'Card Payment' || method === 'Stripe' || method === 'Online') {
+      const stripeKey = await resolveStripeSecretKey(this.prisma);
+      if (stripeKey) {
+        throw new BadRequestException(
+          'Card payments must use POST /mobile/bookings/pay-group/stripe-checkout',
+        );
+      }
+    }
+    return finalizeBookingGroupPayment(this.prisma, user, body.bookingIds, method);
+  }
+
+  @Post('mobile/bookings/pay-group/stripe-checkout')
+  async payMobileBookingGroupStripe(
+    @Headers('authorization') authorization?: string,
+    @Body() body: { bookingIds: string[] } = { bookingIds: [] },
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
     if (!Array.isArray(body.bookingIds) || body.bookingIds.length === 0) {
       throw new BadRequestException('bookingIds must be a non-empty array');
     }
-    // Load all bookings and verify they belong to this user
-    const bookings = await this.prisma.booking.findMany({
-      where: { id: { in: body.bookingIds }, userId: user.id },
-      include: { staff: true, business: true, service: true },
-    });
-    if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
-    const payableBookings = bookings.filter(
-      (b) => b.status !== 'Cancelled' && b.status !== 'Rejected' && b.status !== 'Completed',
-    );
-    if (payableBookings.length === 0) throw new BadRequestException('All bookings are already completed or cancelled');
-
-    const businessId = payableBookings[0].businessId;
-    const totalAmount = payableBookings.reduce((sum, b) => sum + b.price, 0);
-    const totalTax = payableBookings.reduce((sum, b) => sum + (b.taxAmount || 0), 0);
-    const staffNames = [...new Set(payableBookings.map((b) => b.staff?.name).filter(Boolean))].join(', ');
-    const serviceNames = payableBookings.map((b) => b.service?.name || 'Service').join(', ');
-
-    const method = body.paymentMethod || 'Online';
-    if (method === 'Cash' && user.role === Role.USER) {
-      throw new BadRequestException('Customers can only pay using online methods');
-    }
-
-    // Create exactly ONE transaction for the combined total
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        bookingId: payableBookings[0].id,          // anchor to first booking id
-        businessId,
-        amount: totalAmount + totalTax,
-        taxAmount: totalTax,
-        status: 'Completed',
-        paymentMethod: method,
-        description: serviceNames,
-        customerEmail: user.email,
-        staffMember: staffNames || null,
-        bookings: {
-          connect: payableBookings.map(b => ({ id: b.id }))
-        }
-      },
-    });
-
-    // Update business revenue once with the combined total
-    await this.prisma.business.update({
-      where: { id: businessId },
-      data: { revenue: { increment: totalAmount } },
-    });
-
-    // Mark as Paid
-    await this.prisma.booking.updateMany({
-      where: { id: { in: payableBookings.map(b => b.id) } },
-      data: { status: 'Paid', transactionId: transaction.id },
-    });
-
-
-    return { ok: true, transactionId: transaction.id, total: totalAmount };
+    return createStripeCheckoutForBookings(this.prisma, user, body.bookingIds);
   }
 
   @Post('mobile/bookings/:id/complete')
@@ -3217,38 +3263,6 @@ export class AppController {
       }
     }
 
-    if (staffId) {
-      const durationMin = service.duration || 30;
-      const sStart = date.getTime();
-      const sEnd = sStart + durationMin * 60000;
-
-      const dayStart = new Date(date);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(date);
-      dayEnd.setHours(23, 59, 59, 999);
-
-      const staffBookings = await this.prisma.booking.findMany({
-        where: {
-          staffId,
-          status: { notIn: ['Cancelled', 'Rejected'] },
-          date: {
-            gte: dayStart,
-            lte: dayEnd,
-          }
-        },
-        include: { service: true }
-      });
-
-      const hasOverlap = staffBookings.some(b => {
-        const bStart = new Date(b.date).getTime();
-        const bEnd = bStart + (b.service?.duration || 30) * 60000;
-        return (sStart < bEnd && sEnd > bStart);
-      });
-
-      if (hasOverlap) {
-        throw new BadRequestException('The selected professional is already booked at this time. Please select another slot.');
-      }
-    }
     let customerName = user.name;
     let familyMemberId: string | null = null;
     const rawFm = typeof body.familyMemberId === 'string' ? body.familyMemberId.trim() : '';
@@ -3277,7 +3291,7 @@ export class AppController {
       ? service.price * (1 - activePromotion.discountPercent / 100)
       : service.price;
 
-    const status = (body as any).status || 'Pending';
+    const status = 'Pending';
     const taxPercentage = business.taxPercentage || 0;
     const taxAmount = (finalPrice * taxPercentage) / 100;
 
@@ -3305,24 +3319,10 @@ export class AppController {
         userId: user.id,
         role: Role.USER,
         type: 'BOOKING_CREATED',
-        title: 'Booking Confirmed',
-        body: `Tu cita en ${business.name} ha sido confirmada.`,
+        title: 'Booking request submitted',
+        body: `Your appointment request at ${business.name} was submitted and is pending approval.`,
       },
     });
-
-    if (status === 'Approved') {
-      await this.prisma.transaction.create({
-        data: {
-          bookingId: booking.id,
-          businessId: body.businessId,
-          amount: finalPrice,
-          status: 'Completed',
-          type: 'Online Payment',
-          customerEmail: user.email,
-          staffMember: staffId ? (await this.prisma.staff.findUnique({ where: { id: staffId } }))?.name : null,
-        },
-      });
-    }
 
     return booking;
   }
@@ -3673,7 +3673,7 @@ export class AppController {
         await tx.user.create({
           data: {
             email,
-            password,
+            password: await hashPassword(password),
             name: owner,
             role: Role.BUSINESS,
           },

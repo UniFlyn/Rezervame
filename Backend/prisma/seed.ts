@@ -1,33 +1,35 @@
 import { PrismaClient, Role } from '@prisma/client';
+import { hashPassword } from '../src/auth/password.util';
 import { allocateMerchantNumber, backfillMerchantNumbers } from '../src/merchant-number.util';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const demoPassword = await hashPassword('password');
   const admin = await prisma.user.upsert({
     where: { email: 'admin@rezervame.com' },
-    update: {},
-    create: { name: 'Platform Admin', email: 'admin@rezervame.com', password: 'password', role: Role.ADMIN },
+    update: { password: demoPassword },
+    create: { name: 'Platform Admin', email: 'admin@rezervame.com', password: demoPassword, role: Role.ADMIN },
   });
   const businessUser = await prisma.user.upsert({
     where: { email: 'owner@rezervame.com' },
-    update: {},
-    create: { name: 'Business Owner', email: 'owner@rezervame.com', password: 'password', role: Role.BUSINESS },
+    update: { password: demoPassword },
+    create: { name: 'Business Owner', email: 'owner@rezervame.com', password: demoPassword, role: Role.BUSINESS },
   });
   const businessUser2 = await prisma.user.upsert({
     where: { email: 'studio@rezervame.com' },
-    update: {},
-    create: { name: 'Studio Owner', email: 'studio@rezervame.com', password: 'password', role: Role.BUSINESS },
+    update: { password: demoPassword },
+    create: { name: 'Studio Owner', email: 'studio@rezervame.com', password: demoPassword, role: Role.BUSINESS },
   });
   const businessUser3 = await prisma.user.upsert({
     where: { email: 'spa@rezervame.com' },
-    update: {},
-    create: { name: 'Serenity Owner', email: 'spa@rezervame.com', password: 'password', role: Role.BUSINESS },
+    update: { password: demoPassword },
+    create: { name: 'Serenity Owner', email: 'spa@rezervame.com', password: demoPassword, role: Role.BUSINESS },
   });
   const customer = await prisma.user.upsert({
     where: { email: 'customer@rezervame.com' },
-    update: {},
-    create: { name: 'Customer One', email: 'customer@rezervame.com', password: 'password', role: Role.USER },
+    update: { password: demoPassword },
+    create: { name: 'Customer One', email: 'customer@rezervame.com', password: demoPassword, role: Role.USER },
   });
 
   await prisma.user.upsert({
@@ -36,7 +38,7 @@ async function main() {
     create: {
       name: 'Walk-in guest',
       email: 'walkin@rezervame.internal',
-      password: '__internal_no_login__',
+      password: await hashPassword('__internal_no_login__'),
       role: Role.USER,
     },
   });

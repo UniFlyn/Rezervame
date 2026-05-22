@@ -30,6 +30,7 @@ interface AuthContextType {
   setIsLoginModalOpen: (open: boolean) => void;
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (payload: RegisterCustomerPayload) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<boolean>;
@@ -45,6 +46,7 @@ const AuthContext = createContext<AuthContextType>({
   setIsLoginModalOpen: () => {},
   user: null,
   login: async () => {},
+  loginWithGoogle: async () => {},
   register: async () => {},
   logout: () => {},
   refreshUser: async () => false,
@@ -137,6 +139,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await loadUserFromApi();
   };
 
+  const loginWithGoogle = async () => {
+    const { signInWithGooglePopup } = await import("@/lib/firebase-auth");
+    const idToken = await signInWithGooglePopup();
+    const result = await apiPost<{ token: string; user: { name: string; email: string; role: string } }>(
+      "/auth/google",
+      { idToken },
+    );
+    if (result.user.role !== "USER") {
+      throw new Error("This Google account cannot sign in as a customer");
+    }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("rezervame_token", result.token);
+    }
+    await loadUserFromApi();
+  };
+
   const register = async (payload: RegisterCustomerPayload) => {
     const result = await apiPost<{ token: string; user: { name: string; email: string; role: string } }>(
       "/auth/register",
@@ -167,6 +185,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsLoginModalOpen,
         user,
         login,
+        loginWithGoogle,
         register,
         logout,
         refreshUser: loadUserFromApi,

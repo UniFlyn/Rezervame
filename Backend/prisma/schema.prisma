@@ -369,10 +369,22 @@ model SystemConfig {
   sessionTimeout    Int      @default(60)
   maintenanceMode   Boolean  @default(false)
   databaseRetention Int      @default(90)
-  stripeApiKey      String?
-  googleMapsApiKey  String?
-  updatedAt         DateTime @updatedAt
-  updatedBy         String   @default("System Admin")
+  stripeApiKey         String?
+  stripeWebhookSecret  String?
+  googleMapsApiKey     String?
+  updatedAt            DateTime @updatedAt
+  updatedBy            String   @default("System Admin")
+}
+
+model PaymentCheckout {
+  id              String    @id @default(cuid())
+  stripeSessionId String    @unique
+  userId          String
+  bookingIds      String
+  amount          Float
+  status          String    @default("pending")
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
 }
 
 model SubscriptionPlan {

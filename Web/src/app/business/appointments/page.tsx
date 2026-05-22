@@ -45,12 +45,12 @@ import { toastError, toastInfo, toastSuccess } from '@/lib/toast';
 
 type Language = 'en' | 'es';
 
-function L(lang: Language, en: string, es: string) {
-  return lang === 'en' ? en : es;
+function L(_lang: Language, en: string, _es: string) {
+  return en;
 }
 
-function intlLocale(lang: Language) {
-  return lang === 'en' ? 'en-US' : 'es';
+function intlLocale(_lang: Language) {
+  return 'en-US';
 }
 
 /** Pastel fill + left accent (reference: soft fill + stronger edge) */

@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useI18n } from '@/components/I18nProvider';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { DATE_LOCALE } from '@/lib/locale';
 import { 
   Calendar, Clock, X, CheckCircle2, ChevronLeft, 
   MapPin, Phone, CreditCard, Banknote, Shield,
@@ -64,8 +65,8 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
     refNumber = String(Math.abs(hash % 90000) + 10000);
   }
 
-  const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(language === "en" ? "en-US" : "es-PA", { year: "numeric", month: "long", day: "numeric" });
-  const timeStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString(language === "en" ? "en-US" : "es-PA", { hour: "numeric", minute: "2-digit" });
+  const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(DATE_LOCALE, { year: "numeric", month: "long", day: "numeric" });
+  const timeStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString(DATE_LOCALE, { hour: "numeric", minute: "2-digit" });
 
   const subtotal = group.reduce((sum, item) => sum + Number(item?.price || 0), 0);
   const taxAmount = group.reduce((sum, item) => {
@@ -203,13 +204,33 @@ export default function ReservationClient() {
     if (!res) return;
     setPayingLoading(true);
     try {
+      const bookingIds = res.items.map((i) => i.id);
+      let usedStripe = false;
+      try {
+        const cfg = await apiGet<{ stripeEnabled?: boolean }>("/public/payment-config");
+        if (cfg.stripeEnabled) {
+          const checkout = await apiPost<{ url: string }>(
+            "/mobile/bookings/pay-group/stripe-checkout",
+            { bookingIds },
+            "USER",
+          );
+          if (checkout?.url) {
+            usedStripe = true;
+            window.location.href = checkout.url;
+            return;
+          }
+        }
+      } catch {
+        /* fall through to cash/legacy pay */
+      }
+      if (usedStripe) return;
       await apiPost("/mobile/bookings/pay-group", {
-        bookingIds: res.items.map(i => i.id),
-        paymentMethod: "Online"
+        bookingIds,
+        paymentMethod: "Cash Payment",
       }, "USER");
       setPaymentView("done");
       toastSuccess("Payment successful");
-      loadGroup(); // Refresh data to show paid status
+      loadGroup();
     } catch (e) {
       toastError("Payment failed", e instanceof Error ? e.message : "Try again.");
     } finally {
@@ -218,9 +239,9 @@ export default function ReservationClient() {
   }
 
   async function handleCancelReservation(bookingId: string) {
-    if (!confirm(language === "en" ? "Are you sure you want to cancel this service?" : "¿Estás seguro de que deseas cancelar este servicio?")) return;
+    if (!confirm("Are you sure you want to cancel this service?")) return;
     try {
-      await apiPost(`/mobile/bookings/${bookingId}/cancel`, {}, "USER");
+      await apiPatch(`/mobile/bookings/${bookingId}/cancel`, {}, "USER");
       toastSuccess("Service cancelled");
       loadGroup();
     } catch (e) {
@@ -229,7 +250,7 @@ export default function ReservationClient() {
   }
 
   async function handleCancelAllInGroup(group: Reservation) {
-    if (!confirm(language === "en" ? "Are you sure you want to cancel ALL services in this reservation?" : "¿Estás seguro de que deseas cancelar TODOS los servicios de esta reserva?")) return;
+    if (!confirm("Are you sure you want to cancel ALL services in this reservation?")) return;
     try {
       await apiPost("/mobile/bookings/cancel-group", {
         bookingIds: group.items.map(i => i.id)
@@ -247,10 +268,10 @@ export default function ReservationClient() {
       for (const item of res?.items || []) {
         await apiPost(`/mobile/bookings/${item.id}/complete`, {}, "USER");
       }
-      toastSuccess(language === "en" ? "Appointment completed" : "Cita completada");
+      toastSuccess("Appointment completed");
       loadGroup();
     } catch (err) {
-      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Failed to complete");
+      toastError("Error", err instanceof Error ? err.message : "Failed to complete");
     } finally {
       setPayingLoading(false);
     }
@@ -262,10 +283,10 @@ export default function ReservationClient() {
       for (const item of res?.items || []) {
         await apiPost(`/mobile/bookings/${item.id}/accept-reschedule`, {}, "USER");
       }
-      toastSuccess(language === "en" ? "New time accepted" : "Nuevo horario aceptado");
+      toastSuccess("New time accepted");
       loadGroup();
     } catch (err) {
-      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Failed to accept");
+      toastError("Error", err instanceof Error ? err.message : "Failed to accept");
     } finally {
       setPayingLoading(false);
     }
@@ -308,11 +329,11 @@ export default function ReservationClient() {
         services,
       }, "USER");
 
-      toastSuccess(language === "en" ? "Reviews Submitted" : "Reseñas enviadas");
+      toastSuccess("Reviews Submitted");
       setIsRateModalOpen(false);
       loadGroup(); // Refresh
     } catch (err) {
-      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Could not submit review");
+      toastError("Error", err instanceof Error ? err.message : "Could not submit review");
     } finally {
       setIsSubmittingReview(false);
     }
@@ -335,7 +356,7 @@ export default function ReservationClient() {
         <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
           <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition">
             <ChevronLeft size={20} />
-            {language === "en" ? "Back" : "Volver"}
+            {"Back"}
           </button>
           <div className="flex flex-col items-center">
              <h1 className="text-sm font-black text-slate-900 uppercase tracking-widest">{res.venueName}</h1>
@@ -370,7 +391,7 @@ export default function ReservationClient() {
                           <Calendar size={24} />
                        </div>
                        <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Date & Time" : "Fecha y Hora"}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Date & Time"}</p>
                           <p className="font-black text-slate-800">{res.date} at {res.time}</p>
                        </div>
                     </div>
@@ -382,17 +403,17 @@ export default function ReservationClient() {
                       res.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                       'bg-slate-50 text-slate-600 border border-slate-100'
                     }`}>
-                      {res.status === 'confirmed' ? (language === 'en' ? 'Awaiting Payment' : 'Esperando Pago') :
-                       res.status === 'paid' ? (language === 'en' ? 'Paid' : 'Pagado') :
-                       res.status === 'completed' ? (language === 'en' ? 'Completed' : 'Completado') :
-                       res.status === 'rescheduled' ? (language === 'en' ? 'Rescheduled' : 'Reagendado') :
-                       res.status === 'pending' ? (language === 'en' ? 'Pending' : 'Pendiente') :
+                      {res.status === 'confirmed' ? ('Awaiting Payment') :
+                       res.status === 'paid' ? ('Paid') :
+                       res.status === 'completed' ? ('Completed') :
+                       res.status === 'rescheduled' ? ('Rescheduled') :
+                       res.status === 'pending' ? ('Pending') :
                        res.status}
                     </div>
                  </div>
 
                  <div>
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{language === "en" ? "Service Details" : "Detalles del Servicio"}</h3>
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{"Service Details"}</h3>
                     <div className="space-y-4">
                        {res.items.map((item) => (
                          <div key={item.id} className="flex justify-between items-center p-6 rounded-3xl bg-white border border-slate-100 hover:border-primary/20 transition-all shadow-sm">
@@ -414,13 +435,13 @@ export default function ReservationClient() {
                                    onClick={() => handleCancelReservation(item.id)}
                                    className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-600 transition"
                                  >
-                                    {language === "en" ? "Cancel" : "Cancelar"}
+                                    {"Cancel"}
                                  </button>
                                )}
                                  {item.status === 'completed' && item.isReviewed && (
                                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
                                       <CheckCircle2 size={12} />
-                                      {language === "en" ? "Reviewed" : "Calificado"}
+                                      {"Reviewed"}
                                    </span>
                                  )}
                             </div>
@@ -435,19 +456,19 @@ export default function ReservationClient() {
           {/* RIGHT: Summary & Payment */}
           <div className="space-y-6">
              <div className="bg-white rounded-[40px] border border-slate-200 p-8 shadow-sm">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{language === "en" ? "Payment Summary" : "Resumen de Pago"}</h3>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{"Payment Summary"}</h3>
                 
                 <div className="space-y-3">
                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-slate-400">{language === "en" ? "Subtotal" : "Subtotal"}</span>
+                      <span className="text-sm font-bold text-slate-400">{"Subtotal"}</span>
                       <span className="text-sm font-black text-slate-600">${res.subtotal.toFixed(2)}</span>
                    </div>
                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-slate-400">{language === "en" ? "Tax" : "Impuesto"}</span>
+                      <span className="text-sm font-bold text-slate-400">{"Tax"}</span>
                       <span className="text-sm font-black text-slate-600">${res.taxAmount.toFixed(2)}</span>
                    </div>
                    <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
-                      <span className="text-lg font-black text-slate-900">{language === "en" ? "Total" : "Total"}</span>
+                      <span className="text-lg font-black text-slate-900">{"Total"}</span>
                       <span className="text-3xl font-black text-primary">${res.totalPrice.toFixed(2)}</span>
                    </div>
                 </div>
@@ -455,14 +476,14 @@ export default function ReservationClient() {
                 {paymentView === "none" && res.status === "confirmed" && (
                   <div className="mt-8 space-y-4">
                      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
-                        <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-1">{language === "en" ? "Approved" : "Aprobado"}</p>
-                        <p className="text-emerald-700 text-[10px] font-medium">{language === "en" ? "Your booking is approved. Please pay online to confirm." : "Tu cita está aprobada. Por favor paga online para confirmar."}</p>
+                        <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-1">{"Approved"}</p>
+                        <p className="text-emerald-700 text-[10px] font-medium">{"Your booking is approved. Please pay online to confirm."}</p>
                      </div>
                      <button 
                        onClick={() => setPaymentView("select")}
                        className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all transform active:scale-95"
                      >
-                       {language === "en" ? "Pay Online Now" : "Pagar Online Ahora"}
+                       {"Pay Online Now"}
                      </button>
                   </div>
                 )}
@@ -470,8 +491,8 @@ export default function ReservationClient() {
                 {paymentView === "none" && res.status === "rescheduled" && (
                   <div className="mt-8 space-y-4">
                      <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">{language === "en" ? "Reschedule Proposed" : "Reagendamiento Propuesto"}</p>
-                        <p className="text-amber-700 text-[10px] font-medium">{language === "en" ? "The venue has proposed a new time. Do you accept?" : "El establecimiento ha propuesto un nuevo horario. ¿Aceptas?"}</p>
+                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">{"Reschedule Proposed"}</p>
+                        <p className="text-amber-700 text-[10px] font-medium">{"The venue has proposed a new time. Do you accept?"}</p>
                      </div>
                      <button 
                        onClick={handleAcceptReschedule}
@@ -479,7 +500,7 @@ export default function ReservationClient() {
                        className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2"
                      >
                        {payingLoading && <Loader2 className="animate-spin" size={16} />}
-                       {language === "en" ? "Accept New Time" : "Aceptar Nuevo Horario"}
+                       {"Accept New Time"}
                      </button>
                   </div>
                 )}
@@ -487,8 +508,8 @@ export default function ReservationClient() {
                 {paymentView === "none" && res.status === "paid" && (
                    <div className="mt-8 space-y-4">
                       <div className="p-4 bg-cyan-50 border border-cyan-100 rounded-2xl">
-                         <p className="text-[10px] font-black text-cyan-800 uppercase tracking-widest mb-1">{language === "en" ? "Payment Confirmed" : "Pago Confirmado"}</p>
-                         <p className="text-cyan-700 text-[10px] font-medium">{language === "en" ? "Your appointment is ready. Mark as completed after the service." : "Tu cita está lista. Márcala como completada después del servicio."}</p>
+                         <p className="text-[10px] font-black text-cyan-800 uppercase tracking-widest mb-1">{"Payment Confirmed"}</p>
+                         <p className="text-cyan-700 text-[10px] font-medium">{"Your appointment is ready. Mark as completed after the service."}</p>
                       </div>
                       <button 
                         onClick={handleMarkCompletedGroup}
@@ -496,7 +517,7 @@ export default function ReservationClient() {
                         className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
                       >
                         {payingLoading && <Loader2 className="animate-spin" size={16} />}
-                        {language === "en" ? "Mark as Completed" : "Marcar como Completado"}
+                        {"Mark as Completed"}
                       </button>
                    </div>
                  )}
@@ -504,21 +525,21 @@ export default function ReservationClient() {
                  {res.status === "completed" && !res.isReviewed && (
                    <div className="mt-8 space-y-4">
                       <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-                         <p className="text-[10px] font-black text-blue-800 uppercase tracking-widest mb-1">{language === "en" ? "Service Completed" : "Servicio Completado"}</p>
-                         <p className="text-blue-700 text-[10px] font-medium text-center">{language === "en" ? "How was your experience today?" : "¿Cómo fue tu experiencia hoy?"}</p>
+                         <p className="text-[10px] font-black text-blue-800 uppercase tracking-widest mb-1">{"Service Completed"}</p>
+                         <p className="text-blue-700 text-[10px] font-medium text-center">{"How was your experience today?"}</p>
                       </div>
                       <button 
                         onClick={() => handleOpenRateModal(res.items[0]?.id || "")}
                         className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-primary/20 transition-all transform active:scale-95"
                       >
-                        {language === "en" ? "Rate Experience" : "Calificar Experiencia"}
+                        {"Rate Experience"}
                       </button>
                    </div>
                  )}
 
                 {paymentView === "none" && res.status === "pending" && (
                    <div className="mt-8 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Waiting for Venue" : "Esperando al Establecimiento"}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
                    </div>
                 )}
 
@@ -526,7 +547,7 @@ export default function ReservationClient() {
                    <div className="mt-8 space-y-4 animate-in fade-in slide-in-from-bottom-4">
                       <div className="p-5 border-2 border-primary bg-primary/5 rounded-2xl flex flex-col items-center gap-2">
                          <CreditCard className="text-primary" size={24} />
-                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">{language === "en" ? "Card Payment" : "Pago con Tarjeta"}</span>
+                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">{"Card Payment"}</span>
                       </div>
                       
                       <button 
@@ -535,7 +556,7 @@ export default function ReservationClient() {
                         className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                       >
                          {payingLoading ? <Loader2 className="animate-spin" size={16} /> : <Shield size={16} />}
-                         {payingLoading ? (language === "en" ? "Processing..." : "Procesando...") : (language === "en" ? "Confirm & Pay" : "Confirmar y Pagar")}
+                         {payingLoading ? ("Processing...") : ("Confirm & Pay")}
                       </button>
 
                       <div className="flex gap-4">
@@ -544,14 +565,14 @@ export default function ReservationClient() {
                           onClick={() => handleCancelAllInGroup(res)}
                           className="flex-1 bg-red-50 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100"
                         >
-                           {language === "en" ? "Cancel All" : "Cancelar Todo"}
+                           {"Cancel All"}
                         </button>
                       )}
                       <button 
                         onClick={() => setPaymentView("none")}
                         className="flex-1 bg-white border-2 border-slate-100 text-slate-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-slate-50 transition"
                       >
-                         {language === "en" ? "Back" : "Volver"}
+                         {"Back"}
                       </button>
                    </div>
                    </div>
@@ -560,30 +581,30 @@ export default function ReservationClient() {
                 {paymentView === "done" && (
                    <div className="mt-8 p-6 bg-emerald-50 border border-emerald-100 rounded-3xl text-center animate-in zoom-in-95">
                       <CheckCircle2 size={32} className="text-emerald-500 mx-auto mb-3" />
-                      <p className="font-black text-emerald-900 text-sm">{language === "en" ? "Paid Successfully!" : "¡Pago Exitoso!"}</p>
+                      <p className="font-black text-emerald-900 text-sm">{"Paid Successfully!"}</p>
                       <button 
                         onClick={() => router.push("/profile?tab=invoices")}
                         className="mt-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest underline decoration-2 underline-offset-4"
                       >
-                         {language === "en" ? "View Invoices" : "Ver Facturas"}
+                         {"View Invoices"}
                       </button>
                    </div>
                 )}
              </div>
 
              <div className="bg-slate-900 rounded-[40px] p-8 text-white shadow-xl shadow-slate-200">
-                <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-6">{language === "en" ? "Safety & Policy" : "Seguridad y Políticas"}</h3>
+                <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-6">{"Safety & Policy"}</h3>
                 <div className="space-y-6">
                    <div className="flex gap-4">
                       <Shield className="text-primary flex-shrink-0" size={20} />
                       <p className="text-xs font-medium text-white/80 leading-relaxed">
-                         {language === "en" ? "Secure encrypted payments powered by Rezervame." : "Pagos seguros y encriptados por Rezervame."}
+                         {"Secure encrypted payments powered by Rezervame."}
                       </p>
                    </div>
                    <div className="flex gap-4">
                       <Clock className="text-primary flex-shrink-0" size={20} />
                       <p className="text-xs font-medium text-white/80 leading-relaxed">
-                         {language === "en" ? "Cancellations must be done 24h before." : "Cancelaciones deben hacerse 24h antes."}
+                         {"Cancellations must be done 24h before."}
                       </p>
                    </div>
                 </div>
@@ -597,11 +618,11 @@ export default function ReservationClient() {
          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setIsRateModalOpen(false)} />
            <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-black text-slate-900 mb-8">{language === "en" ? "Rate Experience" : "Califica tu experiencia"}</h3>
+              <h3 className="text-2xl font-black text-slate-900 mb-8">{"Rate Experience"}</h3>
               <div className="space-y-10">
                  {/* Venue Rating */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Common Venue Rating" : "Calificación General del Local"}</label>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{"Common Venue Rating"}</label>
                     <div className="flex gap-3">
                        {[1,2,3,4,5].map((star) => (
                          <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5a5f]/10 text-[#ff5a5f] shadow-sm" : "bg-slate-50 text-slate-300"}`}>
@@ -615,7 +636,7 @@ export default function ReservationClient() {
 
                  {/* Individual Services */}
                  <div className="space-y-8">
-                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Individual Service Ratings" : "Calificaciones por Servicio"}</h4>
+                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">{"Individual Service Ratings"}</h4>
                    {res?.items.filter(i => i.status === 'completed' && !i.isReviewed).map((item) => (
                      <div key={item.id} className="p-6 bg-slate-50 rounded-3xl space-y-6">
                         <div className="flex justify-between items-start">
@@ -627,7 +648,7 @@ export default function ReservationClient() {
 
                         <div className="grid grid-cols-1 gap-6">
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Service Quality" : "Calidad del Servicio"}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Service Quality"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
@@ -642,7 +663,7 @@ export default function ReservationClient() {
                            </div>
 
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Staff Rating" : "Calificación del Personal"}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Staff Rating"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
@@ -661,11 +682,11 @@ export default function ReservationClient() {
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Review Comment (Common)" : "Comentario de la Reseña (Común)"}</label>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Review comment (shared)</label>
                     <textarea 
                       value={reviewComment}
                       onChange={(e) => setReviewComment(e.target.value)}
-                      placeholder={language === "en" ? "Tell us more about your visit..." : "Cuéntanos más sobre tu visita..."}
+                      placeholder={"Tell us more about your visit..."}
                       className="w-full h-32 bg-slate-50 border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                     />
                  </div>
@@ -676,7 +697,7 @@ export default function ReservationClient() {
                    className="w-full bg-slate-900 text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 hover:bg-[#ff5a5f] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                  >
                     {isSubmittingReview ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} strokeWidth={3} />}
-                    {isSubmittingReview ? (language === "en" ? "Submitting..." : "Enviando...") : (language === "en" ? "Submit All Ratings" : "Enviar todas las calificaciones")}
+                    {isSubmittingReview ? ("Submitting...") : ("Submit All Ratings")}
                  </button>
               </div>
            </div>

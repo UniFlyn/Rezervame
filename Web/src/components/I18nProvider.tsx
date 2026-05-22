@@ -2,12 +2,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import en from "../../../shared/locales/en.json";
 
-type Language = "en" | "es";
+type Language = "en";
 type Translations = typeof en;
 
 interface I18nContextType {
   language: Language;
   t: (key: keyof Translations) => string;
+  /** @deprecated English-only; no-op */
   setLanguage: (lang: Language) => void;
 }
 

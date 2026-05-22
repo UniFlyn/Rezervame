@@ -199,7 +199,7 @@ Map<String, dynamic> mapUserBookingGroup(List<Map<String, dynamic>> group, {Stri
   final date = DateTime.tryParse('${b['date']}')?.toLocal() ?? DateTime.now();
   final biz = b['business'] as Map<String, dynamic>?;
   final svc = b['service'] as Map<String, dynamic>?;
-  final localeTag = locale == 'es' ? 'es_PA' : 'en_US';
+  final localeTag = 'en_US';
 
   final dateDisplay = DateFormat.yMMMMd(localeTag).format(date);
   final timeDisplay = DateFormat.jm(localeTag).format(date);

@@ -291,8 +291,14 @@ class ApiRepository {
   }
 
   Future<bool> cancelBookingGroup(List<String> bookingIds) async {
-    for (final id in bookingIds) {
-      await cancelBooking(id);
+    if (bookingIds.isEmpty) return true;
+    final res = await http.post(
+      Uri.parse('$_baseUrl/mobile/bookings/cancel-group'),
+      headers: {...await _headers(auth: true), 'Content-Type': 'application/json'},
+      body: jsonEncode({'bookingIds': bookingIds}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Could not cancel bookings');
     }
     return true;
   }

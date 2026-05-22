@@ -188,7 +188,7 @@ function pickStaffForService(serviceId: string, team: VenueTeamRow[], day: Date)
 export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServiceIds, venueData, promotions }: BookingModalProps) => {
   const router = useRouter();
   const { t, language } = useI18n();
-  const dateLocale = language === "en" ? "en-US" : "es-PA";
+  const dateLocale = "en-US";
   const [step, setStep] = useState<Step>("SCHEDULE");
   const [dayOffset, setDayOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -202,8 +202,23 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   /** map from cartIndex to memberId (`null` for user, string for family member) */
   const [serviceMemberMap, setServiceMemberMap] = useState<Record<number, string | null>>({});
   const [paymentMethod, setPaymentMethod] = useState<"ONLINE" | "VENUE">("ONLINE");
+  const [checkoutPayTab, setCheckoutPayTab] = useState<"card" | "yappy" | "cash">("card");
+  const [timePeriod, setTimePeriod] = useState<"all" | "morning" | "afternoon" | "evening">("all");
+  const [serviceSearch, setServiceSearch] = useState("");
   const [isPaid, setIsPaid] = useState(false);
   const prevOpenRef = useRef(false);
+
+  const slotPeriod = (time: string): "morning" | "afternoon" | "evening" => {
+    const m = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!m) return "morning";
+    let h = parseInt(m[1], 10);
+    const ap = m[3].toUpperCase();
+    if (ap === "PM" && h !== 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    if (h < 12) return "morning";
+    if (h < 17) return "afternoon";
+    return "evening";
+  };
 
   const dayStrip = useMemo(() => {
     const start = addDays(startOfLocalDay(new Date()), dayOffset);
@@ -328,58 +343,12 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
 
   const selectedDay = dayStrip[selectedDayIndex] ?? startOfLocalDay(new Date());
 
-  const [busySlots, setBusySlots] = useState<Record<string, Array<{ start: string; end: string }>>>({});
-
-  useEffect(() => {
-    if (!isOpen || !venueData.team.length) return;
-    const ymd = `${selectedDay.getFullYear()}-${String(selectedDay.getMonth() + 1).padStart(2, "0")}-${String(selectedDay.getDate()).padStart(2, "0")}`;
-    
-    venueData.team.forEach(async (member) => {
-      const cacheKey = `${member.id}_${ymd}`;
-      if (busySlots[cacheKey]) return;
-
-      try {
-        const slots = await apiGet<Array<{ start: string; end: string }>>(`/mobile/staff/${member.id}/busy-slots?date=${ymd}`, "USER");
-        setBusySlots(prev => ({
-          ...prev,
-          [cacheKey]: Array.isArray(slots) ? slots : []
-        }));
-      } catch (err) {
-        console.error("Failed to load busy slots for staff", member.id, err);
-      }
-    });
-  }, [isOpen, selectedDay, venueData.team]);
-
-  const isStaffBusyAtSelectedTime = useCallback((staffId: string, timeStr: string) => {
-    const ymd = `${selectedDay.getFullYear()}-${String(selectedDay.getMonth() + 1).padStart(2, "0")}-${String(selectedDay.getDate()).padStart(2, "0")}`;
-    const cacheKey = `${staffId}_${ymd}`;
-    const slots = busySlots[cacheKey];
-    if (!slots || slots.length === 0) return false;
-
-    const targetStart = combineDateAndTime(selectedDay, timeStr).getTime();
-    const targetEnd = targetStart + 30 * 60000;
-
-    return slots.some(slot => {
-      const bStart = new Date(slot.start).getTime();
-      const bEnd = new Date(slot.end).getTime();
-      return (targetStart < bEnd && targetEnd > bStart);
-    });
-  }, [selectedDay, busySlots]);
-
   useEffect(() => {
     const slots = generateSlotsForDay(venueData.schedule, selectedDay);
     if (slots.length > 0 && !slots.includes(selectedTime)) {
-      const firstSvcId = selectedServiceIds[0];
-      const eligibleStaff = firstSvcId ? venueData.team.filter(p => staffOffersService(p, firstSvcId) && staffAvailableOnDay(p.availability, selectedDay)) : [];
-      
-      const availableSlot = slots.find(time => {
-        if (!firstSvcId || eligibleStaff.length === 0) return true;
-        return eligibleStaff.some(p => !isStaffBusyAtSelectedTime(p.id, time));
-      });
-
-      setSelectedTime(availableSlot || slots[0]);
+      setSelectedTime(slots[0]);
     }
-  }, [selectedDay, venueData.schedule, selectedServiceIds, venueData.team, isStaffBusyAtSelectedTime]);
+  }, [selectedDay, venueData.schedule, selectedTime]);
 
   const slotStart = useMemo(
     () => combineDateAndTime(selectedDay, selectedTime),
@@ -424,16 +393,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     try {
       for (const svc of selectedServices) {
         const staffRaw = assignments[svc.cartIndex];
-        if (staffRaw && isStaffBusyAtSelectedTime(staffRaw, selectedTime)) {
-          const staffName = venueData.team.find(m => m.id === staffRaw)?.name || "Professional";
-          toastError("Already Booked", `${staffName} is already booked at ${selectedTime}. Please select another slot.`);
-          setIsProcessing(false);
-          return;
-        }
-      }
-
-      for (const svc of selectedServices) {
-        const staffRaw = assignments[svc.cartIndex];
         const body: {
           businessId: string;
           serviceId: string;
@@ -463,7 +422,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       }
       
       toastSuccess(
-        language === "en" ? "Booking Submitted!" : "\u00a1Reserva Enviada!",
+        "Booking Submitted!",
         language === "en" 
           ? "Your booking request has been sent. The business will review and confirm shortly." 
           : "Tu solicitud de reserva ha sido enviada. El negocio la revisar\u00e1 y confirmar\u00e1 pronto."
@@ -527,10 +486,41 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   };
 
   const renderSchedule = () => {
-    const slots = generateSlotsForDay(venueData.schedule, selectedDay);
+    const allSlots = generateSlotsForDay(venueData.schedule, selectedDay);
+    const slots = allSlots.filter((time) => {
+      if (timePeriod === "all") return true;
+      const p = slotPeriod(time);
+      if (timePeriod === "morning") return p === "morning";
+      if (timePeriod === "afternoon") return p === "afternoon";
+      return p === "evening";
+    });
+    const periodLabels =
+      language === "en"
+        ? { all: "All", morning: "Morning", afternoon: "Afternoon", evening: "Evening" }
+        : { all: "Todos", morning: "Mañana", afternoon: "Tarde", evening: "Noche" };
     return (
-      <div className="flex flex-col items-center">
-        <h2 className="text-xl font-black text-slate-900 mb-8 capitalize">{monthTitle}</h2>
+      <div className="flex flex-col items-center w-full">
+        <h2 className="text-xl font-black text-slate-900 mb-6 capitalize">{monthTitle}</h2>
+
+        {selectedServices.length > 0 ? (
+          <div className="mb-6 w-full rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              {"Selected services"}
+            </p>
+            {selectedServices.map((svc) => (
+              <p key={svc.cartIndex} className="text-sm font-bold text-slate-900">
+                {svc.name} · ${Number(svc.finalPrice).toFixed(2)}
+              </p>
+            ))}
+            <button
+              type="button"
+              onClick={() => setStep("SERVICE_PICKER")}
+              className="mt-3 text-xs font-bold text-[#ff5a5f] hover:underline"
+            >
+              + {t("bookingAddAnotherService") || "Agregar otro servicio"}
+            </button>
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-4 mb-10 w-full justify-center">
           <button
@@ -575,40 +565,44 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           </button>
         </div>
 
+        <div className="mb-4 flex w-full max-w-[400px] flex-wrap justify-center gap-2">
+          {(["all", "morning", "afternoon", "evening"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setTimePeriod(p)}
+              className={`rounded-full px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide transition ${
+                timePeriod === p ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              }`}
+            >
+              {periodLabels[p]}
+            </button>
+          ))}
+        </div>
+
         {slots.length === 0 ? (
           <div className="text-center py-6 mb-10 w-full bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-            <p className="text-sm font-bold uppercase tracking-widest text-slate-400 m-0">Venue is closed on this day</p>
+            <p className="text-sm font-bold uppercase tracking-widest text-slate-400 m-0">
+              {allSlots.length === 0
+                ? ("Venue is closed on this day")
+                : ("No slots in this period")}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2 mb-10 w-full max-w-[400px] max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
             {slots.map((time) => {
-              let anyStaffAvailable = false;
-              const firstSvcId = selectedServiceIds[0];
-              if (firstSvcId) {
-                const eligibleStaff = venueData.team.filter(p => staffOffersService(p, firstSvcId) && staffAvailableOnDay(p.availability, selectedDay));
-                anyStaffAvailable = eligibleStaff.length === 0 || eligibleStaff.some(p => !isStaffBusyAtSelectedTime(p.id, time));
-              } else {
-                anyStaffAvailable = true;
-              }
-
               return (
                 <button
                   type="button"
                   key={time}
-                  disabled={!anyStaffAvailable}
                   onClick={() => setSelectedTime(time)}
                   className={`py-2.5 rounded-2xl border-2 text-[10px] font-black transition-all ${
-                    !anyStaffAvailable
-                      ? "border-slate-50 bg-slate-50 text-slate-300 cursor-not-allowed"
-                      : selectedTime === time
+                    selectedTime === time
                       ? "border-[#ff5a5f] text-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
                       : "border-slate-100 text-slate-700 hover:border-slate-200 hover:bg-slate-50/50"
                   }`}
                 >
                   {time}
-                  {!anyStaffAvailable && (
-                    <span className="block text-[8px] font-bold text-slate-400 mt-0.5 tracking-tight uppercase">Busy</span>
-                  )}
                 </button>
               );
             })}
@@ -863,20 +857,16 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         <div className="grid grid-cols-1 gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
           {availableStaff.length > 0 ? (
             availableStaff.map((member) => {
-              const isBusy = isStaffBusyAtSelectedTime(member.id, selectedTime);
               return (
                 <div
                   key={member.id}
                   onClick={() => {
-                    if (isBusy) return;
                     setAssignments((prev) => ({ ...prev, [activeCartIndexForChange!]: member.id }));
                     setStep("SUMMARY");
                     setActiveCartIndexForChange(null);
                   }}
                   className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
-                    isBusy
-                      ? "border-slate-100 bg-slate-50/50 opacity-70 cursor-not-allowed"
-                      : assignments[activeCartIndexForChange!] === member.id
+                    assignments[activeCartIndexForChange!] === member.id
                       ? "border-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
                       : "border-slate-100 bg-white hover:border-slate-200"
                   }`}
@@ -884,23 +874,17 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                   <div className="flex items-center gap-4">
                     <div className="relative">
                       <img src={member.img} alt="" className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-sm" />
-                      {!isBusy && <div className="absolute -top-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white" />}
+                      <div className="absolute -top-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white" />
                     </div>
                     <div>
                       <p className="font-black text-slate-900 text-sm group-hover:text-[#ff5a5f] transition-colors">
                         {member.name}
                       </p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{member.role}</p>
-                      {isBusy ? (
-                        <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-red-50 text-red-500 border border-red-100">
-                          {language === "en" ? "Busy" : "Ocupado"}
-                        </span>
-                      ) : (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Star size={10} className="fill-amber-400 text-amber-400" />
-                          <span className="text-[10px] font-black text-slate-700">{member.rating > 0 ? member.rating : "—"}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 mt-1">
+                        <Star size={10} className="fill-amber-400 text-amber-400" />
+                        <span className="text-[10px] font-black text-slate-700">{member.rating > 0 ? member.rating : "—"}</span>
+                      </div>
                     </div>
                   </div>
                   <div
@@ -927,15 +911,25 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   const renderServicePicker = () => {
     const storeApi = useVenueBookingCartStore.getState();
     const handleAdd = (sid: string) => {
+      if (selectedServiceIds.includes(sid)) {
+        setStep("SCHEDULE");
+        return;
+      }
       storeApi.setCart(venueData.id, [...selectedServiceIds, sid]);
-      setStep("SUMMARY");
+      setStep("SCHEDULE");
     };
+
+    const q = serviceSearch.trim().toLowerCase();
+    const filteredServices = venueData.services.filter(
+      (s) => !q || s.name.toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q),
+    );
 
     return (
       <div className="animate-in slide-in-from-right duration-300">
         <div className="mb-8">
           <button
-            onClick={() => setStep("SUMMARY")}
+            type="button"
+            onClick={() => setStep("SCHEDULE")}
             className="flex items-center gap-2 text-xs font-black text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-widest"
           >
             <ChevronLeft size={16} /> {t("bookingBack")}
@@ -943,13 +937,17 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           <h2 className="text-2xl font-black text-slate-900 mt-4 tracking-tight">
             {t("bookingAddAnotherService") || "Add Another Service"}
           </h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-            {t("bookingCatalogHeading") || "Select from our full catalog"}
-          </p>
+          <input
+            type="search"
+            value={serviceSearch}
+            onChange={(e) => setServiceSearch(e.target.value)}
+            placeholder={"Search services…"}
+            className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium focus:border-[#ff5a5f] focus:outline-none"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
-          {venueData.services.map((s) => (
+          {filteredServices.map((s) => (
             <div
               key={s.id}
               onClick={() => handleAdd(s.id)}
@@ -968,9 +966,12 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                   )}
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-2xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-[#ff5a5f] group-hover:border-[#ff5a5f]/30 transition-all">
-                <Plus size={20} strokeWidth={3} />
-              </div>
+              <button
+                type="button"
+                className="rounded-xl border-2 border-[#ff5a5f] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"
+              >
+                {selectedServiceIds.includes(s.id) ? ("Added") : ("Add")}
+              </button>
             </div>
           ))}
         </div>
@@ -988,16 +989,34 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         <ChevronLeft size={16} /> {t("bookingBackSummary") || "Back to Summary"}
       </button>
 
-      <div className="mb-8">
+      <div className="mb-6">
         <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">
           {t('checkoutPreview')}
         </h2>
         <p className="text-slate-400 font-bold text-sm">
-          {language === "en" ? "Review your booking details before submitting." : "Revisa los detalles de tu reserva antes de enviar."}
+          {"Review your booking details before submitting."}
         </p>
       </div>
 
-      <div className="bg-slate-50 rounded-[32px] border border-slate-100 p-6 sm:p-8 mb-8 space-y-6">
+      <div className="mb-6 flex gap-2">
+        {(["card", "yappy", "cash"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setCheckoutPayTab(tab)}
+            className={`flex-1 rounded-xl border-2 py-3 text-[10px] font-black uppercase tracking-widest transition ${
+              checkoutPayTab === tab
+                ? "border-[#ff5a5f] bg-[#ff5a5f]/5 text-[#ff5a5f]"
+                : "border-slate-100 text-slate-400 hover:border-slate-200"
+            }`}
+          >
+            {tab === "card" ? ("Card") : tab === "yappy" ? "Yappy" : ("Cash")}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
+      <div className="bg-slate-50 rounded-[32px] border border-slate-100 p-6 sm:p-8 space-y-6">
         <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
           {selectedServices.map((svc) => {
             const staffId = assignments[svc.cartIndex];
@@ -1033,15 +1052,15 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
 
         <div className="pt-4 border-t-2 border-dashed border-slate-200 space-y-3">
           <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === "en" ? "Subtotal" : "Subtotal"}</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{"Subtotal"}</span>
             <span className="text-sm font-black text-slate-600">${subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === "en" ? "Service Fee" : "Tarifa de Servicio"}</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{"Service Fee"}</span>
             <span className="text-sm font-black text-slate-600">${serviceFee.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center pb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === "en" ? "Tax" : "Impuesto"}</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{"Tax"}</span>
             <span className="text-sm font-black text-slate-600">${taxAmount.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center pt-2 border-t border-slate-100">
@@ -1051,14 +1070,15 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         </div>
       </div>
 
+      <div className="flex flex-col gap-4">
       {/* Pending Approval Info */}
-      <div className="bg-amber-50 rounded-[24px] border border-amber-200 p-6 mb-8 flex items-start gap-4">
+      <div className="bg-amber-50 rounded-[24px] border border-amber-200 p-6 flex items-start gap-4 h-fit">
         <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
           <Clock size={20} className="text-amber-600" />
         </div>
         <div>
           <p className="text-[11px] font-black text-amber-900 uppercase tracking-wide mb-1">
-            {language === "en" ? "Awaiting Business Approval" : "Esperando Aprobación del Negocio"}
+            {"Awaiting Business Approval"}
           </p>
           <p className="text-[11px] font-medium text-amber-700 leading-relaxed">
             {language === "en" 
@@ -1075,16 +1095,18 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         className="w-full bg-[#ff5a5f] text-white font-black py-5 rounded-[24px] text-xs uppercase tracking-[0.2em] shadow-2xl shadow-[#ff5a5f]/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60"
       >
         {isProcessing 
-          ? (language === "en" ? "Submitting..." : "Enviando...") 
-          : (language === "en" ? "Submit Booking Request" : "Enviar Solicitud de Reserva")}
+          ? ("Submitting...") 
+          : ("Submit Booking Request")}
       </button>
+      </div>
+      </div>
     </div>
   );
 
   return (
     <>
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-500">
-        <div className="bg-white rounded-[28px] sm:rounded-[40px] w-full max-w-[650px] max-h-[min(92dvh,900px)] shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
+        <div className="bg-white rounded-[28px] sm:rounded-[40px] w-full max-w-[min(920px,96vw)] max-h-[min(92dvh,900px)] shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
           <button
             type="button"
             onClick={handleCloseAttempt}

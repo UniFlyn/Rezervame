@@ -29,9 +29,7 @@ export default function AmenitiesPage() {
   const [rows, setRows] = useState<AmenityRow[]>([]);
   const [newKey, setNewKey] = useState("");
   const [newEn, setNewEn] = useState("");
-  const [newEs, setNewEs] = useState("");
   const [newDescEn, setNewDescEn] = useState("");
-  const [newDescEs, setNewDescEs] = useState("");
   const [newSortOrder, setNewSortOrder] = useState("0");
   const [newImageUrl, setNewImageUrl] = useState("");
   const [draftById, setDraftById] = useState<
@@ -39,9 +37,7 @@ export default function AmenitiesPage() {
       string,
       {
         labelEn: string;
-        labelEs: string;
         descriptionEn: string;
-        descriptionEs: string;
         sortOrder: string;
         active: boolean;
         imageUrl: string;
@@ -63,9 +59,7 @@ export default function AmenitiesPage() {
       string,
       {
         labelEn: string;
-        labelEs: string;
         descriptionEn: string;
-        descriptionEs: string;
         sortOrder: string;
         active: boolean;
         imageUrl: string;
@@ -74,9 +68,7 @@ export default function AmenitiesPage() {
     rows.forEach((c) => {
       next[c.id] = {
         labelEn: c.labelEn,
-        labelEs: c.labelEs,
         descriptionEn: c.descriptionEn || "",
-        descriptionEs: c.descriptionEs || "",
         sortOrder: String(c.sortOrder),
         active: c.active,
         imageUrl: c.imageUrl || "",
@@ -87,22 +79,22 @@ export default function AmenitiesPage() {
 
   async function createAmenity(e: React.FormEvent) {
     e.preventDefault();
-    if (!newKey.trim() || !newEn.trim() || !newEs.trim()) return;
+    const label = newEn.trim();
+    if (!newKey.trim() || !label) return;
+    const desc = newDescEn.trim() || null;
     await apiPost("/admin/amenities", {
       key: newKey.trim(),
-      labelEn: newEn.trim(),
-      labelEs: newEs.trim(),
-      descriptionEn: newDescEn.trim() || null,
-      descriptionEs: newDescEs.trim() || null,
+      labelEn: label,
+      labelEs: label,
+      descriptionEn: desc,
+      descriptionEs: desc,
       imageUrl: newImageUrl || null,
       active: true,
       sortOrder: Number(newSortOrder) || 0,
     });
     setNewKey("");
     setNewEn("");
-    setNewEs("");
     setNewDescEn("");
-    setNewDescEs("");
     setNewSortOrder("0");
     setNewImageUrl("");
     await loadRows();
@@ -111,11 +103,13 @@ export default function AmenitiesPage() {
   async function updateAmenity(id: string) {
     const d = draftById[id];
     if (!d) return;
+    const label = d.labelEn.trim();
+    const desc = d.descriptionEn.trim() || null;
     await apiPatch(`/admin/amenities/${id}`, {
-      labelEn: d.labelEn.trim(),
-      labelEs: d.labelEs.trim(),
-      descriptionEn: d.descriptionEn.trim() || null,
-      descriptionEs: d.descriptionEs.trim() || null,
+      labelEn: label,
+      labelEs: label,
+      descriptionEn: desc,
+      descriptionEs: desc,
       imageUrl: d.imageUrl.trim() || null,
       sortOrder: Number(d.sortOrder) || 0,
       active: d.active,
@@ -133,9 +127,7 @@ export default function AmenitiesPage() {
     id: string,
     patch: Partial<{
       labelEn: string;
-      labelEs: string;
       descriptionEn: string;
-      descriptionEs: string;
       sortOrder: string;
       active: boolean;
       imageUrl: string;
@@ -152,12 +144,10 @@ export default function AmenitiesPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <form onSubmit={createAmenity} className="grid grid-cols-1 md:grid-cols-8 gap-3">
+        <form onSubmit={createAmenity} className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="key (e.g. wifi)" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="English label" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={newEs} onChange={(e) => setNewEs(e.target.value)} placeholder="Spanish label" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={newDescEn} onChange={(e) => setNewDescEn(e.target.value)} placeholder="EN description (opt.)" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={newDescEs} onChange={(e) => setNewDescEs(e.target.value)} placeholder="ES description (opt.)" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+          <input value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="Label" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+          <input value={newDescEn} onChange={(e) => setNewDescEn(e.target.value)} placeholder="Description (optional)" className="rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2" />
           <input value={newSortOrder} onChange={(e) => setNewSortOrder(e.target.value)} type="number" placeholder="Sort" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
           <label className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 inline-flex items-center justify-center gap-2 cursor-pointer">
             <ImagePlus className="h-4 w-4" />
@@ -184,12 +174,10 @@ export default function AmenitiesPage() {
           if (!d) return null;
           return (
             <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="grid grid-cols-1 md:grid-cols-10 gap-3 items-center">
+              <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-center">
                 <div className="text-sm font-black text-slate-900">{c.key}</div>
-                <input value={d.labelEn} onChange={(e) => patchDraft(c.id, { labelEn: e.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" />
-                <input value={d.labelEs} onChange={(e) => patchDraft(c.id, { labelEs: e.target.value })} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" />
-                <input value={d.descriptionEn} onChange={(e) => patchDraft(c.id, { descriptionEn: e.target.value })} placeholder="EN desc" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold md:col-span-2" />
-                <input value={d.descriptionEs} onChange={(e) => patchDraft(c.id, { descriptionEs: e.target.value })} placeholder="ES desc" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold md:col-span-2" />
+                <input value={d.labelEn} onChange={(e) => patchDraft(c.id, { labelEn: e.target.value })} placeholder="Label" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold md:col-span-2" />
+                <input value={d.descriptionEn} onChange={(e) => patchDraft(c.id, { descriptionEn: e.target.value })} placeholder="Description" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold md:col-span-2" />
                 <input value={d.sortOrder} onChange={(e) => patchDraft(c.id, { sortOrder: e.target.value })} type="number" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold" />
                 <label className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-600 inline-flex items-center justify-center gap-2 cursor-pointer">
                   <ImagePlus className="h-3.5 w-3.5" />

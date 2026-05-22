@@ -34,7 +34,6 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
   String _selectedTime = '10:00 AM';
   List<Map<String, dynamic>> _schedule = [];
   List<String> _timeSlots = [];
-  final Map<String, List<Map<String, dynamic>>> _busySlots = {};
   bool _loading = true;
 
   String get _venueName => widget.venueName ?? 'Venue';
@@ -64,47 +63,16 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
   Future<void> _refreshSlots() async {
     setState(() => _loading = true);
     final slots = generateSlotsForDay(_schedule, _selectedDate);
-    await _loadBusySlots();
     if (!mounted) return;
 
-    final team = widget.specialists ?? [];
-    final filtered = slots.where((time) {
-      if (team.isEmpty) return true;
-      final eligible = team.where((m) => staffAvailableOnDay('${m['availability'] ?? ''}', _selectedDate)).toList();
-      if (eligible.isEmpty) return true;
-      return eligible.any((m) {
-        final key = '${m['id']}_${_ymd(_selectedDate)}';
-        return !isStaffBusyAtTime(_busySlots[key] ?? [], _selectedDate, time);
-      });
-    }).toList();
-
     setState(() {
-      _timeSlots = filtered.isEmpty ? slots : filtered;
+      _timeSlots = slots;
       if (_timeSlots.isNotEmpty && !_timeSlots.contains(_selectedTime)) {
         _selectedTime = _timeSlots.first;
       }
       _loading = false;
     });
   }
-
-  Future<void> _loadBusySlots() async {
-    final team = widget.specialists ?? [];
-    final ymd = _ymd(_selectedDate);
-    for (final member in team) {
-      final id = '${member['id'] ?? ''}';
-      if (id.isEmpty) continue;
-      final key = '${id}_$ymd';
-      if (_busySlots.containsKey(key)) continue;
-      try {
-        final slots = await _api.fetchStaffBusySlots(id, _selectedDate);
-        _busySlots[key] = slots;
-      } catch (_) {
-        _busySlots[key] = [];
-      }
-    }
-  }
-
-  String _ymd(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {

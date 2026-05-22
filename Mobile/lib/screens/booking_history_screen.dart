@@ -29,7 +29,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   int _historyTotalPages = 1;
   int _historyTotal = 0;
 
-  bool get _isEn => context.locale.languageCode != 'es';
+  bool get _isEn => true;
 
   @override
   void initState() {

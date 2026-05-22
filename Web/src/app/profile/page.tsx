@@ -85,14 +85,14 @@ function mapUserBookingGroup(
 
   const dateStr = Number.isNaN(d.getTime())
     ? "—"
-    : d.toLocaleDateString(language === "en" ? "en-US" : "es-PA", {
+    : d.toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",
       });
   const timeStr = Number.isNaN(d.getTime())
     ? "—"
-    : d.toLocaleTimeString(language === "en" ? "en-US" : "es-PA", {
+    : d.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
       });
@@ -150,7 +150,7 @@ function mapUserBookingGroup(
     id: b.id,
     refNumber,
     venueName: b.business?.name || "—",
-    serviceName: group.length > 1 ? `${group.length} ${language === "en" ? "Services" : "Servicios"}` : (b.service?.name || "—"),
+    serviceName: group.length > 1 ? `${group.length} Services` : (b.service?.name || "Service"),
     customerName: b.customer?.name || b.customerName,
     staffName: b.staff?.name || b.staffName,
     date: dateStr,
@@ -218,9 +218,7 @@ function ProfileContent() {
     }
   }, [isReviewModalOpen, selectedRes]);
 
-  const [notifySms, setNotifySms] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState(true);
-  const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [linkedGoogle, setLinkedGoogle] = useState(true);
   const [linkedFacebook, setLinkedFacebook] = useState(false);
   const [linkedInstagram, setLinkedInstagram] = useState(false);
@@ -258,7 +256,26 @@ function ProfileContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const [recentlyPaidGroupId, setRecentlyPaidGroupId] = useState<string | null>(null);
+  const [stripeCheckoutEnabled, setStripeCheckoutEnabled] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    void apiGet<{ stripeEnabled?: boolean }>("/public/payment-config")
+      .then((cfg) => setStripeCheckoutEnabled(!!cfg.stripeEnabled))
+      .catch(() => setStripeCheckoutEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    if (payment === "success") {
+      toastSuccess("Payment received", "Your card payment was processed successfully.");
+      setRefreshTrigger((prev) => prev + 1);
+      router.replace("/profile");
+    } else if (payment === "cancelled") {
+      toastWarning("Payment cancelled", "You can complete payment when ready.");
+      router.replace("/profile");
+    }
+  }, [searchParams, router]);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
@@ -295,9 +312,9 @@ function ProfileContent() {
     try {
       await apiPatch("/auth/user-session", payload, "USER");
       await refreshUser();
-      toastSuccess(language === "en" ? "Profile updated successfully!" : "¡Perfil actualizado con éxito!");
+      toastSuccess("Profile updated successfully!");
     } catch (err: any) {
-      toastError(err.message || (language === "en" ? "Failed to update profile." : "Error al actualizar el perfil."));
+      toastError(err.message || ("Failed to update profile."));
     } finally {
       setIsUpdatingProfile(false);
     }
@@ -311,17 +328,17 @@ function ProfileContent() {
     const confirmPassword = formData.get("confirmPassword");
     
     if (newPassword !== confirmPassword) {
-      toastWarning(language === "en" ? "Passwords do not match." : "Las contraseñas no coinciden.");
+      toastWarning("Passwords do not match.");
       return;
     }
     
     setIsUpdatingPassword(true);
     try {
       await apiPatch("/auth/user-password", { currentPassword, newPassword }, "USER");
-      toastSuccess(language === "en" ? "Password updated successfully!" : "¡Contraseña actualizada con éxito!");
+      toastSuccess("Password updated successfully!");
       e.currentTarget.reset();
     } catch (err: any) {
-      toastError(err.message || (language === "en" ? "Failed to update password. Check your current password." : "Error al actualizar la contraseña. Verifica tu contraseña actual."));
+      toastError(err.message || ("Failed to update password. Check your current password."));
     } finally {
       setIsUpdatingPassword(false);
     }
@@ -331,14 +348,14 @@ function ProfileContent() {
     try {
       await apiPatch(`/mobile/bookings/${id}/cancel`, {}, "USER");
       toastSuccess(
-        language === "en" ? "Cancelled" : "Cancelada",
-        language === "en" ? "Reservation cancelled." : "Reserva cancelada."
+        "Cancelled",
+        "Reservation cancelled."
       );
       setIsResModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
       toastError(
-        language === "en" ? "Could not cancel" : "No se pudo cancelar",
+        "Could not cancel",
         err instanceof Error ? err.message : ""
       );
     }
@@ -346,12 +363,10 @@ function ProfileContent() {
 
   const handleCancelReservation = (id: string) => {
     showConfirm({
-      title: language === "en" ? "Cancel Reservation" : "Cancelar Reserva",
-      message: language === "en"
-        ? "Are you sure you want to cancel this service? This action cannot be undone."
-        : "¿Estás seguro de que deseas cancelar este servicio? Esta acción no se puede deshacer.",
-      confirmLabel: language === "en" ? "Yes, Cancel" : "Sí, Cancelar",
-      cancelLabel: language === "en" ? "Keep It" : "Conservar",
+      title: "Cancel Reservation",
+      message: "Are you sure you want to cancel this service? This action cannot be undone.",
+      confirmLabel: "Yes, Cancel",
+      cancelLabel: "Keep It",
       variant: "danger",
       onConfirm: () => { closeConfirm(); void doCancelReservation(id); },
     });
@@ -361,25 +376,28 @@ function ProfileContent() {
     if (!res) return;
     const confirmedItems = res.items.filter(i => i.status === "confirmed");
     showConfirm({
-      title: language === "en" ? "Cancel All Services" : "Cancelar Todos los Servicios",
+      title: "Cancel All Services",
       message: language === "en"
         ? `This will cancel all ${confirmedItems.length} service(s) in this booking. No individual confirmations will be asked.`
         : `Se cancelarán los ${confirmedItems.length} servicio(s) de esta reserva. No se pedirán confirmaciones individuales.`,
-      confirmLabel: language === "en" ? "Cancel All" : "Cancelar Todo",
-      cancelLabel: language === "en" ? "Go Back" : "Volver",
+      confirmLabel: "Cancel All",
+      cancelLabel: "Go Back",
       variant: "danger",
       onConfirm: async () => {
         closeConfirm();
-        for (const item of confirmedItems) {
-          try { await apiPatch(`/mobile/bookings/${item.id}/cancel`, {}, "USER"); } catch {}
+        try {
+          const ids = confirmedItems.map((i) => i.id);
+          await apiPost("/mobile/bookings/cancel-group", { bookingIds: ids }, "USER");
+          toastSuccess("All cancelled", `${ids.length} service(s) cancelled.`);
+          setIsResModalOpen(false);
+          setPaymentView("none");
+          setRefreshTrigger((prev) => prev + 1);
+        } catch (err) {
+          toastError(
+            "Cancellation failed",
+            err instanceof Error ? err.message : "Could not cancel all services.",
+          );
         }
-        toastSuccess(
-          language === "en" ? "All Cancelled" : "Todo Cancelado",
-          language === "en" ? `${confirmedItems.length} service(s) cancelled.` : `${confirmedItems.length} servicio(s) cancelados.`
-        );
-        setIsResModalOpen(false);
-        setPaymentView("none");
-        setRefreshTrigger(prev => prev + 1);
       },
     });
   };
@@ -388,22 +406,32 @@ function ProfileContent() {
     if (!res) return;
     setPayingLoading(true);
     try {
-      const method = payMethod === "card" ? "Card Payment" : "Cash Payment";
-      // Collect all confirmed booking IDs in this group
       const confirmedIds = res.items
         .filter((i) => i.status === "confirmed")
         .map((i) => i.id);
 
       if (confirmedIds.length === 0) {
         toastWarning(
-          language === "en" ? "Already processed" : "Ya procesado",
-          language === "en" ? "These bookings are already completed." : "Estas reservas ya est\u00e1n completadas."
+          "Already processed",
+          "These bookings are already completed."
         );
         setPayingLoading(false);
         return;
       }
 
-      // Single call → single Transaction → single invoice in history
+      if (payMethod === "card" && stripeCheckoutEnabled) {
+        const checkout = await apiPost<{ url: string }>(
+          "/mobile/bookings/pay-group/stripe-checkout",
+          { bookingIds: confirmedIds },
+          "USER",
+        );
+        if (checkout?.url) {
+          window.location.href = checkout.url;
+          return;
+        }
+      }
+
+      const method = payMethod === "card" ? "Card Payment" : "Cash Payment";
       await apiPost("/mobile/bookings/pay-group", {
         bookingIds: confirmedIds,
         paymentMethod: method,
@@ -417,12 +445,12 @@ function ProfileContent() {
       // Delay refresh slightly so the user sees the success screen first
       setTimeout(() => setRefreshTrigger((prev) => prev + 1), 2000);
       toastSuccess(
-        language === "en" ? "Payment Successful!" : "\u00a1Pago exitoso!",
-        language === "en" ? "Invoice added to your history." : "Factura agregada a tu historial."
+        "Payment Successful!",
+        "Invoice added to your history."
       );
     } catch (err) {
       toastError(
-        language === "en" ? "Payment failed" : "Pago fallido",
+        "Payment failed",
         err instanceof Error ? err.message : ""
       );
     } finally {
@@ -437,11 +465,11 @@ function ProfileContent() {
       for (const item of selectedRes.items) {
         await apiPost(`/mobile/bookings/${item.id}/complete`, {}, "USER");
       }
-      toastSuccess(language === "en" ? "Appointment completed" : "Cita completada");
+      toastSuccess("Appointment completed");
       setIsResModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
-      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Failed to complete");
+      toastError("Error", err instanceof Error ? err.message : "Failed to complete");
     } finally {
       setPayingLoading(false);
     }
@@ -454,11 +482,11 @@ function ProfileContent() {
       for (const item of selectedRes.items) {
         await apiPost(`/mobile/bookings/${item.id}/accept-reschedule`, {}, "USER");
       }
-      toastSuccess(language === "en" ? "New time accepted" : "Nuevo horario aceptado");
+      toastSuccess("New time accepted");
       setIsResModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
-      toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "Failed to accept");
+      toastError("Error", err instanceof Error ? err.message : "Failed to accept");
     } finally {
       setPayingLoading(false);
     }
@@ -495,12 +523,12 @@ function ProfileContent() {
       await apiDelete(`/mobile/favorites/${businessId}`, "USER");
       setFavoritesList((prev) => prev.filter((biz: any) => (biz as any).businessId !== businessId));
       toastSuccess(
-        language === "en" ? "Removed" : "Eliminado",
-        language === "en" ? "Removed from favorites." : "Eliminado de favoritos."
+        "Removed",
+        "Removed from favorites."
       );
     } catch (err) {
       toastError(
-        language === "en" ? "Could not remove" : "No se pudo eliminar",
+        "Could not remove",
         err instanceof Error ? err.message : ""
       );
     }
@@ -574,7 +602,7 @@ function ProfileContent() {
         setHistoryTotal(response?.history?.total || 0);
       } catch (e) {
         setBookPayload({ ongoing: [], history: [] });
-        toastError(language === "en" ? "Failed to load bookings" : "Error al cargar reservas", e instanceof Error ? e.message : "");
+        toastError("Failed to load bookings", e instanceof Error ? e.message : "");
       }
     })();
 
@@ -590,7 +618,7 @@ function ProfileContent() {
         setInvoicesTotal(response?.total || 0);
       } catch (e) {
         setInvoicesList([]);
-        toastError(language === "en" ? "Failed to load invoices" : "Error al cargar facturas", e instanceof Error ? e.message : "");
+        toastError("Failed to load invoices", e instanceof Error ? e.message : "");
       }
     })();
 
@@ -654,8 +682,8 @@ function ProfileContent() {
 
     if (!name) {
       toastWarning(
-        language === "en" ? "Name required" : "Nombre obligatorio",
-        language === "en" ? "Enter a name for this family member." : "Introduce un nombre.",
+        "Name required",
+        "Enter a name for this family member.",
       );
       return;
     }
@@ -676,10 +704,10 @@ function ProfileContent() {
       setRefreshTrigger(prev => prev + 1);
       setIsFamilyModalOpen(false);
       setEditingMember(null);
-      toastSuccess(language === "en" ? "Family member saved" : "Miembro guardado");
+      toastSuccess("Family member saved");
     } catch (err) {
       toastError(
-        language === "en" ? "Could not save" : "No se pudo guardar",
+        "Could not save",
         err instanceof Error ? err.message : "",
       );
     }
@@ -698,18 +726,18 @@ function ProfileContent() {
           onClick={() => setIsLoginModalOpen(true)}
           className="rounded-2xl bg-[#ff5a5f] px-8 py-3 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-[#e0484d]"
         >
-          {language === "en" ? "Sign in" : "Iniciar sesión"}
+          {"Sign in"}
         </button>
       </div>
     );
   }
 
   const menuItems = [
-    { id: "bookings", label: language === "en" ? "My Reservations" : "Mis Reservas", icon: <Calendar size={20} /> },
-    { id: "invoices", label: language === "en" ? "My Invoices" : "Mis Facturas", icon: <Download size={20} /> },
-    { id: "family", label: language === "en" ? "Family & Friends" : "Familia y Amigos", icon: <Users size={20} /> },
-    { id: "settings", label: language === "en" ? "Profile & Settings" : "Perfil y configuración", icon: <UserIcon size={20} /> },
-    { id: "favorites", label: language === "en" ? "My Favorites" : "Mis Favoritos", icon: <Heart size={20} /> }
+    { id: "bookings", label: "My Reservations", icon: <Calendar size={20} /> },
+    { id: "invoices", label: "My Invoices", icon: <Download size={20} /> },
+    { id: "family", label: "Family & Friends", icon: <Users size={20} /> },
+    { id: "settings", label: "Profile & Settings", icon: <UserIcon size={20} /> },
+    { id: "favorites", label: "My Favorites", icon: <Heart size={20} /> }
   ];
 
   return (
@@ -762,7 +790,7 @@ function ProfileContent() {
             className="w-full flex items-center justify-center space-x-3 px-4 py-3.5 rounded-2xl font-black text-[#ff5a5f] hover:bg-red-50 transition-all text-[11px] uppercase tracking-widest"
           >
             <LogOut size={16} />
-            <span>{language === "en" ? "Log Out" : "Cerrar Sesión"}</span>
+            <span>{"Log Out"}</span>
           </button>
         </div>
       </aside>
@@ -777,16 +805,16 @@ function ProfileContent() {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
                   <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">
-                    {language === "en" ? "My Reservations" : "Mis Reservas"}
+                    {"My Reservations"}
                   </h1>
                   <p className="text-slate-400 font-bold text-sm">
-                    {language === "en" ? "Manage your appointments and download your invoices" : "Gestiona tus citas y descarga tus facturas"}
+                    {"Manage your appointments and download your invoices"}
                   </p>
                 </div>
               </div>
 
               <div className="mb-12 space-y-6">
-                <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest mb-4">{language === "en" ? "UPCOMING RESERVATIONS" : "PRÓXIMAS RESERVAS"}</h3>
+                <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest mb-4">{"UPCOMING RESERVATIONS"}</h3>
                 {ongoingReservations.length > 0 ? (
                   ongoingReservations.map((res) => (
                     <div key={res.id} className="bg-white border-2 border-slate-100 rounded-3xl p-6 md:p-8 text-slate-900 shadow-md flex flex-col md:flex-row justify-between items-center group cursor-pointer hover:shadow-lg transition-all relative overflow-hidden hover:border-[#ff5a5f]/20">
@@ -804,32 +832,32 @@ function ProfileContent() {
                             {/* Status Badge */}
                             {res.status === "pending" && (
                               <span className="bg-amber-50 text-amber-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                <Clock size={11} /> {language === "en" ? "Awaiting Approval" : "Esperando Aprobación"}
+                                <Clock size={11} /> Awaiting Approval
                               </span>
                             )}
                             {res.status === "confirmed" && (
                               <span className="bg-green-50 text-green-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1.5">
-                                <CheckCircle size={11} /> {language === "en" ? "Confirmed" : "Confirmada"}
+                                <CheckCircle size={11} /> Confirmed
                               </span>
                             )}
                             {res.status === "paid" && (
                               <span className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-200 flex items-center gap-1.5">
-                                <CreditCard size={11} /> {language === "en" ? "Paid" : "Pagado"}
+                                <CreditCard size={11} /> Paid
                               </span>
                             )}
                             {res.status === "rescheduled" && (
                               <span className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                <RefreshCcw size={11} /> {language === "en" ? "Rescheduled" : "Reagendada"}
+                                <RefreshCcw size={11} /> Rescheduled
                               </span>
                             )}
                             {res.customerName && (
                               <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
-                                {language === "en" ? "For: " : "Para: "}{res.customerName}
+                                {"For: "}
                               </span>
                             )}
                             {res.staffName && (
                               <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
-                                {language === "en" ? "Pro: " : "Staff: "}{res.staffName}
+                                {"Pro: "}
                               </span>
                             )}
                             {res.phone && (
@@ -848,21 +876,21 @@ function ProfileContent() {
                           }}
                           className="text-xs font-black uppercase tracking-widest bg-[#ff5a5f] text-white px-8 py-3 rounded-2xl hover:bg-[#e0484d] transition-colors shadow-md"
                         >
-                          {language === "en" ? "See Details" : "Ver detalles"}
+                          {"See Details"}
                         </button>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm font-medium text-slate-500">{language === "en" ? "No upcoming reservations." : "Sin próximas reservas."}</p>
+                  <p className="text-sm font-medium text-slate-500">{"No upcoming reservations."}</p>
                 )}
               </div>
 
               <div ref={historyRef}>
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">{language === "en" ? "APPOINTMENT HISTORY" : "HISTORIAL DE CITAS"}</h3>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">{"APPOINTMENT HISTORY"}</h3>
                 <div className="space-y-6">
                   {historyReservations.length === 0 && (
-                    <p className="text-sm text-slate-500">{language === "en" ? "No past appointments yet." : "Aún no hay citas anteriores."}</p>
+                    <p className="text-sm text-slate-500">{"No past appointments yet."}</p>
                   )}
                   {historyReservations.map((res) => (
                     <div key={res.id} className="bg-white border border-slate-200 rounded-[40px] p-8 flex flex-col md:flex-row justify-between items-center hover:shadow-2xl hover:shadow-slate-200/50 transition duration-500 shadow-sm group">
@@ -884,23 +912,23 @@ function ProfileContent() {
                              <div className="flex items-center gap-2">
                                 {res.status === "completed" && (
                                   <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1.5">
-                                    <CheckCircle size={11} /> {language === "en" ? "Completed" : "Completado"}
+                                    <CheckCircle size={11} /> Completed
                                   </span>
                                 )}
                                 {res.status === "cancelled" && (
                                   <span className="bg-red-50 text-red-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-red-200 flex items-center gap-1.5">
-                                    <X size={11} /> {language === "en" ? "Cancelled" : "Cancelado"}
+                                    <X size={11} /> Cancelled
                                   </span>
                                 )}
                                 {(res.status === "confirmed" || res.status === "pending") && (
                                   <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                    <Clock size={11} /> {res.status === "pending" ? (language === "en" ? "Pending" : "Pendiente") : (language === "en" ? "Confirmed" : "Confirmada")}
+                                    <Clock size={11} /> {res.status === "pending" ? ("Pending") : ("Confirmed")}
                                   </span>
                                 )}
                              </div>
                              {res.customerName && (
                                 <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                                   {language === "en" ? "For: " : "Para: "}{res.customerName}
+                                   {"For: "}
                                 </span>
                              )}
                           </div>
@@ -913,7 +941,7 @@ function ProfileContent() {
                               onClick={() => { setSelectedRes(res); setIsResModalOpen(true); setPaymentView("none"); }} 
                               className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 bg-slate-50 px-4 py-2 rounded-xl transition"
                             >
-                               {language === "en" ? "Details" : "Detalles"}
+                               {"Details"}
                             </button>
                             <button onClick={() => handleDownloadInvoice(res)} className="p-3 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-2xl transition">
                                <Download size={18} />
@@ -923,14 +951,14 @@ function ProfileContent() {
                                  onClick={() => { setSelectedRes(res); setIsReviewModalOpen(true); }}
                                  className="text-[10px] font-black text-amber-600 uppercase tracking-widest hover:bg-amber-100 bg-amber-50 px-4 py-2 rounded-xl transition border border-amber-100"
                                >
-                                  {language === "en" ? "Rate" : "Calificar"}
+                                  {"Rate"}
                                </button>
                              )}
                             <button 
                               onClick={() => { if (res.businessId) router.push(`/venue/${res.businessId}`); }}
                               className="text-xs font-black text-[#ff5a5f] uppercase tracking-widest hover:underline flex items-center gap-1 bg-[#ff5a5f]/5 px-6 py-3 rounded-2xl hover:bg-[#ff5a5f]/10 transition-all transform hover:-translate-y-1"
                             >
-                                {language === "en" ? "Re-book" : "Reservar otra vez"}
+                                {"Re-book"}
                                 <ChevronRight size={14} />
                             </button>
                           </div>
@@ -958,16 +986,16 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
                <div className="flex justify-between items-center mb-8">
                  <div>
-                    <h2 className="text-2xl font-black text-slate-900">{language === "en" ? "Family & Friends" : "Familia y Amigos"}</h2>
+                    <h2 className="text-2xl font-black text-slate-900">{"Family & Friends"}</h2>
                     <p className="text-slate-400 font-bold text-sm mt-1">
-                      {language === "en" ? "Manage appointments for your inner circle" : "Gestiona las citas de tu círculo cercano"}
+                      {"Manage appointments for your inner circle"}
                     </p>
                  </div>
                  <button 
                   onClick={() => { setEditingMember(null); setIsFamilyModalOpen(true); }}
                   className="bg-[#ff5a5f] text-white font-black px-6 py-3 rounded-2xl text-sm shadow-xl shadow-[#ff5a5f]/20 hover:bg-[#e0484d] transition flex items-center gap-2 transform hover:-translate-y-1"
                  >
-                    <Plus size={18} /> {language === "en" ? "Add Member" : "Agregar miembro"}
+                    <Plus size={18} /> Add Member
                  </button>
                </div>
                
@@ -976,15 +1004,15 @@ function ProfileContent() {
                     <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-6">
                        <Users size={48} />
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 mb-3">{language === "en" ? "No members added yet" : "Tu lista está vacía"}</h3>
+                    <h3 className="text-2xl font-black text-slate-900 mb-3">{"No members added yet"}</h3>
                     <p className="text-slate-500 max-w-sm mb-10 font-medium leading-relaxed">
-                      {language === "en" ? "Add your children, partner or friends to schedule services for them quickly." : "Agrega a tus hijos, pareja o amigos para agendar servicios por ellos rápidamente."}
+                      Add your children, partner, or friends to schedule services for them quickly.
                     </p>
                     <button 
                       onClick={() => setIsFamilyModalOpen(true)}
                       className="text-[#ff5a5f] font-black text-sm uppercase tracking-widest hover:underline"
                     >
-                      {language === "en" ? "Get started now" : "Comenzar ahora"}
+                      {"Get started now"}
                     </button>
                  </div>
                ) : (
@@ -1018,12 +1046,12 @@ function ProfileContent() {
                                   await apiDelete(`/mobile/family-members/${member.id}`, "USER");
                                   setRefreshTrigger(prev => prev + 1);
                                   toastSuccess(
-                                    language === "en" ? "Removed" : "Eliminado",
-                                    language === "en" ? "Family member removed." : "Miembro eliminado.",
+                                    "Removed",
+                                    "Family member removed.",
                                   );
                                 } catch (err) {
                                   toastError(
-                                    language === "en" ? "Could not remove" : "No se pudo eliminar",
+                                    "Could not remove",
                                     err instanceof Error ? err.message : "",
                                   );
                                 }
@@ -1047,11 +1075,11 @@ function ProfileContent() {
               <form onSubmit={handleUpdateProfile}>
                 <div className="flex justify-between items-end mb-8">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900">{language === "en" ? "Profile & Settings" : "Perfil y configuración"}</h2>
-                    <p className="text-slate-400 font-bold text-sm mt-1">{language === "en" ? "Update your personal information" : "Actualiza tu información personal"}</p>
+                    <h2 className="text-2xl font-black text-slate-900">{"Profile & Settings"}</h2>
+                    <p className="text-slate-400 font-bold text-sm mt-1">{"Update your personal information"}</p>
                   </div>
                   <button type="submit" disabled={isUpdatingProfile} className="bg-slate-900 text-white font-black px-8 py-3 rounded-2xl text-sm shadow-xl hover:bg-slate-800 transition transform hover:-translate-y-1 disabled:opacity-50">
-                    {isUpdatingProfile ? (language === "en" ? "Saving..." : "Guardando...") : (language === "en" ? "Save Changes" : "Guardar cambios")}
+                    {isUpdatingProfile ? ("Saving...") : ("Save Changes")}
                   </button>
                 </div>
 
@@ -1077,21 +1105,21 @@ function ProfileContent() {
                      <div>
                        <h3 className="font-black text-slate-800 text-xl">{user?.name}</h3>
                        <p className="text-slate-400 font-bold text-sm">
-                         {language === "en" ? "Member since November 2023" : "Miembro desde Noviembre 2023"}
+                         {"Member since November 2023"}
                        </p>
                      </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{language === "en" ? "Full Name" : "Nombre completo"}</label>
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Full Name"}</label>
                         <div className="relative">
                           <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                           <input type="text" name="name" defaultValue={user?.name} required className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
                         </div>
                      </div>
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{language === "en" ? "Phone" : "Teléfono"}</label>
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Phone"}</label>
                         <div className="relative">
                           <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                           <input type="text" name="phone" defaultValue={user?.phone ?? ""} className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
@@ -1100,7 +1128,7 @@ function ProfileContent() {
                   </div>
 
                   <div className="space-y-3">
-                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{language === "en" ? "Email Address" : "Correo electrónico"}</label>
+                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Email Address"}</label>
                      <div className="relative">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                         <input type="email" name="email" defaultValue={user?.email} required className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
@@ -1116,35 +1144,60 @@ function ProfileContent() {
                         <Lock size={22} />
                      </div>
                      <div>
-                        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">{language === "en" ? "Change Password" : "Cambiar contraseña"}</h3>
+                        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">{"Change Password"}</h3>
                         <p className="text-slate-400 font-bold text-xs mt-1">
-                          {language === "en" ? "Protect your account with a secure password" : "Protege tu cuenta con una contraseña segura"}
+                          {"Protect your account with a secure password"}
                         </p>
                      </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{language === "en" ? "Current Password" : "Contraseña actual"}</label>
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Current Password"}</label>
                       <input type="password" name="currentPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{language === "en" ? "New Password" : "Nueva contraseña"}</label>
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"New Password"}</label>
                       <input type="password" name="newPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{language === "en" ? "Confirm Password" : "Confirmar contraseña"}</label>
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Confirm Password"}</label>
                       <input type="password" name="confirmPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
                     </div>
                   </div>
                   
                   <div className="mt-10 flex justify-end">
                     <button type="submit" disabled={isUpdatingPassword} className="bg-[#ff5a5f] text-white font-black px-10 py-4 rounded-[20px] text-xs uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/20 hover:bg-[#e0484d] transition transform hover:-translate-y-1 disabled:opacity-50">
-                       {isUpdatingPassword ? (language === "en" ? "Updating..." : "Actualizando...") : (language === "en" ? "Update Password" : "Actualizar contraseña")}
+                       {isUpdatingPassword ? ("Updating...") : ("Update Password")}
                     </button>
                   </div>
                 </div>
               </form>
+
+              <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm">
+                <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-2">
+                  {"Notifications"}
+                </h3>
+                <p className="text-slate-400 font-bold text-xs mb-6">
+                  {language === "en"
+                    ? "Booking updates are sent by email only."
+                    : "Las actualizaciones de reservas se envían solo por correo electrónico."}
+                </p>
+                <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 px-5 py-4 cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <Mail className="text-[#ff5a5f]" size={20} />
+                    <span className="text-sm font-bold text-slate-800">
+                      {"Email notifications"}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyEmail}
+                    onChange={(e) => setNotifyEmail(e.target.checked)}
+                    className="h-5 w-5 rounded border-slate-300 text-[#ff5a5f] focus:ring-[#ff5a5f]"
+                  />
+                </label>
+              </div>
             </div>
           )}
 
@@ -1154,22 +1207,22 @@ function ProfileContent() {
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
                   <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">
-                    {language === "en" ? "My Favorite Places" : "Mis Lugares Favoritos"}
+                    {"My Favorite Places"}
                   </h1>
                   <p className="text-slate-400 font-bold text-sm">
-                    {language === "en" ? "Your preferred locations in one place" : "Tus locales preferidos en un solo lugar"}
+                    {"Your preferred locations in one place"}
                   </p>
                 </div>
                 <div className="bg-white px-8 py-4 rounded-[28px] shadow-sm border border-slate-100 flex items-center gap-4">
                    <Heart className="text-[#ff5a5f]" size={24} fill="#ff5a5f" />
-                   <span className="font-black text-slate-800 text-sm uppercase tracking-widest">{favoritesList.length} {language === "en" ? "Places" : "Locales"}</span>
+                   <span className="font-black text-slate-800 text-sm uppercase tracking-widest">{favoritesList.length} Places</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 {favoritesList.length === 0 ? (
                   <p className="text-sm text-slate-500 col-span-full text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 font-bold">
-                    {language === "en" ? "No favorites yet." : "Aún no tienes favoritos."}
+                    {"No favorites yet."}
                   </p>
                 ) : (
                   favoritesList.map((biz: any) => {
@@ -1227,9 +1280,9 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
                <div className="flex justify-between items-center mb-10">
                  <div>
-                    <h2 className="text-3xl font-black text-slate-900">{language === "en" ? "My Invoices" : "Mis Facturas"}</h2>
+                    <h2 className="text-3xl font-black text-slate-900">{"My Invoices"}</h2>
                     <p className="text-slate-400 font-bold text-sm mt-1">
-                      {language === "en" ? "Payment history and tax receipts" : "Historial de pagos y comprobantes fiscales"}
+                      {"Payment history and tax receipts"}
                     </p>
                  </div>
                  <div className="p-4 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3">
@@ -1242,48 +1295,43 @@ function ProfileContent() {
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 border-b border-slate-100">
                       <tr>
-                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{language === "en" ? "Invoice" : "Factura"}</th>
-                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{language === "en" ? "Venue" : "Establecimiento"}</th>
-                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{language === "en" ? "Date" : "Fecha"}</th>
-                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{language === "en" ? "Amount" : "Monto"}</th>
-                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]"></th>
+                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">{"Invoice"}</th>
+                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{"Venue"}</th>
+                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{"Date"}</th>
+                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{"Amount"}</th>
+                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {invoicesList.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="px-10 py-20 text-center text-slate-400 font-bold italic">
-                            {language === "en" ? "No invoices yet." : "Aún no hay facturas."}
+                            {"No invoices yet."}
                           </td>
                         </tr>
                       ) : (
                         invoicesList.map((inv: any) => (
                           <tr key={inv.id} className="hover:bg-slate-50/50 transition duration-300 group">
-                            <td className="px-10 py-8">
-                               <div className="flex items-center gap-4">
-                                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-[#ff5a5f]/10 group-hover:text-[#ff5a5f] transition-colors">
-                                     <Shield size={20} />
-                                  </div>
-                                  <span className="font-black text-slate-800">{inv.number || `INV-${String(inv.id || "").slice(0,6).toUpperCase()}`}</span>
-                               </div>
+                            <td className="px-6 py-5 text-center whitespace-nowrap">
+                               <span className="font-bold text-slate-800 text-sm">{inv.number || `INV-${String(inv.id || "").slice(0,6).toUpperCase()}`}</span>
                             </td>
-                            <td className="px-10 py-8">
-                               <span className="font-bold text-slate-600">{inv.venueName || inv.business?.name || "Venue"}</span>
+                            <td className="px-6 py-5 text-center">
+                               <span className="font-semibold text-slate-600 text-sm line-clamp-2">{inv.venueName || inv.business?.name || "Venue"}</span>
                             </td>
-                            <td className="px-10 py-8">
+                            <td className="px-6 py-5 text-center whitespace-nowrap">
                                <span className="font-bold text-slate-400">
                                  {(() => {
                                    const raw = inv.issuedDate || inv.date || inv.createdAt;
                                    if (!raw) return "—";
                                    const d = new Date(raw);
-                                   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString(language === "en" ? "en-US" : "es-PA", { year: "numeric", month: "short", day: "numeric" });
+                                   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
                                  })()}
                                </span>
                             </td>
-                            <td className="px-10 py-8">
-                               <span className="font-black text-slate-900">${Number(inv.total || 0).toFixed(2)}</span>
+                            <td className="px-6 py-5 text-center whitespace-nowrap">
+                               <span className="font-bold text-slate-900">${Number(inv.total || 0).toFixed(2)}</span>
                             </td>
-                            <td className="px-10 py-8 text-right">
+                            <td className="px-6 py-5 text-center">
                                <button onClick={() => handleDownloadInvoice(inv)} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg hover:bg-slate-800 hover:scale-110 transition transform active:scale-95">
                                   <Download size={18} />
                                </button>
@@ -1322,7 +1370,7 @@ function ProfileContent() {
                 className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition text-sm"
               >
                 <ChevronLeft size={20} />
-                {language === "en" ? "Back" : "Volver"}
+                {"Back"}
               </button>
               <div className="flex flex-col items-center">
                 <h2 className="text-sm font-black text-slate-950 uppercase tracking-widest">{selectedRes.venueName}</h2>
@@ -1362,7 +1410,7 @@ function ProfileContent() {
                                 <Calendar size={22} />
                              </div>
                              <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Date & Time" : "Fecha y Hora"}</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Date & Time"}</p>
                                 <p className="font-black text-slate-800 text-sm">{selectedRes.date} at {selectedRes.time}</p>
                              </div>
                           </div>
@@ -1374,18 +1422,18 @@ function ProfileContent() {
                             selectedRes.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                             'bg-red-50 text-red-500 border border-red-100'
                           }`}>
-                            {selectedRes.status === 'confirmed' ? (language === 'en' ? 'Awaiting Payment' : 'Esperando Pago') :
-                             selectedRes.status === 'paid' ? (language === 'en' ? 'Paid' : 'Pagado') :
-                             selectedRes.status === 'completed' ? (language === 'en' ? 'Completed' : 'Completado') :
-                             selectedRes.status === 'rescheduled' ? (language === 'en' ? 'Rescheduled' : 'Reagendado') :
-                             selectedRes.status === 'pending' ? (language === 'en' ? 'Pending' : 'Pendiente') :
-                             selectedRes.status === 'cancelled' ? (language === 'en' ? 'Cancelled' : 'Cancelado') :
+                            {selectedRes.status === 'confirmed' ? ('Awaiting Payment') :
+                             selectedRes.status === 'paid' ? ('Paid') :
+                             selectedRes.status === 'completed' ? ('Completed') :
+                             selectedRes.status === 'rescheduled' ? ('Rescheduled') :
+                             selectedRes.status === 'pending' ? ('Pending') :
+                             selectedRes.status === 'cancelled' ? ('Cancelled') :
                              selectedRes.status}
                           </div>
                        </div>
 
                        <div>
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">{language === "en" ? "Service Details" : "Detalles del Servicio"}</h4>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">{"Service Details"}</h4>
                           <div className="space-y-3.5">
                              {selectedRes.items.map((item) => (
                                <div key={item.id} className="flex justify-between items-center p-5 rounded-2xl bg-white border border-slate-100 hover:border-[#ff5a5f]/20 transition-all shadow-sm">
@@ -1407,13 +1455,13 @@ function ProfileContent() {
                                          onClick={() => handleCancelReservation(item.id)}
                                          className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-100 transition"
                                        >
-                                          {language === "en" ? "Cancel" : "Cancelar"}
+                                          {"Cancel"}
                                        </button>
                                      )}
                                      {item.status === 'completed' && item.isReviewed && (
                                        <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
                                           <CheckCircle2 size={12} />
-                                          {language === "en" ? "Reviewed" : "Calificado"}
+                                          {"Reviewed"}
                                        </span>
                                      )}
                                   </div>
@@ -1428,19 +1476,19 @@ function ProfileContent() {
                 {/* RIGHT: Summary & Payment */}
                 <div className="space-y-6">
                    <div className="bg-white rounded-[32px] border border-slate-100 p-6 md:p-8 shadow-sm">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-5">{language === "en" ? "Payment Summary" : "Resumen de Pago"}</h4>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-5">{"Payment Summary"}</h4>
                       
                       <div className="space-y-3.5">
                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-400">{language === "en" ? "Subtotal" : "Subtotal"}</span>
+                            <span className="font-bold text-slate-400">{"Subtotal"}</span>
                             <span className="font-black text-slate-700">${selectedRes.subtotal.toFixed(2)}</span>
                          </div>
                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-400">{language === "en" ? "Tax" : "Impuesto"}</span>
+                            <span className="font-bold text-slate-400">{"Tax"}</span>
                             <span className="font-black text-slate-700">${selectedRes.taxAmount.toFixed(2)}</span>
                          </div>
                          <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex justify-between items-center">
-                            <span className="text-sm font-black text-slate-900">{language === "en" ? "Total" : "Total"}</span>
+                            <span className="text-sm font-black text-slate-900">{"Total"}</span>
                             <span className="text-2xl font-black text-[#ff5a5f]">${selectedRes.totalPrice.toFixed(2)}</span>
                          </div>
                       </div>
@@ -1448,14 +1496,14 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "confirmed" && (
                         <div className="mt-6 space-y-4">
                            <div className="p-4 bg-emerald-50/70 border border-emerald-100/80 rounded-2xl text-[10px] font-bold text-emerald-800">
-                              <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Approved" : "Aprobado"}</p>
-                              <p className="text-emerald-700/90 font-medium">{language === "en" ? "Your booking is approved. Please pay online to confirm." : "Tu cita está aprobada. Por favor paga online para confirmar."}</p>
+                              <p className="font-black uppercase tracking-widest mb-1">{"Approved"}</p>
+                              <p className="text-emerald-700/90 font-medium">{"Your booking is approved. Please pay online to confirm."}</p>
                            </div>
                            <button 
                              onClick={() => setPaymentView("select")}
                              className="w-full bg-[#ff5a5f] hover:bg-[#e0484d] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/15 transition-all transform active:scale-95"
                            >
-                             {language === "en" ? "Pay Online Now" : "Pagar Online Ahora"}
+                             {"Pay Online Now"}
                            </button>
                         </div>
                       )}
@@ -1463,8 +1511,8 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "rescheduled" && (
                         <div className="mt-6 space-y-4">
                            <div className="p-4 bg-amber-50/70 border border-amber-100/80 rounded-2xl text-[10px] font-bold text-amber-800">
-                              <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Reschedule Proposed" : "Reagendamiento Propuesto"}</p>
-                              <p className="text-amber-700/90 font-medium">{language === "en" ? "The venue has proposed a new time. Do you accept?" : "El establecimiento ha propuesto un nuevo horario. ¿Aceptas?"}</p>
+                              <p className="font-black uppercase tracking-widest mb-1">{"Reschedule Proposed"}</p>
+                              <p className="text-amber-700/90 font-medium">{"The venue has proposed a new time. Do you accept?"}</p>
                            </div>
                            <button 
                              onClick={handleAcceptReschedule}
@@ -1472,7 +1520,7 @@ function ProfileContent() {
                              className="w-full bg-[#ff5a5f] hover:bg-[#e0484d] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/15 transition-all flex items-center justify-center gap-2"
                            >
                              {payingLoading && <Loader2 className="animate-spin text-white" size={14} />}
-                             {language === "en" ? "Accept New Time" : "Aceptar Nuevo Horario"}
+                             {"Accept New Time"}
                            </button>
                         </div>
                       )}
@@ -1480,8 +1528,8 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "paid" && (
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-cyan-50/70 border border-cyan-100/80 rounded-2xl text-[10px] font-bold text-cyan-800">
-                               <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Payment Confirmed" : "Pago Confirmado"}</p>
-                               <p className="text-cyan-700/90 font-medium">{language === "en" ? "Your appointment is ready. Mark as completed after the service." : "Tu cita está lista. Márcala como completada después del servicio."}</p>
+                               <p className="font-black uppercase tracking-widest mb-1">{"Payment Confirmed"}</p>
+                               <p className="text-cyan-700/90 font-medium">{"Your appointment is ready. Mark as completed after the service."}</p>
                             </div>
                             <button 
                               onClick={handleMarkCompletedGroup}
@@ -1489,7 +1537,7 @@ function ProfileContent() {
                               className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
                             >
                               {payingLoading && <Loader2 className="animate-spin text-white" size={14} />}
-                              {language === "en" ? "Mark as Completed" : "Marcar como Completado"}
+                              {"Mark as Completed"}
                             </button>
                          </div>
                        )}
@@ -1497,36 +1545,51 @@ function ProfileContent() {
                        {selectedRes.status === "completed" && !selectedRes.isReviewed && (
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-blue-50/70 border border-blue-100/80 rounded-2xl text-[10px] font-bold text-blue-800 text-center">
-                               <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Service Completed" : "Servicio Completado"}</p>
-                               <p className="text-blue-700/90 font-medium">{language === "en" ? "How was your experience today?" : "¿Cómo fue tu experiencia hoy?"}</p>
+                               <p className="font-black uppercase tracking-widest mb-1">{"Service Completed"}</p>
+                               <p className="text-blue-700/90 font-medium">{"How was your experience today?"}</p>
                             </div>
                             <button 
                               onClick={() => { setIsResModalOpen(false); setIsReviewModalOpen(true); }}
                               className="w-full bg-[#ff5a5f] hover:bg-[#e0484d] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/15 transition-all transform active:scale-95"
                             >
-                              {language === "en" ? "Rate Experience" : "Calificar Experiencia"}
+                              {"Rate Experience"}
                             </button>
                          </div>
                        )}
 
                       {paymentView === "none" && selectedRes.status === "pending" && (
                          <div className="mt-6 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Waiting for Venue" : "Esperando al Establecimiento"}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
                          </div>
                       )}
 
                       {paymentView === "select" && (
                          <div className="mt-6 space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                            <div 
-                              onClick={() => setPayMethod(payMethod === "card" ? "cash" : "card")}
-                              className="p-4 border-2 border-[#ff5a5f] bg-[#ff5a5f]/5 rounded-2xl flex flex-col items-center gap-1.5 cursor-pointer hover:bg-[#ff5a5f]/10 transition-colors"
-                            >
-                               {payMethod === "card" ? <CreditCard className="text-[#ff5a5f]" size={22} /> : <Banknote className="text-[#ff5a5f]" size={22} />}
-                               <span className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-widest">
-                                 {payMethod === "card" 
-                                   ? (language === "en" ? "Pay with Card" : "Pagar con Tarjeta")
-                                   : (language === "en" ? "Pay with Cash" : "Pagar en Efectivo")}
-                               </span>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setPayMethod("card")}
+                                className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors ${
+                                  payMethod === "card" ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"
+                                }`}
+                              >
+                                <CreditCard className="text-[#ff5a5f]" size={22} />
+                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                                  {"Card"}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPayMethod("cash")}
+                                className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors ${
+                                  payMethod === "cash" ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"
+                                }`}
+                              >
+                                <Banknote className="text-[#ff5a5f]" size={22} />
+                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                                  {"Cash"}
+                                </span>
+                              </button>
                             </div>
                             
                             <button 
@@ -1535,7 +1598,7 @@ function ProfileContent() {
                               className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                {payingLoading ? <Loader2 className="animate-spin text-white" size={14} /> : <Shield size={14} />}
-                               {payingLoading ? (language === "en" ? "Processing..." : "Procesando...") : (language === "en" ? "Confirm & Pay" : "Confirmar y Pagar")}
+                               {payingLoading ? ("Processing...") : ("Confirm & Pay")}
                             </button>
 
                             <div className="flex gap-3">
@@ -1544,14 +1607,14 @@ function ProfileContent() {
                                   onClick={() => void handleCancelAllInGroup(selectedRes)}
                                   className="flex-1 bg-red-50 text-red-500 font-black py-3 rounded-xl text-[9px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100/80"
                                 >
-                                   {language === "en" ? "Cancel All" : "Cancelar Todo"}
+                                   {"Cancel All"}
                                 </button>
                               )}
                               <button 
                                 onClick={() => setPaymentView("none")}
                                 className="flex-1 bg-white border border-slate-200 text-slate-500 font-black py-3 rounded-xl text-[9px] uppercase tracking-widest hover:bg-slate-50 transition"
                               >
-                                 {language === "en" ? "Back" : "Volver"}
+                                 {"Back"}
                               </button>
                             </div>
                          </div>
@@ -1560,30 +1623,30 @@ function ProfileContent() {
                       {paymentView === "done" && (
                          <div className="mt-6 p-5 bg-emerald-50 border border-emerald-100 rounded-2xl text-center animate-in zoom-in-95">
                             <CheckCircle className="text-emerald-500 mx-auto mb-2" size={28} />
-                            <p className="font-black text-emerald-950 text-xs">{language === "en" ? "Paid Successfully!" : "¡Pago Exitoso!"}</p>
+                            <p className="font-black text-emerald-950 text-xs">{"Paid Successfully!"}</p>
                             <button 
                               onClick={() => { setIsResModalOpen(false); setActiveTab("invoices"); }}
                               className="mt-3.5 text-[9px] font-black text-emerald-600 uppercase tracking-widest underline decoration-2 underline-offset-4"
                             >
-                               {language === "en" ? "View Invoices" : "Ver Facturas"}
+                               {"View Invoices"}
                             </button>
                          </div>
                       )}
                    </div>
 
                    <div className="bg-slate-950 rounded-[32px] p-6 md:p-8 text-white shadow-xl shadow-slate-200/50">
-                      <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-5">{language === "en" ? "Safety & Policy" : "Seguridad y Políticas"}</h4>
+                      <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-5">{"Safety & Policy"}</h4>
                       <div className="space-y-5 text-[11px]">
                          <div className="flex gap-3.5">
                             <Shield className="text-[#ff5a5f] flex-shrink-0" size={18} />
                             <p className="font-medium text-white/80 leading-relaxed">
-                               {language === "en" ? "Secure encrypted payments powered by Rezervame." : "Pagos seguros y encriptados por Rezervame."}
+                               {"Secure encrypted payments powered by Rezervame."}
                             </p>
                          </div>
                          <div className="flex gap-3.5">
                             <Clock className="text-[#ff5a5f] flex-shrink-0" size={18} />
                             <p className="font-medium text-white/80 leading-relaxed">
-                               {language === "en" ? "Cancellations must be done 24h before." : "Cancelaciones deben hacerse 24h antes."}
+                               {"Cancellations must be done 24h before."}
                             </p>
                          </div>
                       </div>
@@ -1616,40 +1679,40 @@ function ProfileContent() {
           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-500" onClick={() => setIsFamilyModalOpen(false)} />
           <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 duration-500">
              <div className="flex justify-between items-center mb-10">
-                <h3 className="text-2xl font-black text-slate-900">{editingMember ? (language === "en" ? "Edit Member" : "Editar miembro") : (language === "en" ? "New Member" : "Nuevo miembro")}</h3>
+                <h3 className="text-2xl font-black text-slate-900">{editingMember ? ("Edit Member") : ("New Member")}</h3>
                 <button onClick={() => setIsFamilyModalOpen(false)} className="p-3 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-2xl transition"><X size={20} /></button>
              </div>
              
              <form onSubmit={handleAddFamily} className="space-y-8">
                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{language === "en" ? "Full Name" : "Nombre completo"}</label>
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{"Full Name"}</label>
                   <div className="relative group">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#ff5a5f] transition-colors">
                       <UserIcon size={18} />
                     </div>
-                    <input name="name" type="text" defaultValue={editingMember?.name} required placeholder={language === "en" ? "e.g. John Doe" : "Ej. Juan Pérez"} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
+                    <input name="name" type="text" defaultValue={editingMember?.name} required placeholder="e.g. John Doe" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
                   </div>
                </div>
                <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{language === "en" ? "Age" : "Edad"}</label>
-                    <input name="age" type="number" defaultValue={editingMember?.age} required placeholder={language === "en" ? "Years" : "Años"} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{"Age"}</label>
+                    <input name="age" type="number" defaultValue={editingMember?.age} required placeholder="Years" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
                  </div>
                  <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{language === "en" ? "Gender" : "Género"}</label>
-                    <select name="gender" defaultValue={editingMember?.gender || (language === "en" ? "Male" : "Masculino")} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all appearance-none cursor-pointer">
-                       <option value={language === "en" ? "Male" : "Masculino"}>{language === "en" ? "Male" : "Masculino"}</option>
-                       <option value={language === "en" ? "Female" : "Femenino"}>{language === "en" ? "Female" : "Femenino"}</option>
-                       <option value={language === "en" ? "Other" : "Otro"}>{language === "en" ? "Other" : "Otro"}</option>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Gender</label>
+                    <select name="gender" defaultValue={editingMember?.gender || "Male"} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all appearance-none cursor-pointer">
+                       <option value="Male">Male</option>
+                       <option value="Female">Female</option>
+                       <option value="Other">Other</option>
                     </select>
                  </div>
                </div>
                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{language === "en" ? "Email (optional)" : "Correo (opcional)"}</label>
+                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Email (optional)</label>
                   <input name="email" type="email" defaultValue={editingMember?.email ?? ""} placeholder="email@example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
                </div>
                <button type="submit" className="w-full bg-[#ff5a5f] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5a5f]/25 hover:bg-[#e0484d] transition-all text-xs uppercase tracking-widest mt-4">
-                  {editingMember ? (language === "en" ? "Save Changes" : "Guardar cambios") : (language === "en" ? "Add Member" : "Agregar miembro")}
+                  {editingMember ? ("Save Changes") : ("Add Member")}
                </button>
              </form>
           </div>
@@ -1671,7 +1734,7 @@ function ProfileContent() {
                     <Star size={36} fill="currentColor" />
                  </div>
                  <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">
-                    {language === "en" ? "Rate Your Experience" : "Califica tu experiencia"}
+                    {"Rate Your Experience"}
                  </h2>
                  <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
                     {selectedRes?.venueName}
@@ -1681,7 +1744,7 @@ function ProfileContent() {
               <div className="space-y-10">
                  {/* Venue Rating */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block text-center">{language === "en" ? "Common Venue Rating" : "Calificación General del Local"}</label>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block text-center">{"Common Venue Rating"}</label>
                     <div className="flex justify-center gap-3">
                        {[1,2,3,4,5].map((star) => (
                          <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5a5f]/10 text-[#ff5a5f] shadow-sm" : "bg-slate-50 text-slate-300"}`}>
@@ -1695,7 +1758,7 @@ function ProfileContent() {
 
                  {/* Individual Services */}
                  <div className="space-y-8">
-                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">{language === "en" ? "Individual Service Ratings" : "Calificaciones por Servicio"}</h4>
+                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">{"Individual Service Ratings"}</h4>
                    {selectedRes?.items.filter(i => i.status === 'completed' && !i.isReviewed).map((item) => (
                      <div key={item.id} className="p-6 bg-slate-50 rounded-3xl space-y-6">
                         <div>
@@ -1705,7 +1768,7 @@ function ProfileContent() {
 
                         <div className="space-y-6">
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Service Quality" : "Calidad del Servicio"}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Service Quality"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
@@ -1720,7 +1783,7 @@ function ProfileContent() {
                            </div>
 
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language === "en" ? "Staff Rating" : "Calificación del Personal"}</p>
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Staff Rating"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
@@ -1739,11 +1802,11 @@ function ProfileContent() {
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block text-center">{language === "en" ? "Review Comment (Common)" : "Comentario de la Reseña (Común)"}</label>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block text-center">Review comment (shared)</label>
                     <textarea 
                       value={reviewComment}
                       onChange={(e) => setReviewComment(e.target.value)}
-                      placeholder={language === "en" ? "Tell us more about your visit..." : "Cuéntanos más sobre tu visita..."}
+                      placeholder={"Tell us more about your visit..."}
                       className="w-full h-32 bg-slate-50 border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                     />
                  </div>
@@ -1768,11 +1831,11 @@ function ProfileContent() {
                        setIsReviewModalOpen(false);
                        setRefreshTrigger(prev => prev + 1);
                        toastSuccess(
-                         language === "en" ? "Review Submitted" : "Reseña enviada",
-                         language === "en" ? "Thank you for your feedback!" : "¡Gracias por tus comentarios!"
+                         "Review Submitted",
+                         "Thank you for your feedback!"
                        );
                      } catch (err) {
-                       toastError(language === "en" ? "Error" : "Error", err instanceof Error ? err.message : "");
+                       toastError("Error", err instanceof Error ? err.message : "");
                      } finally {
                        setIsSubmittingReview(false);
                      }
@@ -1781,7 +1844,7 @@ function ProfileContent() {
                    className="w-full bg-slate-900 text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 hover:bg-[#ff5a5f] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                  >
                     {isSubmittingReview ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} strokeWidth={3} />}
-                    {isSubmittingReview ? (language === "en" ? "Submitting..." : "Enviando...") : (language === "en" ? "Submit All Ratings" : "Enviar todas las calificaciones")}
+                    {isSubmittingReview ? ("Submitting...") : ("Submit All Ratings")}
                  </button>
               </div>
            </div>

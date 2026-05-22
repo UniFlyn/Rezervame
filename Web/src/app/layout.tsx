@@ -7,6 +7,7 @@ import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import { LoginModal } from "../components/LoginModal";
 import { AppToaster } from "../components/AppToaster";
+import { PageHeaderMetaProvider } from "../contexts/PageHeaderMetaContext";
 
 export const metadata: Metadata = {
   title: "Rezervame - Reserva citas de belleza al instante",
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <AuthProvider>
           <I18nProvider>
+            <PageHeaderMetaProvider>
             <div className="flex min-h-screen flex-col">
               <Header />
               <main className="min-h-0 w-full flex-1">
@@ -32,6 +34,7 @@ export default function RootLayout({
               <LoginModal />
               <AppToaster />
             </div>
+            </PageHeaderMetaProvider>
           </I18nProvider>
         </AuthProvider>
       </body>

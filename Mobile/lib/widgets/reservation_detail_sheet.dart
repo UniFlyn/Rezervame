@@ -49,7 +49,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   _PaymentView _paymentView = _PaymentView.none;
   String _payMethod = 'card';
 
-  bool get _isEn => Localizations.localeOf(context).languageCode != 'es';
+  bool get _isEn => true;
 
   @override
   void initState() {

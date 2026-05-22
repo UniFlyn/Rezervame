@@ -28,7 +28,7 @@ import { fetchPublicCategories, type PublicCategory } from "@/lib/venueSearch";
 import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { useAuth } from "@/components/AuthProvider";
 import { formatAvailabilityDisplay, parseAvailability } from "@/lib/staffAvailability";
-import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
+import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
 
 type VenueService = { id: string; name: string; description: string; time: string; price: number; image?: string | null; tag: string };
 type VenueTeam = {
@@ -89,13 +89,13 @@ function getNextSlotForService(serviceId: string, team: VenueTeam[], language: s
       const { mode, weekly, dates } = parseAvailability(member.availability);
       if (mode === 'weekly' && weekly.includes(dayOfWeek)) {
         return i === 0 
-          ? (language === 'en' ? 'Today' : 'Hoy') 
-          : d.toLocaleDateString(language === 'en' ? 'en-US' : 'es-PA', { weekday: 'short', day: 'numeric' });
+          ? ('Today') 
+          : d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
       }
       if (mode === 'dates' && dates.includes(dateStr)) {
         return i === 0 
-          ? (language === 'en' ? 'Today' : 'Hoy') 
-          : d.toLocaleDateString(language === 'en' ? 'en-US' : 'es-PA', { weekday: 'short', day: 'numeric' });
+          ? ('Today') 
+          : d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
       }
     }
   }
@@ -148,64 +148,41 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     }>
   >([]);
   const [browseCategories, setBrowseCategories] = useState<PublicCategory[]>([]);
-  const [activeTab, setActiveTab] = useState<"services" | "team" | "reviews" | "amenities">("services");
-  const [activeServiceFilter, setActiveServiceFilter] = useState<"all" | "bestsellers" | "promotions">("all");
+  const [activeTab, setActiveTab] = useState<"services" | "team" | "portfolio" | "reviews" | "amenities">("services");
+  const [activeServiceFilter, setActiveServiceFilter] = useState<"all" | "women" | "men" | "kids" | "promotions">("all");
+  const [showScrollBookBar, setShowScrollBookBar] = useState(false);
+  const [portfolioLightbox, setPortfolioLightbox] = useState<number | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [profileStaff, setProfileStaff] = useState<VenueTeam | null>(null);
-  const [crossVenuePendingServiceId, setCrossVenuePendingServiceId] = useState<string | null>(null);
   const [venueLoading, setVenueLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [bestsellerMap, setBestsellerMap] = useState<Record<string, number>>({});
   const [promotionServiceIds, setPromotionServiceIds] = useState<Set<string>>(new Set());
   const [promotionData, setPromotionData] = useState<Array<{ serviceId: string; discountPercent: number; label?: string | null }>>([]);
 
-  const cartBusinessId = useVenueBookingCartStore((s) => s.businessId);
-  const cartServiceIds = useVenueBookingCartStore((s) => s.serviceIds);
+  const { setMeta, clearMeta } = usePageHeaderMeta();
 
   useEffect(() => {
-    if (cartBusinessId === venueId) {
-      setSelectedServices([...cartServiceIds]);
-    } else {
-      setSelectedServices([]);
-    }
-  }, [venueId, cartBusinessId, cartServiceIds]);
+    const onScroll = () => setShowScrollBookBar(window.scrollY > 320);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const applyServiceAdd = (serviceId: string) => {
-    const storeApi = useVenueBookingCartStore.getState();
-    const { businessId: cartBiz, serviceIds: cartIds } = storeApi;
-    const onThisVenue = cartBiz === venueId;
-    const currentIds = onThisVenue ? cartIds : [];
-
-    if (cartIds.length > 0 && cartBiz !== null && cartBiz !== venueId) {
-      setCrossVenuePendingServiceId(serviceId);
-      return;
-    }
-    storeApi.setCart(venueId, [...currentIds, serviceId]);
-  };
-
-  const applyServiceRemove = (serviceId: string) => {
-    const storeApi = useVenueBookingCartStore.getState();
-    storeApi.removeService(venueId, serviceId);
-  };
-
-  const onServiceBookClick = (serviceId: string) => {
+  const openBookingForService = (serviceId: string) => {
     if (!isLoggedIn) {
-      setPendingAfterLogin(() => () => applyServiceAdd(serviceId));
+      setPendingAfterLogin(() => () => openBookingForService(serviceId));
       setIsLoginModalOpen(true);
-      toastInfo(t("venueLoginToAddTitle"), t("venueLoginToAddBody"));
+      toastInfo(t("venueLoginToBookTitle"), t("venueLoginToBookBody"));
       return;
     }
-    applyServiceAdd(serviceId);
+    setSelectedServices([serviceId]);
+    setProfileStaff(null);
+    setIsBookingModalOpen(true);
   };
 
-  const confirmCrossVenueReplace = () => {
-    if (!crossVenuePendingServiceId) return;
-    const next = [crossVenuePendingServiceId];
-    setSelectedServices(next);
-    useVenueBookingCartStore.getState().setCart(venueId, next);
-    setCrossVenuePendingServiceId(null);
-  };
+  const onServiceBookClick = openBookingForService;
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -337,17 +314,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         if (Array.isArray(b.amenities) && b.amenities.length > 0) {
           amenities = b.amenities.map((am) => ({
             key: am.key,
-            name: (
-              language === "en"
-                ? String(am.labelEn ?? am.labelEs ?? am.key).trim()
-                : String(am.labelEs ?? am.labelEn ?? am.key).trim()
-            ) || am.key,
-            desc:
-              String(
-                language === "en"
-                  ? am.descriptionEn ?? am.descriptionEs ?? ""
-                  : am.descriptionEs ?? am.descriptionEn ?? "",
-              ).trim() || "—",
+            name: String(am.labelEn ?? am.labelEs ?? am.key).trim() || am.key,
+            desc: String(am.descriptionEn ?? am.descriptionEs ?? "").trim() || "—",
           }));
         }
 
@@ -377,7 +345,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               ratingCount: 1,
               comments: r.comment && r.comment.trim() ? [r.comment.trim()] : [],
               reply: r.reply,
-              formattedDate: dateKey === "invalid" ? "" : d.toLocaleDateString(language === "en" ? "en-US" : "es-PA", {
+              formattedDate: dateKey === "invalid" ? "" : d.toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -530,32 +498,56 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   const VENUE_DATA = venueData;
   const heroSrc = VENUE_DATA.images[0] || PLACEHOLDER_IMAGE_DATA_URI;
+  const portfolioImages = VENUE_DATA.images.filter((u) => u && u.trim().length > 0);
+
+  useEffect(() => {
+    if (!VENUE_DATA.name || VENUE_DATA.name === "—") return;
+    setMeta({ title: VENUE_DATA.name, subtitle: VENUE_DATA.category });
+    return () => clearMeta();
+  }, [VENUE_DATA.name, VENUE_DATA.category, setMeta, clearMeta]);
 
   const venueTabs = useMemo(
     () =>
       [
         { id: "services" as const, label: t("venueServicios") },
         { id: "team" as const, label: t("venueEquipo") },
+        { id: "portfolio" as const, label: "Portfolio" },
         { id: "reviews" as const, label: t("venueReseñas") },
         { id: "amenities" as const, label: t("venueAmenidades") },
       ] as const,
     [t, language],
   );
 
-  const serviceFilters = useMemo(
-    () => {
-      const filters: Array<{ id: "all" | "bestsellers" | "promotions"; label: string }> = [
-        { id: "all", label: t("venueServiceFilterAll") },
-        { id: "bestsellers", label: t("venueServiceFilterBestsellers") },
-      ];
-      // Only show Promotions tab if there are active promotions
-      if (promotionServiceIds.size > 0) {
-        filters.push({ id: "promotions", label: t("venueServiceFilterPromotions") });
-      }
-      return filters;
-    },
-    [t, language, promotionServiceIds],
-  );
+  const matchesAudience = (tag: string, keys: string[]) => {
+    const t = (tag || "").toLowerCase();
+    return keys.some((k) => t.includes(k));
+  };
+
+  const serviceFilters = useMemo(() => {
+    const filters: Array<{ id: typeof activeServiceFilter; label: string }> = [
+      { id: "all", label: "All" },
+    ];
+    const services = VENUE_DATA.services;
+    if (services.some((s) => matchesAudience(s.tag, ["mujer", "woman", "women", "female", "femenin"]))) {
+      filters.push({ id: "women", label: "Women" });
+    }
+    if (services.some((s) => matchesAudience(s.tag, ["hombre", "man", "men", "male", "masculin", "barber"]))) {
+      filters.push({ id: "men", label: "Men" });
+    }
+    if (services.some((s) => matchesAudience(s.tag, ["niño", "nino", "kid", "child", "children"]))) {
+      filters.push({ id: "kids", label: "Children" });
+    }
+    if (promotionServiceIds.size > 0) {
+      filters.push({ id: "promotions", label: t("venueServiceFilterPromotions") });
+    }
+    return filters;
+  }, [VENUE_DATA.services, language, promotionServiceIds, t]);
+
+  const scrollToSection = (tab: typeof activeTab) => {
+    setActiveTab(tab);
+    const el = document.getElementById(`venue-section-${tab}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <div className="relative min-h-screen bg-white">
@@ -575,49 +567,21 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         </div>
       ) : null}
 
-      {/* VENUE NAME TOP BAR (SLIM) */}
-      <div className="bg-slate-50 border-b border-slate-200 px-12 py-3 flex items-center justify-between sticky top-[73px] z-40 backdrop-blur-md bg-white/80">
-          <div className="flex items-center gap-4">
-              <Link href="/search" className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                  <ChevronLeft size={20} className="text-slate-600" />
-              </Link>
-              <div>
-                  <h1 className="text-xl font-black text-slate-900 leading-none">{VENUE_DATA.name}</h1>
-                  <p className="text-[10px] font-bold text-[#ff5a5f] uppercase tracking-widest mt-1">{VENUE_DATA.category}</p>
-              </div>
-          </div>
-          <div className="flex items-center gap-4">
-              {selectedServices.length > 0 && (
-                  <div className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl animate-in fade-in zoom-in duration-300">
-                      <Check size={12} className="text-green-400" /> {selectedServices.length}{" "}
-                      {selectedServices.length === 1 ? t("venueServiceSingular") : t("venueServicePlural")}
-                  </div>
-              )}
-              <button 
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    setPendingAfterLogin(() => () => {
-                      setProfileStaff(null);
-                      setIsBookingModalOpen(true);
-                    });
-                    setIsLoginModalOpen(true);
-                    toastInfo(t("venueLoginToBookTitle"), t("venueLoginToBookBody"));
-                    return;
-                  }
-                  setProfileStaff(null);
-                  setIsBookingModalOpen(true);
-                }}
-                disabled={selectedServices.length === 0}
-                className={`flex items-center gap-2 px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg ${
-                    selectedServices.length > 0 
-                    ? 'bg-[#ff5a5f] text-white hover:bg-[#e0454a] shadow-[#ff5a5f]/20 cursor-pointer' 
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed grayscale'
-                }`}
-              >
-                  {t("venueBookNow")}
-              </button>
-          </div>
-      </div>
+      {showScrollBookBar ? (
+        <div className="fixed top-[56px] left-0 right-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 shadow-sm transition-all duration-300 sm:px-8">
+          <p className="truncate text-sm font-extrabold text-slate-900 pr-4">{VENUE_DATA.name}</p>
+          <button
+            type="button"
+            onClick={() => {
+              const first = VENUE_DATA.services[0];
+              if (first) openBookingForService(first.id);
+            }}
+            className="shrink-0 rounded-lg bg-[#ff5a5f] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#e0454a]"
+          >
+            {t("venueBookNow")}
+          </button>
+        </div>
+      ) : null}
 
       {/* HERO SECTION */}
       <section className="relative h-[550px] w-full overflow-hidden">
@@ -686,18 +650,46 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                   </div>
               </div>
 
-              <p className="text-slate-500 leading-relaxed font-medium mb-12 max-w-3xl border-l-[4px] border-slate-100 pl-8 py-2 italic">
+              <p className="text-slate-600 leading-relaxed font-normal mb-10 max-w-3xl">
                   {VENUE_DATA.description}
               </p>
 
+              {/* PORTFOLIO */}
+              {portfolioImages.length > 0 && (
+                <section className="mb-12">
+                  <div className="relative mb-3 overflow-hidden rounded-2xl">
+                    <img src={portfolioImages[0]} alt="" className="h-56 w-full object-cover md:h-72" />
+                    <button
+                      type="button"
+                      onClick={() => scrollToSection("portfolio")}
+                      className="absolute bottom-4 right-4 rounded-lg bg-white/95 px-4 py-2 text-xs font-bold text-slate-900 shadow-md hover:bg-white"
+                    >
+                      {"View all photos"}
+                    </button>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {portfolioImages.slice(1, 6).map((src, i) => (
+                      <button
+                        key={`${src}-${i}`}
+                        type="button"
+                        onClick={() => setPortfolioLightbox(i + 1)}
+                        className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-100"
+                      >
+                        <img src={src} alt="" className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* TABS */}
-              <div className="flex gap-4 mb-12 border-b border-slate-100 pb-4 sticky top-[100px] bg-white pt-4 z-30">
+              <div className="flex flex-wrap justify-center gap-2 mb-10 border-b border-slate-100 pb-4 sticky top-[64px] bg-white pt-3 z-30">
                   {venueTabs.map((tab) => (
                       <button
                         type="button"
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`px-10 py-3 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] transition-all duration-500 ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-2xl scale-105' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                        onClick={() => scrollToSection(tab.id)}
+                        className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                       >
                           {tab.label}
                       </button>
@@ -706,10 +698,10 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
               {/* TAB CONTENT: SERVICIOS */}
               {activeTab === "services" && (
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-black text-slate-900 mb-4">{t('ourServices')}</h2>
-                        <p className="text-slate-400 text-sm font-bold max-w-xl mx-auto uppercase tracking-tighter">{t("venueServicesBlurb")}</p>
+                <div id="venue-section-services" className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    <div className="text-center mb-10">
+                        <h2 className="text-2xl font-extrabold text-slate-900 mb-2">{t('ourServices')}</h2>
+                        <p className="text-slate-500 text-sm font-medium max-w-xl mx-auto">{t("venueServicesBlurb")}</p>
                     </div>
 
                     <div className="flex justify-center gap-4 mb-12">
@@ -725,18 +717,15 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6">
+                    <div className="mx-auto flex max-w-3xl flex-col gap-3">
                         {(() => {
                           let filtered = VENUE_DATA.services;
-                          if (activeServiceFilter === "bestsellers") {
-                            // Sort by booking count desc, if no bookings show all randomly
-                            const hasBestsellers = Object.keys(bestsellerMap).length > 0;
-                            if (hasBestsellers) {
-                              filtered = [...filtered].sort((a, b) => (bestsellerMap[b.id] || 0) - (bestsellerMap[a.id] || 0));
-                            } else {
-                              // Shuffle for random display
-                              filtered = [...filtered].sort(() => Math.random() - 0.5);
-                            }
+                          if (activeServiceFilter === "women") {
+                            filtered = filtered.filter((s) => matchesAudience(s.tag, ["mujer", "woman", "women", "female", "femenin"]));
+                          } else if (activeServiceFilter === "men") {
+                            filtered = filtered.filter((s) => matchesAudience(s.tag, ["hombre", "man", "men", "male", "masculin", "barber"]));
+                          } else if (activeServiceFilter === "kids") {
+                            filtered = filtered.filter((s) => matchesAudience(s.tag, ["niño", "nino", "kid", "child", "children"]));
                           } else if (activeServiceFilter === "promotions") {
                             filtered = filtered.filter(s => promotionServiceIds.has(s.id));
                           }
@@ -745,7 +734,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                           const promo = promotionData.find(p => p.serviceId === s.id);
                           const discountedPrice = promo ? s.price * (1 - promo.discountPercent / 100) : null;
                           return (
-                            <div key={s.id} className="group bg-white p-5 rounded-2xl border border-slate-100 hover:border-[#ff5a5f]/25 hover:shadow-lg transition-all duration-300 flex flex-col justify-between relative">
+                            <div key={s.id} className="group flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-white px-4 py-3 transition hover:border-[#ff5a5f]/40 relative">
                                 {/* Promo Badge */}
                                 {promo && (
                                   <div className="absolute -top-2 -right-2 bg-gradient-to-r from-[#ff5a5f] to-rose-500 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full shadow-lg shadow-[#ff5a5f]/30 z-10 animate-in zoom-in duration-300">
@@ -755,12 +744,11 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                 {/* Bestseller Badge */}
                                 {!promo && bestsellerMap[s.id] && bestsellerMap[s.id] > 0 && (
                                   <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full shadow-lg shadow-amber-500/30 z-10">
-                                    🔥 {language === "en" ? "Popular" : "Popular"}
+                                    🔥 Popular
                                   </div>
                                 )}
-                                <div className="flex gap-4">
-                                    {/* Circle Service Image */}
-                                    <div className="w-16 h-16 rounded-full shrink-0 overflow-hidden border-2 border-slate-100 group-hover:border-[#ff5a5f]/30 transition-colors shadow-sm">
+                                <div className="flex min-w-0 flex-1 items-center gap-4">
+                                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-slate-100 group-hover:border-[#ff5a5f]/30 transition-colors">
                                         {s.image ? (
                                             <img src={s.image} alt={s.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                         ) : (
@@ -769,59 +757,30 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="text-base font-black text-slate-900 mb-1 group-hover:text-[#ff5a5f] transition-colors tracking-wide truncate">{s.name}</h4>
-                                        <p className="text-slate-500 text-[11px] font-medium leading-snug mb-3 tracking-normal">{s.description}</p>
-                                        <div className="flex flex-col gap-1.5">
-                                          <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-wide">
-                                              <Clock size={13} className="text-slate-300 shrink-0" /> {s.time}
-                                          </div>
-                                          <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-wide">
-                                              <Clock size={13} className="text-[#ff5a5f] shrink-0" /> Next: {getNextSlotForService(s.id, VENUE_DATA.team, language)}
-                                          </div>
-                                        </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h4 className="truncate text-sm font-extrabold text-slate-900 group-hover:text-[#ff5a5f]">{s.name}</h4>
+                                        <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{s.description}</p>
+                                        <p className="mt-1 text-[10px] font-semibold text-slate-400">{s.time} · Next: {getNextSlotForService(s.id, VENUE_DATA.team, language)}</p>
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center mt-5 pt-4 border-t border-slate-100 gap-3">
-                                    <div className="flex items-baseline gap-2">
+                                <div className="flex shrink-0 flex-col items-end gap-2">
+                                    <div className="flex items-baseline gap-1.5">
                                       {discountedPrice !== null ? (
                                         <>
-                                          <span className="text-xl font-black text-[#ff5a5f]">${discountedPrice.toFixed(2)}</span>
-                                          <span className="text-sm font-bold text-slate-400 line-through">${s.price}</span>
+                                          <span className="text-base font-extrabold text-[#ff5a5f]">${discountedPrice.toFixed(2)}</span>
+                                          <span className="text-xs font-semibold text-slate-400 line-through">${s.price}</span>
                                         </>
                                       ) : (
-                                        <span className="text-xl font-black text-slate-900">${s.price}</span>
+                                        <span className="text-base font-extrabold text-slate-900">${s.price}</span>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        {selectedServices.filter(id => id === s.id).length > 0 ? (
-                                            <div className="flex items-center bg-slate-900 rounded-xl p-1 gap-1 shadow-lg shadow-slate-900/20 animate-in fade-in zoom-in duration-300">
-                                                <button 
-                                                  onClick={() => applyServiceRemove(s.id)}
-                                                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 text-white transition-colors text-lg font-black"
-                                                >
-                                                  -
-                                                </button>
-                                                <span className="text-[11px] font-black text-white w-5 text-center select-none">
-                                                  {selectedServices.filter(id => id === s.id).length}
-                                                </span>
-                                                <button 
-                                                  onClick={() => applyServiceAdd(s.id)}
-                                                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 text-white transition-colors text-lg font-black"
-                                                >
-                                                  +
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button 
-                                                type="button"
-                                                onClick={() => onServiceBookClick(s.id)}
-                                                className="px-5 py-2 rounded-xl border-2 border-[#ff5a5f] text-[#ff5a5f] font-black text-[10px] uppercase tracking-widest hover:bg-[#ff5a5f] hover:text-white transition-all duration-300"
-                                            >
-                                                {t("bookBtn")}
-                                            </button>
-                                        )}
-                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => onServiceBookClick(s.id)}
+                                      className="rounded-lg border-2 border-[#ff5a5f] px-4 py-2 text-xs font-bold text-[#ff5a5f] transition hover:bg-[#ff5a5f] hover:text-white"
+                                    >
+                                      Rezervame
+                                    </button>
                                 </div>
                             </div>
                           );
@@ -836,15 +795,36 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                 </div>
               )}
 
+              {/* TAB CONTENT: PORTFOLIO */}
+              {activeTab === "portfolio" && portfolioImages.length > 0 && (
+                <div id="venue-section-portfolio" className="animate-in fade-in duration-500">
+                  <h2 className="mb-6 text-center text-2xl font-extrabold text-slate-900">
+                    {"Portfolio"}
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                    {portfolioImages.map((src, i) => (
+                      <button
+                        key={`${src}-grid-${i}`}
+                        type="button"
+                        onClick={() => setPortfolioLightbox(i)}
+                        className="aspect-[4/3] overflow-hidden rounded-xl border border-slate-100"
+                      >
+                        <img src={src} alt="" className="h-full w-full object-cover transition hover:scale-105" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* TAB CONTENT: EQUIPO */}
               {activeTab === "team" && (
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-black text-slate-900 mb-4">{t("venueTeamSectionTitle")}</h2>
-                        <p className="text-slate-400 text-sm font-bold max-w-xl mx-auto uppercase tracking-tighter">{t("venueTeamIntro")}</p>
+                <div id="venue-section-team" className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                    <div className="text-center mb-10">
+                        <h2 className="text-2xl font-extrabold text-slate-900 mb-2">{t("venueTeamSectionTitle")}</h2>
+                        <p className="text-slate-500 text-sm font-medium max-w-xl mx-auto">{t("venueTeamIntro")}</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
                         {VENUE_DATA.team.map((member) => (
                             <div
                               key={member.id}
@@ -857,9 +837,9 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                   setProfileStaff(member);
                                 }
                               }}
-                              className="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:border-[#ff5a5f]/20 hover:shadow-lg transition-all duration-300 flex flex-col cursor-pointer text-left"
+                              className="group w-[280px] shrink-0 snap-start bg-white rounded-2xl border border-slate-100 overflow-hidden hover:border-[#ff5a5f]/20 hover:shadow-lg transition-all duration-300 flex flex-col cursor-pointer text-left"
                             >
-                                <div className="relative h-56 overflow-hidden">
+                                <div className="relative h-44 overflow-hidden rounded-t-2xl">
                                     <img 
                                       src={member.img} 
                                       className="w-full h-full object-cover group-hover:scale-105 transition duration-700" 
@@ -871,14 +851,14 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                     </div>
                                 </div>
                                 <div className="p-5 text-left flex flex-col flex-1">
-                                    <h4 className="text-base font-black text-slate-900 mb-1 tracking-wide group-hover:text-[#ff5a5f] transition-colors">{member.name}</h4>
-                                    <p className="text-[#ff5a5f] text-[9px] font-black uppercase tracking-widest mb-3 line-clamp-2">{member.role}</p>
-                                    <p className="text-slate-500 text-[11px] leading-snug mb-4 flex-1 tracking-normal">
+                                    <h4 className="text-lg font-extrabold text-slate-900 mb-1 group-hover:text-[#ff5a5f] transition-colors">{member.name}</h4>
+                                    <p className="text-[#ff5a5f] text-xs font-bold uppercase tracking-wide mb-2 line-clamp-2">{member.role}</p>
+                                    <p className="text-slate-600 text-sm leading-snug mb-4 flex-1 line-clamp-3">
                                       {member.bio?.trim() && member.bio.trim() !== "—"
                                         ? member.bio
                                         : t("venueStaffProfileNoBio")}
                                     </p>
-                                    <div className="flex gap-4 text-[10px] font-bold text-slate-600 border-t border-slate-100 pt-3">
+                                    <div className="flex gap-4 text-xs font-semibold text-slate-600 border-t border-slate-100 pt-3">
                                         <span>{member.years} {t("venueStaffExp")}</span>
                                         <span className="text-slate-300">|</span>
                                         <span>{member.clients} {t("venueStaffClientsLabel")}</span>
@@ -891,7 +871,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                                         e.stopPropagation();
                                         setProfileStaff(member);
                                       }}
-                                      className="mt-4 w-full py-2.5 rounded-xl border-2 border-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-900 hover:bg-slate-900 hover:text-white transition-colors"
+                                      className="mt-4 w-full py-3 rounded-xl border-2 border-slate-900 text-xs font-bold uppercase tracking-wide text-slate-900 hover:bg-slate-900 hover:text-white transition-colors"
                                     >
                                       {t("venueViewProfile")}
                                     </button>
@@ -1003,28 +983,30 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               )}
           </main>
 
-          {/* SIDEBAR */}
-          <aside className="w-full lg:w-[450px] space-y-12">
-               {/* MINI MAP */}
-               <div className="rounded-[40px] overflow-hidden border-2 border-slate-100 shadow-2xl relative group min-h-[280px] flex flex-col items-center justify-center bg-slate-50 p-8 text-center">
-                    <MapPin className="text-[#ff5a5f] mb-4" size={40} />
-                    <p className="text-sm font-semibold text-slate-600 mb-4">{VENUE_DATA.address || t("venueLocationMissing")}</p>
+          {/* SIDEBAR — unified map + info */}
+          <aside className="w-full lg:w-[400px] lg:sticky lg:top-24 lg:self-start">
+               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
+               <div className="flex min-h-[200px] flex-col items-center justify-center bg-slate-50 p-6 text-center border-b border-slate-100">
+                    <MapPin className="text-[#ff5a5f] mb-3" size={32} />
+                    <p className="text-sm font-bold text-slate-800">{VENUE_DATA.name}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-500">{VENUE_DATA.address || t("venueLocationMissing")}</p>
                     {VENUE_DATA.address ? (
                       <a
                         href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(VENUE_DATA.address)}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-xl bg-slate-900 px-6 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-[#ff5a5f] transition-colors"
+                        className="mt-4 rounded-lg bg-[#ff5a5f] px-5 py-2 text-xs font-bold text-white hover:bg-[#e0454a]"
                       >
                         {t("venueMapOpen")}
                       </a>
                     ) : null}
                </div>
 
-               {/* INFO SECTION */}
-               <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                   <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide mb-5 flex items-center gap-2">
-                       <Info size={18} className="text-[#ff5a5f]" />
+               <div className="p-6">
+                   <h3 className="text-sm font-extrabold text-slate-900 mb-1">{"About us"}</h3>
+                   <p className="text-xs text-slate-600 leading-relaxed mb-5 line-clamp-4">{VENUE_DATA.description || "—"}</p>
+                   <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3 flex items-center gap-2">
+                       <Info size={16} className="text-[#ff5a5f]" />
                        {t("venueInfoHeading")}
                    </h3>
                    
@@ -1065,30 +1047,31 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                        </div>
                    </div>
 
-                   <div className="mt-8 flex justify-center gap-3">
+                   <div className="mt-6 flex justify-center gap-2 border-t border-slate-100 pt-5">
                        {VENUE_DATA.socials.instagram ? (
-                       <a href={VENUE_DATA.socials.instagram.startsWith("http") ? VENUE_DATA.socials.instagram : `https://instagram.com/${VENUE_DATA.socials.instagram.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#f09433] via-[#e6683c] via-[#dc2743] via-[#cc2366] to-[#bc1888] flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all"><Instagram size={24} /></a>
+                       <a href={VENUE_DATA.socials.instagram.startsWith("http") ? VENUE_DATA.socials.instagram : `https://instagram.com/${VENUE_DATA.socials.instagram.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"><Instagram size={20} /></a>
                        ) : null}
                        {VENUE_DATA.socials.tiktok ? (
-                       <a href={VENUE_DATA.socials.tiktok.startsWith("http") ? VENUE_DATA.socials.tiktok : `https://www.tiktok.com/@${VENUE_DATA.socials.tiktok.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-2xl bg-[#000000] flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all font-black text-xl italic uppercase">T</a>
+                       <a href={VENUE_DATA.socials.tiktok.startsWith("http") ? VENUE_DATA.socials.tiktok : `https://www.tiktok.com/@${VENUE_DATA.socials.tiktok.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] font-bold hover:bg-[#ff5a5f] hover:text-white transition-all">T</a>
                        ) : null}
                        {VENUE_DATA.socials.youtube ? (
-                       <a href={VENUE_DATA.socials.youtube.startsWith("http") ? VENUE_DATA.socials.youtube : `https://youtube.com/${VENUE_DATA.socials.youtube.replace(/^\//, "")}`} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-2xl bg-[#ff0000] flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all"><Youtube size={24} /></a>
+                       <a href={VENUE_DATA.socials.youtube.startsWith("http") ? VENUE_DATA.socials.youtube : `https://youtube.com/${VENUE_DATA.socials.youtube.replace(/^\//, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"><Youtube size={20} /></a>
                        ) : null}
                        {VENUE_DATA.socials.x ? (
-                       <a href={VENUE_DATA.socials.x.startsWith("http") ? VENUE_DATA.socials.x : `https://x.com/${VENUE_DATA.socials.x.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-2xl bg-[#0f1419] flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all"><Twitter size={24} /></a>
+                       <a href={VENUE_DATA.socials.x.startsWith("http") ? VENUE_DATA.socials.x : `https://x.com/${VENUE_DATA.socials.x.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"><Twitter size={20} /></a>
                        ) : null}
                    </div>
+               </div>
                </div>
           </aside>
       </div>
 
       {/* BOTTOM CATEGORY EXPLORATION */}
-      <section className="bg-slate-50/50 py-24 border-t border-slate-100">
+      <section className="border-t border-slate-100 bg-slate-50/50 py-12">
            <div className="max-w-[1920px] mx-auto px-6 lg:px-14">
-                <div className="text-center mb-20 animate-in fade-in duration-1000">
-                    <h2 className="text-6xl font-black text-slate-900 tracking-tight mb-6">{t("venuePickCategoryTitle")}</h2>
-                    <p className="text-slate-400 text-xl font-bold uppercase tracking-widest">{t("venuePickCategorySub")}</p>
+                <div className="text-center mb-10">
+                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">{t("venuePickCategoryTitle")}</h2>
+                    <p className="text-slate-500 text-sm font-medium">{t("venuePickCategorySub")}</p>
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
@@ -1096,7 +1079,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                       <p className="col-span-full text-center text-sm text-slate-500 py-8">{t("venueCategoriesNone")}</p>
                     ) : (
                     browseCategories.map((cat) => {
-                      const title = language === "en" ? cat.labelEn : cat.labelEs;
+                      const title = cat.labelEn;
                       const img = (cat.imageUrl || "").trim();
                       return (
                         <button
@@ -1127,7 +1110,6 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         onBookingSuccess={() => {
-          useVenueBookingCartStore.getState().clear();
           setSelectedServices([]);
         }}
         selectedServiceIds={selectedServices}
@@ -1261,37 +1243,30 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         </div>
       ) : null}
 
-      {crossVenuePendingServiceId ? (
+      {portfolioLightbox !== null && portfolioImages[portfolioLightbox] ? (
         <div
-          className="fixed inset-0 z-[98] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md animate-in fade-in duration-200"
-          role="alertdialog"
-          aria-labelledby="cross-venue-title"
-          aria-describedby="cross-venue-desc"
+          className="fixed inset-0 z-[96] flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 id="cross-venue-title" className="text-xl font-black text-slate-900">
-              {t("venueCrossBusinessTitle")}
-            </h3>
-            <p id="cross-venue-desc" className="mt-4 text-sm font-semibold leading-relaxed text-slate-600">
-              {t("venueCrossBusinessBody")}
-            </p>
-            <div className="mt-8 flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => confirmCrossVenueReplace()}
-                className="w-full rounded-2xl bg-[#ff5a5f] py-4 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-[#ff5a5f]/25"
-              >
-                {t("venueCrossBusinessReplace")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setCrossVenuePendingServiceId(null)}
-                className="w-full rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900"
-              >
-                {t("venueCrossBusinessCancel")}
-              </button>
-            </div>
-          </div>
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label={"Close"}
+            onClick={() => setPortfolioLightbox(null)}
+          />
+          <button
+            type="button"
+            onClick={() => setPortfolioLightbox(null)}
+            className="absolute right-4 top-4 z-10 rounded-full bg-white/90 p-2 text-slate-900"
+          >
+            <X size={22} />
+          </button>
+          <img
+            src={portfolioImages[portfolioLightbox]}
+            alt=""
+            className="relative z-10 max-h-[85vh] max-w-full rounded-xl object-contain"
+          />
         </div>
       ) : null}
     </div>

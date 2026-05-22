@@ -63,149 +63,80 @@ export default function BusinessJoinPage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("basic");
 
-  const tx = language === "es"
-    ? {
-        successTitle: "¡Solicitud Enviada!",
-        successDesc:
-          "Gracias por unirte a REZERVAME. Nuestro equipo revisará tu solicitud y se pondrá en contacto contigo en las próximas 24-48 horas para activar tu cuenta de negocio.",
-        nextSteps: "PRÓXIMOS PASOS",
-        backHome: "Volver al inicio",
-        heroTitle: "Haz crecer tu negocio con",
-        heroSub: "Únete a la plataforma líder de reservas y gestiona tus clientes de forma profesional.",
-        supportTag: "Soporte 24/7",
-        supportDesc: "Estamos contigo en cada paso del registro.",
-        alreadyHave: "Already have an account?",
-        login: "Login",
-        step1Title: "Identificación",
-        step1Sub: "Cuéntanos sobre tu negocio.",
-        businessName: "Nombre Comercial",
-        businessNamePh: "Ej: REZERVAME Beauty",
-        taxIdLabel: "Tax ID",
-        taxIdPh: "Ej: RUC / NIT / EIN",
-        mainCategory: "Categoría Principal",
-        step2Title: "Contacto",
-        step2Sub: "¿Cómo podemos comunicarnos contigo?",
-        ownerLabel: "Nombre del Dueño / Gerente",
-        ownerPh: "Ej: Richard Lucas",
-        phoneLabel: "Teléfono de Negocio",
-        phonePh: "+507 0000-0000",
-        emailLabel: "Correo Electrónico",
-        emailPh: "hola@tunegocio.com",
-        step3Title: "Ubicación",
-        step3Sub: "¿Dónde está ubicado tu negocio?",
-        addressLabel: "Dirección Física",
-        addressPh: "Calle, Edificio, Local...",
-        locateMap: "Ubicar en el mapa",
-        locating: "Ubicando...",
-        step4Title: "Tus Servicios",
-        step4Sub: "Agrega tus servicios principales.",
-        createService: "Crear Nuevo Servicio",
-        sampleService: "Corte Clásico",
-        serviceNameLabel: "Nombre del servicio",
-        serviceDurationLabel: "Duración (min)",
-        servicePriceLabel: "Precio",
-        serviceImageLabel: "Imagen",
-        step5Title: "Revisión Final",
-        step5Sub: "Verifica que todo esté correcto.",
-        bizType: "Negocio de Estética",
-        ownerReview: "Dueño / Gerente",
-        contactReview: "Contacto Directo",
-        addressReview: "Dirección del Local",
-        termsPrefix: "Acepto los",
-        terms: "Términos y Condiciones",
-        and: "y la",
-        privacy: "Política de Privacidad",
-        previous: "Anterior",
-        continue: "Continuar",
-        submit: "¡UNIRME COMPLETAMENTE!",
-        valStep1: "Completa el nombre del negocio, categorías y los 3 documentos requeridos.",
-        docsLabel: "Documentos Legales",
-        idDoc: "Copia de identificación",
-        licenseDoc: "Copia de licencia",
-        insuranceDoc: "Copia de seguro",
-        uploadFile: "Subir imagen",
-        valStep2: "Completa dueño, teléfono y correo electrónico válido.",
-        passwordLabel: "Contraseña",
-        confirmPasswordLabel: "Confirmar Contraseña",
-        valStep2Password: "Las contraseñas deben coincidir y tener al menos 6 caracteres.",
-        valStep3: "Completa la dirección del negocio.",
-        valStep4: "Agrega al menos un servicio válido.",
-        valStep5: "Debes aceptar términos y privacidad para continuar.",
-      }
-    : {
-        successTitle: "Request Submitted!",
-        successDesc:
-          "Thanks for joining REZERVAME. Our team will review your request and contact you in the next 24-48 hours to activate your business account.",
-        nextSteps: "NEXT STEPS",
-        backHome: "Back to home",
-        heroTitle: "Grow your business with",
-        heroSub: "Join the leading booking platform and manage your clients professionally.",
-        supportTag: "24/7 SUPPORT",
-        supportDesc: "We're with you at every registration step.",
-        alreadyHave: "Already have an account?",
-        login: "Login",
-        step1Title: "Identification",
-        step1Sub: "Tell us about your business.",
-        businessName: "Business Name",
-        businessNamePh: "e.g. REZERVAME Beauty",
-        taxIdLabel: "Tax ID",
-        taxIdPh: "e.g. RUC / NIT / EIN",
-        mainCategory: "Main Category",
-        step2Title: "Contact",
-        step2Sub: "How can we reach you?",
-        ownerLabel: "Owner / Manager Name",
-        ownerPh: "e.g. Richard Lucas",
-        phoneLabel: "Business Phone",
-        phonePh: "+507 0000-0000",
-        emailLabel: "Email Address",
-        emailPh: "hello@yourbusiness.com",
-        step3Title: "Location",
-        step3Sub: "Where is your business located?",
-        addressLabel: "Business Address",
-        addressPh: "Street, building, unit...",
-        locateMap: "Pin on map",
-        locating: "Locating...",
-        step4Title: "Your Services",
-        step4Sub: "Add your core services.",
-        createService: "Create New Service",
-        sampleService: "Classic Haircut",
-        serviceNameLabel: "Service name",
-        serviceDurationLabel: "Duration (min)",
-        servicePriceLabel: "Price",
-        serviceImageLabel: "Image",
-        step5Title: "Final Review",
-        step5Sub: "Confirm everything is correct.",
-        bizType: "Beauty business",
-        ownerReview: "Owner / Manager",
-        contactReview: "Direct Contact",
-        addressReview: "Business Address",
-        termsPrefix: "I accept REZERVAME",
-        terms: "Terms and Conditions",
-        and: "and",
-        privacy: "Privacy Policy",
-        previous: "Previous",
-        continue: "Continue",
-        submit: "COMPLETE REGISTRATION!",
-        valStep1: "Fill business name, categories, and all 3 required documents.",
-        docsLabel: "Legal Documents",
-        idDoc: "ID copy",
-        licenseDoc: "License copy",
-        insuranceDoc: "Insurance copy",
-        uploadFile: "Upload image",
-        valStep2: "Fill owner, phone, and valid email.",
-        passwordLabel: "Password",
-        confirmPasswordLabel: "Confirm Password",
-        valStep2Password: "Passwords must match and be at least 6 characters.",
-        valStep3: "Fill business address.",
-        valStep4: "Add at least one valid service.",
-        valStep5: "Accept terms and privacy to continue.",
-      };
+  const tx = {
+    successTitle: "Request Submitted!",
+    successDesc:
+      "Thanks for joining REZERVAME. Our team will review your request and contact you in the next 24-48 hours to activate your business account.",
+    nextSteps: "NEXT STEPS",
+    backHome: "Back to home",
+    heroTitle: "Grow your business with",
+    heroSub: "Join the leading booking platform and manage your clients professionally.",
+    supportTag: "24/7 SUPPORT",
+    supportDesc: "We're with you at every registration step.",
+    alreadyHave: "Already have an account?",
+    login: "Login",
+    step1Title: "Identification",
+    step1Sub: "Tell us about your business.",
+    businessName: "Business Name",
+    businessNamePh: "e.g. REZERVAME Beauty",
+    taxIdLabel: "Tax ID",
+    taxIdPh: "e.g. RUC / NIT / EIN",
+    mainCategory: "Main Category",
+    step2Title: "Contact",
+    step2Sub: "How can we reach you?",
+    ownerLabel: "Owner / Manager Name",
+    ownerPh: "e.g. Richard Lucas",
+    phoneLabel: "Business Phone",
+    phonePh: "+507 0000-0000",
+    emailLabel: "Email Address",
+    emailPh: "hello@yourbusiness.com",
+    step3Title: "Location",
+    step3Sub: "Where is your business located?",
+    addressLabel: "Business Address",
+    addressPh: "Street, building, unit...",
+    locateMap: "Pin on map",
+    locating: "Locating...",
+    step4Title: "Your Services",
+    step4Sub: "Add your core services.",
+    createService: "Create New Service",
+    sampleService: "Classic Haircut",
+    serviceNameLabel: "Service name",
+    serviceDurationLabel: "Duration (min)",
+    servicePriceLabel: "Price",
+    serviceImageLabel: "Image",
+    step5Title: "Final Review",
+    step5Sub: "Confirm everything is correct.",
+    bizType: "Beauty business",
+    ownerReview: "Owner / Manager",
+    contactReview: "Direct Contact",
+    addressReview: "Business Address",
+    termsPrefix: "I accept REZERVAME",
+    terms: "Terms and Conditions",
+    and: "and",
+    privacy: "Privacy Policy",
+    previous: "Previous",
+    continue: "Continue",
+    submit: "COMPLETE REGISTRATION!",
+    valStep1: "Fill business name, categories, and all 3 required documents.",
+    docsLabel: "Legal Documents",
+    idDoc: "ID copy",
+    licenseDoc: "License copy",
+    insuranceDoc: "Insurance copy",
+    uploadFile: "Upload image",
+    valStep2: "Fill owner, phone, and valid email.",
+    passwordLabel: "Password",
+    confirmPasswordLabel: "Confirm Password",
+    valStep2Password: "Passwords must match and be at least 6 characters.",
+    valStep3: "Fill business address.",
+    valStep4: "Add at least one valid service.",
+    valStep5: "Accept terms and privacy to continue.",
+  } as const;
 
   const categoryOptions: CategoryOption[] = useMemo(
     () =>
       availableCategories.map((c) => ({
         key: c.key,
-        label: language === "es" ? c.labelEs : c.labelEn,
+        label: c.labelEn,
         imageUrl: c.imageUrl || "",
       })),
     [availableCategories, language],
@@ -536,11 +467,11 @@ export default function BusinessJoinPage() {
                <div className="bg-white rounded-[40px] p-8 lg:p-10 border border-slate-200 shadow-xl shadow-slate-200/40 relative">
                   <div className="space-y-4">
                      {[
-                       { step: 1, title: language === "es" ? "Identificación" : "Identification", desc: language === "es" ? "Nombre y categoría" : "Name and category" },
-                       { step: 2, title: language === "es" ? "Contacto" : "Contact", desc: language === "es" ? "Dueño y comunicación" : "Owner and communication" },
-                       { step: 3, title: language === "es" ? "Ubicación" : "Location", desc: language === "es" ? "Dirección de tu local" : "Business address" },
-                       { step: 4, title: language === "es" ? "Servicios" : "Services", desc: language === "es" ? "Tus especialidades" : "Your specialties" },
-                       { step: 5, title: language === "es" ? "Finalizar" : "Finalize", desc: language === "es" ? "Revisión y envío" : "Review and submit" }
+                       { step: 1, title: "Identification", desc: "Name and category" },
+                       { step: 2, title: "Contact", desc: "Owner and communication" },
+                       { step: 3, title: "Location", desc: "Business address" },
+                       { step: 4, title: "Services", desc: "Your specialties" },
+                       { step: 5, title: "Finalize", desc: "Review and submit" }
                      ].map((s) => (
                        <div key={s.step} className={`flex items-center gap-5 p-4 rounded-[24px] transition-all duration-500 ${step === s.step ? 'bg-[#ff5a5f] text-white shadow-xl shadow-[#ff5a5f]/20 scale-[1.02]' : step > s.step ? 'bg-green-50 border border-green-100' : 'opacity-40'}`}>
                           <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center font-black text-sm shrink-0 shadow-sm ${step === s.step ? 'bg-white text-[#ff5a5f]' : step > s.step ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
@@ -763,10 +694,10 @@ export default function BusinessJoinPage() {
                                   </div>
                                   <div>
                                      <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 italic">
-                                        {language === "es" ? "Selecciona tu Plan de Suscripción" : "Select Your Subscription Plan"}
+                                        {"Select Your Subscription Plan"}
                                      </h3>
                                      <p className="text-xs font-bold text-slate-400">
-                                        {language === "es" ? "Empieza gratis o elige funciones avanzadas" : "Start free or choose advanced capabilities"}
+                                        {"Start free or choose advanced capabilities"}
                                      </p>
                                   </div>
                                </div>
@@ -804,7 +735,7 @@ export default function BusinessJoinPage() {
                                                     ${p.price.toFixed(2)}
                                                  </span>
                                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    / {p.billingCycle === "yearly" ? (language === "es" ? "año" : "year") : (language === "es" ? "mes" : "month")}
+                                                    / {p.billingCycle === "yearly" ? ("year") : ("month")}
                                                  </span>
                                               </div>
 
@@ -922,7 +853,7 @@ export default function BusinessJoinPage() {
                                     </div>
                                     <div>
                                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">
-                                        {language === "es" ? "Categoría" : "Category"}
+                                        {"Category"}
                                       </p>
                                       <select
                                         value={svc.category}
@@ -1043,7 +974,7 @@ export default function BusinessJoinPage() {
                                </div>
                                <div>
                                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-                                     {language === "es" ? "Plan de Suscripción" : "Subscription Plan"}
+                                     {"Subscription Plan"}
                                   </p>
                                   <p className="text-lg font-black text-[#ff5a5f] uppercase tracking-wide">
                                      {plans.find((p) => p.id === selectedPlanId)?.name || "Basic"}

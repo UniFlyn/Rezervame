@@ -894,9 +894,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
     final lang = context.locale.languageCode;
     final tiles = _amenityRows.isNotEmpty
         ? _amenityRows.map((a) {
-            final label = lang == 'es'
-                ? ('${a['labelEs'] ?? a['labelEn'] ?? a['key'] ?? ''}'.trim())
-                : ('${a['labelEn'] ?? a['labelEs'] ?? a['key'] ?? ''}'.trim());
+            final label = ('${a['labelEn'] ?? a['labelEs'] ?? a['key'] ?? ''}'.trim());
             return {'key': '${a['key']}', 'label': label};
           }).toList()
         : [

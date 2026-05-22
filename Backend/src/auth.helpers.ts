@@ -1,5 +1,6 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Role, User } from '@prisma/client';
+import { userIdFromLegacyToken, verifySessionToken } from './auth/session.util';
 import { PrismaService } from './prisma.service';
 
 export function extractBearerToken(authorization?: string): string | null {
@@ -8,17 +9,21 @@ export function extractBearerToken(authorization?: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-export function userIdFromSessionToken(token: string): string | null {
-  if (!token.startsWith('token-')) return null;
-  return token.slice('token-'.length);
-}
-
 export async function getUserFromAuth(prisma: PrismaService, authorization?: string): Promise<User | null> {
   const token = extractBearerToken(authorization);
   if (!token) return null;
-  const id = userIdFromSessionToken(token);
-  if (!id) return null;
-  return prisma.user.findUnique({ where: { id } });
+
+  const jwtPayload = verifySessionToken(token);
+  if (jwtPayload?.sub) {
+    return prisma.user.findUnique({ where: { id: jwtPayload.sub } });
+  }
+
+  const legacyId = userIdFromLegacyToken(token);
+  if (legacyId) {
+    return prisma.user.findUnique({ where: { id: legacyId } });
+  }
+
+  return null;
 }
 
 export async function requireUser(

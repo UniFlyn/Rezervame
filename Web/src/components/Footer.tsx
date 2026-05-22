@@ -14,14 +14,14 @@ export const Footer = () => {
   if (pathname.startsWith('/business')) return null;
 
   return (
-    <footer className="bg-[#ff5a5f] text-white pt-16 pb-12 px-10">
-      <div className="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-12 gap-10 border-b border-white/20 pb-16 mb-8">
+    <footer className="bg-[#ff5a5f] px-6 py-10 text-white sm:px-10">
+      <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 border-b border-white/20 pb-8 mb-6 md:grid-cols-12">
         
         <div className="md:col-span-4 pr-6">
-           <div className="flex items-center space-x-2 mb-5">
+           <div className="mb-3 flex items-center space-x-2">
              <img src="/logo.png" alt="rezervame text logo" className="h-8 object-contain brightness-0 invert" />
            </div>
-           <p className="text-sm font-medium opacity-95 leading-relaxed max-w-sm mb-6 pr-4">
+           <p className="mb-4 max-w-sm pr-4 text-sm font-medium leading-relaxed opacity-95">
              {t('footerAbout')}
            </p>
            <div className="flex space-x-3">
@@ -56,8 +56,8 @@ export const Footer = () => {
         </div>
         
         <div className="md:col-span-2">
-          <h4 className="font-bold text-[15px] mb-6 tracking-wide">{t("footerForClients")}</h4>
-          <ul className="space-y-4 text-[13px] font-bold opacity-90">
+          <h4 className="mb-4 text-[15px] font-bold tracking-wide">{t("footerForClients")}</h4>
+          <ul className="space-y-2.5 text-[13px] font-bold opacity-90">
              <li><Link href="/download" className={footerLinkClass}>{t("footerDownload")}</Link></li>
              <li><Link href="/how-it-works" className={footerLinkClass}>{t("footerHow")}</Link></li>
              <li><Link href="/customer-service" className={footerLinkClass}>{t("footerSupport")}</Link></li>
@@ -66,8 +66,8 @@ export const Footer = () => {
         </div>
         
         <div className="md:col-span-3">
-          <h4 className="font-bold text-[15px] mb-6 tracking-wide">{t('footerForBusiness')}</h4>
-          <ul className="space-y-4 text-[13px] font-bold opacity-90">
+          <h4 className="mb-4 text-[15px] font-bold tracking-wide">{t('footerForBusiness')}</h4>
+          <ul className="space-y-2.5 text-[13px] font-bold opacity-90">
              <li><Link href="/business/join" className={footerLinkClass}>{t('footerJoin')}</Link></li>
              <li><Link href="/business/login" className={footerLinkClass}>{t('footerApp')}</Link></li>
              <li><Link href="/pricing" className={footerLinkClass}>{t('footerPrices')}</Link></li>
@@ -76,8 +76,8 @@ export const Footer = () => {
         </div>
         
         <div className="md:col-span-3">
-          <h4 className="font-bold text-[15px] mb-6 tracking-wide text-white/90">{t("footerLegal")}</h4>
-          <ul className="space-y-4 text-[13px] font-bold opacity-90">
+          <h4 className="mb-4 text-[15px] font-bold tracking-wide text-white/90">{t("footerLegal")}</h4>
+          <ul className="space-y-2.5 text-[13px] font-bold opacity-90">
              <li><Link href="/about" className={footerLinkClass}>{t("footerAboutUs")}</Link></li>
              <li><Link href="/jobs" className={footerLinkClass}>{t("footerJobs")}</Link></li>
              <li><Link href="/privacy" className={footerLinkClass}>{t("footerPrivacy")}</Link></li>

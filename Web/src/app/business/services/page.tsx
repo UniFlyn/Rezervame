@@ -41,7 +41,7 @@ async function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 function labelForCategory(lang: string, c: PublicCategory): string {
-  return lang === 'es' ? c.labelEs : c.labelEn;
+  return c.labelEn || c.labelEs || c.key;
 }
 
 export default function ServicesPage() {
