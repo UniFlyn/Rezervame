@@ -1,13 +1,18 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../data/api_repository.dart';
-// import '../data/venue_catalog.dart';
+import '../data/auth_session.dart';
 import '../models/venue_listing.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/category_chips.dart';
 import '../utils/image_url.dart';
 import '../widgets/chained_network_image.dart';
+import '../widgets/list_pagination_bar.dart';
+import 'login_screen.dart';
 import 'service_detail_screen.dart';
 
 /// Search results: bar with in-field filter, chips, recommendation hero, 2-col grid.
@@ -39,6 +44,7 @@ class SearchResultsScreen extends StatefulWidget {
 }
 
 class _SearchResultsScreenState extends State<SearchResultsScreen> {
+  final ApiRepository _api = ApiRepository();
   late final TextEditingController _searchController;
   int _selectedChipIndex = 0;
 
@@ -47,15 +53,26 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   double? _appliedMinRating;
   String _appliedLocation = '';
   int _appliedSheetCategoryIndex = 0;
+  String _sortBy = 'ratingHighLow';
+  bool _showMap = false;
+  final Set<String> _favoriteBusinessIds = {};
 
   List<Map<String, dynamic>> _sourceResults = [];
   List<Map<String, dynamic>> _filteredResults = [];
   bool _catalogLoading = true;
-  bool _loadingMore = false;
   int _currentPage = 1;
   int _totalPages = 1;
+  int _total = 0;
 
-  static const List<String?> _chipCategoryKeys = [null, 'hairService', 'beautyService', 'spaService', 'nailCare'];
+  List<CategoryChipOption> _categoryChips = [
+    CategoryChipOption(key: null, label: 'All Service'),
+  ];
+  Map<String, String> _categoryPlaceholders = {};
+
+  String? get _activeCategoryKey {
+    if (_selectedChipIndex < 0 || _selectedChipIndex >= _categoryChips.length) return null;
+    return _categoryChips[_selectedChipIndex].key;
+  }
 
   @override
   void initState() {
@@ -70,33 +87,84 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       initial = widget.category ?? '';
     }
     _searchController = TextEditingController(text: initial);
-    if (widget.categoryKey != null && widget.categoryKey!.trim().isNotEmpty) {
-      _syncChipFromCategoryKey();
-    } else {
-      _syncChipFromCategoryParam();
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _bootstrapCatalog();
+      _loadFavorites();
+      _loadCategories().then((_) {
+        if (widget.categoryKey != null && widget.categoryKey!.trim().isNotEmpty) {
+          _syncChipFromCategoryKey();
+        } else {
+          _syncChipFromCategoryParam();
+        }
+        _bootstrapCatalog();
+      });
     });
   }
 
-  Future<void> _bootstrapCatalog({bool refresh = true}) async {
-    if (refresh) {
-      setState(() {
-        _catalogLoading = true;
-        _currentPage = 1;
-        _filteredResults = [];
-        _sourceResults = [];
-      });
+  Future<void> _loadCategories() async {
+    final rows = await _api.fetchPublicCategories();
+    if (!mounted) return;
+    final isEn = context.locale.languageCode == 'en';
+    setState(() {
+      _categoryChips = buildCategoryChipOptions(
+        rows,
+        isEnglish: isEn,
+        allLabel: 'searchChipAll'.tr(),
+      );
+      _categoryPlaceholders = categoryPlaceholderUrls(rows);
+      _selectedChipIndex = _selectedChipIndex.clamp(0, _categoryChips.length - 1);
+    });
+  }
+
+  Future<void> _loadFavorites() async {
+    final token = await AuthSession.getToken();
+    if (token == null || token.isEmpty) return;
+    final res = await _api.fetchFavoriteVenueMaps(page: 1, limit: 200);
+    final maps = (res['data'] as List<Map<String, dynamic>>?) ?? [];
+    if (!mounted) return;
+    setState(() {
+      _favoriteBusinessIds
+        ..clear()
+        ..addAll(
+          maps.map((m) => '${m['businessId'] ?? m['id'] ?? ''}').where((id) => id.isNotEmpty),
+        );
+    });
+  }
+
+  Future<void> _toggleFavorite(String businessId) async {
+    final token = await AuthSession.getToken();
+    if (token == null || token.isEmpty) {
+      if (!mounted) return;
+      Navigator.push<void>(context, MaterialPageRoute<void>(builder: (context) => const LoginScreen()));
+      return;
     }
+    final isFav = _favoriteBusinessIds.contains(businessId);
+    final ok = isFav ? await _api.removeFavorite(businessId) : await _api.addFavorite(businessId);
+    if (!ok || !mounted) return;
+    setState(() {
+      if (isFav) {
+        _favoriteBusinessIds.remove(businessId);
+      } else {
+        _favoriteBusinessIds.add(businessId);
+      }
+    });
+  }
+
+  Future<void> _bootstrapCatalog({int? page}) async {
+    final nextPage = page ?? _currentPage;
+    setState(() {
+      _catalogLoading = true;
+      if (page != null) _currentPage = page;
+    });
 
     final query = _searchController.text.trim();
-    final categoryKey = _selectedChipIndex == 0 ? null : _chipCategoryKeys[_selectedChipIndex];
+    final categoryKey = _activeCategoryKey;
 
-    final res = await ApiRepository().searchVenues(
-      page: _currentPage,
+    final res = await _api.searchVenues(
+      page: nextPage,
       search: query,
       category: categoryKey,
+      sortBy: _sortBy,
+      minRating: _appliedMinRating,
     );
 
     if (!mounted) return;
@@ -104,44 +172,30 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     setState(() {
       final List<VenueListing> venues = res['data'] as List<VenueListing>;
       final List<Map<String, dynamic>> mapped = venues.map((v) => v.toSearchMap()).toList();
-      
-      if (refresh) {
-        _sourceResults = mapped;
-      } else {
-        _sourceResults.addAll(mapped);
-      }
-      
+      _currentPage = nextPage;
+      _sourceResults = mapped;
+      _total = (res['total'] as int?) ?? mapped.length;
       _totalPages = res['totalPages'] ?? 1;
       _catalogLoading = false;
-      _loadingMore = false;
     });
     _applyFilter();
   }
 
-  void _loadMore() {
-    if (_currentPage < _totalPages && !_loadingMore && !_catalogLoading) {
-      setState(() {
-        _loadingMore = true;
-        _currentPage++;
-      });
-      _bootstrapCatalog(refresh: false);
-    }
+  void _goToPage(int page) {
+    if (page < 1 || page > _totalPages || _catalogLoading) return;
+    _bootstrapCatalog(page: page);
   }
 
   void _triggerSearch() {
-    _bootstrapCatalog(refresh: true);
+    setState(() => _currentPage = 1);
+    _bootstrapCatalog(page: 1);
   }
 
   void _syncChipFromCategoryKey() {
     final raw = widget.categoryKey?.trim();
     if (raw == null || raw.isEmpty) return;
-    if (raw == 'barber') {
-      _selectedChipIndex = 1;
-      return;
-    }
-    for (var i = 1; i < _chipCategoryKeys.length; i++) {
-      final key = _chipCategoryKeys[i];
-      if (key != null && key == raw) {
+    for (var i = 0; i < _categoryChips.length; i++) {
+      if (_categoryChips[i].key == raw) {
         _selectedChipIndex = i;
         return;
       }
@@ -149,11 +203,10 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   }
 
   void _syncChipFromCategoryParam() {
-    final c = widget.category;
+    final c = widget.category?.trim();
     if (c == null || c.isEmpty) return;
-    for (var i = 1; i < _chipCategoryKeys.length; i++) {
-      final key = _chipCategoryKeys[i];
-      if (key != null && c == key.tr()) {
+    for (var i = 0; i < _categoryChips.length; i++) {
+      if (_categoryChips[i].label == c) {
         _selectedChipIndex = i;
         return;
       }
@@ -172,24 +225,12 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     return double.tryParse(t);
   }
 
-  bool _matchesChip(Map<String, dynamic> r, int chipIndex) {
-    if (chipIndex <= 0) return true;
-    final cat = r['category'] as String;
-    final key = _chipCategoryKeys[chipIndex];
-    if (key == 'hairService') {
-      return cat == 'hairService' || cat == 'barber';
-    }
-    return cat == key;
-  }
-
   void _applyFilter() {
     var results = List<Map<String, dynamic>>.from(_sourceResults);
 
     if (widget.onlyFeatured) {
       results = results.where((r) => double.parse(r['rating'] as String) >= 4.8).toList();
     }
-
-    results = results.where((r) => _matchesChip(r, _selectedChipIndex)).toList();
 
     final q = _searchController.text.trim().toLowerCase();
     if (q.isNotEmpty) {
@@ -212,24 +253,107 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           .toList();
     }
 
-    if (_appliedMinRating != null) {
-      results = results.where((r) {
-        final rating = double.tryParse(r['rating'] as String) ?? 0;
-        return rating >= _appliedMinRating!;
-      }).toList();
-    }
-
     if (_appliedLocation.isNotEmpty) {
       results = results
           .where((r) => (r['locationLabel'] as String? ?? '').trim() == _appliedLocation.trim())
           .toList();
     }
 
-    results.sort(
-      (a, b) => double.parse(b['rating'] as String).compareTo(double.parse(a['rating'] as String)),
-    );
-
     setState(() => _filteredResults = results);
+  }
+
+  String _businessIdFor(Map<String, dynamic> res) {
+    final bid = res['businessId'] as String?;
+    if (bid != null && bid.isNotEmpty) return bid;
+    return '${res['id']}';
+  }
+
+  void _showSortSheet() {
+    const options = <String, String>{
+      'ratingHighLow': 'Highest rated',
+      'newest': 'Newest',
+      'priceLowHigh': 'Price: low to high',
+      'priceHighLow': 'Price: high to low',
+      'distance': 'Nearest',
+    };
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.entries
+              .map(
+                (e) => ListTile(
+                  title: Text(e.value),
+                  trailing: _sortBy == e.key ? const Icon(Icons.check, color: AppColors.primary500) : null,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() => _sortBy = e.key);
+                    _triggerSearch();
+                  },
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapPanel() {
+    final markers = <Marker>[];
+    for (final r in _filteredResults) {
+      final lat = (r['lat'] as num?)?.toDouble();
+      final lng = (r['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      markers.add(
+        Marker(
+          point: LatLng(lat, lng),
+          width: 44,
+          height: 44,
+          child: GestureDetector(
+            onTap: () => _openDetail(r),
+            child: const Icon(Icons.location_on, color: AppColors.primary500, size: 36),
+          ),
+        ),
+      );
+    }
+    final center = markers.isNotEmpty
+        ? markers.first.point
+        : const LatLng(8.9824, -79.5199);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: 220,
+        child: FlutterMap(
+          options: MapOptions(initialCenter: center, initialZoom: 11),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.rezervame.app',
+            ),
+            MarkerLayer(markers: markers),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _favoriteButton(Map<String, dynamic> res, {double iconSize = 20}) {
+    final bid = _businessIdFor(res);
+    final isFav = _favoriteBusinessIds.contains(bid);
+    return GestureDetector(
+      onTap: () => _toggleFavorite(bid),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
+        child: Icon(
+          isFav ? Icons.favorite : Icons.favorite_border,
+          color: AppColors.primary500,
+          size: iconSize,
+        ),
+      ),
+    );
   }
 
   void _openDetail(Map<String, dynamic> res) {
@@ -252,34 +376,88 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     return list;
   }
 
-  String _listImageUrl(Map<String, dynamic> res, {int width = 500}) {
-    for (final key in ['serviceImageUrl', 'bannerUrl', 'logoUrl', 'imageUrl']) {
-      final resolved = resolveMediaUrl(res[key] as String?);
-      if (resolved != null) return resolved;
+  List<String> _imageUrlsForVenue(Map<String, dynamic> res, {int width = 500}) {
+    final out = <String>[];
+    void add(String? raw) {
+      final resolved = resolveMediaUrl(raw);
+      if (resolved != null && !out.contains(resolved)) out.add(resolved);
     }
-    final img = res['img'] as String? ?? '';
-    final id = extractUnsplashPhotoId(img);
+    add(res['serviceImageUrl'] as String?);
+    add(res['imageUrl'] as String?);
+    final portfolio = res['portfolioImageUrls'];
+    if (portfolio is List) {
+      for (final img in portfolio) {
+        add('$img');
+      }
+    }
+    add(res['bannerUrl'] as String?);
+    add(res['logoUrl'] as String?);
+    final id = extractUnsplashPhotoId(res['img'] as String?);
     if (id != null) {
-      return 'https://images.unsplash.com/photo-$id?q=80&w=$width&fit=crop';
+      final u = 'https://images.unsplash.com/photo-$id?q=80&w=$width&fit=crop';
+      if (!out.contains(u)) out.add(u);
     }
-    return '';
+    if (out.isEmpty) {
+      final keys = res['categoryKeys'];
+      if (keys is List) {
+        for (final k in keys) {
+          final placeholder = _categoryPlaceholders['$k'.trim()];
+          if (placeholder != null) {
+            add(placeholder);
+            break;
+          }
+        }
+      }
+      if (out.isEmpty) {
+        final cat = '${res['category'] ?? ''}'.trim();
+        final placeholder = _categoryPlaceholders[cat];
+        if (placeholder != null) add(placeholder);
+      }
+    }
+    return out;
   }
 
-  String _chipLabel(int i) {
-    switch (i) {
-      case 0:
-        return 'searchChipAll'.tr();
-      case 1:
-        return 'searchChipHair'.tr();
-      case 2:
-        return 'searchChipFacial'.tr();
-      case 3:
-        return 'searchChipSpa'.tr();
-      case 4:
-        return 'searchChipNails'.tr();
-      default:
-        return '';
-    }
+  Widget _buildCategoryChips() {
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: _categoryChips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final selected = _selectedChipIndex == index;
+          return Material(
+            color: selected ? AppColors.primary500 : AppColors.white,
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              onTap: () {
+                setState(() => _selectedChipIndex = index);
+                _triggerSearch();
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: selected ? AppColors.primary500 : AppColors.grey200,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _categoryChips[index].label,
+                  style: AppTypography.body100.copyWith(
+                    color: selected ? AppColors.white : AppColors.grey700,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -338,75 +516,63 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           ),
         ),
       ),
-      body: _catalogLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary500))
-          : _filteredResults.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.search_off_rounded, size: 64, color: AppColors.grey200),
-                      const SizedBox(height: 16),
-                      Text(
-                        'noResults'.tr(),
-                        style: AppTypography.sectionTitle.copyWith(color: AppColors.grey500),
-                      ),
-                    ],
-                  ),
-                )
-              : NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200) {
-                  _loadMore();
-                }
-                return false;
-              },
-              child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    height: 40,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: _chipCategoryKeys.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, index) {
-                        final selected = _selectedChipIndex == index;
-                        return Material(
-                          color: selected ? AppColors.primary500 : AppColors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          child: InkWell(
-                            onTap: () {
-                              setState(() => _selectedChipIndex = index);
-                              _triggerSearch();
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: selected ? AppColors.primary500 : AppColors.grey200,
-                                ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => setState(() => _showMap = !_showMap),
+                  icon: Icon(_showMap ? Icons.list : Icons.map_outlined, size: 18),
+                  label: Text(_showMap ? 'List' : 'Map'),
+                ),
+                TextButton.icon(
+                  onPressed: _showSortSheet,
+                  icon: const Icon(Icons.sort, size: 18),
+                  label: const Text('Sort'),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: _buildCategoryChips(),
+          ),
+          Expanded(
+            child: _catalogLoading
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primary500))
+                : _filteredResults.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.search_off_rounded, size: 64, color: AppColors.grey200),
+                              const SizedBox(height: 16),
+                              Text(
+                                _activeCategoryKey != null
+                                    ? 'searchNoCategoryResults'.tr()
+                                    : 'noResults'.tr(),
+                                textAlign: TextAlign.center,
+                                style: AppTypography.sectionTitle.copyWith(color: AppColors.grey500),
                               ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                _chipLabel(index),
-                                style: AppTypography.body100.copyWith(
-                                  color: selected ? AppColors.white : AppColors.grey700,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
+                            ],
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (hero != null) ...[
+                        ),
+                      )
+                    : SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_showMap) ...[
+                                _buildMapPanel(),
+                                const SizedBox(height: 16),
+                              ],
+                              if (hero != null) ...[
                     const SizedBox(height: 22),
                     Text(
                       'serviceRecommendation'.tr(),
@@ -445,10 +611,18 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                         );
                       },
                     ),
-                ],
-              ),
-            ),
-              ),
+                  ListPaginationBar(
+                    page: _currentPage,
+                    totalPages: _totalPages,
+                    total: _total,
+                    onPageChange: _goToPage,
+                  ),
+                            ],
+                          ),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -469,11 +643,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               fit: StackFit.expand,
               children: [
                 ChainedNetworkImage(
-                  urls: ChainedNetworkImage.chainFrom(
-                    _listImageUrl(res, width: 900),
-                    res['img'] as String?,
-                    w: 900,
-                  ),
+                  urls: _imageUrlsForVenue(res, width: 900),
                   fit: BoxFit.cover,
                 ),
                 Positioned(
@@ -494,11 +664,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 Positioned(
                   top: 12,
                   right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
-                    child: const Icon(Icons.favorite_border, color: AppColors.primary500, size: 20),
-                  ),
+                  child: _favoriteButton(res),
                 ),
                 Positioned(
                   left: 0,
@@ -574,11 +740,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     child: AspectRatio(
                       aspectRatio: 1.05,
                       child: ChainedNetworkImage(
-                        urls: ChainedNetworkImage.chainFrom(
-                          _listImageUrl(res, width: 400),
-                          res['img'] as String?,
-                          w: 400,
-                        ),
+                        urls: _imageUrlsForVenue(res, width: 400),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -586,11 +748,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
-                      child: const Icon(Icons.favorite_border, color: AppColors.primary500, size: 16),
-                    ),
+                    child: _favoriteButton(res, iconSize: 16),
                   ),
                 ],
               ),
@@ -622,7 +780,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         initialMin: _appliedMinPrice ?? 100,
         initialMax: _appliedMaxPrice ?? 200,
         initialMinRating: _appliedMinRating,
-        chipLabels: List.generate(_chipCategoryKeys.length, _chipLabel),
+        chipLabels: _categoryChips.map((c) => c.label).toList(),
         onApply: (loc, catIdx, minV, maxV, minRating) {
           Navigator.pop(ctx);
           setState(() {

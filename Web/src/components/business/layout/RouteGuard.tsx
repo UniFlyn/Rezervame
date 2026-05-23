@@ -10,6 +10,7 @@ import { useStaffStore } from '../../../store/staffStore';
 import { useTransactionsStore } from '../../../store/transactionsStore';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { PageLoader } from '@/components/ui/AppLoader';
 
 /** Route segments served by the salon/business dashboard (merchant auth). Everything else under `/business/[segment]` is a public storefront or booking UI. */
 const MERCHANT_PANEL_SEGMENTS = new Set([
@@ -129,12 +130,7 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!mounted || !businessSessionReady) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-50 px-6 text-center text-sm font-semibold text-slate-600">
-        <div className="h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-primary" aria-hidden />
-        <span>Loading workspace…</span>
-      </div>
-    );
+    return <PageLoader label="Loading workspace…" />;
   }
 
   if (!business) {

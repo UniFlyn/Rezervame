@@ -1,9 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../widgets/list_pagination_bar.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({super.key});
@@ -17,6 +19,10 @@ class _JobsScreenState extends State<JobsScreen> {
   List<Map<String, dynamic>> _jobs = [];
   bool _loading = true;
   String? _error;
+  int _page = 1;
+  int _totalPages = 1;
+  int _total = 0;
+  static const int _pageSize = 10;
 
   @override
   void initState() {
@@ -24,16 +30,20 @@ class _JobsScreenState extends State<JobsScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({int? page}) async {
+    final nextPage = page ?? _page;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final list = await _repo.fetchJobs();
+      final res = await _repo.fetchJobs(page: nextPage, limit: _pageSize);
       if (!mounted) return;
       setState(() {
-        _jobs = list;
+        _page = nextPage;
+        _jobs = (res['data'] as List<Map<String, dynamic>>?) ?? [];
+        _total = (res['total'] as int?) ?? _jobs.length;
+        _totalPages = (res['totalPages'] as int?) ?? 1;
         _loading = false;
       });
     } catch (e) {
@@ -137,9 +147,9 @@ class _JobsScreenState extends State<JobsScreen> {
                             ),
                           ),
                         )
-                      else
+                      else ...[
                         SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (context, index) => _buildJobCard(context, _jobs[index]),
@@ -147,9 +157,43 @@ class _JobsScreenState extends State<JobsScreen> {
                             ),
                           ),
                         ),
+                        SliverToBoxAdapter(
+                          child: ListPaginationBar(
+                            page: _page,
+                            totalPages: _totalPages,
+                            total: _total,
+                            onPageChange: (p) => _load(page: p),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
       ),
+    );
+  }
+
+  Future<void> _applyToJob(Map<String, dynamic> job) async {
+    final applyUrl = '${job['applyUrl'] ?? job['applicationUrl'] ?? ''}'.trim();
+    if (applyUrl.isNotEmpty) {
+      final uri = Uri.tryParse(applyUrl);
+      if (uri != null && await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    final title = '${job['title'] ?? 'Position'}';
+    final mailUri = Uri(
+      scheme: 'mailto',
+      path: 'careers@rezervame.com',
+      queryParameters: {'subject': 'Application: $title'},
+    );
+    if (await canLaunchUrl(mailUri)) {
+      await launchUrl(mailUri);
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Email careers@rezervame.com to apply.'), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -205,7 +249,7 @@ class _JobsScreenState extends State<JobsScreen> {
                 ),
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () => _applyToJob(job),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 0),
                 ),

@@ -31,6 +31,18 @@ async function main() {
     update: { password: demoPassword },
     create: { name: 'Customer One', email: 'customer@rezervame.com', password: demoPassword, role: Role.USER },
   });
+  await prisma.user.upsert({
+    where: { email: 'ram@gmail.com' },
+    update: { password: demoPassword, name: 'Ramed', phone: '87788778', gender: 'male' },
+    create: {
+      name: 'Ramed',
+      email: 'ram@gmail.com',
+      password: demoPassword,
+      role: Role.USER,
+      phone: '87788778',
+      gender: 'male',
+    },
+  });
 
   await prisma.user.upsert({
     where: { email: 'walkin@rezervame.internal' },
@@ -568,6 +580,107 @@ async function main() {
     where: { email: { in: ['owner@rezervame.com', 'studio@rezervame.com', 'spa@rezervame.com'] } },
     data: { planId: premiumPlan.id, plan: 'Premium' },
   });
+
+  const defaultFaqs = [
+    {
+      questionEn: 'How do I book an appointment at a salon or barbershop?',
+      questionEs: '¿Cómo reservo una cita en un salón o barbería?',
+      answerEn:
+        'Search for a business on the home or map page, open their profile, choose services and a time, then submit your booking request. Once the business approves, you can pay from My Reservations in your profile.',
+      answerEs:
+        'Busca un negocio en inicio o en el mapa, abre su perfil, elige servicios y horario, y envía tu solicitud. Cuando el negocio la apruebe, podrás pagar desde Mis reservas en tu perfil.',
+      sortOrder: 0,
+      active: true,
+    },
+    {
+      questionEn: 'How do I cancel a reservation?',
+      questionEs: '¿Cómo cancelo una reserva?',
+      answerEn:
+        'Open your profile, go to My Reservations, select the booking, and cancel if the business allows it. Cancellation rules depend on each salon or barbershop.',
+      answerEs:
+        'Abre tu perfil, ve a Mis reservas, selecciona la cita y cancela si el negocio lo permite. Las reglas dependen de cada salón o barbería.',
+      sortOrder: 1,
+      active: true,
+    },
+    {
+      questionEn: 'What happens after I submit a booking request?',
+      questionEs: '¿Qué pasa después de enviar una solicitud de reserva?',
+      answerEn:
+        'Your request is sent to the business as Pending. They review availability and confirm or propose a new time. You receive a notification when the status changes.',
+      answerEs:
+        'Tu solicitud se envía al negocio como Pendiente. Ellos revisan disponibilidad y confirman o proponen otro horario. Recibirás notificación cuando cambie el estado.',
+      sortOrder: 2,
+      active: true,
+    },
+    {
+      questionEn: 'Is it safe to pay through Rezervame?',
+      questionEs: '¿Es seguro pagar con Rezervame?',
+      answerEn:
+        'Yes. Card payments are processed securely through Stripe. You may also pay with Yappy or cash at the venue when the business offers those options.',
+      answerEs:
+        'Sí. Los pagos con tarjeta se procesan con Stripe. También puedes pagar con Yappy o en efectivo en el local si el negocio lo ofrece.',
+      sortOrder: 3,
+      active: true,
+    },
+    {
+      questionEn: 'Can I pay with cash or Yappy at the salon?',
+      questionEs: '¿Puedo pagar en efectivo o con Yappy en el salón?',
+      answerEn:
+        'Many businesses accept card online, Yappy, or cash at the venue. Available methods are shown when you pay from My Reservations after your booking is confirmed.',
+      answerEs:
+        'Muchos negocios aceptan tarjeta en línea, Yappy o efectivo en el local. Los métodos se muestran al pagar desde Mis reservas cuando tu cita está confirmada.',
+      sortOrder: 4,
+      active: true,
+    },
+    {
+      questionEn: 'Can I book appointments for a family member?',
+      questionEs: '¿Puedo reservar citas para un familiar?',
+      answerEn:
+        'Yes. Add family members in your profile, then when booking select who the service is for.',
+      answerEs:
+        'Sí. Agrega familiares en tu perfil y al reservar indica para quién es el servicio.',
+      sortOrder: 5,
+      active: true,
+    },
+    {
+      questionEn: 'How do I find barbershops and salons near me?',
+      questionEs: '¿Cómo encuentro barberías y salones cerca de mí?',
+      answerEn:
+        'Use Search to browse on the map or list view. Allow location for distance sorting, or search by city and category.',
+      answerEs:
+        'Usa Buscar para ver mapa o lista. Activa ubicación para ordenar por distancia, o busca por ciudad y categoría.',
+      sortOrder: 6,
+      active: true,
+    },
+    {
+      questionEn: 'What fees appear on my booking total?',
+      questionEs: '¿Qué cargos aparecen en el total de mi reserva?',
+      answerEn:
+        'Your total includes the service price, a platform service fee, and any tax set by the business. The breakdown is shown before you pay.',
+      answerEs:
+        'El total incluye el precio del servicio, comisión de plataforma e impuestos del negocio. El desglose se muestra antes de pagar.',
+      sortOrder: 7,
+      active: true,
+    },
+    {
+      questionEn: 'I am a business owner. How do I join Rezervame?',
+      questionEs: 'Soy dueño de un negocio. ¿Cómo me registro en Rezervame?',
+      answerEn:
+        'Go to Register your business on our website, complete your profile, services, staff, and hours. After admin verification, customers can book you online.',
+      answerEs:
+        'Ve a Registrar tu negocio, completa perfil, servicios, personal y horarios. Tras verificación, los clientes podrán reservar en línea.',
+      sortOrder: 8,
+      active: true,
+    },
+  ];
+  for (const faq of defaultFaqs) {
+    const exists = await prisma.customerServiceFaq.findFirst({
+      where: { questionEn: faq.questionEn },
+    });
+    if (!exists) {
+      await prisma.customerServiceFaq.create({ data: faq });
+    }
+  }
 
   await backfillMerchantNumbers(prisma);
 }

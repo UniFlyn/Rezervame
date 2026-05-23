@@ -14,10 +14,33 @@ import {
   Users, Calendar, Heart, Lock, CheckCircle, 
   X, Plus, Camera, LogOut, ChevronLeft, ChevronRight, Mail, Phone,
   MapPin, Star, Download, RefreshCcw, Clock, CreditCard, Banknote, CheckCircle2, FileText,
-  Loader2, Check
+  Loader2, Check, Search
 } from "lucide-react";
 import Link from "next/link";
 import { Pagination } from "@/components/ui/pagination";
+import { PageLoader } from "@/components/ui/AppLoader";
+import { BrowserPushSettings } from "@/components/BrowserPushSettings";
+import { bookingGroupKey, formatBookingTimeRange } from "@/lib/bookingGroup";
+import { computeBookingTotals } from "@/lib/bookingTotals";
+import {
+  aggregateGroupUiStatus,
+  mapBookingItemUiStatus,
+  resolveBookingPaymentMethod,
+} from "@/lib/paymentMethod";
+import {
+  loadBookingConfirmation,
+  navigateToBookingConfirmation,
+} from "@/lib/bookingConfirmation";
+import {
+  reservationStatusBadgeClass,
+  reservationStatusLabel,
+  type ReservationUiStatus,
+} from "@/lib/reservationStatus";
+import {
+  canCustomerCancelBooking,
+  policyMessageForBooking,
+  normalizeCancellationPolicy,
+} from "@/lib/cancellationPolicy";
 
 type Tab = "bookings" | "family" | "settings" | "favorites" | "invoices";
 
@@ -40,10 +63,12 @@ interface Reservation {
   time: string;
   price: string;
   totalPrice: number;
-  status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
+  status: ReservationUiStatus;
   img: string;
   taxAmount: number;
   taxPercentage: number;
+  commissionAmount: number;
+  commissionPercent: number;
   subtotal: number;
   address?: string;
   isReviewed?: boolean;
@@ -55,18 +80,26 @@ interface Reservation {
     price: string; 
     customerName?: string; 
     staffName?: string;
-    status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
+    status: ReservationUiStatus;
     isReviewed?: boolean;
     transactionId?: string;
+    canCancel?: boolean;
+    rawStatus?: string;
+    appointmentAt?: string;
   }[];
   businessId: string;
   transactionId?: string;
   paymentMethod?: string;
+  cancellationAllowed?: boolean;
+  cancellationHoursBefore?: number;
+  cancellationPolicyMessage?: string;
+  canCancelAny?: boolean;
 }
 
 function mapUserBookingGroup(
   group: any[],
   language: string,
+  commissionPercent: number,
 ): Reservation {
   const b = group[0];
   const d = new Date(b.date);
@@ -90,101 +123,141 @@ function mapUserBookingGroup(
         month: "long",
         day: "numeric",
       });
-  const timeStr = Number.isNaN(d.getTime())
-    ? "—"
-    : d.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      });
+  const timeStr = formatBookingTimeRange(
+    group.map((row) => row.date as string | Date),
+    "en-US",
+  );
 
-  const subtotal = group.reduce((sum, item) => sum + Number(item.price || 0), 0);
-  const taxAmount = group.reduce((sum, item) => {
-    const storedTax = Number(item.taxAmount || 0);
-    if (storedTax > 0) return sum + storedTax;
-    // Fallback to business's current tax percentage if not stored
-    const currentTax = (Number(item.price || 0) * (b.business?.taxPercentage || 0)) / 100;
-    return sum + currentTax;
-  }, 0);
-  const totalPrice = subtotal + taxAmount;
+  const totals = computeBookingTotals(
+    group,
+    Number(b.business?.taxPercentage || 0),
+    commissionPercent,
+  );
+  const cancelPolicy = normalizeCancellationPolicy(b.business);
+  const lang = language === "es" ? "es" : "en";
   
-  const items = group.map(item => {
-    const st = (item.status || "").toLowerCase();
-    let status: Reservation["status"] = "pending";
-    if (st === "completed") status = "completed";
-    else if (st === "cancelled" || st === "rejected") status = "cancelled";
-    else if (st === "paid") status = "paid";
-    else if (st === "rescheduled") status = "rescheduled";
-    else if (st === "approved" || st === "confirmed") {
-        if (item?.transactionId) status = "paid";
-        else status = "confirmed";
-    }
-    else status = "pending";
-    
+  const items = group.map((item) => {
+    const status = mapBookingItemUiStatus({
+      status: item.status,
+      transactionId: item.transactionId,
+      paymentMethod: item.paymentMethod,
+      transaction: item.transaction,
+    });
+
+    const forName =
+      item.familyMember?.name?.trim() ||
+      (typeof item.customerName === "string" ? item.customerName.trim() : "") ||
+      undefined;
+    const proName =
+      item.staff?.name?.trim() ||
+      (typeof item.staffName === "string" ? item.staffName.trim() : "") ||
+      undefined;
+
+    const appointmentAt = item.date ? new Date(item.date) : new Date(NaN);
+    const canCancel =
+      item.canCancel === true ||
+      canCustomerCancelBooking({
+        status: String(item.status || ""),
+        appointmentAt,
+        transactionId: item.transactionId,
+        business: b.business,
+      }).allowed;
+
     return {
         id: item.id,
         name: item.service?.name || "Service",
         price: Number(item.price || 0).toFixed(2),
-        customerName: item.customer?.name || item.customerName,
-        staffName: item.staff?.name || item.staffName,
+        customerName: forName,
+        staffName: proName,
         status,
         isReviewed: item.isReviewed || false,
         transactionId: item.transactionId,
+        canCancel,
+        rawStatus: String(item.status || ""),
+        appointmentAt: item.date,
     };
   });
 
-  const activeItems = items.filter(i => i.status !== "cancelled");
-  const mainStatus: Reservation["status"] =
-    activeItems.length === 0
-      ? "cancelled"
-      : activeItems.every(i => i.status === "completed")
-        ? "completed"
-        : activeItems.some(i => i.status === "pending")
-          ? "pending"
-          : activeItems.some(i => i.status === "rescheduled")
-            ? "rescheduled"
-            : activeItems.some(i => i.status === "paid")
-              ? "paid"
-              : "confirmed";
+  const mainStatus = aggregateGroupUiStatus(items.map((i) => i.status));
+  const paymentMethod = resolveBookingPaymentMethod({
+    paymentMethod: b.paymentMethod,
+    transaction: b.transaction,
+  });
+
+  const forNames = Array.from(
+    new Set(
+      items.map((i) => i.customerName).filter((n): n is string => Boolean(n && n.trim())),
+    ),
+  );
+  const proNames = Array.from(
+    new Set(
+      items.map((i) => i.staffName).filter((n): n is string => Boolean(n && n.trim())),
+    ),
+  );
 
   return {
     id: b.id,
     refNumber,
     venueName: b.business?.name || "—",
     serviceName: group.length > 1 ? `${group.length} Services` : (b.service?.name || "Service"),
-    customerName: b.customer?.name || b.customerName,
-    staffName: b.staff?.name || b.staffName,
+    customerName: forNames.length > 0 ? forNames.join(", ") : undefined,
+    staffName: proNames.length > 0 ? proNames.join(", ") : undefined,
     date: dateStr,
     time: timeStr,
-    price: `$${totalPrice.toFixed(2)}`,
-    totalPrice,
+    price: `$${totals.totalPrice.toFixed(2)}`,
+    totalPrice: totals.totalPrice,
     status: mainStatus,
     img: b.service?.imageUrl || b.business?.bannerUrl || b.business?.logoUrl || PLACEHOLDER_IMAGE_DATA_URI,
-    subtotal,
-    taxAmount,
-    taxPercentage: b.business?.taxPercentage || 0,
+    subtotal: totals.subtotal,
+    taxAmount: totals.taxAmount,
+    taxPercentage: totals.taxPercentage,
+    commissionAmount: totals.commissionAmount,
+    commissionPercent: totals.commissionPercent,
     address: b.business?.address || "",
     phone: b.business?.phone,
     isReviewed: items.every(i => i.isReviewed),
     items,
     businessId: b.businessId,
     transactionId: b.transactionId,
-    paymentMethod: b.transaction?.paymentMethod,
+    paymentMethod,
+    cancellationAllowed: cancelPolicy.allowed,
+    cancellationHoursBefore: cancelPolicy.hoursBefore,
+    cancellationPolicyMessage: policyMessageForBooking(
+      {
+        status: String(b.status || ""),
+        appointmentAt: d,
+        transactionId: b.transactionId,
+        business: b.business,
+      },
+      lang,
+    ),
+    canCancelAny: items.some((i) => i.canCancel),
   };
 }
 
-function groupAndMapBookings(bookings: any[], language: string): Reservation[] {
+function groupAndMapBookings(
+  bookings: any[],
+  language: string,
+  commissionPercent: number,
+): Reservation[] {
   if (!Array.isArray(bookings)) return [];
   const groups: Record<string, any[]> = {};
   bookings.forEach((b) => {
-    const key = `${b.businessId}_${b.date}`;
+    const key = bookingGroupKey(b);
     if (!groups[key]) groups[key] = [];
     groups[key].push(b);
   });
-  return Object.values(groups).map((g) => mapUserBookingGroup(g, language));
+  return Object.values(groups)
+    .map((g) => ({
+      res: mapUserBookingGroup(g, language, commissionPercent),
+      sortTime: new Date(g[0]?.date ?? 0).getTime(),
+    }))
+    .sort((a, b) => b.sortTime - a.sortTime)
+    .map((row) => row.res);
 }
 
 function ProfileContent() {
-  const { language } = useI18n();
+  const { language, setLanguage, t } = useI18n();
   const { isLoggedIn, isHydrated, user, logout, setIsLoginModalOpen, refreshUser, token } = useAuth() as any;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -226,7 +299,13 @@ function ProfileContent() {
     ongoing: [],
     history: [],
   });
+  const [profileDataReady, setProfileDataReady] = useState(false);
   const [favoritesList, setFavoritesList] = useState<unknown[]>([]);
+  const [favoritesSearch, setFavoritesSearch] = useState("");
+  const [favoritesChip, setFavoritesChip] = useState<"all" | "hair" | "facial" | "wax">("all");
+  const [favoritesPage, setFavoritesPage] = useState(1);
+  const [favoritesTotalPages, setFavoritesTotalPages] = useState(1);
+  const [favoritesTotal, setFavoritesTotal] = useState(0);
   const [invoicesList, setInvoicesList] = useState<unknown[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -248,21 +327,41 @@ function ProfileContent() {
     setConfirmDialog((p) => ({ ...p, open: false }));
 
   // Payment flow state
-  const [paymentView, setPaymentView] = useState<"none" | "select" | "card" | "done">("none");
-  const [payMethod, setPayMethod] = useState<"card" | "cash">("card");
+  const [paymentView, setPaymentView] = useState<"none" | "review" | "done">("none");
+  const [payMethod, setPayMethod] = useState<"card" | "yappy" | "cash">("card");
   const [payingLoading, setPayingLoading] = useState(false);
   const [paidInvoice, setPaidInvoice] = useState<{ id: string; refNumber: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const [recentlyPaidGroupId, setRecentlyPaidGroupId] = useState<string | null>(null);
-  const [stripeCheckoutEnabled, setStripeCheckoutEnabled] = useState(false);
+  const [defaultCommission, setDefaultCommission] = useState(15);
+  const [paymentMethods, setPaymentMethods] = useState<
+    { id: string; label: string; enabled: boolean }[]
+  >([
+    { id: "card", label: "Card", enabled: false },
+    { id: "yappy", label: "Yappy", enabled: true },
+    { id: "cash", label: "Cash", enabled: true },
+  ]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
-    void apiGet<{ stripeEnabled?: boolean }>("/public/payment-config")
-      .then((cfg) => setStripeCheckoutEnabled(!!cfg.stripeEnabled))
-      .catch(() => setStripeCheckoutEnabled(false));
+    void apiGet<{
+      stripeEnabled?: boolean;
+      defaultCommission?: number;
+      methods?: { id: string; label: string; enabled: boolean }[];
+    }>("/public/payment-config")
+      .then((cfg) => {
+        if (typeof cfg.defaultCommission === "number") {
+          setDefaultCommission(cfg.defaultCommission);
+        }
+        if (cfg.methods?.length) {
+          setPaymentMethods(cfg.methods);
+          const first = cfg.methods.find((m) => m.enabled);
+          if (first) setPayMethod(first.id as "card" | "yappy" | "cash");
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -303,6 +402,7 @@ function ProfileContent() {
       name: formData.get("name"),
       phone: formData.get("phone"),
       email: formData.get("email"),
+      gender: formData.get("gender"),
     };
     if (avatarPreview) {
       payload.avatar = avatarPreview;
@@ -374,7 +474,7 @@ function ProfileContent() {
 
   const handleCancelAllInGroup = async (res: typeof selectedRes) => {
     if (!res) return;
-    const confirmedItems = res.items.filter(i => i.status === "confirmed");
+    const confirmedItems = res.items.filter((i) => i.canCancel);
     showConfirm({
       title: "Cancel All Services",
       message: language === "en"
@@ -406,23 +506,24 @@ function ProfileContent() {
     if (!res) return;
     setPayingLoading(true);
     try {
-      const confirmedIds = res.items
-        .filter((i) => i.status === "confirmed")
+      const payableIds = res.items
+        .filter((i) => i.status === "confirmed" || i.status === "rescheduled")
         .map((i) => i.id);
 
-      if (confirmedIds.length === 0) {
+      if (payableIds.length === 0) {
         toastWarning(
           "Already processed",
-          "These bookings are already completed."
+          "There are no services awaiting payment in this reservation.",
         );
         setPayingLoading(false);
         return;
       }
 
-      if (payMethod === "card" && stripeCheckoutEnabled) {
+      const cardEnabled = paymentMethods.find((m) => m.id === "card")?.enabled;
+      if (payMethod === "card" && cardEnabled) {
         const checkout = await apiPost<{ url: string }>(
           "/mobile/bookings/pay-group/stripe-checkout",
-          { bookingIds: confirmedIds },
+          { bookingIds: payableIds },
           "USER",
         );
         if (checkout?.url) {
@@ -431,22 +532,39 @@ function ProfileContent() {
         }
       }
 
-      const method = payMethod === "card" ? "Card Payment" : "Cash Payment";
-      await apiPost("/mobile/bookings/pay-group", {
-        bookingIds: confirmedIds,
-        paymentMethod: method,
-        businessId: res.businessId,
-      }, "USER");
+      const method =
+        payMethod === "card"
+          ? "Card Payment"
+          : payMethod === "yappy"
+            ? "Yappy"
+            : "Cash Payment";
 
-      // Mark this group as recently paid - keeps it visible in upcoming with a PAID badge
+      if (payMethod !== "cash") {
+        await apiPost("/mobile/bookings/pay-group", {
+          bookingIds: payableIds,
+          paymentMethod: method,
+          businessId: res.businessId,
+        }, "USER");
+      }
+
+      const paidUiStatus = payMethod === "cash" ? "cash_at_venue" : "paid";
       setRecentlyPaidGroupId(res.id);
       setPaidInvoice({ id: res.id, refNumber: res.refNumber });
+      setSelectedRes({
+        ...res,
+        status: paidUiStatus,
+        paymentMethod: method,
+        items: res.items.map((i) =>
+          payableIds.includes(i.id) ? { ...i, status: paidUiStatus } : i,
+        ),
+      });
       setPaymentView("done");
-      // Delay refresh slightly so the user sees the success screen first
-      setTimeout(() => setRefreshTrigger((prev) => prev + 1), 2000);
+      setRefreshTrigger((prev) => prev + 1);
       toastSuccess(
-        "Payment Successful!",
-        "Invoice added to your history."
+        payMethod === "cash" ? "Booking confirmed" : "Payment Successful!",
+        payMethod === "cash"
+          ? `Please bring $${res.totalPrice.toFixed(2)} in cash to your appointment.`
+          : "Invoice added to your history.",
       );
     } catch (err) {
       toastError(
@@ -573,71 +691,92 @@ function ProfileContent() {
   const [invoicesTotal, setInvoicesTotal] = useState(0);
 
   useEffect(() => {
-    if (isHydrated && !isLoggedIn) {
-      setIsLoginModalOpen(true);
-    }
-
     const tab = searchParams.get("tab") as Tab;
     if (tab && ["bookings", "family", "settings", "favorites", "invoices"].includes(tab)) {
       setActiveTab(tab);
     }
-  }, [isLoggedIn, isHydrated, setIsLoginModalOpen, searchParams]);
+  }, [searchParams]);
 
-  // Combined data fetching (split slightly for clarity and pagination)
   useEffect(() => {
-    if (!isLoggedIn) return;
-    
-    // Fetch bookings (paginated history)
+    if (searchParams.get("payment") !== "success") return;
+    const stored = loadBookingConfirmation();
+    if (stored) {
+      navigateToBookingConfirmation({ ...stored, paid: true, auto: true });
+      return;
+    }
+    navigateToBookingConfirmation({
+      date: new Date().toISOString(),
+      service: "—",
+      professional: "—",
+      bookingFor: "Myself",
+      price: "",
+      paid: true,
+      auto: true,
+    });
+  }, [searchParams]);
+
+  // Load profile data only after auth session is restored (avoids empty-state flash on refresh).
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    if (!isLoggedIn) {
+      setProfileDataReady(false);
+      return;
+    }
+
+    let cancelled = false;
+
     void (async () => {
       try {
-        const response = await apiGet<{ ongoing: any[]; history: { data: any[]; total: number; totalPages: number } }>(
-          `/mobile/bookings?page=${historyPage}&limit=10`,
-          "USER",
-        );
+        const [bookingsRes, invoicesRes, favRes, famRes] = await Promise.all([
+          apiGet<{ ongoing: any[]; history: { data: any[]; total: number; totalPages: number } }>(
+            `/mobile/bookings?page=${historyPage}&limit=10`,
+            "USER",
+          ),
+          apiGet<{ data: any[]; total: number; totalPages: number }>(
+            `/mobile/invoices?page=${invoicesPage}&limit=10`,
+            "USER",
+          ),
+          apiGet<{ data: unknown[]; total: number; totalPages: number }>(
+            `/mobile/favorites?page=${favoritesPage}&limit=12&search=${encodeURIComponent(favoritesSearch.trim())}${
+              favoritesChip !== "all" ? `&category=${favoritesChip}` : ""
+            }`,
+            "USER",
+          ).catch(() => ({ data: [], total: 0, totalPages: 1 })),
+          apiGet<Array<{ id: string; name: string; age: number | null; gender: string; email: string | null }>>(
+            "/mobile/family-members",
+            "USER",
+          ).catch(() => []),
+        ]);
+
+        if (cancelled) return;
+
         setBookPayload({
-          ongoing: Array.isArray(response?.ongoing) ? response.ongoing : [],
-          history: Array.isArray(response?.history?.data) ? response.history.data : [],
+          ongoing: Array.isArray(bookingsRes?.ongoing) ? bookingsRes.ongoing : [],
+          history: Array.isArray(bookingsRes?.history?.data) ? bookingsRes.history.data : [],
         });
-        setHistoryTotalPages(response?.history?.totalPages || 1);
-        setHistoryTotal(response?.history?.total || 0);
-      } catch (e) {
-        setBookPayload({ ongoing: [], history: [] });
-        toastError("Failed to load bookings", e instanceof Error ? e.message : "");
-      }
-    })();
+        setHistoryTotalPages(bookingsRes?.history?.totalPages || 1);
+        setHistoryTotal(bookingsRes?.history?.total || 0);
 
-    // Fetch invoices (paginated)
-    void (async () => {
-      try {
-        const response = await apiGet<{ data: any[]; total: number; totalPages: number }>(
-          `/mobile/invoices?page=${invoicesPage}&limit=10`, 
-          "USER"
-        );
-        setInvoicesList(Array.isArray(response?.data) ? response.data : []);
-        setInvoicesTotalPages(response?.totalPages || 1);
-        setInvoicesTotal(response?.total || 0);
-      } catch (e) {
-        setInvoicesList([]);
-        toastError("Failed to load invoices", e instanceof Error ? e.message : "");
-      }
-    })();
+        setInvoicesList(Array.isArray(invoicesRes?.data) ? invoicesRes.data : []);
+        setInvoicesTotalPages(invoicesRes?.totalPages || 1);
+        setInvoicesTotal(invoicesRes?.total || 0);
 
-    // Fetch other lists (favorites, family)
-    void (async () => {
-      try {
-        const fav = await apiGet<unknown[]>("/mobile/favorites", "USER");
-        setFavoritesList(Array.isArray(fav) ? fav : []);
-      } catch (e) {
-        setFavoritesList([]);
-      }
-      
-      try {
-        const fam = await apiGet<Array<{ id: string; name: string; age: number | null; gender: string; email: string | null }>>(
-          "/mobile/family-members",
-          "USER",
+        const favRows = Array.isArray(favRes)
+          ? favRes
+          : Array.isArray((favRes as { data?: unknown[] })?.data)
+            ? (favRes as { data: unknown[] }).data
+            : [];
+        setFavoritesList(favRows);
+        setFavoritesTotalPages(
+          Array.isArray(favRes) ? 1 : (favRes as { totalPages?: number })?.totalPages || 1,
         );
+        setFavoritesTotal(
+          Array.isArray(favRes) ? favRows.length : (favRes as { total?: number })?.total || favRows.length,
+        );
+
         setFamilyMembers(
-          (Array.isArray(fam) ? fam : []).map((m) => ({
+          (Array.isArray(famRes) ? famRes : []).map((m) => ({
             id: m.id,
             name: m.name,
             age: m.age ?? 0,
@@ -645,21 +784,42 @@ function ProfileContent() {
             email: m.email,
           })),
         );
-      } catch {
-        setFamilyMembers([]);
+      } catch (e) {
+        if (!cancelled) {
+          setBookPayload({ ongoing: [], history: [] });
+          toastError("Failed to load profile", e instanceof Error ? e.message : "");
+        }
+      } finally {
+        if (!cancelled) setProfileDataReady(true);
       }
     })();
-  }, [isLoggedIn, language, refreshTrigger, historyPage, invoicesPage]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, isLoggedIn, language, refreshTrigger, historyPage, invoicesPage, favoritesPage, favoritesSearch, favoritesChip]);
+
+  useEffect(() => {
+    setFavoritesPage(1);
+  }, [favoritesSearch, favoritesChip]);
 
   const historyReservations = useMemo(
-    () => groupAndMapBookings(bookPayload.history, language),
-    [bookPayload.history, language],
+    () => groupAndMapBookings(bookPayload.history, language, defaultCommission),
+    [bookPayload.history, language, defaultCommission],
   );
 
   const ongoingReservations = useMemo(
-    () => groupAndMapBookings(bookPayload.ongoing, language),
-    [bookPayload.ongoing, language],
+    () => groupAndMapBookings(bookPayload.ongoing, language, defaultCommission),
+    [bookPayload.ongoing, language, defaultCommission],
   );
+
+  const filteredFavorites = favoritesList as Array<{
+    name?: string;
+    locationLabel?: string;
+    categoryKey?: string;
+    businessId?: string;
+    business?: { businessId?: string };
+  }>;
 
   // Derive which booking groups have been paid (have a Transaction) from invoice list
   const paidBookingIds = useMemo(() => {
@@ -713,6 +873,14 @@ function ProfileContent() {
     }
   };
 
+  if (!isHydrated) {
+    return <PageLoader label="Loading your profile…" />;
+  }
+
+  if (isLoggedIn && !profileDataReady) {
+    return <PageLoader label="Loading your reservations…" />;
+  }
+
   if (!isLoggedIn) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 py-16 text-center">
@@ -732,13 +900,16 @@ function ProfileContent() {
     );
   }
 
-  const menuItems = [
-    { id: "bookings", label: "My Reservations", icon: <Calendar size={20} /> },
-    { id: "invoices", label: "My Invoices", icon: <Download size={20} /> },
-    { id: "family", label: "Family & Friends", icon: <Users size={20} /> },
-    { id: "settings", label: "Profile & Settings", icon: <UserIcon size={20} /> },
-    { id: "favorites", label: "My Favorites", icon: <Heart size={20} /> }
-  ];
+  const menuItems = useMemo(
+    () => [
+      { id: "bookings" as const, label: t("myReservationsMenu"), icon: <Calendar size={20} /> },
+      { id: "invoices" as const, label: t("invoicesMenu"), icon: <Download size={20} /> },
+      { id: "family" as const, label: t("familyFriends"), icon: <Users size={20} /> },
+      { id: "settings" as const, label: t("profileSettings"), icon: <UserIcon size={20} /> },
+      { id: "favorites" as const, label: t("favoritesMenu"), icon: <Heart size={20} /> },
+    ],
+    [t, language],
+  );
 
   return (
     <div className="bg-slate-50 flex h-screen overflow-hidden animate-in fade-in duration-700">
@@ -845,21 +1016,26 @@ function ProfileContent() {
                                 <CreditCard size={11} /> Paid
                               </span>
                             )}
+                            {res.status === "cash_at_venue" && (
+                              <span className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
+                                <Banknote size={11} /> Pay at Venue
+                              </span>
+                            )}
                             {res.status === "rescheduled" && (
                               <span className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
                                 <RefreshCcw size={11} /> Rescheduled
                               </span>
                             )}
-                            {res.customerName && (
+                            {res.customerName ? (
                               <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
-                                {"For: "}
+                                For: <span className="normal-case tracking-normal">{res.customerName}</span>
                               </span>
-                            )}
-                            {res.staffName && (
+                            ) : null}
+                            {res.staffName ? (
                               <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
-                                {"Pro: "}
+                                Pro: <span className="normal-case tracking-normal">{res.staffName}</span>
                               </span>
-                            )}
+                            ) : null}
                             {res.phone && (
                               <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide"><Phone size={14} className="text-[#ff5a5f]" /> {res.phone}</span>
                             )}
@@ -872,6 +1048,7 @@ function ProfileContent() {
                           type="button"
                           onClick={() => {
                             setSelectedRes(res);
+                            setPaymentView("none");
                             setIsResModalOpen(true);
                           }}
                           className="text-xs font-black uppercase tracking-widest bg-[#ff5a5f] text-white px-8 py-3 rounded-2xl hover:bg-[#e0484d] transition-colors shadow-md"
@@ -926,11 +1103,16 @@ function ProfileContent() {
                                   </span>
                                 )}
                              </div>
-                             {res.customerName && (
+                             {res.customerName ? (
                                 <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                                   {"For: "}
+                                   For: <span className="normal-case">{res.customerName}</span>
                                 </span>
-                             )}
+                             ) : null}
+                             {res.staffName ? (
+                                <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                   Pro: <span className="normal-case">{res.staffName}</span>
+                                </span>
+                             ) : null}
                           </div>
                         </div>
                       </div>
@@ -1075,11 +1257,11 @@ function ProfileContent() {
               <form onSubmit={handleUpdateProfile}>
                 <div className="flex justify-between items-end mb-8">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900">{"Profile & Settings"}</h2>
-                    <p className="text-slate-400 font-bold text-sm mt-1">{"Update your personal information"}</p>
+                    <h2 className="text-2xl font-black text-slate-900">{t("profileSettings")}</h2>
+                    <p className="text-slate-400 font-bold text-sm mt-1">{t("profileUpdatePersonal")}</p>
                   </div>
                   <button type="submit" disabled={isUpdatingProfile} className="bg-slate-900 text-white font-black px-8 py-3 rounded-2xl text-sm shadow-xl hover:bg-slate-800 transition transform hover:-translate-y-1 disabled:opacity-50">
-                    {isUpdatingProfile ? ("Saving...") : ("Save Changes")}
+                    {isUpdatingProfile ? t("profileSaving") : t("profileSaveChanges")}
                   </button>
                 </div>
 
@@ -1105,21 +1287,21 @@ function ProfileContent() {
                      <div>
                        <h3 className="font-black text-slate-800 text-xl">{user?.name}</h3>
                        <p className="text-slate-400 font-bold text-sm">
-                         {"Member since November 2023"}
+                         {t("profileMemberSince")}
                        </p>
                      </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Full Name"}</label>
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("fullName")}</label>
                         <div className="relative">
                           <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                           <input type="text" name="name" defaultValue={user?.name} required className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
                         </div>
                      </div>
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Phone"}</label>
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("phoneNumber")}</label>
                         <div className="relative">
                           <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                           <input type="text" name="phone" defaultValue={user?.phone ?? ""} className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
@@ -1127,11 +1309,34 @@ function ProfileContent() {
                      </div>
                   </div>
 
-                  <div className="space-y-3">
-                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Email Address"}</label>
-                     <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                        <input type="email" name="email" defaultValue={user?.email} required className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="space-y-3">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("email")}</label>
+                        <div className="relative">
+                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                           <input type="email" name="email" defaultValue={user?.email} required className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
+                        </div>
+                     </div>
+                     <div className="space-y-3">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("genderLabel")}</label>
+                        <select
+                          name="gender"
+                          defaultValue={
+                            user?.gender?.toLowerCase() === "male"
+                              ? "male"
+                              : user?.gender?.toLowerCase() === "other"
+                                ? "other"
+                                : user?.gender?.toLowerCase() === "female"
+                                  ? "female"
+                                  : ""
+                          }
+                          className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800 appearance-none cursor-pointer"
+                        >
+                          <option value="">{t("profilePreferNotSay")}</option>
+                          <option value="male">{t("profileGenderMale")}</option>
+                          <option value="female">{t("profileGenderFemale")}</option>
+                          <option value="other">{t("profileGenderOther")}</option>
+                        </select>
                      </div>
                   </div>
                 </div>
@@ -1144,31 +1349,31 @@ function ProfileContent() {
                         <Lock size={22} />
                      </div>
                      <div>
-                        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">{"Change Password"}</h3>
+                        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">{t("changePassword")}</h3>
                         <p className="text-slate-400 font-bold text-xs mt-1">
-                          {"Protect your account with a secure password"}
+                          {t("profileProtectPassword")}
                         </p>
                      </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Current Password"}</label>
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("currPass")}</label>
                       <input type="password" name="currentPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"New Password"}</label>
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("newPass")}</label>
                       <input type="password" name="newPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{"Confirm Password"}</label>
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("confPass")}</label>
                       <input type="password" name="confirmPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
                     </div>
                   </div>
                   
                   <div className="mt-10 flex justify-end">
                     <button type="submit" disabled={isUpdatingPassword} className="bg-[#ff5a5f] text-white font-black px-10 py-4 rounded-[20px] text-xs uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/20 hover:bg-[#e0484d] transition transform hover:-translate-y-1 disabled:opacity-50">
-                       {isUpdatingPassword ? ("Updating...") : ("Update Password")}
+                       {isUpdatingPassword ? t("profileUpdatingPassword") : t("profileUpdatePasswordBtn")}
                     </button>
                   </div>
                 </div>
@@ -1176,18 +1381,54 @@ function ProfileContent() {
 
               <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm">
                 <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-2">
-                  {"Notifications"}
+                  {t("language")}
                 </h3>
                 <p className="text-slate-400 font-bold text-xs mb-6">
-                  {language === "en"
-                    ? "Booking updates are sent by email only."
-                    : "Las actualizaciones de reservas se envían solo por correo electrónico."}
+                  {t("selectLanguageDescription")}
                 </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("en")}
+                    className={`rounded-2xl border-2 px-5 py-4 text-left transition ${
+                      language === "en"
+                        ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
+                        : "border-slate-100 bg-slate-50/80 hover:border-slate-200"
+                    }`}
+                  >
+                    <p className="text-sm font-black text-slate-900">English</p>
+                    <p className="text-xs font-bold text-slate-500 mt-1">United States</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("es")}
+                    className={`rounded-2xl border-2 px-5 py-4 text-left transition ${
+                      language === "es"
+                        ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
+                        : "border-slate-100 bg-slate-50/80 hover:border-slate-200"
+                    }`}
+                  >
+                    <p className="text-sm font-black text-slate-900">Español</p>
+                    <p className="text-xs font-bold text-slate-500 mt-1">Latinoamérica</p>
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm">
+                <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-2">
+                  {t("notifications")}
+                </h3>
+                <p className="text-slate-400 font-bold text-xs mb-6">
+                  {t("notificationsSub")}
+                </p>
+                <div className="mb-6">
+                  <BrowserPushSettings language={language} />
+                </div>
                 <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 px-5 py-4 cursor-pointer">
                   <div className="flex items-center gap-3">
                     <Mail className="text-[#ff5a5f]" size={20} />
                     <span className="text-sm font-bold text-slate-800">
-                      {"Email notifications"}
+                      {t("profileEmailNotifications")}
                     </span>
                   </div>
                   <input
@@ -1215,7 +1456,46 @@ function ProfileContent() {
                 </div>
                 <div className="bg-white px-8 py-4 rounded-[28px] shadow-sm border border-slate-100 flex items-center gap-4">
                    <Heart className="text-[#ff5a5f]" size={24} fill="#ff5a5f" />
-                   <span className="font-black text-slate-800 text-sm uppercase tracking-widest">{favoritesList.length} Places</span>
+                   <span className="font-black text-slate-800 text-sm uppercase tracking-widest">{favoritesTotal} Places</span>
+                </div>
+              </div>
+
+              <div className="mb-8 space-y-4">
+                <div className="relative max-w-xl">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <input
+                    type="search"
+                    value={favoritesSearch}
+                    onChange={(e) => setFavoritesSearch(e.target.value)}
+                    placeholder="Search favorites"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#ff5a5f] focus:ring-2 focus:ring-[#ff5a5f]/20"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      { id: "all" as const, label: "All Service" },
+                      { id: "hair" as const, label: "Hair Cut" },
+                      { id: "facial" as const, label: "Facial" },
+                      { id: "wax" as const, label: "Waxing" },
+                    ] as const
+                  ).map((chip) => {
+                    const active = favoritesChip === chip.id;
+                    return (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => setFavoritesChip(chip.id)}
+                        className={`rounded-full border px-5 py-2 text-xs font-bold transition ${
+                          active
+                            ? "border-[#ff5a5f] bg-[#ff5a5f] text-white"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        {chip.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1224,8 +1504,12 @@ function ProfileContent() {
                   <p className="text-sm text-slate-500 col-span-full text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 font-bold">
                     {"No favorites yet."}
                   </p>
+                ) : filteredFavorites.length === 0 ? (
+                  <p className="text-sm text-slate-500 col-span-full text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 font-bold">
+                    {"No favorites match your search."}
+                  </p>
                 ) : (
-                  favoritesList.map((biz: any) => {
+                  filteredFavorites.map((biz: any) => {
                     const bId = biz.businessId;
                     const src = businessListingImageSrc(biz.business || biz);
                     return (
@@ -1272,6 +1556,17 @@ function ProfileContent() {
                   })
                 )}
               </div>
+              {favoritesTotalPages > 1 && (
+                <div className="mt-10">
+                  <Pagination
+                    page={favoritesPage}
+                    totalPages={favoritesTotalPages}
+                    totalItems={favoritesTotal}
+                    pageSize={12}
+                    onPageChange={setFavoritesPage}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -1414,21 +1709,8 @@ function ProfileContent() {
                                 <p className="font-black text-slate-800 text-sm">{selectedRes.date} at {selectedRes.time}</p>
                              </div>
                           </div>
-                          <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                            selectedRes.status === 'confirmed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                            selectedRes.status === 'paid' ? 'bg-cyan-50 text-cyan-600 border border-cyan-100' :
-                            selectedRes.status === 'completed' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                            selectedRes.status === 'rescheduled' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                            selectedRes.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                            'bg-red-50 text-red-500 border border-red-100'
-                          }`}>
-                            {selectedRes.status === 'confirmed' ? ('Awaiting Payment') :
-                             selectedRes.status === 'paid' ? ('Paid') :
-                             selectedRes.status === 'completed' ? ('Completed') :
-                             selectedRes.status === 'rescheduled' ? ('Rescheduled') :
-                             selectedRes.status === 'pending' ? ('Pending') :
-                             selectedRes.status === 'cancelled' ? ('Cancelled') :
-                             selectedRes.status}
+                          <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${reservationStatusBadgeClass(selectedRes.status)}`}>
+                            {reservationStatusLabel(selectedRes.status, language)}
                           </div>
                        </div>
 
@@ -1450,7 +1732,19 @@ function ProfileContent() {
                                   </div>
                                   <div className="flex items-center gap-4 shrink-0">
                                      <span className="font-black text-slate-900 text-sm">${item.price}</span>
-                                     {item.status === 'confirmed' && (
+                                     {item.status === 'paid' && (
+                                       <span className="text-[9px] font-black text-cyan-600 uppercase tracking-widest flex items-center gap-1">
+                                         <CreditCard size={12} />
+                                         {"Paid"}
+                                       </span>
+                                     )}
+                                     {item.status === 'cash_at_venue' && (
+                                       <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                                         <Banknote size={12} />
+                                         {"Pay at Venue"}
+                                       </span>
+                                     )}
+                                     {item.canCancel && (
                                        <button 
                                          onClick={() => handleCancelReservation(item.id)}
                                          className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-100 transition"
@@ -1480,11 +1774,23 @@ function ProfileContent() {
                       
                       <div className="space-y-3.5">
                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-400">{"Subtotal"}</span>
+                            <span className="font-bold text-slate-400">{"Services"}</span>
                             <span className="font-black text-slate-700">${selectedRes.subtotal.toFixed(2)}</span>
                          </div>
+                         {selectedRes.commissionAmount > 0 && (
+                           <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-slate-400">
+                                {`Service fee (${selectedRes.commissionPercent}%)`}
+                              </span>
+                              <span className="font-black text-slate-700">${selectedRes.commissionAmount.toFixed(2)}</span>
+                           </div>
+                         )}
                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-400">{"Tax"}</span>
+                            <span className="font-bold text-slate-400">
+                              {selectedRes.taxPercentage > 0
+                                ? `Tax (${selectedRes.taxPercentage}%)`
+                                : "Tax"}
+                            </span>
                             <span className="font-black text-slate-700">${selectedRes.taxAmount.toFixed(2)}</span>
                          </div>
                          <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex justify-between items-center">
@@ -1500,10 +1806,11 @@ function ProfileContent() {
                               <p className="text-emerald-700/90 font-medium">{"Your booking is approved. Please pay online to confirm."}</p>
                            </div>
                            <button 
-                             onClick={() => setPaymentView("select")}
+                             type="button"
+                             onClick={() => setPaymentView("review")}
                              className="w-full bg-[#ff5a5f] hover:bg-[#e0484d] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/15 transition-all transform active:scale-95"
                            >
-                             {"Pay Online Now"}
+                             {"Review & Pay"}
                            </button>
                         </div>
                       )}
@@ -1542,6 +1849,20 @@ function ProfileContent() {
                          </div>
                        )}
 
+                      {paymentView === "none" && selectedRes.status === "cash_at_venue" && (
+                         <div className="mt-6 space-y-4">
+                            <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-[10px] font-bold text-amber-900">
+                               <p className="font-black uppercase tracking-widest mb-1">{"Pay at the venue"}</p>
+                               <p className="text-amber-800/90 font-medium leading-relaxed">
+                                 {`Your booking is confirmed. Please bring $${selectedRes.totalPrice.toFixed(2)} in cash when you arrive.`}
+                               </p>
+                               <p className="text-amber-700/90 font-medium mt-2">
+                                  {"The venue will confirm your cash payment when you complete the service."}
+                               </p>
+                            </div>
+                         </div>
+                       )}
+
                        {selectedRes.status === "completed" && !selectedRes.isReviewed && (
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-blue-50/70 border border-blue-100/80 rounded-2xl text-[10px] font-bold text-blue-800 text-center">
@@ -1558,51 +1879,64 @@ function ProfileContent() {
                        )}
 
                       {paymentView === "none" && selectedRes.status === "pending" && (
-                         <div className="mt-6 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
+                         <div className="mt-6 space-y-4">
+                            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
+                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
+                               <p className="text-slate-500 text-[10px] font-medium mt-2">{"You can cancel anytime before the venue accepts."}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleCancelAllInGroup(selectedRes)}
+                              className="w-full bg-red-50 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100"
+                            >
+                               {"Cancel Reservation"}
+                            </button>
                          </div>
                       )}
 
-                      {paymentView === "select" && (
+                      {paymentView === "review" && (
                          <div className="mt-6 space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                            <div className="grid grid-cols-2 gap-3">
-                              <button
-                                type="button"
-                                onClick={() => setPayMethod("card")}
-                                className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors ${
-                                  payMethod === "card" ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"
-                                }`}
-                              >
-                                <CreditCard className="text-[#ff5a5f]" size={22} />
-                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
-                                  {"Card"}
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setPayMethod("cash")}
-                                className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors ${
-                                  payMethod === "cash" ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"
-                                }`}
-                              >
-                                <Banknote className="text-[#ff5a5f]" size={22} />
-                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
-                                  {"Cash"}
-                                </span>
-                              </button>
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-[10px] font-bold text-slate-600">
+                              <p className="font-black uppercase tracking-widest text-slate-800 mb-2">{"Payment details"}</p>
+                              <p>{selectedRes.items.length} {"service(s)"} · {selectedRes.venueName}</p>
+                              <p className="mt-1 text-slate-500">{selectedRes.date} · {selectedRes.time}</p>
                             </div>
+                            <div className="grid grid-cols-3 gap-3">
+                              {paymentMethods.map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  disabled={!m.enabled}
+                                  onClick={() => setPayMethod(m.id as "card" | "yappy" | "cash")}
+                                  className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                                    payMethod === m.id ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"
+                                  }`}
+                                >
+                                  {m.id === "card" ? <CreditCard className="text-[#ff5a5f]" size={22} /> : m.id === "yappy" ? <Shield className="text-[#ff5a5f]" size={22} /> : <Banknote className="text-[#ff5a5f]" size={22} />}
+                                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                                    {m.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                            {payMethod === "yappy" ? (
+                              <p className="text-[10px] font-bold text-amber-700 text-center">
+                                Complete transfer in the Yappy app, then confirm payment here.
+                              </p>
+                            ) : null}
                             
                             <button 
+                              type="button"
                               onClick={() => void handlePayNow(selectedRes)}
                               disabled={payingLoading}
                               className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                {payingLoading ? <Loader2 className="animate-spin text-white" size={14} /> : <Shield size={14} />}
-                               {payingLoading ? ("Processing...") : ("Confirm & Pay")}
+                               {payingLoading ? ("Processing...") : (`Pay $${selectedRes.totalPrice.toFixed(2)}`)}
                             </button>
 
                             <div className="flex gap-3">
-                              {selectedRes.status === 'confirmed' && (
+                              {selectedRes.canCancelAny && (
                                 <button 
                                   onClick={() => void handleCancelAllInGroup(selectedRes)}
                                   className="flex-1 bg-red-50 text-red-500 font-black py-3 rounded-xl text-[9px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100/80"
@@ -1621,14 +1955,34 @@ function ProfileContent() {
                       )}
 
                       {paymentView === "done" && (
-                         <div className="mt-6 p-5 bg-emerald-50 border border-emerald-100 rounded-2xl text-center animate-in zoom-in-95">
-                            <CheckCircle className="text-emerald-500 mx-auto mb-2" size={28} />
-                            <p className="font-black text-emerald-950 text-xs">{"Paid Successfully!"}</p>
+                         <div className="mt-6 space-y-4 animate-in zoom-in-95">
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center">
+                              <CheckCircle className="text-emerald-500 mx-auto mb-2" size={28} />
+                              <p className="font-black text-emerald-950 text-sm uppercase tracking-wide">{"Payment confirmed"}</p>
+                              <p className="mt-2 text-[11px] font-bold text-emerald-800">
+                                {`$${selectedRes.totalPrice.toFixed(2)} paid · Ref #${paidInvoice?.refNumber ?? selectedRes.refNumber}`}
+                              </p>
+                              <p className="mt-1 text-[10px] font-semibold text-emerald-700">
+                                {"All services in this reservation are now marked as paid."}
+                              </p>
+                            </div>
                             <button 
-                              onClick={() => { setIsResModalOpen(false); setActiveTab("invoices"); }}
-                              className="mt-3.5 text-[9px] font-black text-emerald-600 uppercase tracking-widest underline decoration-2 underline-offset-4"
+                              type="button"
+                              onClick={() => { setIsResModalOpen(false); setPaymentView("none"); setActiveTab("invoices"); }}
+                              className="w-full text-[10px] font-black text-emerald-700 uppercase tracking-widest underline decoration-2 underline-offset-4"
                             >
-                               {"View Invoices"}
+                               {"View invoice"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsResModalOpen(false);
+                                setPaymentView("none");
+                                setRefreshTrigger((p) => p + 1);
+                              }}
+                              className="w-full bg-slate-950 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest"
+                            >
+                              {"Done"}
                             </button>
                          </div>
                       )}
@@ -1637,16 +1991,37 @@ function ProfileContent() {
                    <div className="bg-slate-950 rounded-[32px] p-6 md:p-8 text-white shadow-xl shadow-slate-200/50">
                       <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-5">{"Safety & Policy"}</h4>
                       <div className="space-y-5 text-[11px]">
-                         <div className="flex gap-3.5">
-                            <Shield className="text-[#ff5a5f] flex-shrink-0" size={18} />
-                            <p className="font-medium text-white/80 leading-relaxed">
-                               {"Secure encrypted payments powered by Rezervame."}
-                            </p>
-                         </div>
+                         {selectedRes.status === 'cash_at_venue' ? (
+                           <div className="flex gap-3.5">
+                              <Banknote className="text-[#ff5a5f] flex-shrink-0" size={18} />
+                              <p className="font-medium text-white/80 leading-relaxed">
+                                 {"Cash payment is collected at the venue when you arrive for your appointment."}
+                              </p>
+                           </div>
+                         ) : (
+                           <div className="flex gap-3.5">
+                              <Shield className="text-[#ff5a5f] flex-shrink-0" size={18} />
+                              <p className="font-medium text-white/80 leading-relaxed">
+                                 {"Secure encrypted payments powered by Rezervame."}
+                              </p>
+                           </div>
+                         )}
                          <div className="flex gap-3.5">
                             <Clock className="text-[#ff5a5f] flex-shrink-0" size={18} />
                             <p className="font-medium text-white/80 leading-relaxed">
-                               {"Cancellations must be done 24h before."}
+                               {selectedRes.cancellationPolicyMessage ||
+                                 policyMessageForBooking(
+                                   {
+                                     status: selectedRes.status,
+                                     appointmentAt: selectedRes.items[0]?.appointmentAt ?? selectedRes.date,
+                                     transactionId: selectedRes.transactionId,
+                                     business: {
+                                       cancellationAllowed: selectedRes.cancellationAllowed,
+                                       cancellationHoursBefore: selectedRes.cancellationHoursBefore,
+                                     },
+                                   },
+                                   language === "es" ? "es" : "en",
+                                 )}
                             </p>
                          </div>
                       </div>
@@ -1856,7 +2231,7 @@ function ProfileContent() {
 
 export default function Profile() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="w-10 h-10 border-4 border-[#ff5a5f] border-t-transparent rounded-full animate-spin"></div></div>}>
+    <Suspense fallback={<PageLoader label="Loading your profile…" />}>
       <ProfileContent />
     </Suspense>
   );

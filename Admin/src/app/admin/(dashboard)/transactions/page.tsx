@@ -15,6 +15,7 @@ import { apiDelete, apiGet } from "@/lib/api";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
 import TablePagination from "@/components/admin/TablePagination";
+import { OverlayLoader } from "@/components/admin/OverlayLoader";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -173,11 +174,7 @@ export default function TransactionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 relative">
-              {isLoading && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-                </div>
-              )}
+              {isLoading ? <OverlayLoader /> : null}
               {transactions.map((tx) => (
                 <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4">

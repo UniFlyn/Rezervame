@@ -24,16 +24,14 @@ export default function LoginPage() {
         toastSuccess("Signed in", "Welcome to the admin console.");
         router.push("/admin/dashboard");
       } else {
-        const msg =
-          "Sign-in failed. Check email/password, or ensure the API is running (e.g. http://localhost:4000).";
+        const msg = "Sign-in failed. Check your email and password.";
         setError(msg);
         toastError("Sign-in failed", msg);
       }
     } catch {
-      const msg =
-        "Cannot reach the API. Start the backend and confirm NEXT_PUBLIC_API_BASE_URL (default http://localhost:4000/api).";
+      const msg = "Unable to connect right now. Please try again.";
       setError(msg);
-      toastError("Cannot reach API", msg);
+      toastError("Connection issue", msg);
     }
     setLoading(false);
   };

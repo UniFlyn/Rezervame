@@ -1,6 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'data/api_repository.dart';
+import 'data/locale_preferences.dart';
 import 'utils/app_colors.dart';
 import 'utils/app_typography.dart';
 import 'screens/splash_screen.dart';
@@ -8,7 +10,10 @@ import 'screens/main_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('en_US', null);
+  await initializeDateFormatting('es_ES', null);
   await EasyLocalization.ensureInitialized();
+  final savedLocale = await LocalePreferences.loadSavedLocale();
   try {
     await ApiRepository().bootstrapMobileData();
   } catch (e, st) {
@@ -17,9 +22,9 @@ Future<void> main() async {
   }
   runApp(
     EasyLocalization(
-      supportedLocales: const [Locale('en')],
+      supportedLocales: const [Locale('en'), Locale('es')],
       path: 'assets/translations',
-      startLocale: const Locale('en'),
+      startLocale: savedLocale ?? const Locale('en'),
       fallbackLocale: const Locale('en'),
       child: const RezervemeApp(),
     ),
@@ -32,6 +37,7 @@ class RezervemeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      key: ValueKey(context.locale.toString()),
       debugShowCheckedModeBanner: false,
       title: 'Rezerveme',
       localizationsDelegates: context.localizationDelegates,

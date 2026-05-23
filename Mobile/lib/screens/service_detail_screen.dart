@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -13,9 +14,12 @@ import '../utils/amenity_icons.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import '../utils/booking_cart.dart';
+import '../utils/booking_utils.dart';
+import '../utils/service_audience.dart';
+import '../utils/service_image_util.dart';
 import '../widgets/chained_network_image.dart';
 import 'booking_calendar_screen.dart';
-import 'write_review_screen.dart';
+import 'booking_history_screen.dart';
 
 /// Venue / business details — content parity with [Mobile/lib/screens/venue_details_screen.dart],
 /// styled with MobileNew [AppColors] / [AppTypography].
@@ -28,8 +32,11 @@ class ServiceDetailScreen extends StatefulWidget {
   State<ServiceDetailScreen> createState() => _ServiceDetailScreenState();
 }
 
-class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTickerProviderStateMixin {
+class _ServiceDetailScreenState extends State<ServiceDetailScreen> with TickerProviderStateMixin {
   late TabController _tabController;
+  late final PageController _heroPageController;
+  Timer? _heroAutoSlideTimer;
+  int _heroPageIndex = 0;
   final List<String> _selectedServiceIds = [];
   bool _isFavorite = false;
 
@@ -54,13 +61,34 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
   String _profileRating = '';
   String _profileReviews = '';
   String _profileDistance = '';
+  List<String> _categoryLabels = [];
+  List<String> _galleryImages = [];
+  Map<String, int> _bestsellerMap = {};
+  List<Map<String, dynamic>> _promotions = [];
+  String _serviceFilter = 'all';
+  bool _servicesExpanded = false;
 
   String get _venueName => widget.listing?.name ?? '';
 
   String get _heroImageUrl {
+    final slides = _heroSlides;
+    if (slides.isNotEmpty) return slides[_heroPageIndex.clamp(0, slides.length - 1)];
     final u = (_profileBannerUrl ?? '').trim();
     if (u.isNotEmpty && !u.startsWith('data:')) return u;
     return widget.listing?.heroImageUrl ?? '';
+  }
+
+  List<String> get _heroSlides {
+    if (_galleryImages.isNotEmpty) return List<String>.from(_galleryImages);
+    final banner = (_profileBannerUrl ?? '').trim();
+    if (banner.isNotEmpty) return [banner];
+    final listingHero = (widget.listing?.heroImageUrl ?? '').trim();
+    if (listingHero.isNotEmpty) return [listingHero];
+    final unsplash = widget.listing?.unsplashImgId;
+    if (unsplash != null && unsplash.isNotEmpty) {
+      return ['https://images.unsplash.com/photo-$unsplash?q=80&w=1200&fit=crop'];
+    }
+    return const [];
   }
 
   String get _ratingDisplay {
@@ -79,16 +107,29 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
     return d;
   }
 
-  Map<String, dynamic> get _venueMap => {
-        'name': _venueName,
-        'img': widget.listing?.unsplashImgId ?? '',
-        'imageUrl': _heroImageUrl,
-      };
+  List<String> _portfolioImagePool() {
+    final fromListing = widget.listing?.portfolioImageUrls ?? const [];
+    if (fromListing.isNotEmpty) return List<String>.from(fromListing);
+    return businessPortfolioUrls(
+      gallery: _galleryImages,
+      bannerUrl: _profileBannerUrl ?? widget.listing?.bannerUrl,
+      logoUrl: widget.listing?.logoUrl,
+    );
+  }
+
+  List<String> _serviceImageUrls(Map<String, dynamic> s) {
+    return serviceImageUrlsChain(
+      serviceImageUrl: s['imageUrl'] as String?,
+      portfolioUrls: _portfolioImagePool(),
+      seed: '${s['id']}',
+    );
+  }
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
+    _heroPageController = PageController();
     if (BookingCart.instance.businessId == widget.listing?.businessId) {
       _selectedServiceIds.addAll(BookingCart.instance.lines.map((l) => l.id));
     }
@@ -136,11 +177,15 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
         repo.fetchBusinessServices(bid),
         repo.fetchBusinessStaff(bid),
         repo.fetchBusinessReviews(bid),
+        repo.fetchBusinessPromotions(bid),
+        repo.fetchBusinessBestsellers(bid),
       ]);
       final prof = results[0] as Map<String, dynamic>?;
       final svc = (results[1] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
       final staff = (results[2] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
       final rev = (results[3] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+      final promos = (results[4] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+      final bestsellers = (results[5] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
       if (!mounted) return;
       setState(() {
         final bannerRaw = '${prof?['banner'] ?? ''}'.trim();
@@ -153,6 +198,39 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
         _profileRating = '${prof?['rating'] ?? ''}'.trim();
         _profileReviews = '${prof?['reviews'] ?? ''}'.trim();
         _profileDistance = '${prof?['distanceLabel'] ?? ''}'.trim();
+        final cats = prof?['categories'];
+        if (cats is List && cats.isNotEmpty) {
+          _categoryLabels = cats.map((e) => '$e'.trim().toUpperCase()).where((s) => s.isNotEmpty).toList();
+        } else {
+          final single = '${prof?['category'] ?? ''}'.trim();
+          if (single.isNotEmpty) {
+            _categoryLabels = single.split('·').map((s) => s.trim().toUpperCase()).where((s) => s.isNotEmpty).toList();
+          } else {
+            _categoryLabels = [];
+          }
+        }
+        final rawImages = prof?['images'];
+        final banner = bannerRaw;
+        final logo = '${prof?['logo'] ?? ''}'.trim();
+        final skip = <String>{if (banner.isNotEmpty) banner, if (logo.isNotEmpty) logo};
+        _galleryImages = [];
+        if (rawImages is List) {
+          for (final img in rawImages) {
+            final u = '$img'.trim();
+            if (u.isNotEmpty && !skip.contains(u) && !_galleryImages.contains(u)) {
+              _galleryImages.add(u);
+            }
+          }
+        }
+        if (_galleryImages.isEmpty && banner.isNotEmpty) _galleryImages.add(banner);
+        _promotions = promos;
+        _bestsellerMap = {};
+        for (final b in bestsellers) {
+          final sid = '${b['serviceId'] ?? ''}';
+          if (sid.isNotEmpty) {
+            _bestsellerMap[sid] = (b['bookingCount'] as num?)?.toInt() ?? 0;
+          }
+        }
         _address = '${prof?['location'] ?? ''}'.trim();
         _latitude = prof?['latitude'] != null ? (prof?['latitude'] as num).toDouble() : null;
         _longitude = prof?['longitude'] != null ? (prof?['longitude'] as num).toDouble() : null;
@@ -204,7 +282,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
         }
         _services = svc.map((s) {
           final id = '${s['id']}';
-          final price = (s['price'] as num?) ?? 0;
+          final price = ((s['price'] as num?) ?? 0).toDouble();
           final dur = (s['duration'] as num?)?.toInt() ?? 30;
           final img = '${s['imageUrl'] ?? ''}'.trim();
           return {
@@ -213,16 +291,31 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
             'desc': '${s['category']}',
             'time': '$dur min',
             'price': '\$${price.toStringAsFixed(2)}',
-            'tag': 'Todos',
+            'priceValue': price,
+            'tag': '${s['category'] ?? ''}',
             'imageUrl': img,
           };
         }).toList();
         _team = staff.map((m) {
           final img = '${m['image'] ?? ''}'.trim();
+          final svcIds = (m['serviceIds'] as List<dynamic>?)?.map((e) => '$e').toList() ?? <String>[];
+          var bio = '${m['bio'] ?? ''}'.trim();
+          final skills = m['skills'];
+          if (bio.isEmpty && skills is List && skills.isNotEmpty) {
+            bio = skills.map((e) => '$e').join(', ');
+          }
+          if (bio.isEmpty) bio = '—';
           return {
             'id': '${m['id']}',
             'name': '${m['name']}',
             'role': '${m['role']}',
+            'rating': ((m['rating'] as num?) ?? 0).toDouble(),
+            'reviews': (m['reviews'] as num?)?.toInt() ?? 0,
+            'clients': formatStaffStatValue(m['clients']),
+            'years': formatStaffStatValue(m['experienceYears']),
+            'bio': bio,
+            'serviceIds': svcIds,
+            'availability': '${m['availability'] ?? ''}',
             'imageUrl': img,
           };
         }).toList();
@@ -237,6 +330,13 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
         }).toList();
         _detailLoading = false;
       });
+      if (_heroPageIndex >= _heroSlides.length) {
+        _heroPageIndex = 0;
+        if (_heroPageController.hasClients) {
+          _heroPageController.jumpToPage(0);
+        }
+      }
+      _restartHeroAutoSlide();
       await _syncFavoriteState();
     } catch (e) {
       if (!mounted) return;
@@ -258,7 +358,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
       if (mounted) setState(() => _isFavorite = false);
       return;
     }
-    final favs = await ApiRepository().fetchFavoriteVenueMaps();
+    final res = await ApiRepository().fetchFavoriteVenueMaps(page: 1, limit: 200);
+    final favs = (res['data'] as List<Map<String, dynamic>>?) ?? [];
     if (!mounted) return;
     final on = favs.any((m) => '${m['businessId']}' == bid);
     setState(() => _isFavorite = on);
@@ -284,8 +385,42 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
 
   @override
   void dispose() {
+    _heroAutoSlideTimer?.cancel();
+    _heroPageController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _restartHeroAutoSlide() {
+    _heroAutoSlideTimer?.cancel();
+    final count = _heroSlides.length;
+    if (count <= 1 || !mounted) return;
+    _heroAutoSlideTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || !_heroPageController.hasClients) return;
+      final next = (_heroPageIndex + 1) % count;
+      _heroPageController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  void _onHeroPageChanged(int index) {
+    setState(() => _heroPageIndex = index);
+    _restartHeroAutoSlide();
+  }
+
+  void _openImageLightbox(int initialIndex) {
+    if (_galleryImages.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.88),
+      builder: (ctx) => _VenueImageLightbox(
+        images: _galleryImages,
+        initialIndex: initialIndex.clamp(0, _galleryImages.length - 1),
+      ),
+    );
   }
 
   void _showShareSheet() {
@@ -375,12 +510,17 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
                   indicatorWeight: 3,
                   labelStyle: AppTypography.homeSectionTitle.copyWith(letterSpacing: 0.5, fontSize: 11),
                   unselectedLabelStyle: AppTypography.homeSectionTitle.copyWith(color: AppColors.grey400, fontSize: 11),
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  padding: EdgeInsets.zero,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 16),
                   tabs: [
                     Tab(text: 'venueServicios'.tr()),
                     Tab(text: 'venueEquipo'.tr()),
+                    const Tab(text: 'Portfolio'),
                     Tab(text: 'venueReseñas'.tr()),
                     Tab(text: 'venueAmenidades'.tr()),
-                    const Tab(text: 'Info'),
+                    Tab(text: 'venueInfo'.tr()),
                   ],
                 ),
               ),
@@ -392,6 +532,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
           children: [
             _buildServicesTab(),
             _buildTeamTab(),
+            _buildPortfolioTab(),
             _buildReviewsTab(),
             _buildAmenitiesTab(),
             _buildInfoTab(),
@@ -426,29 +567,77 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            ChainedNetworkImage(
-              urls: ChainedNetworkImage.chainFrom(_heroImageUrl, widget.listing?.unsplashImgId, w: 1200),
-              fit: BoxFit.cover,
-            ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.4),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.4),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+        background: _buildHeroGallery(),
       ),
+    );
+  }
+
+  Widget _buildHeroGallery() {
+    final slides = _heroSlides;
+    if (slides.isEmpty) {
+      return Container(color: AppColors.grey200);
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          onTap: slides.isNotEmpty && _galleryImages.isNotEmpty
+              ? () => _openImageLightbox(_heroPageIndex)
+              : null,
+          child: slides.length == 1
+              ? ChainedNetworkImage(
+                  urls: ChainedNetworkImage.chainFrom(slides.first, widget.listing?.unsplashImgId, w: 1200),
+                  fit: BoxFit.cover,
+                )
+              : PageView.builder(
+                  controller: _heroPageController,
+                  onPageChanged: _onHeroPageChanged,
+                  itemCount: slides.length,
+                  itemBuilder: (context, index) {
+                    return ChainedNetworkImage(
+                      urls: ChainedNetworkImage.chainFrom(slides[index], widget.listing?.unsplashImgId, w: 1200),
+                      fit: BoxFit.cover,
+                    );
+                  },
+                ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.4),
+                Colors.transparent,
+                Colors.black.withValues(alpha: 0.35),
+              ],
+            ),
+          ),
+        ),
+        if (slides.length > 1)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 14,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(slides.length, (i) {
+                final active = i == _heroPageIndex;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: active ? 18 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.white : AppColors.white.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                );
+              }),
+            ),
+          ),
+      ],
     );
   }
 
@@ -459,6 +648,18 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(_venueName, style: AppTypography.screenTitle.copyWith(color: AppColors.grey900)),
+          if (_categoryLabels.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _categoryLabels.join(' · '),
+              style: AppTypography.body100.copyWith(
+                color: AppColors.primary500,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+                fontSize: 10,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -491,6 +692,68 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
     );
   }
 
+  List<Map<String, dynamic>> get _filteredServices {
+    if (_serviceFilter == 'promotions') {
+      final promoIds = _promotions.map((p) => '${p['serviceId']}').toSet();
+      return _services.where((s) => promoIds.contains('${s['id']}')).toList();
+    }
+    if (_serviceFilter == 'women' || _serviceFilter == 'men' || _serviceFilter == 'kids') {
+      return _services
+          .where((s) => serviceMatchesAudienceFilter('${s['tag']}', _serviceFilter))
+          .toList();
+    }
+    return _services;
+  }
+
+  Future<bool> _confirmCartVenueSwitch() async {
+    final cart = BookingCart.instance;
+    final bid = widget.listing?.businessId;
+    if (cart.isEmpty || bid == null || cart.businessId == bid) return true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Replace cart?'),
+        content: Text(
+          'You have services from ${cart.venueName ?? 'another venue'} in your cart. '
+          'Adding services here will replace them.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Replace')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      cart.clear();
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _addServiceId(String id) async {
+    final ok = await _confirmCartVenueSwitch();
+    if (!ok || !mounted) return;
+    setState(() {
+      _selectedServiceIds.add(id);
+      _syncCart();
+    });
+  }
+
+  Future<void> _removeServiceId(String id) async {
+    setState(() {
+      final idx = _selectedServiceIds.lastIndexOf(id);
+      if (idx >= 0) _selectedServiceIds.removeAt(idx);
+      _syncCart();
+    });
+  }
+
+  Map<String, dynamic>? _promoForService(String serviceId) {
+    for (final p in _promotions) {
+      if ('${p['serviceId']}' == serviceId) return p;
+    }
+    return null;
+  }
+
   Widget _buildServicesTab() {
     if (_detailLoading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.primary500));
@@ -512,175 +775,497 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
     if (_services.isEmpty) {
       return Center(child: Text('No services listed.', style: AppTypography.body200.copyWith(color: AppColors.grey500)));
     }
+
+    final filtered = _filteredServices;
+    const previewLimit = 6;
+    final visible = _servicesExpanded ? filtered : filtered.take(previewLimit).toList();
+    final hasMore = filtered.length > previewLimit && !_servicesExpanded;
+    final filters = <Map<String, String>>[
+      ...buildServiceAudienceFilters(_services),
+      if (_promotions.isNotEmpty) {'id': 'promotions', 'label': 'PROMOTIONS'},
+    ];
+
     return CustomScrollView(
       key: const PageStorageKey<String>('venue_tab_services'),
       primary: false,
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.all(20),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final s = _services[index];
-                return Padding(
-                  padding: EdgeInsets.only(bottom: index < _services.length - 1 ? 20 : 0),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.grey50),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: filters.map((f) {
+                    final selected = _serviceFilter == f['id'];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: OutlinedButton(
+                        onPressed: () => setState(() {
+                          _serviceFilter = f['id']!;
+                          _servicesExpanded = false;
+                        }),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: selected ? AppColors.grey900 : AppColors.white,
+                          foregroundColor: selected ? AppColors.white : AppColors.grey400,
+                          side: BorderSide(color: selected ? AppColors.grey900 : AppColors.grey100, width: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: ChainedNetworkImage(
-                            urls: ChainedNetworkImage.chainFrom(s['imageUrl'] as String?, null, w: 400),
-                            width: 92,
-                            height: 92,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            s['name'] as String,
-                                            style: AppTypography.heading400,
-                                          ),
-                                        ),
-                                        if (_selectedServiceIds.contains(s['id'] as String))
-                                          const Padding(
-                                            padding: EdgeInsets.only(left: 6),
-                                            child: Icon(Icons.check_circle, color: Colors.green, size: 16),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    s['price'] as String,
-                                    style: AppTypography.heading500.copyWith(color: AppColors.primary500),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                s['desc'] as String,
-                                style: AppTypography.body100.copyWith(color: AppColors.grey400),
-                              ),
-                              const SizedBox(height: 14),
-                              Row(
-                                children: [
-                                  const Icon(Icons.access_time, size: 14, color: AppColors.grey300),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    s['time'] as String,
-                                    style: AppTypography.body100.copyWith(color: AppColors.grey400),
-                                  ),
-                                  const Spacer(),
-                                  if (_selectedServiceIds.contains(s['id'] as String)) ...[
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: AppColors.grey900,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                            padding: EdgeInsets.zero,
-                                            icon: const Icon(Icons.remove, color: Colors.white, size: 18),
-                                            onPressed: () {
-                                              setState(() {
-                                                final id = s['id'] as String;
-                                                _selectedServiceIds.remove(id);
-                                                _syncCart();
-                                              });
-                                            },
-                                          ),
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                                            child: Text(
-                                              '${_selectedServiceIds.where((id) => id == s['id']).length}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                          ),
-                                          IconButton(
-                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                            padding: EdgeInsets.zero,
-                                            icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                                            onPressed: () {
-                                              setState(() {
-                                                final id = s['id'] as String;
-                                                _selectedServiceIds.add(id);
-                                                _syncCart();
-                                              });
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ] else ...[
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          final id = s['id'] as String;
-                                          _selectedServiceIds.add(id);
-                                          _syncCart();
-                                        });
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.primary500,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                      ),
-                                      child: Text(
-                                        'venueAdd'.tr(),
-                                        style: AppTypography.heading100.copyWith(color: AppColors.white),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-              childCount: _services.length,
+                        child: Text(f['label']!, style: AppTypography.body100.copyWith(fontWeight: FontWeight.w800, fontSize: 10)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
           ),
         ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              mainAxisExtent: 268,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildServiceGridCard(visible[index]),
+              childCount: visible.length,
+            ),
+          ),
+        ),
+        if (hasMore)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Center(
+                child: TextButton(
+                  onPressed: () => setState(() => _servicesExpanded = true),
+                  child: Text('See more +', style: AppTypography.buttonMedium.copyWith(color: AppColors.grey900)),
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  /// Classic mobile 2-column service card (image on top, details + BOOK below).
+  Widget _buildServiceGridCard(Map<String, dynamic> s) {
+    final id = '${s['id']}';
+    final promo = _promoForService(id);
+    final priceValue = (s['priceValue'] as num?)?.toDouble() ?? 0;
+    final discountPct = (promo?['discountPercent'] as num?)?.toDouble();
+    final discounted = discountPct != null ? priceValue * (1 - discountPct / 100) : null;
+    final isBestseller = promo == null && (_bestsellerMap[id] ?? 0) > 0;
+    final promoLabel = promo != null
+        ? ('${promo['label'] ?? ''}'.trim().isNotEmpty
+            ? '${promo['label']}'
+            : '${discountPct?.toStringAsFixed(0)}% OFF')
+        : null;
+    final nextSlot = getNextSlotForService(
+      id,
+      _team,
+      schedule: _schedule.map((e) => Map<String, dynamic>.from(e)).toList(),
+    );
+    final qty = _selectedServiceIds.where((x) => x == id).length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: promo != null ? AppColors.primary50.withValues(alpha: 0.4) : AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: promo != null ? AppColors.primary500.withValues(alpha: 0.28) : AppColors.grey50,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 100,
+            child: ChainedNetworkImage(
+              urls: _serviceImageUrls(s),
+              fit: BoxFit.cover,
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (promoLabel != null || isBestseller)
+                    SizedBox(
+                      height: 20,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          if (promoLabel != null) _serviceTag(promoLabel, AppColors.primary500),
+                          if (isBestseller) ...[
+                            if (promoLabel != null) const SizedBox(width: 4),
+                            _serviceTag('POPULAR', const Color(0xFFD97706)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  if (promoLabel != null || isBestseller) const SizedBox(height: 4),
+                  Text(
+                    s['name'] as String,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.heading300.copyWith(fontWeight: FontWeight.w800, fontSize: 13, height: 1.1),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${s['time']} · $nextSlot',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.body100.copyWith(color: AppColors.grey400, fontSize: 9, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  if (discounted != null && promo != null) ...[
+                    Text(
+                      '\$${discounted.toStringAsFixed(2)}',
+                      maxLines: 1,
+                      style: AppTypography.heading200.copyWith(color: AppColors.primary500, fontWeight: FontWeight.w900, fontSize: 14),
+                    ),
+                    Text(
+                      s['price'] as String,
+                      maxLines: 1,
+                      style: AppTypography.body100.copyWith(
+                        color: AppColors.grey400,
+                        decoration: TextDecoration.lineThrough,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ] else
+                    Text(
+                      s['price'] as String,
+                      maxLines: 1,
+                      style: AppTypography.heading200.copyWith(fontWeight: FontWeight.w900, fontSize: 14),
+                    ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 34,
+                    width: double.infinity,
+                    child: qty > 0
+                        ? Container(
+                            decoration: BoxDecoration(color: AppColors.grey900, borderRadius: BorderRadius.circular(10)),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _qtyBtn(Icons.remove, () => _removeServiceId(id)),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  child: Text('$qty', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
+                                ),
+                                _qtyBtn(Icons.add, () => _addServiceId(id)),
+                              ],
+                            ),
+                          )
+                        : OutlinedButton(
+                            onPressed: () => _addServiceId(id),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary500,
+                              side: const BorderSide(color: AppColors.primary500, width: 2),
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: Text('BOOK', style: AppTypography.body100.copyWith(fontWeight: FontWeight.w800, fontSize: 11)),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _serviceTag(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(label.toUpperCase(), style: AppTypography.body100.copyWith(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+    );
+  }
+
+  Widget _qtyBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Icon(icon, color: Colors.white, size: 16),
+      ),
+    );
+  }
+
+  String? _staffYearsLabel(Map<String, dynamic> m) {
+    final years = '${m['years']}'.trim();
+    if (years.isEmpty || years == '—' || years == '0') return null;
+    return '$years yrs exp.';
+  }
+
+  void _openStaffProfile(Map<String, dynamic> member) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.52,
+        minChildSize: 0.38,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (_, scrollCtrl) {
+          final m = member;
+          final rating = (m['rating'] as num?)?.toDouble() ?? 0;
+          final yearsLabel = _staffYearsLabel(m);
+          final svcIds = (m['serviceIds'] as List<dynamic>?)?.map((e) => '$e').toSet() ?? <String>{};
+          final offered = svcIds.isEmpty
+              ? _services
+              : _services.where((s) => svcIds.contains('${s['id']}')).toList();
+          final bio = '${m['bio']}';
+          final bioText = bio == '—' ? 'This professional has not added a bio yet.' : bio;
+          return Container(
+            decoration: const BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: ListView(
+              controller: scrollCtrl,
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(color: AppColors.grey200, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: AppColors.primary50,
+                          child: ClipOval(
+                            child: ChainedNetworkImage(
+                              urls: ChainedNetworkImage.chainFrom('${m['imageUrl']}', null, w: 400),
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        if (rating > 0)
+                          Positioned(
+                            right: -4,
+                            bottom: -2,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.grey100),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.black.withValues(alpha: 0.08),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.star_rounded, color: Color(0xFFFFC107), size: 12),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: AppTypography.body100.copyWith(fontWeight: FontWeight.w900, fontSize: 10),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${m['name']}', style: AppTypography.heading200.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${m['role']}'.toUpperCase(),
+                            style: AppTypography.body100.copyWith(color: AppColors.primary500, fontWeight: FontWeight.w800, fontSize: 10),
+                          ),
+                          if (yearsLabel != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              yearsLabel,
+                              style: AppTypography.body100.copyWith(color: AppColors.grey500, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close, size: 22),
+                      color: AppColors.grey500,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(bioText, style: AppTypography.body200.copyWith(color: AppColors.grey600, height: 1.4)),
+                if (offered.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text('Services', style: AppTypography.sectionTitle.copyWith(fontSize: 16)),
+                  const SizedBox(height: 8),
+                  ...offered.map((s) {
+                    final sid = '${s['id']}';
+                    final selected = _selectedServiceIds.contains(sid);
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('${s['name']}', style: AppTypography.heading200),
+                      subtitle: Text('${s['time']} · ${s['price']}'),
+                      trailing: OutlinedButton(
+                        onPressed: () async {
+                          if (selected) {
+                            await _removeServiceId(sid);
+                          } else {
+                            await _addServiceId(sid);
+                          }
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                        child: Text(selected ? 'Added' : 'BOOK'),
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStaffTile(Map<String, dynamic> m) {
+    final rating = (m['rating'] as num?)?.toDouble() ?? 0;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openStaffProfile(m),
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 92,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 34,
+                    backgroundColor: AppColors.primary50,
+                    child: ClipOval(
+                      child: ChainedNetworkImage(
+                        urls: ChainedNetworkImage.chainFrom('${m['imageUrl']}', null, w: 300),
+                        width: 68,
+                        height: 68,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  if (rating > 0)
+                    Positioned(
+                      top: 0,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.grey100),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.black.withValues(alpha: 0.06),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded, color: Color(0xFFFFC107), size: 10),
+                            const SizedBox(width: 2),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: AppTypography.body100.copyWith(fontWeight: FontWeight.w900, fontSize: 9),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${m['name']}',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.body100.copyWith(
+                  color: AppColors.grey900,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${m['role']}'.toUpperCase(),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.body100.copyWith(
+                  color: AppColors.primary500,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -696,65 +1281,59 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
       primary: false,
       slivers: [
         SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          sliver: SliverToBoxAdapter(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 20,
+              alignment: WrapAlignment.center,
+              children: _team.map(_buildStaffTile).toList(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPortfolioTab() {
+    if (_detailLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary500));
+    }
+    if (_galleryImages.isEmpty) {
+      return Center(child: Text('No portfolio images yet.', style: AppTypography.body200.copyWith(color: AppColors.grey500)));
+    }
+    return CustomScrollView(
+      key: const PageStorageKey<String>('venue_tab_portfolio'),
+      primary: false,
+      slivers: [
+        SliverPadding(
           padding: const EdgeInsets.all(20),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.75,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 4 / 3,
             ),
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                final m = _team[index];
-                return Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.grey50),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                final src = _galleryImages[index];
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _openImageLightbox(index),
+                    borderRadius: BorderRadius.circular(12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: ChainedNetworkImage(
+                        urls: ChainedNetworkImage.chainFrom(src, null, w: 800),
+                        fit: BoxFit.cover,
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                          child: ChainedNetworkImage(
-                            urls: ChainedNetworkImage.chainFrom(m['imageUrl'] as String?, null, w: 400),
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            Text(
-                              m['name'] as String,
-                              style: AppTypography.heading300,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              m['role'] as String,
-                              style: AppTypography.heading100.copyWith(color: AppColors.primary500),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 );
               },
-              childCount: _team.length,
+              childCount: _galleryImages.length,
             ),
           ),
         ),
@@ -804,9 +1383,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
                       onPressed: () {
                         Navigator.push<void>(
                           context,
-                          MaterialPageRoute<void>(
-                            builder: (context) => WriteReviewScreen(venue: _venueMap),
-                          ),
+                          MaterialPageRoute<void>(builder: (context) => const BookingHistoryScreen()),
                         );
                       },
                       style: OutlinedButton.styleFrom(
@@ -815,7 +1392,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                       child: Text(
-                        'venueWriteReview'.tr(),
+                        'My reservations',
                         style: AppTypography.heading100.copyWith(color: AppColors.grey900),
                         textAlign: TextAlign.center,
                       ),
@@ -891,20 +1468,35 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
   }
 
   Widget _buildAmenitiesTab() {
-    final lang = context.locale.languageCode;
-    final tiles = _amenityRows.isNotEmpty
-        ? _amenityRows.map((a) {
-            final label = ('${a['labelEn'] ?? a['labelEs'] ?? a['key'] ?? ''}'.trim());
-            return {'key': '${a['key']}', 'label': label};
-          }).toList()
-        : [
-            {'key': 'wifi', 'label': 'amWifi'.tr()},
-            {'key': 'parking', 'label': 'amParking'.tr()},
-            {'key': 'coffee', 'label': 'amCoffee'.tr()},
-            {'key': 'ac', 'label': 'amAC'.tr()},
-            {'key': 'card_payment', 'label': 'amCards'.tr()},
-            {'key': 'kids_friendly', 'label': 'amKids'.tr()},
-          ];
+    final tiles = _amenityRows
+        .map((a) {
+          final label = ('${a['labelEn'] ?? a['labelEs'] ?? a['key'] ?? ''}'.trim());
+          return {'key': '${a['key']}', 'label': label};
+        })
+        .where((a) => '${a['label']}'.isNotEmpty)
+        .toList();
+
+    if (tiles.isEmpty) {
+      return CustomScrollView(
+        key: const PageStorageKey<String>('venue_tab_amenities'),
+        primary: false,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'venueNoAmenitiesListed'.tr(),
+                  textAlign: TextAlign.center,
+                  style: AppTypography.body200.copyWith(color: AppColors.grey500),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return CustomScrollView(
       key: const PageStorageKey<String>('venue_tab_amenities'),
@@ -956,6 +1548,16 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildInfoTab() {
+    return CustomScrollView(
+      key: const PageStorageKey<String>('venue_tab_info'),
+      primary: false,
+      slivers: [
+        SliverToBoxAdapter(child: _buildVenueExtraInfo()),
       ],
     );
   }
@@ -1043,17 +1645,13 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
     );
   }
 
-  Widget _buildInfoTab() {
-    if (_detailLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary500));
-    }
-    
-    final mapCenter = _latitude != null && _longitude != null 
-        ? LatLng(_latitude!, _longitude!) 
+  Widget _buildVenueExtraInfo() {
+    final mapCenter = _latitude != null && _longitude != null
+        ? LatLng(_latitude!, _longitude!)
         : const LatLng(8.98, -79.52);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1293,6 +1891,80 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with SingleTi
   }
 }
 
+class _VenueImageLightbox extends StatefulWidget {
+  const _VenueImageLightbox({required this.images, required this.initialIndex});
+
+  final List<String> images;
+  final int initialIndex;
+
+  @override
+  State<_VenueImageLightbox> createState() => _VenueImageLightboxState();
+}
+
+class _VenueImageLightboxState extends State<_VenueImageLightbox> {
+  late final PageController _controller;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _controller,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemCount: widget.images.length,
+            itemBuilder: (context, index) {
+              return InteractiveViewer(
+                minScale: 0.9,
+                maxScale: 3,
+                child: Center(
+                  child: ChainedNetworkImage(
+                    urls: ChainedNetworkImage.chainFrom(widget.images[index], null, w: 1400),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              );
+            },
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: AppColors.white, size: 28),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          if (widget.images.length > 1)
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Text(
+                '${_index + 1} / ${widget.images.length}',
+                textAlign: TextAlign.center,
+                style: AppTypography.body200.copyWith(color: AppColors.white, fontWeight: FontWeight.w700),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   _SliverAppBarDelegate(this._tabBar);
 
@@ -1306,7 +1978,13 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return ColoredBox(color: AppColors.white, child: _tabBar);
+    return ColoredBox(
+      color: AppColors.white,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: _tabBar,
+      ),
+    );
   }
 
   @override

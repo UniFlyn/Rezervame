@@ -57,6 +57,8 @@ class ReservationStatusBadge extends StatelessWidget {
       case 'confirmed':
         if (forModal) return en ? 'Awaiting Payment' : 'Esperando Pago';
         return en ? 'Confirmed' : 'Confirmada';
+      case 'cash_at_venue':
+        return en ? 'Pay at Venue' : 'Pago en Local';
       case 'paid':
         return en ? 'Paid' : 'Pagado';
       case 'rescheduled':
@@ -85,6 +87,13 @@ class ReservationStatusBadge extends StatelessWidget {
           fg: const Color(0xFF047857),
           border: const Color(0xFFA7F3D0),
           icon: Icons.check_circle_outline_rounded,
+        );
+      case 'cash_at_venue':
+        return _BadgeStyle(
+          bg: const Color(0xFFFFFBEB),
+          fg: const Color(0xFFD97706),
+          border: const Color(0xFFFDE68A),
+          icon: Icons.payments_outlined,
         );
       case 'paid':
         return _BadgeStyle(

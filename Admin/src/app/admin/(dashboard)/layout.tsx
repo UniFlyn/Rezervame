@@ -1,6 +1,7 @@
 import React from "react";
 import { Sidebar, Topbar } from "@/components/admin/Layout";
 import AuthGuard from "@/components/admin/AuthGuard";
+import { WebPushManager } from "@/components/admin/WebPushManager";
 
 export default function AdminLayout({
   children,
@@ -9,6 +10,7 @@ export default function AdminLayout({
 }>) {
   return (
     <AuthGuard>
+      <WebPushManager />
       <div className="flex bg-slate-50 min-h-screen">
         <Sidebar />
         <div className="flex-1 flex flex-col">

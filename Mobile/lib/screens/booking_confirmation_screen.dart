@@ -33,6 +33,28 @@ class BookingConfirmationScreen extends StatelessWidget {
     };
   }
 
+  String get _title {
+    final auto = bookingDetails['autoApproval'] == true;
+    final paid = bookingDetails['paid'] == true;
+    if (auto && paid) return 'Booking Confirmed!';
+    if (auto && bookingDetails['isCash'] == true) return 'Booking Confirmed!';
+    return 'Booking Submitted!';
+  }
+
+  String get _subtitle {
+    final auto = bookingDetails['autoApproval'] == true;
+    final paid = bookingDetails['paid'] == true;
+    final isCash = bookingDetails['isCash'] == true;
+    final price = bookingDetails['price'] as String? ?? '';
+    if (auto && isCash) {
+      return 'Your appointment is confirmed. Please bring $price in cash to the venue.';
+    }
+    if (auto && paid) {
+      return 'Your appointment is confirmed and payment was recorded.';
+    }
+    return 'Your booking request has been sent. The business will review and confirm shortly.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final professional = bookingDetails['professional'] as String? ?? '—';
@@ -55,7 +77,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     _buildSuccessMark(),
                     const SizedBox(height: 28),
                     Text(
-                      'Booking Submitted!',
+                      _title,
                       textAlign: TextAlign.center,
                       style: AppTypography.heading300.copyWith(
                         color: AppColors.grey900,
@@ -65,7 +87,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Your booking request has been sent. The business will review and confirm shortly.',
+                      _subtitle,
                       textAlign: TextAlign.center,
                       style: AppTypography.body200.copyWith(
                         color: AppColors.grey500,

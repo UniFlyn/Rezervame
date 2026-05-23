@@ -1,13 +1,15 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useI18n } from "./I18nProvider";
 import { useAuth } from "./AuthProvider";
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { CheckCircle, Heart, Bell, User as UserIcon, Tag } from "lucide-react";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { apiGet, apiPatch } from "@/lib/api";
 import { HeaderSearchBar } from "./HeaderSearchBar";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
+import { isBookingConfirmationPath } from "@/lib/bookingConfirmation";
 
 interface NotificationRow {
   id: string;
@@ -20,7 +22,7 @@ interface NotificationRow {
 
 export const Header = () => {
   const { t, language } = useI18n();
-  const { isLoggedIn, user, setIsLoginModalOpen } = useAuth() as any;
+  const { isLoggedIn, user, setIsLoginModalOpen, isHydrated } = useAuth() as any;
   const router = useRouter();
   const pathname = usePathname();
   const { meta } = usePageHeaderMeta();
@@ -29,6 +31,9 @@ export const Header = () => {
   const [searchVal, setSearchVal] = useState("");
   const [locationVal, setLocationVal] = useState("");
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const headerRef = useRef<HTMLElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const notificationsBtnRef = useRef<HTMLButtonElement>(null);
 
   const showSearchBar =
     pathname === "/" ||
@@ -62,9 +67,48 @@ export const Header = () => {
     }
   }, [isLoggedIn]);
 
-  if (pathname.startsWith("/business")) return null;
+  const syncHeaderHeight = useCallback(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const h = Math.ceil(el.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--app-header-height", `${h}px`);
+  }, []);
 
-  const notificationTitle = "Notifications";
+  useEffect(() => {
+    syncHeaderHeight();
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => syncHeaderHeight());
+    ro.observe(el);
+    window.addEventListener("resize", syncHeaderHeight);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", syncHeaderHeight);
+    };
+  }, [syncHeaderHeight, pathname, meta.title, meta.subtitle, showSearchBar]);
+
+  useEffect(() => {
+    if (!isNotificationsOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (notificationsRef.current?.contains(target)) return;
+      if (notificationsBtnRef.current?.contains(target)) return;
+      setIsNotificationsOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsNotificationsOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isNotificationsOpen]);
+
+  if (pathname.startsWith("/business") || isBookingConfirmationPath(pathname)) return null;
+
+  const notificationTitle = t("notificationsTitle");
 
   const getRelativeTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -87,14 +131,20 @@ export const Header = () => {
   const submitSearch = () => router.push(`/search?q=${encodeURIComponent(searchVal)}`);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-[100] isolate border-b border-slate-100 bg-white"
+    >
       <div className="mx-auto flex max-w-[1920px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:gap-5 lg:px-10">
-        <div
-          className="flex shrink-0 cursor-pointer items-center"
-          onClick={() => router.push("/")}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === "Enter" && router.push("/")}
+        <Link
+          href="/"
+          className="relative z-[120] flex shrink-0 items-center"
+          aria-label="Rezervame home"
+          onClick={(e) => {
+            if (!pathname.startsWith("/venue/")) return;
+            e.preventDefault();
+            window.location.href = "/";
+          }}
         >
           <img
             src="/logo.png"
@@ -104,7 +154,7 @@ export const Header = () => {
               (e.target as HTMLImageElement).classList.add("hidden");
             }}
           />
-        </div>
+        </Link>
 
         {showSearchBar && (
           <HeaderSearchBar
@@ -128,12 +178,57 @@ export const Header = () => {
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-3 sm:gap-5">
-          <div className="relative">
+        <div className="relative z-[110] ml-auto flex shrink-0 items-center gap-3 sm:gap-5">
+          <a
+            href="/profile?tab=favorites"
+            onClick={() => setIsNotificationsOpen(false)}
+            className="relative z-[110] rounded-xl p-2 text-slate-500 transition hover:bg-slate-50 hover:text-[#ff5a5f]"
+            aria-label="Favorites"
+          >
+            <Heart size={22} strokeWidth={1.5} />
+          </a>
+
+          {!isHydrated ? (
+            <div
+              className="h-10 w-[7.5rem] animate-pulse rounded-lg bg-slate-100 sm:w-32"
+              aria-hidden
+            />
+          ) : isLoggedIn ? (
+            <a
+              href="/profile"
+              onClick={() => setIsNotificationsOpen(false)}
+              className="relative z-[110] flex items-center gap-2 rounded-xl border border-slate-100 py-1 pl-1 pr-3 transition hover:border-slate-200"
+            >
+              <img
+                src={user?.avatar || PLACEHOLDER_IMAGE_DATA_URI}
+                alt=""
+                className="pointer-events-none h-9 w-9 rounded-lg object-cover"
+              />
+              <span className="pointer-events-none hidden text-sm font-bold text-slate-800 sm:inline">
+                {user?.name || "User"}
+              </span>
+            </a>
+          ) : (
             <button
+              type="button"
+              onClick={() => {
+                setIsNotificationsOpen(false);
+                setIsLoginModalOpen(true);
+              }}
+              className="rounded-lg bg-[#ff5a5f] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#e0454a]"
+            >
+              {t("btnSignIn")}
+            </button>
+          )}
+
+          <div ref={notificationsRef} className="relative z-[110]">
+            <button
+              ref={notificationsBtnRef}
+              type="button"
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
               className={`relative rounded-xl p-2 transition ${isNotificationsOpen ? "bg-[#ff5a5f]/10 text-[#ff5a5f]" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}
               aria-label={notificationTitle}
+              aria-expanded={isNotificationsOpen}
             >
               <Bell size={22} strokeWidth={1.5} />
               {notifications.some((n) => !n.read) && (
@@ -142,9 +237,7 @@ export const Header = () => {
             </button>
 
             {isNotificationsOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setIsNotificationsOpen(false)} />
-                <div className="absolute right-0 z-50 mt-3 w-[340px] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
+                <div className="absolute right-0 z-[120] mt-3 w-[340px] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
                   <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-4">
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">{notificationTitle}</h3>
                   </div>
@@ -183,39 +276,8 @@ export const Header = () => {
                     {"View all"}
                   </button>
                 </div>
-              </>
             )}
           </div>
-
-          <button
-            onClick={() => router.push("/profile?tab=favorites")}
-            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-50 hover:text-[#ff5a5f]"
-            aria-label="Favorites"
-          >
-            <Heart size={22} strokeWidth={1.5} />
-          </button>
-
-          {isLoggedIn ? (
-            <button
-              type="button"
-              onClick={() => router.push("/profile")}
-              className="flex items-center gap-2 rounded-xl border border-slate-100 py-1 pl-1 pr-3 transition hover:border-slate-200"
-            >
-              <img
-                src={user?.avatar || PLACEHOLDER_IMAGE_DATA_URI}
-                alt=""
-                className="h-9 w-9 rounded-lg object-cover"
-              />
-              <span className="hidden text-sm font-bold text-slate-800 sm:inline">{user?.name || "User"}</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsLoginModalOpen(true)}
-              className="rounded-lg bg-[#ff5a5f] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#e0454a]"
-            >
-              {t("btnSignIn")}
-            </button>
-          )}
         </div>
       </div>
     </header>

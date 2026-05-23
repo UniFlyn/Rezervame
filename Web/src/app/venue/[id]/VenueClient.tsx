@@ -19,16 +19,19 @@ import {
   Scissors,
 } from "lucide-react";
 import { BookingModal, type BookingModalVenueData } from "../../../components/BookingModal";
-import Link from "next/link";
+import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from "@/lib/cancellationPolicy";
 import { useRouter } from "next/navigation";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { amenityLucideIcon } from "@/lib/amenityIcons";
+import { AppLoader } from "@/components/ui/AppLoader";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
-import { fetchPublicCategories, type PublicCategory } from "@/lib/venueSearch";
+import { fetchPublicCategories, serviceCardImageSrc, type PublicCategory } from "@/lib/venueSearch";
 import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { useAuth } from "@/components/AuthProvider";
-import { formatAvailabilityDisplay, parseAvailability } from "@/lib/staffAvailability";
+import { formatAvailabilityDisplay, formatStaffStatValue, parseAvailability } from "@/lib/staffAvailability";
+import { getNextAvailableSlotLabel } from "@/lib/bookingSlots";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
+import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
 
 type VenueService = { id: string; name: string; description: string; time: string; price: number; image?: string | null; tag: string };
 type VenueTeam = {
@@ -54,6 +57,8 @@ export type VenueState = {
   reviews: number;
   address: string;
   description: string;
+  logoUrl: string;
+  bannerUrl: string;
   images: string[];
   services: VenueService[];
   team: VenueTeam[];
@@ -62,6 +67,12 @@ export type VenueState = {
   amenities: VenueAmenity[];
   contactPhone: string;
   contactEmail: string;
+  taxPercentage: number;
+  commissionPercent: number;
+  appointmentApprovalMode?: 'manual' | 'automatic';
+  cancellationAllowed?: boolean;
+  cancellationHoursBefore?: number;
+  cancellationPolicyMessage?: string;
 };
 
 function memberOffersService(member: VenueTeam, serviceId: string): boolean {
@@ -73,33 +84,24 @@ function servicesForMember(member: VenueTeam, services: VenueService[]): VenueSe
   return services.filter((s) => memberOffersService(member, s.id));
 }
 
-function getNextSlotForService(serviceId: string, team: VenueTeam[], language: string): string {
-  const staffForService = team.filter(m => !m.serviceIds || m.serviceIds.length === 0 || m.serviceIds.includes(serviceId));
-  if (staffForService.length === 0) return "—";
-
-  const today = new Date();
-  // Check next 14 days
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const dayOfWeek = d.getDay();
-    const dateStr = d.toISOString().slice(0, 10);
-
-    for (const member of staffForService) {
-      const { mode, weekly, dates } = parseAvailability(member.availability);
-      if (mode === 'weekly' && weekly.includes(dayOfWeek)) {
-        return i === 0 
-          ? ('Today') 
-          : d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
-      }
-      if (mode === 'dates' && dates.includes(dateStr)) {
-        return i === 0 
-          ? ('Today') 
-          : d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
-      }
-    }
+function buildGalleryImages(
+  rawImages: string[] | undefined,
+  banner: string,
+  logo: string,
+): string[] {
+  const skip = new Set([banner, logo].filter(Boolean));
+  const out: string[] = [];
+  const push = (u?: string) => {
+    const s = (u || '').trim();
+    if (!s || skip.has(s) || out.includes(s)) return;
+    out.push(s);
+  };
+  if (Array.isArray(rawImages)) rawImages.forEach((img) => push(img));
+  if (out.length === 0) {
+    if (banner) out.push(banner);
+    else out.push(PLACEHOLDER_IMAGE_DATA_URI);
   }
-  return "—";
+  return out;
 }
 
 function emptyVenue(venueId: string): VenueState {
@@ -111,6 +113,8 @@ function emptyVenue(venueId: string): VenueState {
     reviews: 0,
     address: "",
     description: "",
+    logoUrl: '',
+    bannerUrl: '',
     images: [PLACEHOLDER_IMAGE_DATA_URI],
     services: [],
     team: [],
@@ -119,6 +123,9 @@ function emptyVenue(venueId: string): VenueState {
     amenities: [],
     contactPhone: "",
     contactEmail: "",
+    taxPercentage: 0,
+    commissionPercent: 15,
+    appointmentApprovalMode: 'manual',
   };
 }
 
@@ -150,9 +157,10 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const [browseCategories, setBrowseCategories] = useState<PublicCategory[]>([]);
   const [activeTab, setActiveTab] = useState<"services" | "team" | "portfolio" | "reviews" | "amenities">("services");
   const [activeServiceFilter, setActiveServiceFilter] = useState<"all" | "women" | "men" | "kids" | "promotions">("all");
-  const [showScrollBookBar, setShowScrollBookBar] = useState(false);
+  const [servicesExpanded, setServicesExpanded] = useState(false);
   const [portfolioLightbox, setPortfolioLightbox] = useState<number | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [crossVenuePendingServiceId, setCrossVenuePendingServiceId] = useState<string | null>(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [profileStaff, setProfileStaff] = useState<VenueTeam | null>(null);
   const [venueLoading, setVenueLoading] = useState(true);
@@ -163,26 +171,63 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   const { setMeta, clearMeta } = usePageHeaderMeta();
 
-  useEffect(() => {
-    const onScroll = () => setShowScrollBookBar(window.scrollY > 320);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const cartBusinessId = useVenueBookingCartStore((s) => s.businessId);
+  const cartServiceIds = useVenueBookingCartStore((s) => s.serviceIds);
 
-  const openBookingForService = (serviceId: string) => {
+  useEffect(() => {
+    if (cartBusinessId === venueId) {
+      setSelectedServices([...cartServiceIds]);
+    } else {
+      setSelectedServices([]);
+    }
+  }, [venueId, cartBusinessId, cartServiceIds]);
+
+  const applyServiceAdd = (serviceId: string) => {
+    const storeApi = useVenueBookingCartStore.getState();
+    const { businessId: cartBiz, serviceIds: cartIds } = storeApi;
+    const onThisVenue = cartBiz === venueId;
+    const currentIds = onThisVenue ? cartIds : [];
+
+    if (cartIds.length > 0 && cartBiz !== null && cartBiz !== venueId) {
+      setCrossVenuePendingServiceId(serviceId);
+      return;
+    }
+    storeApi.setCart(venueId, [...currentIds, serviceId]);
+  };
+
+  const applyServiceRemove = (serviceId: string) => {
+    useVenueBookingCartStore.getState().removeService(venueId, serviceId);
+  };
+
+  const onServiceBookClick = (serviceId: string) => {
     if (!isLoggedIn) {
-      setPendingAfterLogin(() => () => openBookingForService(serviceId));
+      setPendingAfterLogin(() => () => applyServiceAdd(serviceId));
+      setIsLoginModalOpen(true);
+      toastInfo(t("venueLoginToAddTitle"), t("venueLoginToAddBody"));
+      return;
+    }
+    applyServiceAdd(serviceId);
+  };
+
+  const confirmCrossVenueReplace = () => {
+    if (!crossVenuePendingServiceId) return;
+    const next = [crossVenuePendingServiceId];
+    setSelectedServices(next);
+    useVenueBookingCartStore.getState().setCart(venueId, next);
+    setCrossVenuePendingServiceId(null);
+  };
+
+  const openBookingModal = () => {
+    if (!isLoggedIn) {
+      setPendingAfterLogin(() => () => openBookingModal());
       setIsLoginModalOpen(true);
       toastInfo(t("venueLoginToBookTitle"), t("venueLoginToBookBody"));
       return;
     }
-    setSelectedServices([serviceId]);
+    if (selectedServices.length === 0) return;
     setProfileStaff(null);
     setIsBookingModalOpen(true);
   };
-
-  const onServiceBookClick = openBookingForService;
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -251,7 +296,12 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           apiGet<unknown[]>(`/business/${venueId}/services`).catch(() => [] as unknown[]),
           apiGet<unknown[]>(`/business/${venueId}/staff`).catch(() => [] as unknown[]),
           apiGet<unknown[]>(`/business/${venueId}/reviews`).catch(() => [] as unknown[]),
-          isLoggedIn ? apiGet<any[]>(`/mobile/favorites`, "USER").catch(() => []) : Promise.resolve([]),
+          isLoggedIn
+            ? apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>(
+                `/mobile/favorites?limit=100`,
+                "USER",
+              ).catch(() => ({ data: [] }))
+            : Promise.resolve({ data: [] }),
           apiGet<Array<{ serviceId: string; bookingCount: number }>>(`/business/${venueId}/bestsellers`).catch(() => []),
           apiGet<Array<{ serviceId: string; discountPercent: number; label?: string | null }>>(`/business/${venueId}/promotions`).catch(() => []),
         ]);
@@ -267,9 +317,13 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         });
         setPromotionServiceIds(promoIds);
         setPromotionData(promoArr);
-        if (isLoggedIn && Array.isArray(favorites)) {
-          const fav = favorites.find((f: any) => f.businessId === venueId);
-          setIsFavorite(!!fav);
+        if (isLoggedIn) {
+          const favRows = Array.isArray(favorites)
+            ? favorites
+            : Array.isArray((favorites as { data?: { businessId?: string }[] })?.data)
+              ? (favorites as { data: { businessId?: string }[] }).data
+              : [];
+          setIsFavorite(favRows.some((f) => f.businessId === venueId));
         }
         const b = business as {
           banner?: string;
@@ -292,23 +346,12 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         };
         const contactPhone = String((business as { contactPhone?: string }).contactPhone ?? "");
         const contactEmail = String((business as { contactEmail?: string }).contactEmail ?? "");
-        const imgs: string[] = [];
-        const pushIf = (u?: string) => {
-          const s = (u || "").trim();
-          if (!s || imgs.includes(s)) return;
-          imgs.push(s);
-        };
-        
-        // Prioritize the images array if present
-        if (Array.isArray(b.images) && b.images.length > 0) {
-          b.images.forEach(img => pushIf(img));
-        } else {
-          // Fallback to legacy fields
-          pushIf(b.banner);
-          pushIf(b.logo);
-        }
-        
-        if (imgs.length === 0) imgs.push(PLACEHOLDER_IMAGE_DATA_URI);
+        const logoUrl = String((business as { logo?: string }).logo ?? b.logo ?? "").trim();
+        const bannerUrl = String((business as { banner?: string }).banner ?? b.banner ?? "").trim();
+        const rawGallery = Array.isArray((business as { images?: string[] }).images)
+          ? (business as { images: string[] }).images
+          : [];
+        const imgs = buildGalleryImages(rawGallery, bannerUrl, logoUrl);
 
         let amenities: VenueAmenity[] = [];
         if (Array.isArray(b.amenities) && b.amenities.length > 0) {
@@ -399,6 +442,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           reviews: apiReviews,
           address: String((business as { location?: string }).location ?? ""),
           description: String((business as { description?: string }).description ?? ""),
+          logoUrl,
+          bannerUrl,
           images: imgs,
           amenities,
           services: svcList.map((s: any) => {
@@ -409,7 +454,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               description: row.category || "—",
               time: `${row.duration} min`,
               price: row.price,
-              image: row.imageUrl || imgs[0] || null,
+              image: serviceCardImageSrc(row.imageUrl, imgs, String(row.id)),
               tag: "all",
             };
           }),
@@ -423,8 +468,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               role: row.role,
               rating: Number(row.rating) || 0,
               reviews: Number(row.reviews) || 0,
-              clients: String(row.clients || "—"),
-              years: String(row.experienceYears || "—"),
+              clients: formatStaffStatValue(row.clients),
+              years: formatStaffStatValue(row.experienceYears),
               img: img || PLACEHOLDER_IMAGE_DATA_URI,
               bio: row.bio || (Array.isArray(row.skills) && row.skills.length ? row.skills.join(", ") : "—"),
               serviceIds: svcIds,
@@ -475,6 +520,28 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           },
           contactPhone,
           contactEmail,
+          taxPercentage: Number((business as { taxPercentage?: number }).taxPercentage ?? 0) || 0,
+          commissionPercent:
+            Number(
+              (business as { commissionPercent?: number; serviceFee?: number }).commissionPercent ??
+                (business as { serviceFee?: number }).serviceFee ??
+                15,
+            ) || 15,
+          appointmentApprovalMode:
+            (business as { appointmentApprovalMode?: string }).appointmentApprovalMode === 'automatic'
+              ? 'automatic'
+              : 'manual',
+          cancellationAllowed: (business as { cancellationAllowed?: boolean }).cancellationAllowed !== false,
+          cancellationHoursBefore:
+            Number((business as { cancellationHoursBefore?: number }).cancellationHoursBefore ?? 24) || 24,
+          cancellationPolicyMessage:
+            language === "es"
+              ? (business as { cancellationPolicyMessageEs?: string }).cancellationPolicyMessageEs
+              : (business as { cancellationPolicyMessageEn?: string }).cancellationPolicyMessageEn ||
+                formatCancellationPolicyMessage(
+                  normalizeCancellationPolicy(business as { cancellationAllowed?: boolean; cancellationHoursBefore?: number }),
+                  "en",
+                ),
         });
       } catch (err: unknown) {
         if (!cancelled) {
@@ -497,7 +564,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   }, [venueId, language]);
 
   const VENUE_DATA = venueData;
-  const heroSrc = VENUE_DATA.images[0] || PLACEHOLDER_IMAGE_DATA_URI;
+  const heroSrc = VENUE_DATA.bannerUrl || VENUE_DATA.images[0] || PLACEHOLDER_IMAGE_DATA_URI;
   const portfolioImages = VENUE_DATA.images.filter((u) => u && u.trim().length > 0);
 
   useEffect(() => {
@@ -543,6 +610,31 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     return filters;
   }, [VENUE_DATA.services, language, promotionServiceIds, t]);
 
+  const SERVICES_PREVIEW_LIMIT = 6;
+
+  const filteredServices = useMemo(() => {
+    let filtered = VENUE_DATA.services;
+    if (activeServiceFilter === "women") {
+      filtered = filtered.filter((s) => matchesAudience(s.tag, ["mujer", "woman", "women", "female", "femenin"]));
+    } else if (activeServiceFilter === "men") {
+      filtered = filtered.filter((s) => matchesAudience(s.tag, ["hombre", "man", "men", "male", "masculin", "barber"]));
+    } else if (activeServiceFilter === "kids") {
+      filtered = filtered.filter((s) => matchesAudience(s.tag, ["niño", "nino", "kid", "child", "children"]));
+    } else if (activeServiceFilter === "promotions") {
+      filtered = filtered.filter((s) => promotionServiceIds.has(s.id));
+    }
+    return filtered;
+  }, [VENUE_DATA.services, activeServiceFilter, promotionServiceIds]);
+
+  const hasMoreServices = filteredServices.length > SERVICES_PREVIEW_LIMIT;
+  const visibleServices = servicesExpanded
+    ? filteredServices
+    : filteredServices.slice(0, SERVICES_PREVIEW_LIMIT);
+
+  useEffect(() => {
+    setServicesExpanded(false);
+  }, [activeServiceFilter]);
+
   const scrollToSection = (tab: typeof activeTab) => {
     setActiveTab(tab);
     const el = document.getElementById(`venue-section-${tab}`);
@@ -553,34 +645,65 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     <div className="relative min-h-screen bg-white">
       {venueLoading ? (
         <div
-          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-white/95 backdrop-blur-sm"
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/90 backdrop-blur-sm"
           aria-busy="true"
           aria-live="polite"
         >
-          <div
-            className="h-10 w-10 animate-spin rounded-full border-2 border-[#ff5a5f] border-t-transparent"
-            role="status"
-          />
-          <p className="text-center text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-            {t("venueLoading")}
-          </p>
+          <div className="pointer-events-auto">
+            <AppLoader label={t("venueLoading")} variant="section" />
+          </div>
         </div>
       ) : null}
 
-      {showScrollBookBar ? (
-        <div className="fixed top-[56px] left-0 right-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 shadow-sm transition-all duration-300 sm:px-8">
-          <p className="truncate text-sm font-extrabold text-slate-900 pr-4">{VENUE_DATA.name}</p>
+      {/* Sticky cart bar — service count + book */}
+      <div
+        className="sticky z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md sm:px-8"
+        style={{ top: "var(--app-header-height, 4.5rem)" }}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <a
+            href="/search"
+            aria-label={language === "en" ? "Back to search" : "Volver a búsqueda"}
+            className="relative z-10 shrink-0 rounded-full p-2 transition-colors hover:bg-slate-100"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = "/search";
+            }}
+          >
+            <ChevronLeft size={20} className="text-slate-600" />
+          </a>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-extrabold text-slate-900 sm:text-base">{VENUE_DATA.name}</h2>
+            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-[#ff5a5f]">{VENUE_DATA.category}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {selectedServices.length > 0 && (
+            <div className="flex items-center gap-2 rounded-xl bg-slate-800 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-lg animate-in fade-in zoom-in duration-300">
+              <Check size={12} className="text-green-400" />
+              {selectedServices.length}{" "}
+              {selectedServices.length === 1 ? t("venueServiceSingular") : t("venueServicePlural")}
+            </div>
+          )}
           <button
             type="button"
-            onClick={() => {
-              const first = VENUE_DATA.services[0];
-              if (first) openBookingForService(first.id);
-            }}
-            className="shrink-0 rounded-lg bg-[#ff5a5f] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#e0454a]"
+            onClick={openBookingModal}
+            disabled={selectedServices.length === 0}
+            className={`rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+              selectedServices.length > 0
+                ? "bg-[#ff5a5f] text-white shadow-lg shadow-[#ff5a5f]/20 hover:bg-[#e0454a]"
+                : "cursor-not-allowed bg-slate-200 text-slate-400"
+            }`}
           >
             {t("venueBookNow")}
           </button>
         </div>
+      </div>
+      {VENUE_DATA.cancellationPolicyMessage ? (
+        <p className="mx-auto mt-2 flex max-w-3xl items-center justify-end gap-2 px-4 text-right text-[10px] font-semibold text-slate-500 sm:px-0">
+          <Clock size={14} className="shrink-0 text-[#ff5a5f]" />
+          {VENUE_DATA.cancellationPolicyMessage}
+        </p>
       ) : null}
 
       {/* HERO SECTION */}
@@ -598,8 +721,24 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               el.src = PLACEHOLDER_IMAGE_DATA_URI;
             }}
           />
-         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
-         <div className="absolute bottom-12 left-12 right-12 flex justify-end gap-3">
+         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent"></div>
+         {VENUE_DATA.logoUrl ? (
+           <div className="absolute bottom-8 left-6 z-10 sm:bottom-12 sm:left-12">
+             <div className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl border-4 border-white bg-white p-1.5 shadow-2xl sm:h-24 sm:w-24 sm:rounded-3xl">
+               <img
+                 src={VENUE_DATA.logoUrl}
+                 alt={`${VENUE_DATA.name} logo`}
+                 className="h-full w-full rounded-xl object-contain sm:rounded-2xl"
+                 onError={(e) => {
+                   const el = e.currentTarget;
+                   if (el.src.startsWith('data:')) return;
+                   el.src = PLACEHOLDER_IMAGE_DATA_URI;
+                 }}
+               />
+             </div>
+           </div>
+         ) : null}
+         <div className="absolute bottom-8 right-6 z-10 flex justify-end gap-3 sm:bottom-12 sm:right-12">
              <button onClick={handleShare} className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl hover:scale-110 transition-all text-slate-900"><Share2 size={20} /></button>
              <button onClick={handleToggleFavorite} className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl hover:scale-110 transition-all text-slate-900">
                <Heart size={20} className={isFavorite ? "fill-[#ff5a5f] text-[#ff5a5f]" : ""} />
@@ -659,6 +798,15 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                 <section className="mb-12">
                   <div className="relative mb-3 overflow-hidden rounded-2xl">
                     <img src={portfolioImages[0]} alt="" className="h-56 w-full object-cover md:h-72" />
+                    {VENUE_DATA.logoUrl ? (
+                      <div className="absolute bottom-4 left-4 flex h-14 w-14 items-center justify-center rounded-xl border-2 border-white bg-white p-1 shadow-lg sm:h-16 sm:w-16">
+                        <img
+                          src={VENUE_DATA.logoUrl}
+                          alt=""
+                          className="h-full w-full rounded-lg object-contain"
+                        />
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => scrollToSection("portfolio")}
@@ -683,7 +831,10 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               )}
 
               {/* TABS */}
-              <div className="flex flex-wrap justify-center gap-2 mb-10 border-b border-slate-100 pb-4 sticky top-[64px] bg-white pt-3 z-30">
+              <div
+                className="sticky z-30 mb-10 flex flex-wrap justify-center gap-2 border-b border-slate-100 bg-white pb-4 pt-3"
+                style={{ top: "calc(var(--app-header-height, 4.5rem) + 3.25rem)" }}
+              >
                   {venueTabs.map((tab) => (
                       <button
                         type="button"
@@ -718,80 +869,122 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                     </div>
 
                     <div className="mx-auto flex max-w-3xl flex-col gap-3">
-                        {(() => {
-                          let filtered = VENUE_DATA.services;
-                          if (activeServiceFilter === "women") {
-                            filtered = filtered.filter((s) => matchesAudience(s.tag, ["mujer", "woman", "women", "female", "femenin"]));
-                          } else if (activeServiceFilter === "men") {
-                            filtered = filtered.filter((s) => matchesAudience(s.tag, ["hombre", "man", "men", "male", "masculin", "barber"]));
-                          } else if (activeServiceFilter === "kids") {
-                            filtered = filtered.filter((s) => matchesAudience(s.tag, ["niño", "nino", "kid", "child", "children"]));
-                          } else if (activeServiceFilter === "promotions") {
-                            filtered = filtered.filter(s => promotionServiceIds.has(s.id));
-                          }
-                          return filtered;
-                        })().map(s => {
+                        {visibleServices.map(s => {
                           const promo = promotionData.find(p => p.serviceId === s.id);
                           const discountedPrice = promo ? s.price * (1 - promo.discountPercent / 100) : null;
+                          const isBestseller = !promo && (bestsellerMap[s.id] ?? 0) > 0;
+                          const promoLabel = promo?.label?.trim() || (promo ? `${promo.discountPercent}% off` : null);
                           return (
-                            <div key={s.id} className="group flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-white px-4 py-3 transition hover:border-[#ff5a5f]/40 relative">
-                                {/* Promo Badge */}
-                                {promo && (
-                                  <div className="absolute -top-2 -right-2 bg-gradient-to-r from-[#ff5a5f] to-rose-500 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full shadow-lg shadow-[#ff5a5f]/30 z-10 animate-in zoom-in duration-300">
-                                    {promo.label || `${promo.discountPercent}% OFF`}
-                                  </div>
-                                )}
-                                {/* Bestseller Badge */}
-                                {!promo && bestsellerMap[s.id] && bestsellerMap[s.id] > 0 && (
-                                  <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full shadow-lg shadow-amber-500/30 z-10">
-                                    🔥 Popular
-                                  </div>
-                                )}
+                            <div
+                              key={s.id}
+                              className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5 transition ${
+                                promo
+                                  ? "border-[#ff5a5f]/20 bg-gradient-to-r from-rose-50/90 via-white to-white hover:border-[#ff5a5f]/35"
+                                  : "border-slate-100 bg-white hover:border-[#ff5a5f]/40"
+                              }`}
+                            >
                                 <div className="flex min-w-0 flex-1 items-center gap-4">
-                                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-slate-100 group-hover:border-[#ff5a5f]/30 transition-colors">
+                                    <div className={`h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 transition-colors ${
+                                      promo ? "border-[#ff5a5f]/25" : "border-slate-100 group-hover:border-[#ff5a5f]/30"
+                                    }`}>
                                         {s.image ? (
-                                            <img src={s.image} alt={s.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                            <img src={s.image} alt={s.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                         ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-[#ff5a5f]/10 to-[#ff5a5f]/5 flex items-center justify-center">
+                                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#ff5a5f]/10 to-[#ff5a5f]/5">
                                                 <Scissors size={20} className="text-[#ff5a5f]/50" />
                                             </div>
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h4 className="truncate text-sm font-extrabold text-slate-900 group-hover:text-[#ff5a5f]">{s.name}</h4>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <h4 className="truncate text-sm font-extrabold text-slate-900 group-hover:text-[#ff5a5f]">{s.name}</h4>
+                                          {promoLabel ? (
+                                            <span className="shrink-0 rounded-md border border-[#ff5a5f]/20 bg-[#ff5a5f]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#ff5a5f]">
+                                              {promoLabel}
+                                            </span>
+                                          ) : null}
+                                          {isBestseller ? (
+                                            <span className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                                              Popular
+                                            </span>
+                                          ) : null}
+                                        </div>
                                         <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{s.description}</p>
-                                        <p className="mt-1 text-[10px] font-semibold text-slate-400">{s.time} · Next: {getNextSlotForService(s.id, VENUE_DATA.team, language)}</p>
+                                        <p className="mt-1 text-[10px] font-semibold text-slate-400">{s.time} · Next: {getNextAvailableSlotLabel(VENUE_DATA.schedule, VENUE_DATA.team, s.id)}</p>
                                     </div>
                                 </div>
-                                <div className="flex shrink-0 flex-col items-end gap-2">
-                                    <div className="flex items-baseline gap-1.5">
-                                      {discountedPrice !== null ? (
+                                    <div className="flex shrink-0 flex-col items-end gap-2.5 pl-2">
+                                    <div className="text-right leading-tight">
+                                      {discountedPrice !== null && promo ? (
                                         <>
-                                          <span className="text-base font-extrabold text-[#ff5a5f]">${discountedPrice.toFixed(2)}</span>
-                                          <span className="text-xs font-semibold text-slate-400 line-through">${s.price}</span>
+                                          <p className="text-lg font-extrabold tabular-nums text-[#ff5a5f]">${discountedPrice.toFixed(2)}</p>
+                                          <p className="text-xs font-medium tabular-nums text-slate-400 line-through">${Number(s.price).toFixed(2)}</p>
+                                          <p className="mt-0.5 text-[10px] font-semibold text-emerald-600">
+                                            {language === "en" ? "You save" : "Ahorras"} {promo.discountPercent}%
+                                          </p>
                                         </>
                                       ) : (
-                                        <span className="text-base font-extrabold text-slate-900">${s.price}</span>
+                                        <p className="text-lg font-extrabold tabular-nums text-slate-900">${Number(s.price).toFixed(2)}</p>
                                       )}
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => onServiceBookClick(s.id)}
-                                      className="rounded-lg border-2 border-[#ff5a5f] px-4 py-2 text-xs font-bold text-[#ff5a5f] transition hover:bg-[#ff5a5f] hover:text-white"
-                                    >
-                                      Rezervame
-                                    </button>
+                                    {selectedServices.filter((id) => id === s.id).length > 0 ? (
+                                      <div className="flex items-center gap-1 rounded-xl bg-slate-900 p-1 shadow-lg shadow-slate-900/20 animate-in fade-in zoom-in duration-300">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            applyServiceRemove(s.id);
+                                          }}
+                                          className="flex h-8 w-8 items-center justify-center rounded-lg text-lg font-black text-white transition-colors hover:bg-slate-800"
+                                          aria-label="Remove one"
+                                        >
+                                          -
+                                        </button>
+                                        <span className="w-5 select-none text-center text-[11px] font-black text-white">
+                                          {selectedServices.filter((id) => id === s.id).length}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onServiceBookClick(s.id);
+                                          }}
+                                          className="flex h-8 w-8 items-center justify-center rounded-lg text-lg font-black text-white transition-colors hover:bg-slate-800"
+                                          aria-label="Add one more"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onServiceBookClick(s.id);
+                                        }}
+                                        className="rounded-lg border-2 border-[#ff5a5f] px-4 py-2 text-xs font-bold text-[#ff5a5f] transition hover:bg-[#ff5a5f] hover:text-white"
+                                      >
+                                        {t("bookBtn")}
+                                      </button>
+                                    )}
                                 </div>
                             </div>
                           );
                         })}
                     </div>
 
-                    <div className="mt-16 text-center">
-                        <button type="button" className="font-black text-slate-900 uppercase tracking-[0.3em] text-[11px] group flex items-center gap-4 mx-auto hover:text-[#ff5a5f] transition-colors">
-                            {t("venueSeeMorePlus")} <span className="text-2xl transition-transform group-hover:translate-x-2">+</span>
+                    {hasMoreServices && !servicesExpanded ? (
+                      <div className="mt-16 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setServicesExpanded(true)}
+                          className="group mx-auto flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.3em] text-slate-900 transition-colors hover:text-[#ff5a5f]"
+                        >
+                          {t("venueSeeMorePlus")}{" "}
+                          <span className="text-2xl transition-transform group-hover:translate-x-2">+</span>
                         </button>
-                    </div>
+                      </div>
+                    ) : null}
                 </div>
               )}
 
@@ -1110,6 +1303,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         onBookingSuccess={() => {
+          useVenueBookingCartStore.getState().clear();
           setSelectedServices([]);
         }}
         selectedServiceIds={selectedServices}
@@ -1238,6 +1432,46 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {crossVenuePendingServiceId ? (
+        <div
+          className="fixed inset-0 z-[98] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md animate-in fade-in duration-200"
+          role="alertdialog"
+          aria-labelledby="cross-venue-title"
+          aria-describedby="cross-venue-desc"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label={t("venueCrossBusinessCancel")}
+            onClick={() => setCrossVenuePendingServiceId(null)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 id="cross-venue-title" className="text-xl font-black text-slate-900">
+              {t("venueCrossBusinessTitle")}
+            </h3>
+            <p id="cross-venue-desc" className="mt-4 text-sm font-semibold leading-relaxed text-slate-600">
+              {t("venueCrossBusinessBody")}
+            </p>
+            <div className="mt-8 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => confirmCrossVenueReplace()}
+                className="w-full rounded-2xl bg-[#ff5a5f] py-4 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-[#ff5a5f]/25"
+              >
+                {t("venueCrossBusinessReplace")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCrossVenuePendingServiceId(null)}
+                className="w-full rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900"
+              >
+                {t("venueCrossBusinessCancel")}
+              </button>
             </div>
           </div>
         </div>

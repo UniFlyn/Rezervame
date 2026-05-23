@@ -10,14 +10,28 @@ import { Pagination } from '@/components/ui/pagination';
 import { BusinessFilterToolbar } from '../../../components/business/BusinessFilterToolbar';
 import { StaffAvailabilityPicker } from '../../../components/business/StaffAvailabilityPicker';
 import { formatAvailabilityDisplay, serializeWeekly, staffPhotoSrc } from '@/lib/staffAvailability';
+import { compressImageFile } from '@/lib/compressImage';
+import {
+  formatSpecialistTypes,
+  parseSpecialistTypes,
+  STAFF_SPECIALIST_OPTIONS,
+} from '@/lib/staffSpecialists';
 import clsx from 'clsx';
 import { toastError, toastSuccess, toastWarning } from '@/lib/toast';
 
-type Draft = { name: string; role: string; availability: string; image: string; serviceIds: string[]; bio: string; experienceYears: number };
+type Draft = {
+  name: string;
+  specialistTypes: string[];
+  availability: string;
+  image: string;
+  serviceIds: string[];
+  bio: string;
+  experienceYears: number;
+};
 /** Default Mon–Fri weekly pattern (JSON) so create passes API validation. */
 const emptyDraft: Draft = {
   name: '',
-  role: '',
+  specialistTypes: [],
   availability: serializeWeekly([1, 2, 3, 4, 5]),
   image: '',
   serviceIds: [],
@@ -43,7 +57,7 @@ export default function StaffPage() {
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [specialistFilter, setSpecialistFilter] = useState<string>('all');
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -51,12 +65,14 @@ export default function StaffPage() {
   useEffect(() => {
     if (business?.id) {
       const timer = setTimeout(() => {
-        hydrate(page, itemsPerPage, search, roleFilter);
+        hydrate(page, itemsPerPage, search, specialistFilter);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [business?.id, page, search, roleFilter, hydrate]);
+  }, [business?.id, page, search, specialistFilter, hydrate]);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const staffPhotoInputId = 'staff-photo-file-input';
 
   useEffect(() => {
     if (!business?.id) {
@@ -68,20 +84,32 @@ export default function StaffPage() {
       .catch(() => setBizServices([]));
   }, [business?.id]);
 
-  const roles = useMemo(() => ['all', ...Array.from(new Set(staff.map((s) => s.role)))], [staff]);
+  const specialistFilterOptions = useMemo(() => {
+    const fromStaff = staff.flatMap((s) => parseSpecialistTypes(s.role, s.skills));
+    return ['all', ...Array.from(new Set([...STAFF_SPECIALIST_OPTIONS, ...fromStaff]))];
+  }, [staff]);
 
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        const image = reader.result;
-        setDraft((m) => ({ ...m, image }));
-      }
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toastWarning('Invalid file', 'Please choose a JPG, PNG, or WebP image.');
+      return;
+    }
+    setPhotoUploading(true);
+    void compressImageFile(file, { maxWidth: 512, maxHeight: 512, maxBytes: 280_000 })
+      .then((image) => {
+        setDraft((m) => ({ ...m, image }));
+        toastSuccess('Photo ready', 'Save changes to apply this photo to the staff profile.');
+      })
+      .catch((err) => {
+        toastError(
+          'Photo upload failed',
+          err instanceof Error ? err.message : 'Try a smaller image.',
+        );
+      })
+      .finally(() => setPhotoUploading(false));
   };
 
   const openCreate = () => {
@@ -94,7 +122,7 @@ export default function StaffPage() {
     setEditingId(member.id);
     setDraft({
       name: member.name,
-      role: member.role,
+      specialistTypes: parseSpecialistTypes(member.role, member.skills),
       availability: member.availability,
       image: member.image || '',
       serviceIds: Array.isArray(member.serviceIds) ? [...member.serviceIds] : [],
@@ -113,6 +141,15 @@ export default function StaffPage() {
     }));
   };
 
+  const toggleSpecialistType = (type: string) => {
+    setDraft((d) => ({
+      ...d,
+      specialistTypes: d.specialistTypes.includes(type)
+        ? d.specialistTypes.filter((x) => x !== type)
+        : [...d.specialistTypes, type],
+    }));
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
@@ -122,19 +159,19 @@ export default function StaffPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-    if (!draft.name.trim() || !draft.role.trim()) {
-      toastWarning('Missing fields', 'Enter a name and role for this staff member.');
+    if (!draft.name.trim() || draft.specialistTypes.length === 0) {
+      toastWarning('Missing fields', 'Enter a name and select at least one specialist type.');
       return;
     }
+    const roleLabel = formatSpecialistTypes(draft.specialistTypes);
     try {
       if (editingId) {
-        const existing = staff.find((s) => s.id === editingId);
         await updateStaff(editingId, {
           name: draft.name,
-          role: draft.role,
+          role: roleLabel,
           availability: draft.availability,
           image: draft.image.trim() ? draft.image : null,
-          skills: existing?.skills ?? [],
+          skills: [...draft.specialistTypes],
           serviceIds: draft.serviceIds,
           bio: draft.bio,
           experienceYears: draft.experienceYears,
@@ -144,10 +181,10 @@ export default function StaffPage() {
       } else {
         await addStaff({
           name: draft.name,
-          role: draft.role,
+          role: roleLabel,
           availability: draft.availability,
           ...(draft.image.trim() ? { image: draft.image } : {}),
-          skills: [],
+          skills: [...draft.specialistTypes],
           serviceIds: draft.serviceIds,
           bio: draft.bio,
           experienceYears: draft.experienceYears,
@@ -201,12 +238,18 @@ export default function StaffPage() {
 
       {message && <div className={clsx('rounded-2xl border px-4 py-3 text-sm font-semibold', message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900')}>{message.text}</div>}
 
-      <BusinessFilterToolbar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by name, role...">
+      <BusinessFilterToolbar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by name, specialist...">
         <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Role</label>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="cursor-pointer bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-800 outline-none">
-            {roles.map((r) => (
-              <option key={r} value={r}>{r === 'all' ? 'All' : r}</option>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Specialist</label>
+          <select
+            value={specialistFilter}
+            onChange={(e) => setSpecialistFilter(e.target.value)}
+            className="max-w-[180px] cursor-pointer bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-800 outline-none"
+          >
+            {specialistFilterOptions.map((r) => (
+              <option key={r} value={r}>
+                {r === 'all' ? 'All specialists' : r}
+              </option>
             ))}
           </select>
         </div>
@@ -220,12 +263,22 @@ export default function StaffPage() {
               <button type="button" onClick={closeModal} className="absolute right-8 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-50"><X size={20} /></button>
             </div>
             <form onSubmit={submit} className="space-y-8 p-10">
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
+              <input
+                ref={fileInputRef}
+                id={staffPhotoInputId}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/*"
+                className="sr-only"
+                onChange={onPickFile}
+                disabled={photoUploading}
+              />
               <div className="flex flex-col items-center space-y-3">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="group relative flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-200 bg-slate-50 shadow-inner transition-all hover:border-primary/30 hover:bg-primary/5"
+                <label
+                  htmlFor={staffPhotoInputId}
+                  className={clsx(
+                    'group relative flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-200 bg-slate-50 shadow-inner transition-all hover:border-primary/30 hover:bg-primary/5',
+                    photoUploading && 'pointer-events-none opacity-60',
+                  )}
                 >
                   <img
                     src={staffPhotoSrc(draft.name, draft.image)}
@@ -234,18 +287,22 @@ export default function StaffPage() {
                   />
                   <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-slate-900/0 text-white opacity-0 transition-all group-hover:bg-slate-900/40 group-hover:opacity-100">
                     <Camera className="h-6 w-6" />
-                    <span className="mt-1 text-[8px] font-black uppercase tracking-widest">Change</span>
+                    <span className="mt-1 text-[8px] font-black uppercase tracking-widest">
+                      {photoUploading ? 'Processing…' : 'Change'}
+                    </span>
                   </span>
-                </button>
+                </label>
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary"
+                  <label
+                    htmlFor={staffPhotoInputId}
+                    className={clsx(
+                      'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary',
+                      photoUploading && 'pointer-events-none opacity-60',
+                    )}
                   >
                     <Camera className="h-3.5 w-3.5" />
-                    {draft.image ? 'Replace photo' : 'Upload photo'}
-                  </button>
+                    {photoUploading ? 'Processing…' : draft.image ? 'Replace photo' : 'Upload photo'}
+                  </label>
                   {draft.image ? (
                     <button
                       type="button"
@@ -259,7 +316,47 @@ export default function StaffPage() {
               </div>
               <div className="space-y-6">
                 <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Full name</label><input type="text" required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
-                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Role / specialty</label><input type="text" required value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
+                <div>
+                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Specialist
+                  </label>
+                  <p className="mb-3 text-[11px] font-semibold text-slate-500">
+                    Choose specialist type(s) from the list — select all that apply.
+                  </p>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v) toggleSpecialistType(v);
+                    }}
+                    className="mb-3 w-full cursor-pointer rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-primary focus:bg-white"
+                  >
+                    <option value="">Add specialist from dropdown…</option>
+                    {STAFF_SPECIALIST_OPTIONS.filter((t) => !draft.specialistTypes.includes(t)).map(
+                      (type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                    {STAFF_SPECIALIST_OPTIONS.map((type) => (
+                      <label
+                        key={type}
+                        className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-bold text-slate-800 hover:bg-white"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={draft.specialistTypes.includes(type)}
+                          onChange={() => toggleSpecialistType(type)}
+                          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                        />
+                        <span>{type}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Years of Experience</label><input type="number" value={draft.experienceYears} onChange={(e) => setDraft({ ...draft, experienceYears: parseInt(e.target.value) || 0 })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
                 <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Professional Bio</label><textarea rows={3} value={draft.bio} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} placeholder="Tell us about their background..." className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
                 <div>
@@ -302,7 +399,13 @@ export default function StaffPage() {
                   )}
                 </div>
               </div>
-              <button type="submit" className="w-full rounded-2xl bg-slate-900 py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-slate-200 transition-all hover:bg-primary">{editingId ? 'Save changes' : 'Create member'}</button>
+              <button
+                type="submit"
+                disabled={photoUploading}
+                className="w-full rounded-2xl bg-slate-900 py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-slate-200 transition-all hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {editingId ? 'Save changes' : 'Create member'}
+              </button>
             </form>
           </div>
         </div>
@@ -361,7 +464,7 @@ export default function StaffPage() {
       ) : (
         <div className="overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-xl shadow-slate-200/50">
           <table className="w-full border-collapse text-left">
-            <thead><tr className="border-b border-slate-50 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400"><th className="px-8 py-5">Professional</th><th className="px-8 py-5">Role</th><th className="px-8 py-5">Availability</th><th className="px-8 py-5 text-right">Actions</th></tr></thead>
+            <thead><tr className="border-b border-slate-50 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400"><th className="px-8 py-5">Professional</th><th className="px-8 py-5">Specialist</th><th className="px-8 py-5">Availability</th><th className="px-8 py-5 text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-slate-50 text-sm font-bold">
               {staff.map((member) => (
                 <tr key={member.id} className="hover:bg-primary/5">

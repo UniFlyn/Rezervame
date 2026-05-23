@@ -1,43 +1,77 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useMemo,
+} from "react";
 import en from "../../../shared/locales/en.json";
+import es from "../../../shared/locales/es.json";
 
-type Language = "en";
+export type Language = "en" | "es";
 type Translations = typeof en;
+
+const STORAGE_KEY = "rezervame_language";
+
+const catalogs: Record<Language, Record<string, string>> = {
+  en: en as Record<string, string>,
+  es: es as Record<string, string>,
+};
 
 interface I18nContextType {
   language: Language;
-  t: (key: keyof Translations) => string;
-  /** @deprecated English-only; no-op */
+  t: (key: keyof Translations | string) => string;
   setLanguage: (lang: Language) => void;
+}
+
+function readStoredLanguage(): Language {
+  if (typeof window === "undefined") return "en";
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw === "es" ? "es" : "en";
 }
 
 const I18nContext = createContext<I18nContextType>({
   language: "en",
-  t: (key) => en[key] ?? String(key),
+  t: (key) => en[key as keyof Translations] ?? String(key),
   setLanguage: () => {},
 });
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const language = "en";
+  const [language, setLanguageState] = useState<Language>("en");
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    document.documentElement.lang = "en";
+    setLanguageState(readStoredLanguage());
+    setReady(true);
   }, []);
 
-  const setLanguage = (lang: Language) => {
-    // No-op to preserve existing calling signatures
-  };
+  useEffect(() => {
+    if (!ready) return;
+    document.documentElement.lang = language === "es" ? "es" : "en";
+  }, [language, ready]);
 
-  const t = (key: keyof Translations) => {
-    return en[key] || String(key);
-  };
+  const setLanguage = useCallback((lang: Language) => {
+    setLanguageState(lang);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, lang);
+    }
+  }, []);
 
-  return (
-    <I18nContext.Provider value={{ language, t, setLanguage }}>
-      {children}
-    </I18nContext.Provider>
+  const t = useCallback(
+    (key: keyof Translations | string) => {
+      const catalog = catalogs[language];
+      const enCatalog = catalogs.en;
+      return catalog[key] ?? enCatalog[key] ?? String(key);
+    },
+    [language],
   );
+
+  const value = useMemo(() => ({ language, t, setLanguage }), [language, t, setLanguage]);
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 };
 
 export const useI18n = () => useContext(I18nContext);

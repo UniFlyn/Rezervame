@@ -59,6 +59,7 @@ class HomeFeaturedItem {
     required this.durationMinutes,
     required this.unsplashId,
     required this.venueId,
+    this.businessId,
     this.displayServiceName,
     this.networkImageUrl,
     this.imageUrls = const [],
@@ -72,6 +73,7 @@ class HomeFeaturedItem {
   final int durationMinutes;
   final String unsplashId;
   final int venueId;
+  final String? businessId;
   /// When set (live catalog), shown instead of translating [serviceTitleKey].
   final String? displayServiceName;
   /// Business logo/banner from API when present.
@@ -81,10 +83,23 @@ class HomeFeaturedItem {
 }
 
 class HomeBeauticianItem {
-  const HomeBeauticianItem({required this.name, required this.avatarSeed});
+  const HomeBeauticianItem({
+    required this.name,
+    required this.avatarSeed,
+    this.imageUrl,
+    this.rating = 0,
+    this.reviewCount = 0,
+    this.staffId,
+    this.businessId,
+  });
 
   final String name;
   final String avatarSeed;
+  final String? imageUrl;
+  final double rating;
+  final int reviewCount;
+  final String? staffId;
+  final String? businessId;
 }
 
 class HomeTopVenueItem {
@@ -125,9 +140,50 @@ List<HomeTopVenueItem> kHomeTopVenues = [];
 /// Home hero carousel (coral panel + image). Swipe horizontally.
 List<HomePromoBannerItem> kHomePromoBanners = [];
 
+/// Upcoming events strip on home (`/mobile/events`, max 5).
+List<HomeUpcomingEventItem> kHomeUpcomingEvents = [];
+
+class HomeUpcomingEventItem {
+  const HomeUpcomingEventItem({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.startAtIso,
+    required this.location,
+    required this.price,
+    required this.imageKey,
+    this.websiteUrl,
+  });
+
+  final String id;
+  final String title;
+  final String body;
+  final String startAtIso;
+  final String location;
+  final double price;
+  final String imageKey;
+  final String? websiteUrl;
+
+  factory HomeUpcomingEventItem.fromMap(Map<String, dynamic> e) {
+    final p = e['price'];
+    final price = p is num ? p.toDouble() : double.tryParse('$p') ?? 0;
+    final web = '${e['websiteUrl'] ?? ''}'.trim();
+    return HomeUpcomingEventItem(
+      id: '${e['id'] ?? ''}',
+      title: '${e['title'] ?? ''}',
+      body: '${e['body'] ?? ''}',
+      startAtIso: '${e['startAt'] ?? ''}',
+      location: '${e['location'] ?? ''}',
+      price: price,
+      imageKey: '${e['imageKey'] ?? ''}'.trim(),
+      websiteUrl: web.isEmpty ? null : web,
+    );
+  }
+}
+
 void hydrateHomeFeedFromVenues(
   List<VenueListing> venues, {
-  List<String> staffNames = const [],
+  List<HomeBeauticianItem> beauticians = const [],
   List<Map<String, dynamic>> categoryRows = const [],
 }) {
   final sorted = List<VenueListing>.from(venues)
@@ -199,17 +255,20 @@ void hydrateHomeFeedFromVenues(
       durationMinutes: v.serviceDurationMinutes ?? 45,
       unsplashId: v.unsplashImgId ?? '',
       venueId: v.id,
+      businessId: v.businessId,
       networkImageUrl: chain.isNotEmpty ? chain.first : null,
       imageUrls: chain,
     );
   }).toList();
 
-  kHomeBeauticians = staffNames.map((n) => HomeBeauticianItem(name: n, avatarSeed: n)).toList();
+  kHomeBeauticians = beauticians;
   kHomeTopVenues = List<HomeTopVenueItem>.from(kHomeNearbyStrip);
 }
 
-/// Hero carousel from [Event] rows (Postgres). Falls back to one marketing banner if empty.
+/// Hero carousel + upcoming strip from [Event] rows (Postgres).
 void hydrateHomeFeedFromEvents(List<Map<String, dynamic>> events) {
+  kHomeUpcomingEvents = events.take(5).map(HomeUpcomingEventItem.fromMap).toList();
+
   if (events.isEmpty) {
     kHomePromoBanners = [
       HomePromoBannerItem(

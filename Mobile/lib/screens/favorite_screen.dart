@@ -3,45 +3,77 @@ import 'package:flutter/material.dart';
 
 import '../data/api_repository.dart';
 import '../data/auth_session.dart';
-import '../data/venue_catalog.dart';
 import '../models/venue_listing.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/category_chips.dart';
 import '../widgets/chained_network_image.dart';
+import '../widgets/list_pagination_bar.dart';
 import 'service_detail_screen.dart';
 
 /// Favorites: search, category chips, list (hero image + price pill) or 2-column grid — product reference layout.
 class FavoriteScreen extends StatefulWidget {
-  const FavoriteScreen({super.key});
+  const FavoriteScreen({super.key, this.isActive = false});
+
+  /// When the bottom-nav Favorites tab is selected (IndexedStack keeps state alive).
+  final bool isActive;
 
   static const double _horizontalPad = 20;
 
   @override
-  State<FavoriteScreen> createState() => _FavoriteScreenState();
+  State<FavoriteScreen> createState() => FavoriteScreenState();
 }
 
-class _FavoriteScreenState extends State<FavoriteScreen> {
+class FavoriteScreenState extends State<FavoriteScreen> {
+
   final ApiRepository _repo = ApiRepository();
   final TextEditingController _searchController = TextEditingController();
   int _chipIndex = 0;
   bool _gridView = false;
   bool _loading = true;
   bool _loggedIn = false;
+  String? _loadError;
   List<VenueListing> _dynamicFavorites = [];
   String _sortMode = 'name';
+  int _page = 1;
+  int _totalPages = 1;
+  int _total = 0;
+  static const int _pageSize = 12;
 
-  static const List<String> _chipCategoryKeys = [
-    '', // all
-    'Haircut',
-    'Facial',
-    'Waxing',
+  List<CategoryChipOption> _categoryChips = [
+    CategoryChipOption(key: null, label: 'All Service'),
   ];
 
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     _loadFavorites();
   }
+
+  Future<void> _loadCategories() async {
+    final rows = await _repo.fetchPublicCategories();
+    if (!mounted) return;
+    final isEn = context.locale.languageCode == 'en';
+    setState(() {
+      _categoryChips = buildCategoryChipOptions(
+        rows,
+        isEnglish: isEn,
+        allLabel: 'searchChipAll'.tr(),
+      );
+      _chipIndex = _chipIndex.clamp(0, _categoryChips.length - 1);
+    });
+  }
+
+  @override
+  void didUpdateWidget(FavoriteScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _loadFavorites();
+    }
+  }
+
+  void reload() => _loadFavorites();
 
   @override
   void dispose() {
@@ -49,8 +81,13 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
     super.dispose();
   }
 
-  Future<void> _loadFavorites() async {
-    setState(() => _loading = true);
+  Future<void> _loadFavorites({int? page}) async {
+    final nextPage = page ?? _page;
+    setState(() {
+      _loading = true;
+      _loadError = null;
+      _page = nextPage;
+    });
     final token = await AuthSession.getToken();
     if (token == null || token.isEmpty) {
       if (mounted) {
@@ -63,12 +100,24 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
       return;
     }
     try {
-      final list = await _repo.fetchFavoriteVenueMaps();
+      final chipKey = _chipIndex >= 0 && _chipIndex < _categoryChips.length
+          ? _categoryChips[_chipIndex].key
+          : null;
+      final res = await _repo.fetchFavoriteVenueMaps(
+        page: nextPage,
+        limit: _pageSize,
+        search: _searchController.text.trim(),
+        category: chipKey,
+      );
+      final list = (res['data'] as List<Map<String, dynamic>>?) ?? [];
       final listings = list.map((m) => VenueListing.fromFavoriteMap(m)).toList();
       if (mounted) {
         setState(() {
           _loggedIn = true;
           _dynamicFavorites = listings;
+          _total = (res['total'] as int?) ?? listings.length;
+          _totalPages = (res['totalPages'] as int?) ?? 1;
+          _loadError = null;
           _loading = false;
         });
       }
@@ -76,27 +125,19 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
       if (mounted) {
         setState(() {
           _loggedIn = true;
+          _dynamicFavorites = [];
+          _loadError = e.toString().replaceAll('Exception: ', '');
           _loading = false;
         });
       }
     }
   }
 
+  void _reloadFavorites({int page = 1}) => _loadFavorites(page: page);
+
   List<VenueListing> _filtered(BuildContext context) {
-    Iterable<VenueListing> items = _loggedIn ? _dynamicFavorites : VenueCatalog.all;
-    final key = _chipCategoryKeys[_chipIndex];
-    if (key.isNotEmpty) {
-      items = items.where((v) => v.categoryKey.toLowerCase() == key.toLowerCase() || v.categoryKey.tr(context: context).toLowerCase() == key.toLowerCase());
-    }
-    final q = _searchController.text.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      items = items.where((v) {
-        final name = v.name.toLowerCase();
-        final cat = v.categoryKey.tr(context: context).toLowerCase();
-        return name.contains(q) || cat.contains(q);
-      });
-    }
-    return items.toList()
+    if (!_loggedIn) return const [];
+    return _dynamicFavorites
       ..sort((a, b) {
         switch (_sortMode) {
           case 'rating':
@@ -248,7 +289,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                     padding: const EdgeInsets.fromLTRB(FavoriteScreen._horizontalPad, 4, FavoriteScreen._horizontalPad, 12),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => _reloadFavorites(page: 1),
                       style: AppTypography.body200.copyWith(color: AppColors.grey900),
                       decoration: InputDecoration(
                         hintText: 'searchFieldHint'.tr(),
@@ -273,26 +314,23 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                     child: ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: FavoriteScreen._horizontalPad),
                       scrollDirection: Axis.horizontal,
-                      itemCount: 4,
+                      itemCount: _categoryChips.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 10),
                       itemBuilder: (context, i) {
                         final selected = _chipIndex == i;
-                        final labels = [
-                          'favChipAllService'.tr(),
-                          'favChipHairCut'.tr(),
-                          'favChipFacial'.tr(),
-                          'favChipWaxing'.tr(),
-                        ];
                         return ChoiceChip(
                           label: Text(
-                            labels[i],
+                            _categoryChips[i].label,
                             style: AppTypography.body100.copyWith(
                               color: selected ? AppColors.white : AppColors.grey600,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           selected: selected,
-                          onSelected: (_) => setState(() => _chipIndex = i),
+                          onSelected: (_) {
+                            setState(() => _chipIndex = i);
+                            _reloadFavorites(page: 1);
+                          },
                           backgroundColor: AppColors.white,
                           selectedColor: AppColors.primary500,
                           side: BorderSide(color: selected ? AppColors.primary500 : AppColors.grey200),
@@ -322,18 +360,21 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
-                                      _loggedIn
-                                          ? 'noFavorites'.tr()
-                                          : 'favoritesSignIn'.tr(),
+                                      !_loggedIn
+                                          ? 'favoritesSignIn'.tr()
+                                          : _loadError != null
+                                              ? _loadError!
+                                              : _dynamicFavorites.isNotEmpty
+                                                  ? 'favNoResults'.tr()
+                                                  : 'noFavorites'.tr(),
                                       textAlign: TextAlign.center,
                                       style: AppTypography.body200.copyWith(color: AppColors.grey400),
                                     ),
-                                    if (!_loggedIn) ...[
-                                      const SizedBox(height: 24),
-                                      Text(
-                                        'favoritesPublicCatalogFallback'.tr(),
-                                        textAlign: TextAlign.center,
-                                        style: AppTypography.body100.copyWith(color: AppColors.grey400),
+                                    if (_loadError != null) ...[
+                                      const SizedBox(height: 16),
+                                      TextButton(
+                                        onPressed: _loadFavorites,
+                                        child: Text('tryAgain'.tr()),
                                       ),
                                     ],
                                   ],
@@ -383,6 +424,12 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                                   );
                                 },
                               ),
+                  ),
+                  ListPaginationBar(
+                    page: _page,
+                    totalPages: _totalPages,
+                    total: _total,
+                    onPageChange: (p) => _reloadFavorites(page: p),
                   ),
                 ],
               ),
@@ -440,7 +487,9 @@ class _FavoriteListHeroCard extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       ChainedNetworkImage(
-                        urls: ChainedNetworkImage.chainFrom(listing.listImageUrl, listing.unsplashImgId, w: 900),
+                        urls: listing.imageUrlChain.isNotEmpty
+                            ? listing.imageUrlChain
+                            : ChainedNetworkImage.chainFrom(listing.listImageUrl, listing.unsplashImgId, w: 900),
                         fit: BoxFit.cover,
                       ),
                       Positioned(
@@ -594,7 +643,9 @@ class _FavoriteGridCard extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       ChainedNetworkImage(
-                        urls: ChainedNetworkImage.chainFrom(listing.listImageUrl, listing.unsplashImgId, w: 500),
+                        urls: listing.imageUrlChain.isNotEmpty
+                            ? listing.imageUrlChain
+                            : ChainedNetworkImage.chainFrom(listing.listImageUrl, listing.unsplashImgId, w: 500),
                         fit: BoxFit.cover,
                       ),
                       Positioned(

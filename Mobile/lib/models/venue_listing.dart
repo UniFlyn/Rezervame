@@ -1,4 +1,5 @@
 import '../utils/image_url.dart';
+import '../utils/service_image_util.dart';
 
 /// Shared venue model used by home, search, category, and service detail flows.
 /// Mirrors the map shape used in the legacy Mobile app for filters and map pins.
@@ -23,6 +24,8 @@ class VenueListing {
     this.serviceDurationMinutes,
     this.amenityLabelsEn = const [],
     this.amenityLabelsEs = const [],
+    this.categoryKeys = const [],
+    this.portfolioImageUrls = const [],
   });
 
   /// Backend Prisma id — required for live services/staff/reviews.
@@ -52,6 +55,11 @@ class VenueListing {
   /// Resolved labels from `/api/mobile/venues` (optional).
   final List<String> amenityLabelsEn;
   final List<String> amenityLabelsEs;
+  /// All business categories from API (`categoryKeys` on favorites/venues).
+  final List<String> categoryKeys;
+
+  /// Gallery / banner / logo URLs for portfolio fallbacks when a service has no image.
+  final List<String> portfolioImageUrls;
 
   /// Prefer service image, then banner, then logo (same order as Web `businessListingImageSrc`).
   String get heroImageUrl {
@@ -80,26 +88,26 @@ class VenueListing {
 
   /// URLs to try in order for [ChainedNetworkImage].
   List<String> get imageUrlChain {
-    final out = <String>[];
-    void add(String? u) {
-      final resolved = resolveMediaUrl(u);
-      if (resolved != null && !out.contains(resolved)) out.add(resolved);
+    final chain = serviceImageUrlsChain(
+      serviceImageUrl: serviceImageUrl,
+      portfolioUrls: portfolioImageUrls.isNotEmpty
+          ? portfolioImageUrls
+          : businessPortfolioUrls(bannerUrl: bannerUrl, logoUrl: logoUrl),
+      seed: businessId ?? '$this.id',
+    );
+    if (chain.isNotEmpty) return chain;
+    final unsplashId = extractUnsplashPhotoId(unsplashImgId);
+    if (unsplashId != null) {
+      return ['https://images.unsplash.com/photo-$unsplashId?q=80&w=500&fit=crop'];
     }
-    add(serviceImageUrl);
-    add(bannerUrl);
-    add(logoUrl);
-    final id = extractUnsplashPhotoId(unsplashImgId);
-    if (id != null) {
-      final u = 'https://images.unsplash.com/photo-$id?q=80&w=500&fit=crop';
-      if (!out.contains(u)) out.add(u);
-    }
-    return out;
+    return const [];
   }
 
   Map<String, dynamic> toSearchMap() => {
         'id': id,
         'name': name,
         'category': categoryKey,
+        'categoryKeys': categoryKeys.isNotEmpty ? categoryKeys : [categoryKey],
         'rating': rating,
         'reviews': reviews,
         'price': price,
@@ -116,6 +124,7 @@ class VenueListing {
         if (serviceDurationMinutes != null) 'serviceDurationMinutes': serviceDurationMinutes,
         if (amenityLabelsEn.isNotEmpty) 'amenityLabelsEn': amenityLabelsEn,
         if (amenityLabelsEs.isNotEmpty) 'amenityLabelsEs': amenityLabelsEs,
+        if (portfolioImageUrls.isNotEmpty) 'portfolioImageUrls': portfolioImageUrls,
       };
 
   /// Deterministic positive int from a string key (FNV-1a). Stable across app runs.
@@ -145,29 +154,50 @@ class VenueListing {
   factory VenueListing.fromFavoriteMap(Map<String, dynamic> fav) {
     final reviewsRaw = fav['reviews']?.toString() ?? '';
     final reviews = reviewsRaw.replaceAll(RegExp(r'[()]'), '');
-    final idRaw = fav['id'];
-    final id = idRaw is int ? idRaw : (idRaw as num?)?.toInt() ?? 0;
+    final businessId = fav['businessId']?.toString();
+    final id = resolveListingId(fav['id'], businessId: businessId);
     final lat = (fav['lat'] as num?)?.toDouble() ?? 0;
     final lng = (fav['lng'] as num?)?.toDouble() ?? 0;
     final img = fav['unsplashImgId'] as String? ?? fav['img'] as String?;
+    final keysRaw = fav['categoryKeys'];
+    final categoryKeys = keysRaw is List
+        ? keysRaw.map((e) => '$e').where((s) => s.trim().isNotEmpty).toList()
+        : <String>[];
+    final categoryKey = fav['categoryKey'] as String? ??
+        (categoryKeys.isNotEmpty ? categoryKeys.first : 'hairService');
     return VenueListing(
       id: id,
-      name: fav['name'] as String,
-      categoryKey: fav['categoryKey'] as String? ?? 'hairService',
+      name: fav['name']?.toString().trim().isNotEmpty == true ? fav['name'].toString() : 'Venue',
+      categoryKey: categoryKey,
+      categoryKeys: categoryKeys.isNotEmpty ? categoryKeys : [categoryKey],
       rating: fav['rating'] as String? ?? '',
       reviews: reviews.isNotEmpty ? reviews : '0',
       price: fav['price'] as String? ?? '',
       lat: lat,
       lng: lng,
-      businessId: fav['businessId'] as String?,
+      businessId: businessId,
       unsplashImgId: img,
-      serviceImageUrl: fav['imageUrl'] as String? ?? fav['serviceImageUrl'] as String?,
+      serviceImageUrl: fav['serviceImageUrl'] as String? ?? fav['imageUrl'] as String?,
+      logoUrl: fav['logoUrl'] as String?,
+      bannerUrl: fav['bannerUrl'] as String?,
       locationLabel: fav['locationLabel'] as String? ?? '',
       distanceLabel: fav['distanceLabel'] as String? ?? '',
       primaryServiceName: fav['primaryServiceName'] as String?,
       serviceDurationMinutes: (fav['serviceDurationMinutes'] as num?)?.toInt(),
       amenityLabelsEn: (fav['amenityLabelsEn'] as List<dynamic>?)?.map((e) => '$e').toList() ?? const [],
       amenityLabelsEs: (fav['amenityLabelsEs'] as List<dynamic>?)?.map((e) => '$e').toList() ?? const [],
+      portfolioImageUrls: _parsePortfolioUrls(fav),
+    );
+  }
+
+  static List<String> _parsePortfolioUrls(Map<String, dynamic> m) {
+    final raw = m['portfolioImageUrls'];
+    if (raw is List) {
+      return raw.map((e) => '$e').where((s) => s.trim().isNotEmpty).toList();
+    }
+    return businessPortfolioUrls(
+      bannerUrl: m['bannerUrl'] as String?,
+      logoUrl: m['logoUrl'] as String?,
     );
   }
 
@@ -194,6 +224,7 @@ class VenueListing {
       serviceDurationMinutes: (m['serviceDurationMinutes'] as num?)?.toInt(),
       amenityLabelsEn: (m['amenityLabelsEn'] as List<dynamic>?)?.map((e) => '$e').toList() ?? const [],
       amenityLabelsEs: (m['amenityLabelsEs'] as List<dynamic>?)?.map((e) => '$e').toList() ?? const [],
+      portfolioImageUrls: _parsePortfolioUrls(m),
     );
   }
 }

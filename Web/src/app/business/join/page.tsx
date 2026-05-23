@@ -11,7 +11,8 @@ import { useBusinessStore } from "../../../store/businessStore";
 import { useRouter } from "next/navigation";
 import { fetchPublicCategories, type PublicCategory } from "@/lib/venueSearch";
 import { apiPost } from "@/lib/api";
-import { toastError, toastWarning } from "@/lib/toast";
+import { compressImageFile } from "@/lib/compressImage";
+import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type CategoryOption = { key: string; label: string; imageUrl?: string | null };
@@ -24,14 +25,8 @@ type ServiceDraft = {
   imagePreviewUrl?: string;
 };
 
-async function readFileAsDataUrl(file: File): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Unable to read file"));
-    reader.readAsDataURL(file);
-  });
-}
+const DOC_IMAGE_OPTS = { maxWidth: 1400, maxHeight: 1400, maxBytes: 450_000 };
+const SERVICE_IMAGE_OPTS = { maxWidth: 800, maxHeight: 800, maxBytes: 280_000 };
 
 export default function BusinessJoinPage() {
   const { language } = useI18n();
@@ -62,6 +57,8 @@ export default function BusinessJoinPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("basic");
+  const [uploadingDocKey, setUploadingDocKey] = useState<string | null>(null);
+  const [uploadingServiceId, setUploadingServiceId] = useState<string | null>(null);
 
   const tx = {
     successTitle: "Request Submitted!",
@@ -123,6 +120,9 @@ export default function BusinessJoinPage() {
     licenseDoc: "License copy",
     insuranceDoc: "Insurance copy",
     uploadFile: "Upload image",
+    uploading: "Uploading…",
+    uploadOk: "Image ready",
+    uploadFail: "Could not process this image. Use JPG or PNG under 10MB.",
     valStep2: "Fill owner, phone, and valid email.",
     passwordLabel: "Password",
     confirmPasswordLabel: "Confirm Password",
@@ -298,17 +298,69 @@ export default function BusinessJoinPage() {
             duration: Number(s.duration),
             price: Number(s.price),
             category: s.category || selectedCategories[0] || "hairService",
+            imageUrl:
+              s.imagePreviewUrl?.startsWith("data:image/") ? s.imagePreviewUrl : undefined,
           })),
       },
     )
       .then(() => setIsSubmitted(true))
-      .catch(() => {
-        const msg = "Could not submit registration. Please check all fields and try again.";
+      .catch((err: unknown) => {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Could not submit registration. Please check all fields and try again.";
         setStepError(msg);
         toastError("Registration failed", msg);
       })
       .finally(() => setIsSubmitting(false));
   };
+
+  async function handleDocImageUpload(
+    file: File,
+    setter: (url: string) => void,
+    docKey: string,
+    inputEl: HTMLInputElement | null,
+  ) {
+    if (!file.type.startsWith("image/")) {
+      toastError("Invalid file", "Please choose a JPG or PNG image.");
+      return;
+    }
+    setUploadingDocKey(docKey);
+    try {
+      const dataUrl = await compressImageFile(file, DOC_IMAGE_OPTS);
+      setter(dataUrl);
+      toastSuccess("Document uploaded", "Preview updated — continue when all three are added.");
+    } catch (err) {
+      setter("");
+      toastError("Upload failed", err instanceof Error ? err.message : tx.uploadFail);
+    } finally {
+      setUploadingDocKey(null);
+      if (inputEl) inputEl.value = "";
+    }
+  }
+
+  async function handleServiceImageUpload(
+    serviceId: string,
+    file: File,
+    inputEl: HTMLInputElement | null,
+  ) {
+    if (!file.type.startsWith("image/")) {
+      toastError("Invalid file", "Please choose a JPG or PNG image.");
+      return;
+    }
+    setUploadingServiceId(serviceId);
+    try {
+      const dataUrl = await compressImageFile(file, SERVICE_IMAGE_OPTS);
+      updateService(serviceId, { imagePreviewUrl: dataUrl });
+      toastSuccess("Service image added");
+    } catch (err) {
+      updateService(serviceId, { imagePreviewUrl: "" });
+      toastError("Upload failed", err instanceof Error ? err.message : tx.uploadFail);
+    } finally {
+      setUploadingServiceId(null);
+      if (inputEl) inputEl.value = "";
+    }
+  }
 
   const toggleCategory = (key: string) => {
     setSelectedCategories((prev) =>
@@ -604,21 +656,22 @@ export default function BusinessJoinPage() {
                                     <input
                                       id={`doc-${doc.key}`}
                                       type="file"
-                                      accept="image/*"
+                                      accept="image/jpeg,image/png,image/webp,image/*"
                                       className="hidden"
+                                      disabled={uploadingDocKey === doc.key}
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
+                                        const inputEl = e.currentTarget;
                                         if (!file) {
                                           doc.setter("");
                                           return;
                                         }
-                                        void readFileAsDataUrl(file)
-                                          .then((dataUrl) => doc.setter(dataUrl))
-                                          .catch(() => doc.setter(""));
+                                        void handleDocImageUpload(file, doc.setter, doc.key, inputEl);
                                       }}
                                     />
                                     <button
                                       type="button"
+                                      disabled={uploadingDocKey === doc.key}
                                       onClick={() =>
                                         (
                                           document.getElementById(`doc-${doc.key}`) as
@@ -626,9 +679,13 @@ export default function BusinessJoinPage() {
                                             | null
                                         )?.click()
                                       }
-                                      className="w-full rounded-2xl bg-white border border-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-slate-600 hover:border-[#ff5a5f] hover:text-[#ff5a5f]"
+                                      className="w-full rounded-2xl bg-white border border-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-slate-600 hover:border-[#ff5a5f] hover:text-[#ff5a5f] disabled:opacity-50"
                                     >
-                                      {tx.uploadFile}
+                                      {uploadingDocKey === doc.key
+                                        ? tx.uploading
+                                        : doc.value
+                                          ? tx.uploadOk
+                                          : tx.uploadFile}
                                     </button>
                                   </div>
                                 ))}
@@ -893,27 +950,28 @@ export default function BusinessJoinPage() {
                                   <input
                                     id={`service-image-${svc.id}`}
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/jpeg,image/png,image/webp,image/*"
                                     className="hidden"
+                                    disabled={uploadingServiceId === svc.id}
                                     onChange={(e) => {
                                       const file = e.target.files?.[0];
+                                      const inputEl = e.currentTarget;
                                       if (!file) {
                                         updateService(svc.id, { imagePreviewUrl: "" });
                                         return;
                                       }
-                                      const previewUrl = URL.createObjectURL(file);
-                                      updateService(svc.id, {
-                                        imagePreviewUrl: previewUrl,
-                                      });
+                                      void handleServiceImageUpload(svc.id, file, inputEl);
                                     }}
                                   />
                                   <button
                                     type="button"
+                                    disabled={uploadingServiceId === svc.id}
                                     onClick={() => {
                                       const input = document.getElementById(`service-image-${svc.id}`) as HTMLInputElement | null;
                                       input?.click();
                                     }}
-                                    className="p-4 text-slate-300 hover:text-slate-900 bg-slate-50 rounded-2xl transition-all"
+                                    className="p-4 text-slate-300 hover:text-slate-900 bg-slate-50 rounded-2xl transition-all disabled:opacity-40"
+                                    title={tx.serviceImageLabel}
                                   >
                                     <Camera size={18} />
                                   </button>

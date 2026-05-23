@@ -1,11 +1,14 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/api_repository.dart';
 import '../models/booking_cart_line.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import '../utils/booking_cart.dart';
+import '../utils/booking_utils.dart';
+import '../utils/payment_method.dart';
 import '../widgets/chained_network_image.dart';
 import 'booking_confirmation_screen.dart';
 
@@ -57,16 +60,6 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     return null;
   }
 
-  String _paymentMethodForApi() {
-    switch (_paymentMethod) {
-      case 'Card':
-        return 'Card Payment';
-      case 'Online':
-      default:
-        return 'Online';
-    }
-  }
-
   final ApiRepository _api = ApiRepository();
   late List<BookingCartLine> _lines;
 
@@ -77,10 +70,17 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   late List<String> _familyOptions;
   List<Map<String, dynamic>> _loadedFamilyMembers = [];
   bool _submitting = false;
-  String _paymentMethod = 'Online';
+  String _checkoutPayTab = 'card';
+  bool _autoApproval = false;
+  List<Map<String, dynamic>> _payMethods = [
+    {'id': 'card', 'label': 'Card', 'enabled': true},
+    {'id': 'yappy', 'label': 'Yappy', 'enabled': true},
+    {'id': 'cash', 'label': 'Cash', 'enabled': true},
+  ];
+  bool _stripeEnabled = false;
 
   double _taxPercentage = 0;
-  double _serviceFee = 10;
+  double _commissionPercent = 15;
 
   @override
   void initState() {
@@ -99,6 +99,25 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     ];
     _loadFamily();
     _loadBusinessProfile();
+    _loadPaymentConfig();
+  }
+
+  Future<void> _loadPaymentConfig() async {
+    try {
+      final cfg = await _api.fetchPaymentConfig();
+      if (!mounted) return;
+      final methods = (cfg['methods'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList() ??
+          _payMethods;
+      setState(() {
+        _payMethods = methods;
+        _stripeEnabled = cfg['stripeEnabled'] == true;
+        final dc = cfg['defaultCommission'];
+        if (dc is num) _commissionPercent = dc.toDouble();
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadBusinessProfile() async {
@@ -108,11 +127,36 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
       if (mounted && biz != null) {
         setState(() {
           _taxPercentage = double.tryParse('${biz['taxPercentage']}') ?? 0.0;
-          _serviceFee = double.tryParse('${biz['serviceFee']}') ?? 10.0;
+          _commissionPercent = double.tryParse(
+                '${biz['commissionPercent'] ?? biz['serviceFee']}',
+              ) ??
+              15.0;
+          _autoApproval = '${biz['appointmentApprovalMode'] ?? ''}' == 'automatic';
         });
       }
     } catch (e) {
       // Keep default
+    }
+  }
+
+  bool _methodEnabled(String id) {
+    final m = _payMethods.where((x) => '${x['id']}' == id).toList();
+    if (m.isEmpty) return true;
+    return m.first['enabled'] != false;
+  }
+
+  String _paymentTabLabel(String id) {
+    final m = _payMethods.where((x) => '${x['id']}' == id).toList();
+    if (m.isNotEmpty && '${m.first['label']}'.trim().isNotEmpty) {
+      return '${m.first['label']}';
+    }
+    switch (id) {
+      case 'yappy':
+        return 'Yappy';
+      case 'cash':
+        return 'Cash';
+      default:
+        return 'Card';
     }
   }
 
@@ -136,8 +180,9 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   }
 
   double get _subtotal => _lines.fold<double>(0, (a, b) => a + b.priceValue);
+  double get _platformFee => (_subtotal * _commissionPercent) / 100;
   double get _tax => (_subtotal * _taxPercentage) / 100;
-  double get _total => _subtotal + _serviceFee + _tax;
+  double get _total => _subtotal + _platformFee + _tax;
 
   String get _formattedDate =>
       MaterialLocalizations.of(context).formatFullDate(widget.bookingDate);
@@ -364,13 +409,23 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   }
 
   Future<void> _submitBookings() async {
+    final start = _combineDateTime(widget.bookingDate, widget.bookingTime);
+    if (start.isBefore(DateTime.now().subtract(const Duration(minutes: 1)))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please choose a future date and time.')),
+      );
+      return;
+    }
+
     setState(() => _submitting = true);
 
     try {
-      final combinedDate = _combineDateTime(widget.bookingDate, widget.bookingTime);
-      final combinedIso = combinedDate.toIso8601String();
+      var cursor = start;
+      final bookingGroupId = 'grp_${DateTime.now().millisecondsSinceEpoch}';
+      final preferredPayment = apiPaymentMethodForCheckoutTab(_checkoutPayTab);
+      final isCashCheckout = _checkoutPayTab == 'cash';
 
-      // Create bookings sequentially for each service in the cart with their individual staff/guest selections!
+      // Create bookings sequentially; stagger each service by its duration (matches Web).
       final createdIds = <String>[];
       for (int i = 0; i < _lines.length; i++) {
         final line = _lines[i];
@@ -393,20 +448,60 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
         final result = await _api.createBooking(
           businessId: widget.businessId ?? '',
           serviceId: line.id,
-          date: combinedIso,
+          date: cursor.toIso8601String(),
           staffId: staffId,
           familyMemberId: familyMemberId,
-          paymentMethod: _paymentMethodForApi(),
+          paymentMethod: preferredPayment,
+          bookingGroupId: bookingGroupId,
         );
         if (result != null && result['id'] != null) {
           createdIds.add('${result['id']}');
         }
+
+        final durationMins = parseDurationMinutes({'time': line.durationLabel});
+        cursor = cursor.add(Duration(minutes: durationMins));
+      }
+
+      if (createdIds.isEmpty) {
+        throw Exception('No bookings were created. Please try again.');
+      }
+
+      if (_autoApproval && !isCashCheckout) {
+        final cardEnabled = _methodEnabled('card');
+        if (_checkoutPayTab == 'card' && cardEnabled && _stripeEnabled) {
+          final url = await _api.payBookingGroupStripeCheckout(bookingIds: createdIds);
+          if (url != null) {
+            final uri = Uri.parse(url);
+            if (await canLaunchUrl(uri)) {
+              BookingCart.instance.clear();
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+              if (!mounted) return;
+              _navigateToBookingConfirmation(
+                createdIds,
+                paid: true,
+                autoApproval: true,
+                isCash: false,
+              );
+              return;
+            }
+          }
+        }
+        await _api.payBookingGroup(
+          bookingIds: createdIds,
+          paymentMethod: preferredPayment,
+          businessId: widget.businessId,
+        );
       }
 
       BookingCart.instance.clear();
 
       if (!mounted) return;
-      _navigateToBookingConfirmation(createdIds);
+      _navigateToBookingConfirmation(
+        createdIds,
+        paid: _autoApproval && !isCashCheckout,
+        autoApproval: _autoApproval,
+        isCash: isCashCheckout,
+      );
     } catch (e) {
       if (!mounted) return;
       showDialog<void>(
@@ -730,15 +825,6 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                   ],
                 ),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text('bookingChange'.tr(), style: AppTypography.buttonSmall.copyWith(color: AppColors.primary500)),
-              ),
             ],
           ),
         ],
@@ -747,62 +833,67 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   }
 
   Widget _buildPaymentMethod() {
-    return Material(
-      color: AppColors.white,
-      child: InkWell(
-        onTap: () async {
-          final picked = await showModalBottomSheet<String>(
-            context: context,
-            backgroundColor: Colors.transparent,
-            builder: (ctx) => Container(
-              decoration: const BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+    final enabledTabs = ['card', 'yappy', 'cash'].where(_methodEnabled).toList();
+    if (!enabledTabs.contains(_checkoutPayTab) && enabledTabs.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _checkoutPayTab = enabledTabs.first);
+      });
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: enabledTabs.map((id) {
+        final selected = _checkoutPayTab == id;
+        IconData icon;
+        switch (id) {
+          case 'yappy':
+            icon = Icons.account_balance_wallet_outlined;
+            break;
+          case 'cash':
+            icon = Icons.payments_outlined;
+            break;
+          default:
+            icon = Icons.credit_card;
+        }
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Material(
+            color: selected ? AppColors.primary50 : AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: () => setState(() => _checkoutPayTab = id),
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: selected ? AppColors.primary500 : AppColors.grey100,
+                    width: selected ? 2 : 1,
+                  ),
+                ),
+                child: Row(
                   children: [
-                    ListTile(
-                      leading: const Icon(Icons.credit_card, color: AppColors.primary500),
-                      title: const Text('Online'),
-                      onTap: () => Navigator.pop(ctx, 'Online'),
+                    Icon(icon, color: AppColors.primary500),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        _paymentTabLabel(id),
+                        style: AppTypography.body200.copyWith(
+                          color: AppColors.grey900,
+                          fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                        ),
+                      ),
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary500),
-                      title: const Text('Card'),
-                      onTap: () => Navigator.pop(ctx, 'Card'),
-                    ),
+                    if (selected)
+                      const Icon(Icons.check_circle, color: AppColors.primary500, size: 22),
                   ],
                 ),
               ),
             ),
-          );
-          if (picked != null) setState(() => _paymentMethod = picked);
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.grey100),
           ),
-          child: Row(
-            children: [
-              const Icon(Icons.credit_card, color: AppColors.primary500),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  _paymentMethod,
-                  style: AppTypography.body200.copyWith(color: AppColors.grey900),
-                ),
-              ),
-              Text('bookingChange'.tr(), style: AppTypography.buttonSmall.copyWith(color: AppColors.primary500)),
-            ],
-          ),
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 
@@ -811,7 +902,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
       children: [
         _priceRow('Subtotal', _money(_subtotal)),
         const SizedBox(height: 12),
-        _priceRow('Service Fee', _money(_serviceFee)),
+        _priceRow('Service Fee (${_commissionPercent.toStringAsFixed(0)}%)', _money(_platformFee)),
         const SizedBox(height: 12),
         _priceRow('Tax', _money(_tax)),
         const SizedBox(height: 16),
@@ -853,13 +944,18 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     return '';
   }
 
-  void _navigateToBookingConfirmation(List<String> bookingIds) {
+  void _navigateToBookingConfirmation(
+    List<String> bookingIds, {
+    bool paid = false,
+    bool autoApproval = false,
+    bool isCash = false,
+  }) {
     final serviceSummary = _lines.map((e) => e.name).join(', ');
     final specialistsSummary = _lineSpecialists.values.toSet().join(', ');
     final bookingForSummary = _lineBookingFor.values.toSet().join(', ');
-    Navigator.pushAndRemoveUntil<void>(
+    Navigator.pushReplacement(
       context,
-      MaterialPageRoute<void>(
+      MaterialPageRoute(
         builder: (context) => BookingConfirmationScreen(
           bookingDetails: {
             'venueName': widget.venueName,
@@ -875,10 +971,12 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
             'businessId': widget.businessId,
             'imageUrl': widget.heroImageUrl,
             'address': '',
+            'paid': paid,
+            'autoApproval': autoApproval,
+            'isCash': isCash,
           },
         ),
       ),
-      (route) => route.isFirst,
     );
   }
 }

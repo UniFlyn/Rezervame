@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import 'customer_service_screen.dart';
 
 class StaticSection {
   const StaticSection({required this.title, required this.content});
@@ -89,7 +90,12 @@ class StaticInfoScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(builder: (context) => const CustomerServiceScreen()),
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.grey900,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

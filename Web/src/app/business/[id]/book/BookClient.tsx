@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
+import { navigateToBookingConfirmation } from "@/lib/bookingConfirmation";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 
 export default function BookClient({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const [businessId, setBusinessId] = useState(params.id);
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -72,15 +75,24 @@ export default function BookClient({ params }: { params: { id: string } }) {
     const iso = new Date(dateStr).toISOString();
     setSubmitting(true);
     try {
-      await apiPost<{ id: string }>(
+      const created = await apiPost<{ id: string }>(
         "/mobile/bookings",
         { businessId, serviceId, date: iso },
         "USER",
       );
-      const ok =
-        "Booking request submitted. Status starts as Pending until the business confirms.";
-      setMessage(ok);
-      toastSuccess("Booking submitted", ok);
+      const svc = services.find((s) => s.id === serviceId);
+      navigateToBookingConfirmation({
+        date: iso,
+        service: svc?.name || "—",
+        professional: "—",
+        bookingFor: "Myself",
+        price: svc ? `$${Number(svc.price).toFixed(2)}` : "",
+        bookingId: created?.id,
+      });
+      toastSuccess(
+        "Booking submitted",
+        "Your booking request has been sent. The business will review and confirm shortly.",
+      );
     } catch {
       const err =
         "Could not create booking. Ensure you are logged in as a customer user.";

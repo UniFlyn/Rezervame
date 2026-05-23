@@ -35,6 +35,9 @@ export async function requireUser(
   if (!user || !allowed.includes(user.role)) {
     throw new UnauthorizedException('Invalid or missing session');
   }
+  if (user.role === Role.USER && (user.status || '').toLowerCase() === 'blocked') {
+    throw new ForbiddenException('Account suspended');
+  }
   return user;
 }
 

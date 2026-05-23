@@ -22,7 +22,11 @@ class _ChooseLocationScreenState extends State<ChooseLocationScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   Future<void> _goToLogin() async {
-    await UserLocation.setLastKnown(_previewCenter.latitude, _previewCenter.longitude);
+    await UserLocation.setLastKnown(
+      _previewCenter.latitude,
+      _previewCenter.longitude,
+      label: 'Westwood Blvd',
+    );
     if (!mounted) return;
     Navigator.pushAndRemoveUntil<void>(
       context,

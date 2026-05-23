@@ -65,10 +65,12 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
     final slots = generateSlotsForDay(_schedule, _selectedDate);
     if (!mounted) return;
 
+    final bookable = filterBookableTimeSlots(slots, _selectedDate);
     setState(() {
       _timeSlots = slots;
-      if (_timeSlots.isNotEmpty && !_timeSlots.contains(_selectedTime)) {
-        _selectedTime = _timeSlots.first;
+      if (bookable.isNotEmpty &&
+          (!_timeSlots.contains(_selectedTime) || isTimeSlotInPast(_selectedDate, _selectedTime))) {
+        _selectedTime = bookable.first;
       }
       _loading = false;
     });
@@ -116,7 +118,7 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: _timeSlots.isEmpty
+                onPressed: filterBookableTimeSlots(_timeSlots, _selectedDate).isEmpty
                     ? null
                     : () {
                         if (widget.cartLines.isEmpty) {
@@ -191,21 +193,35 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
       spacing: 12,
       runSpacing: 12,
       children: _timeSlots.map((time) {
-        final isSelected = _selectedTime == time;
+        final isPast = isTimeSlotInPast(_selectedDate, time);
+        final isSelected = !isPast && _selectedTime == time;
         return InkWell(
-          onTap: () => setState(() => _selectedTime = time),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.primary500 : AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isSelected ? AppColors.primary500 : AppColors.grey100),
-            ),
-            child: Text(
-              time,
-              style: AppTypography.body200.copyWith(
-                color: isSelected ? AppColors.white : AppColors.grey900,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          onTap: isPast ? null : () => setState(() => _selectedTime = time),
+          child: Opacity(
+            opacity: isPast ? 0.38 : 1,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary500 : AppColors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isPast
+                      ? AppColors.grey100
+                      : isSelected
+                          ? AppColors.primary500
+                          : AppColors.grey100,
+                ),
+              ),
+              child: Text(
+                time,
+                style: AppTypography.body200.copyWith(
+                  color: isPast
+                      ? AppColors.grey400
+                      : isSelected
+                          ? AppColors.white
+                          : AppColors.grey900,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
               ),
             ),
           ),

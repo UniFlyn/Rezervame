@@ -9,7 +9,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useBusinessStore } from '../../../store/businessStore';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
-import { useBookingsStore, Booking } from '../../../store/bookingsStore';
+import { useBookingsStore, Booking, normalizeBookingRow } from '../../../store/bookingsStore';
 import { useServicesStore, Service } from '../../../store/servicesStore';
 import { useStaffStore } from '../../../store/staffStore';
 import { Pagination } from '@/components/ui/pagination';
@@ -37,11 +37,18 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Banknote,
 } from 'lucide-react';
 import clsx from 'clsx';
 import esLocale from '@fullcalendar/core/locales/es';
 import enGbLocale from '@fullcalendar/core/locales/en-gb';
 import { toastError, toastInfo, toastSuccess } from '@/lib/toast';
+import { computeBookingTotals } from '@/lib/bookingTotals';
+import {
+  bookingDisplaysAsPaid,
+  isPayAtVenuePending,
+} from '@/lib/paymentMethod';
+import { bookingGroupKey, bookingsInSameGroup } from '@/lib/bookingGroup';
 
 type Language = 'en' | 'es';
 
@@ -133,7 +140,48 @@ function weekdayShort(lang: Language, d: Date) {
 function formatTimeRange12(lang: Language, start: Date, end: Date) {
   const o = { hour: 'numeric' as const, minute: '2-digit' as const, hour12: true };
   const loc = intlLocale(lang);
-  return `${start.toLocaleTimeString(loc, o)}–${end.toLocaleTimeString(loc, o)}`;
+  return `${start.toLocaleTimeString(loc, o)} – ${end.toLocaleTimeString(loc, o)}`;
+}
+
+function clientDisplay(
+  lang: Language,
+  b: Booking,
+): { title: string; subtitle?: string; initial: string } {
+  const account = (b.accountHolderName || '').trim();
+  const family = (b.familyMemberName || '').trim();
+  const customer = (b.customerName || '').trim();
+  const email = (b.memberEmail || '').trim();
+
+  if (family) {
+    return {
+      title: family,
+      subtitle: account ? `${L(lang, 'Booked by', 'Reservado por')} ${account}` : email || undefined,
+      initial: (family.charAt(0) || '?').toUpperCase(),
+    };
+  }
+
+  const title =
+    (customer.length >= 2 ? customer : '') || account || customer || L(lang, 'Guest', 'Invitado');
+
+  return {
+    title,
+    subtitle: email && email !== title ? email : undefined,
+    initial: (title.charAt(0) || '?').toUpperCase(),
+  };
+}
+
+function bookingSlotRange(
+  lang: Language,
+  sorted: Booking[],
+  index: number,
+  durationMinutes: (b: Booking) => number,
+): { start: Date; end: Date } {
+  let slotStart = new Date(sorted[0].date);
+  for (let i = 0; i < index; i++) {
+    slotStart = new Date(slotStart.getTime() + durationMinutes(sorted[i]) * 60_000);
+  }
+  const slotEnd = new Date(slotStart.getTime() + durationMinutes(sorted[index]) * 60_000);
+  return { start: slotStart, end: slotEnd };
 }
 
 function formatTime12(lang: Language, iso: string) {
@@ -149,21 +197,32 @@ function formatDateOnly(lang: Language, iso: string) {
   });
 }
 
-function bookingStatusLabel(lang: Language, status: string) {
-  switch (status) {
-    case 'Pending':
-      return L(lang, 'Pending', 'Pendiente');
-    case 'Approved':
-      return L(lang, 'Accept', 'Aceptar');
-    case 'Completed':
-      return L(lang, 'Paid', 'Pagado');
-    case 'Rejected':
-      return L(lang, 'Reject', 'Rechazar');
-    case 'Cancelled':
-      return L(lang, 'Cancel', 'Cancelar');
-    default:
-      return status;
+function rowStatusLabel(lang: Language, booking: Booking) {
+  if (booking.status === 'Completed') return L(lang, 'Completed', 'Completado');
+  if (isPayAtVenuePending(booking)) return L(lang, 'Pay at Venue', 'Pagar en local');
+  if (bookingDisplaysAsPaid(booking)) return L(lang, 'Paid', 'Pagado');
+  if (booking.status === 'Approved') return L(lang, 'Approved', 'Aprobado');
+  if (booking.status === 'Pending') return L(lang, 'Pending', 'Pendiente');
+  if (booking.status === 'Rescheduled') return L(lang, 'Rescheduled', 'Reagendado');
+  return booking.status;
+}
+
+function rowStatusClass(booking: Booking) {
+  if (booking.status === 'Completed') return 'bg-cyan-50 text-cyan-800';
+  if (isPayAtVenuePending(booking)) return 'bg-amber-50 text-amber-800';
+  if (bookingDisplaysAsPaid(booking)) return 'bg-blue-50 text-blue-700';
+  if (booking.status === 'Approved') return 'bg-emerald-50 text-emerald-700';
+  if (booking.status === 'Pending') return 'bg-amber-50 text-amber-700';
+  if (booking.status === 'Rescheduled') return 'bg-amber-100 text-amber-800';
+  return 'bg-slate-50 text-slate-600';
+}
+
+function canCompleteBooking(booking: Booking) {
+  if (booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected') {
+    return false;
   }
+  if (isPayAtVenuePending(booking)) return true;
+  return bookingDisplaysAsPaid(booking);
 }
 
 export default function AppointmentsPage() {
@@ -190,6 +249,64 @@ export default function AppointmentsPage() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [cashConfirm, setCashConfirm] = useState<{ ids: string[]; bookings: Booking[] } | null>(null);
+
+  const payBookingGroup = useBookingsStore((state) => state.payBookingGroup);
+
+  const bookingPool = scheduleView === 'list' ? paginatedBookings : bookings;
+
+  const resolveCombinedGroup = useCallback(
+    (seed: Booking) => bookingsInSameGroup(seed, bookingPool),
+    [bookingPool],
+  );
+
+  const openCashCompleteConfirm = (seed: Booking) => {
+    const groupMembers = resolveCombinedGroup(seed);
+    const pending = groupMembers.filter(isPayAtVenuePending);
+    if (pending.length === 0) return;
+    setCashConfirm({ ids: pending.map((b) => b.id), bookings: pending });
+  };
+
+  const handleCompleteJob = (seed: Booking) => {
+    const groupMembers = resolveCombinedGroup(seed);
+    const actionable = groupMembers.filter(canCompleteBooking);
+    if (actionable.length === 0) return;
+    if (actionable.some(isPayAtVenuePending)) {
+      openCashCompleteConfirm(seed);
+      return;
+    }
+    void (async () => {
+      for (const b of actionable) {
+        await handleStatusChange(b.id, 'Completed');
+      }
+    })();
+  };
+
+  const handleConfirmCashPayment = async () => {
+    if (!cashConfirm || !business) return;
+    setUpdatingId('cash-confirm');
+    try {
+      await payBookingGroup(cashConfirm.ids, 'Cash Payment');
+      for (const id of cashConfirm.ids) {
+        await apiPatch(`/bookings/${id}`, { status: 'Completed' }, 'BUSINESS');
+      }
+      await useBookingsStore.getState().hydrate();
+      await useBusinessStore.getState().hydrate();
+      if (scheduleView === 'list') void fetchPaginatedBookings();
+      setCashConfirm(null);
+      toastSuccess(
+        'Payment confirmed',
+        'Cash received and appointment marked completed.',
+      );
+    } catch (err) {
+      toastError(
+        'Could not confirm payment',
+        err instanceof Error ? err.message : 'Try again.',
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const handleStatusChange = async (bookingId: string, newStatus: string) => {
     if (!business) return;
@@ -239,7 +356,9 @@ export default function AppointmentsPage() {
         `/business/${business.id}/bookings?${query.toString()}`,
         'BUSINESS'
       );
-      setPaginatedBookings(response.data);
+      setPaginatedBookings(
+        (response.data || []).map((b) => normalizeBookingRow(b as Record<string, unknown>)),
+      );
       setTotalItems(response.total);
       setTotalPages(response.totalPages);
     } catch (err) {
@@ -254,12 +373,14 @@ export default function AppointmentsPage() {
   }, [hydrateBookings]);
 
   useEffect(() => {
-    if (scheduleView === 'list') {
-      const timer = setTimeout(() => {
-        void fetchPaginatedBookings();
-      }, 300);
-      return () => clearTimeout(timer);
+    if (scheduleView !== 'list') {
+      setIsLoadingList(false);
+      return;
     }
+    const timer = setTimeout(() => {
+      void fetchPaginatedBookings();
+    }, 300);
+    return () => clearTimeout(timer);
   }, [scheduleView, fetchPaginatedBookings]);
 
   const calendarRef = useRef<FullCalendar>(null);
@@ -324,9 +445,11 @@ export default function AppointmentsPage() {
   const groupedListRows = useMemo(() => {
     const groups: Record<string, Booking[]> = {};
     listRows.forEach((b) => {
-      // Group by user (or customerName if no userId) and the date (YYYY-MM-DD)
-      const dateOnly = new Date(b.date).toISOString().split('T')[0];
-      const key = `${b.userId || b.customerName}_${dateOnly}`;
+      const key = bookingGroupKey({
+        bookingGroupId: b.bookingGroupId,
+        businessId: business?.id,
+        date: b.date,
+      });
       if (!groups[key]) groups[key] = [];
       groups[key].push(b);
     });
@@ -335,7 +458,7 @@ export default function AppointmentsPage() {
       group.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     });
     return Object.values(groups);
-  }, [listRows]);
+  }, [listRows, business?.id]);
 
   const countBookingsOnDay = useCallback(
     (d: Date) => filteredBookings.filter((b) => bookingDayKey(b.date) === localDayKey(d)).length,
@@ -401,10 +524,47 @@ export default function AppointmentsPage() {
     });
   }, [filteredBookings, services, language]);
 
-  const getServiceName = (id: string | null) =>
-    id ? services.find((s: Service) => s.id === id)?.name || '—' : '—';
-  const getStaffLabel = (id: string | null) =>
-    id ? staff.find((s) => s.id === id)?.name || '—' : '—';
+  const getServiceName = (b: Booking) =>
+    b.serviceName?.trim() ||
+    (b.serviceId ? services.find((s: Service) => s.id === b.serviceId)?.name : null) ||
+    '—';
+  const getStaffLabel = (b: Booking) =>
+    b.staffName?.trim() ||
+    (b.staffId ? staff.find((s) => s.id === b.staffId)?.name : null) ||
+    '—';
+
+  const bookingDurationMinutes = (b: Booking) =>
+    b.serviceDurationMinutes ??
+    (b.serviceId ? services.find((s) => s.id === b.serviceId)?.duration : null) ??
+    60;
+
+  const groupTimeLabel = (group: Booking[]) => {
+    const sorted = [...group].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const start = new Date(sorted[0].date);
+    let endMs = start.getTime();
+    for (const b of sorted) {
+      endMs += bookingDurationMinutes(b) * 60_000;
+    }
+    const end = new Date(endMs);
+    const lang = language as Language;
+    if (sorted.length === 1) {
+      return (
+        <span className="text-sm font-bold text-slate-900">
+          {formatTime12(lang, sorted[0].date)}
+        </span>
+      );
+    }
+    return (
+      <span className="flex flex-col gap-0.5">
+        <span className="text-sm font-bold text-slate-900">
+          {formatTimeRange12(lang, start, end)}
+        </span>
+        <span className="text-[10px] font-medium text-slate-500">
+          {formatDateOnly(lang, sorted[0].date)}
+        </span>
+      </span>
+    );
+  };
 
   const goToday = () => getApi()?.today();
   const goPrev = () => getApi()?.prev();
@@ -736,7 +896,15 @@ export default function AppointmentsPage() {
               />
             </div>
           ) : (
-            <div className="min-h-[min(60vh,560px)] overflow-x-auto p-2 pb-14 md:p-4 md:pb-16">
+            <div className="relative min-h-[min(60vh,560px)] overflow-x-auto p-2 pb-14 md:p-4 md:pb-16">
+              {isLoadingList && (
+                <div
+                  className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]"
+                  aria-hidden
+                >
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                </div>
+              )}
               {listRows.length === 0 ? (
                 <p className="py-16 text-center text-sm font-semibold text-slate-400">{L(language as Language, 'No appointments match filters.', 'Sin citas con estos filtros.')}</p>
               ) : (
@@ -755,32 +923,37 @@ export default function AppointmentsPage() {
                     <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Actions', 'Acciones')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 relative">
-                  {isLoadingList && (
-                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                      <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-                    </div>
-                  )}
+                <tbody className="divide-y divide-slate-50">
                   {groupedListRows.map((group) => {
                     const booking = group[0];
                     const isGroup = group.length > 1;
-                    const dateOnly = new Date(booking.date).toISOString().split('T')[0];
-                    const groupKey = `${booking.userId || booking.customerName}_${dateOnly}`;
+                    const groupKey = bookingGroupKey({
+                      bookingGroupId: booking.bookingGroupId,
+                      businessId: business?.id,
+                      date: booking.date,
+                    });
                     const isExpanded = expandedGroups.has(groupKey);
+                    const groupPayAtVenuePending = group.filter(isPayAtVenuePending);
+                    const groupCanComplete = group.some(canCompleteBooking);
                     
                     const groupIds = group.map((b) => b.id);
                     const allCompleted = group.every((b) => b.status === 'Completed');
                     const allApproved = group.every((b) => b.status === 'Approved' || b.status === 'Paid' || b.transactionId);
-                    const allPaid = group.every((b) => b.status === 'Paid' || b.transactionId);
+                    const anyPayAtVenue = group.some(isPayAtVenuePending);
+                    const allPaidDisplay = group.every(bookingDisplaysAsPaid);
+                    const anyPaidDisplay = group.some(bookingDisplaysAsPaid);
                     const anyPending = group.some((b) => b.status === 'Pending');
                     const anyRescheduled = group.some((b) => b.status === 'Rescheduled');
-                    const anyPaid = group.some((b) => b.status === 'Paid' || b.transactionId);
-                    const anyApproved = group.some((b) => b.status === 'Approved');
+                    const anyApproved = group.some((b) => b.status === 'Approved' && !isPayAtVenuePending(b));
                     const anyLocked = group.some((b) => b.locked);
                     const totalPrice = group.reduce((sum, b) => sum + b.price, 0);
 
-                    const servicesText = group.map((b) => getServiceName(b.serviceId)).join(', ');
-                    const staffText = Array.from(new Set(group.map((b) => getStaffLabel(b.staffId)))).join(', ');
+                    const servicesText = group.map((b) => getServiceName(b)).join(', ');
+                    const staffText = Array.from(new Set(group.map((b) => getStaffLabel(b)))).join(', ');
+                    const client = clientDisplay(language as Language, booking);
+                    const sortedGroup = [...group].sort(
+                      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+                    );
 
                     return (
                       <Fragment key={groupKey}>
@@ -801,11 +974,18 @@ export default function AppointmentsPage() {
                                 </button>
                               )}
                               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-xs font-black text-white">
-                                {booking.customerName.charAt(0)}
+                                {client.initial}
                               </div>
-                              <div className="flex flex-col">
-                                <span className="font-bold text-slate-900">{booking.customerName}</span>
-                                {isGroup && <span className="text-[10px] text-slate-400 font-bold uppercase">{group.length} {L(language as Language, 'Services', 'Servicios')}</span>}
+                              <div className="flex min-w-0 flex-col">
+                                <span className="font-bold text-slate-900">{client.title}</span>
+                                {client.subtitle ? (
+                                  <span className="truncate text-[10px] font-medium text-slate-500">{client.subtitle}</span>
+                                ) : null}
+                                {isGroup ? (
+                                  <span className="text-[10px] font-bold uppercase text-slate-400">
+                                    {group.length} {L(language as Language, 'Services', 'Servicios')}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                           </td>
@@ -821,37 +1001,32 @@ export default function AppointmentsPage() {
                               {staffText}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-800">
-                            {formatDateOnly(language as Language, booking.date)}
+                          <td className="whitespace-nowrap px-4 py-3">
+                            <span className="block text-sm font-semibold text-slate-800">
+                              {formatDateOnly(language as Language, sortedGroup[0].date)}
+                            </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-900">
-                            {isGroup ? (
-                              <span className="flex flex-col">
-                                <span>{formatTime12(language as Language, group[0].date)}</span>
-                                <span className="text-[10px] text-slate-400 font-normal leading-none mt-0.5">
-                                  to {formatTime12(language as Language, group[group.length - 1].date)}
-                                </span>
-                              </span>
-                            ) : (
-                              formatTime12(language as Language, booking.date)
-                            )}
+                            {groupTimeLabel(group)}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <div
                                 className={clsx(
                                   'inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide',
-                                  allApproved && !anyPaid && 'bg-emerald-100 text-emerald-800',
+                                  allApproved && !anyPaidDisplay && !anyPayAtVenue && 'bg-emerald-100 text-emerald-800',
                                   anyPending && 'bg-amber-100 text-amber-800',
-                                  anyPaid && 'bg-blue-100 text-blue-900',
+                                  anyPayAtVenue && 'bg-amber-100 text-amber-900',
+                                  anyPaidDisplay && !anyPayAtVenue && 'bg-blue-100 text-blue-900',
                                   allCompleted && 'bg-cyan-100 text-cyan-900',
                                   anyLocked && 'opacity-70'
                                 )}
                               >
-                                {allCompleted ? L(language as Language, 'Completed', 'Completado') : 
-                                 allPaid ? L(language as Language, 'Paid', 'Pagado') : 
-                                 allApproved ? L(language as Language, 'Approved', 'Aprobado') : 
-                                 anyPending ? L(language as Language, 'Pending', 'Pendiente') : 
+                                {allCompleted ? L(language as Language, 'Completed', 'Completado') :
+                                 anyPayAtVenue ? L(language as Language, 'Pay at Venue', 'Pagar en local') :
+                                 allPaidDisplay ? L(language as Language, 'Paid', 'Pagado') :
+                                 allApproved ? L(language as Language, 'Approved', 'Aprobado') :
+                                 anyPending ? L(language as Language, 'Pending', 'Pendiente') :
                                  anyRescheduled ? L(language as Language, 'Rescheduled', 'Reagendado') : 'Mixed'}
                               </div>
                               <span className="text-[10px] font-black text-slate-900">${totalPrice.toFixed(2)}</span>
@@ -873,9 +1048,6 @@ export default function AppointmentsPage() {
                                 </span>
                               ) : null}
                             </div>
-                          </td>
-                          <td className="px-4 py-3">
-
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-1.5 items-center">
@@ -899,13 +1071,15 @@ export default function AppointmentsPage() {
                                       </button>
                                     </>
                                   )}
-                                  {(booking.status === 'Approved' || booking.status === 'Paid') && (
+                                  {groupCanComplete && (
                                     <button
-                                      onClick={() => handleStatusChange(booking.id, 'Completed')}
-                                      disabled={updatingId === booking.id}
+                                      onClick={() => handleCompleteJob(booking)}
+                                      disabled={updatingId === booking.id || updatingId === 'cash-confirm'}
                                       className="rounded-lg bg-cyan-600 px-3 py-1.5 text-[9px] font-black uppercase text-white hover:bg-cyan-700 shadow-sm transition-all hover:scale-105 disabled:opacity-50"
                                     >
-                                      {updatingId === booking.id ? '...' : L(language, 'Complete', 'Completar')}
+                                      {updatingId === booking.id || updatingId === 'cash-confirm' ? '...' : groupPayAtVenuePending.length > 0
+                                        ? L(language, 'Confirm cash', 'Confirmar efectivo')
+                                        : L(language, 'Complete', 'Completar')}
                                     </button>
                                   )}
                                   {booking.status === 'Completed' && (
@@ -924,45 +1098,56 @@ export default function AppointmentsPage() {
                           </td>
                         </tr>
 
-                        {isExpanded && group.map((subBooking) => (
+                        {isExpanded && sortedGroup.map((subBooking, subIdx) => {
+                          const lang = language as Language;
+                          const { start: slotStart, end: slotEnd } = bookingSlotRange(
+                            lang,
+                            sortedGroup,
+                            subIdx,
+                            bookingDurationMinutes,
+                          );
+                          const subClient = clientDisplay(lang, subBooking);
+                          return (
                           <tr key={subBooking.id} className="bg-slate-50/80 border-l-4 border-l-cyan-500 animate-in fade-in slide-in-from-left-1 duration-200">
-                            <td className="px-4 py-2 pl-12 text-slate-500 text-xs italic">
-                              ↳ {getServiceName(subBooking.serviceId)}
-                            </td>
-                            <td className="px-4 py-2 text-slate-600 text-xs">
-                              {getServiceName(subBooking.serviceId)}
-                            </td>
-                            <td className="px-4 py-2 text-slate-600 text-xs">
-                              {getStaffLabel(subBooking.staffId)}
-                            </td>
-                            <td className="px-4 py-2 text-slate-400 text-xs">
-                              -
-                            </td>
-                            <td className="px-4 py-2 font-bold text-slate-700 text-xs">
-                              {formatTime12(language as Language, subBooking.date)}
-                            </td>
-                            <td className="px-4 py-2 text-center">
-                              <div
-                                className={clsx(
-                                  'inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide',
-                                  subBooking.status === 'Approved' && !subBooking.transactionId && 'bg-emerald-50 text-emerald-700',
-                                  (subBooking.status === 'Paid' || subBooking.transactionId) && 'bg-blue-50 text-blue-700',
-                                  subBooking.status === 'Pending' && 'bg-amber-50 text-amber-700',
-                                  subBooking.status === 'Rescheduled' && 'bg-amber-100 text-amber-800',
-                                  subBooking.status === 'Completed' && 'bg-cyan-50 text-cyan-800',
-                                  subBooking.locked && 'opacity-70'
-                                )}
-                              >
-                                {subBooking.status === 'Completed' ? L(language as Language, 'Completed', 'Completado') :
-                                 subBooking.status === 'Paid' || subBooking.transactionId ? L(language as Language, 'Paid', 'Pagado') :
-                                 subBooking.status === 'Approved' ? L(language as Language, 'Approved', 'Aprobado') :
-                                 subBooking.status === 'Pending' ? L(language as Language, 'Pending', 'Pendiente') :
-                                 subBooking.status === 'Rescheduled' ? L(language as Language, 'Rescheduled', 'Reagendado') : subBooking.status}
+                            <td className="px-4 py-2 pl-10">
+                              <div className="flex min-w-0 flex-col text-xs">
+                                <span className="font-semibold text-slate-700">{subClient.title}</span>
+                                {subClient.subtitle ? (
+                                  <span className="truncate text-[10px] text-slate-400">{subClient.subtitle}</span>
+                                ) : null}
                               </div>
                             </td>
-                            <td className="px-4 py-2 text-xs font-bold text-slate-600">
-                              ${subBooking.price.toFixed(2)}
+                            <td className="px-4 py-2 font-semibold text-slate-800 text-xs">
+                              {getServiceName(subBooking)}
                             </td>
+                            <td className="px-4 py-2 text-slate-600 text-xs">
+                              {getStaffLabel(subBooking)}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs">
+                              <span className="font-semibold text-slate-700">
+                                {formatDateOnly(lang, sortedGroup[0].date)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs">
+                              <span className="font-bold text-slate-900">
+                                {formatTimeRange12(lang, slotStart, slotEnd)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              <div className="flex flex-col items-center gap-1">
+                                <div
+                                  className={clsx(
+                                    'inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+                                    rowStatusClass(subBooking),
+                                    subBooking.locked && 'opacity-70'
+                                  )}
+                                >
+                                  {rowStatusLabel(language as Language, subBooking)}
+                                </div>
+                                <span className="text-[10px] font-black text-slate-800">${subBooking.price.toFixed(2)}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-xs text-slate-400">—</td>
                              <td className="px-4 py-2 text-right">
                                <div className="flex justify-end gap-1">
                                  {subBooking.status === 'Pending' && (
@@ -983,19 +1168,22 @@ export default function AppointmentsPage() {
                                      </button>
                                    </>
                                  )}
-                                 {subBooking.status === 'Paid' && (
+                                 {!isGroup && canCompleteBooking(subBooking) && (
                                    <button
-                                     onClick={() => handleStatusChange(subBooking.id, 'Completed')}
-                                     disabled={updatingId === subBooking.id}
+                                     onClick={() => handleCompleteJob(subBooking)}
+                                     disabled={updatingId === subBooking.id || updatingId === 'cash-confirm'}
                                      className="rounded bg-cyan-600 px-2 py-1 text-[9px] font-black uppercase text-white hover:bg-cyan-700 disabled:opacity-50"
                                    >
-                                     {updatingId === subBooking.id ? '...' : L(language, 'Complete', 'Completar')}
+                                     {updatingId === subBooking.id ? '...' : isPayAtVenuePending(subBooking)
+                                       ? L(language, 'Confirm cash', 'Confirmar efectivo')
+                                       : L(language, 'Complete', 'Completar')}
                                    </button>
                                  )}
                                </div>
                              </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </Fragment>
                     );
                   })}
@@ -1016,14 +1204,15 @@ export default function AppointmentsPage() {
 
 
 
-          <div className="pointer-events-auto absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-2 shadow-xl shadow-slate-900/30">
+          {scheduleView === 'calendar' ? (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-2 shadow-xl shadow-slate-900/30">
             <button
               type="button"
               onClick={() => {
                 setSearchOpen((o) => !o);
                 setMenuOpen(false);
               }}
-              className="rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="pointer-events-auto rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
               aria-label="Search"
               aria-expanded={searchOpen}
             >
@@ -1031,22 +1220,24 @@ export default function AppointmentsPage() {
             </button>
             <Link
               href="/business/support"
-              className="rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="pointer-events-auto rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
               aria-label="Chat"
             >
               <MessageCircle className="h-4 w-4" />
             </Link>
             <Link
               href="/how-it-works"
-              className="rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="pointer-events-auto rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
               aria-label="Tips"
             >
               <Sparkles className="h-4 w-4" />
             </Link>
           </div>
+          ) : null}
 
-          {searchOpen ? (
-            <div className="pointer-events-auto absolute bottom-[4.25rem] left-1/2 z-30 w-[min(100%,22rem)] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+          {scheduleView === 'calendar' && searchOpen ? (
+            <div className="pointer-events-none absolute bottom-[4.25rem] left-1/2 z-30 w-[min(100%,22rem)] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+              <div className="pointer-events-auto">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -1062,7 +1253,7 @@ export default function AppointmentsPage() {
                   {searchHits.map((b) => (
                     <li key={b.id} className="border-b border-slate-50 py-2 last:border-0">
                       <span className="font-bold text-slate-800">{b.customerName}</span>
-                      <span className="text-slate-500"> · {getServiceName(b.serviceId)}</span>
+                      <span className="text-slate-500"> · {getServiceName(b)}</span>
                       <div className="text-[10px] text-slate-400">{new Date(b.date).toLocaleString()}</div>
                     </li>
                   ))}
@@ -1070,6 +1261,7 @@ export default function AppointmentsPage() {
               ) : searchQuery.trim() ? (
                 <p className="mt-2 text-center text-[11px] text-slate-400">{L(language as Language, 'No matches', 'Sin resultados')}</p>
               ) : null}
+              </div>
             </div>
           ) : null}
         </div>
@@ -1103,7 +1295,7 @@ export default function AppointmentsPage() {
                     <div>
                       <p className="text-sm font-bold text-slate-900">{b.customerName}</p>
                       <p className="text-[11px] text-slate-500">
-                        {getServiceName(b.serviceId)} · {getStaffLabel(b.staffId)}
+                        {getServiceName(b)} · {getStaffLabel(b)}
                       </p>
                       <p className="text-[10px] font-medium text-slate-400">{new Date(b.date).toLocaleString()}</p>
                     </div>
@@ -1134,6 +1326,72 @@ export default function AppointmentsPage() {
                 ))
               )}
             </ul>
+          </div>
+        </div>
+      ) : null}
+
+      {cashConfirm ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+                <Banknote className="h-5 w-5 text-amber-700" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">
+                  {L(language, 'Confirm cash payment', 'Confirmar pago en efectivo')}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-slate-500 leading-relaxed">
+                  {L(
+                    language,
+                    'Confirm that you received the full amount in cash. This records the payment and completes the appointment.',
+                    'Confirma que recibiste el monto completo en efectivo. Esto registra el pago y completa la cita.',
+                  )}
+                </p>
+              </div>
+            </div>
+            {(() => {
+              const totals = computeBookingTotals(
+                cashConfirm.bookings.map((b) => ({ price: b.price, taxAmount: b.taxAmount })),
+                business?.taxPercentage ?? 0,
+                15,
+              );
+              return (
+                <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs space-y-2">
+                  <div className="flex justify-between font-bold text-slate-500">
+                    <span>{L(language, 'Amount due', 'Monto a cobrar')}</span>
+                    <span className="font-black text-slate-900">${totals.totalPrice.toFixed(2)}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    {cashConfirm.bookings.length}{' '}
+                    {L(language, 'service(s) in this booking', 'servicio(s) en esta reserva')}
+                  </p>
+                  <p className="text-[10px] font-bold text-amber-800 mt-1">
+                    {L(language, 'One combined invoice will be created for the full amount.', 'Se creará una sola factura por el monto total.')}
+                  </p>
+                </div>
+              );
+            })()}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setCashConfirm(null)}
+                disabled={updatingId === 'cash-confirm'}
+                className="flex-1 rounded-xl border border-slate-200 py-3 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {L(language, 'Cancel', 'Cancelar')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmCashPayment()}
+                disabled={updatingId === 'cash-confirm'}
+                className="flex-1 rounded-xl bg-cyan-600 py-3 text-[10px] font-black uppercase tracking-widest text-white hover:bg-cyan-700 disabled:opacity-50"
+              >
+                {updatingId === 'cash-confirm'
+                  ? L(language, 'Processing...', 'Procesando...')
+                  : L(language, 'Confirm & complete', 'Confirmar y completar')}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -143,29 +143,40 @@ export default function AmenitiesPage() {
         <p className="text-slate-500 text-sm mt-1">Add, edit, or remove amenities. Businesses pick from this list in their panel.</p>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <form onSubmit={createAmenity} className="grid grid-cols-1 md:grid-cols-6 gap-3">
-          <input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="key (e.g. wifi)" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="Label" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={newDescEn} onChange={(e) => setNewDescEn(e.target.value)} placeholder="Description (optional)" className="rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2" />
-          <input value={newSortOrder} onChange={(e) => setNewSortOrder(e.target.value)} type="number" placeholder="Sort" className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <label className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 inline-flex items-center justify-center gap-2 cursor-pointer">
-            <ImagePlus className="h-4 w-4" />
-            Image
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                void readFileAsDataUrl(file).then(setNewImageUrl);
-              }}
-            />
-          </label>
-          <button className="rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-wide">Add amenity</button>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <form onSubmit={createAmenity} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="key (e.g. wifi)" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <input value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="Label" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <input value={newDescEn} onChange={(e) => setNewDescEn(e.target.value)} placeholder="Description (optional)" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm md:col-span-2" />
+            <input value={newSortOrder} onChange={(e) => setNewSortOrder(e.target.value)} type="number" placeholder="Sort" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <label className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 inline-flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-50">
+              <ImagePlus className="h-4 w-4" />
+              Image
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void readFileAsDataUrl(file).then(setNewImageUrl);
+                }}
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="submit"
+              className="min-w-[220px] rounded-xl bg-slate-900 px-8 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-lg shadow-slate-900/15 transition hover:bg-slate-800 active:scale-[0.98]"
+            >
+              Add amenity
+            </button>
+            {newImageUrl ? (
+              <img src={newImageUrl} alt="new-amenity-preview" className="h-14 w-14 rounded-lg object-cover border border-slate-200" />
+            ) : null}
+          </div>
         </form>
-        {newImageUrl ? <img src={newImageUrl} alt="new-amenity-preview" className="mt-3 h-20 w-20 rounded-lg object-cover border border-slate-200" /> : null}
       </div>
 
       <div className="space-y-3">

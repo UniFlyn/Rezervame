@@ -1,29 +1,34 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { StaticPageLayout } from "../../components/StaticPageLayout";
-import { Calendar as CalendarIcon, MapPin, Ticket } from "lucide-react";
-import { fetchPublicEvents, type PublicEvent } from "@/lib/venueSearch";
-import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
+import { Calendar as CalendarIcon, ExternalLink, MapPin, Ticket } from "lucide-react";
+import { fetchPublicEvents, publicEventImageSrc, type PublicEvent } from "@/lib/venueSearch";
+import { Pagination } from "@/components/ui/pagination";
 
-function eventImageSrc(e: PublicEvent): string {
-  const k = (e.imageKey || "").trim();
-  if (!k) return PLACEHOLDER_IMAGE_DATA_URI;
-  if (k.startsWith("http") || k.startsWith("/") || k.startsWith("data:")) return k;
-  return `https://images.unsplash.com/photo-${k.replace(/^photo-/, "")}?q=80&w=600&fit=crop`;
-}
+const PAGE_SIZE = 10;
 
 export default function EventsPage() {
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    void fetchPublicEvents()
-      .then(setEvents)
+    void fetchPublicEvents(page, PAGE_SIZE)
+      .then((res) => {
+        setEvents(res.data);
+        setTotalPages(res.totalPages);
+        setTotal(res.total);
+        setErr(null);
+      })
       .catch(() => {
         setEvents([]);
+        setTotalPages(1);
+        setTotal(0);
         setErr("No se pudieron cargar los eventos.");
       });
-  }, []);
+  }, [page]);
 
   return (
     <StaticPageLayout
@@ -58,7 +63,7 @@ export default function EventsPage() {
             >
               <div className="w-full md:w-1/3 aspect-video md:aspect-square overflow-hidden bg-slate-200">
                 <img
-                  src={eventImageSrc(event)}
+                  src={publicEventImageSrc(event)}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   alt={event.title}
                 />
@@ -72,20 +77,39 @@ export default function EventsPage() {
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-500 mb-6">
                   <MapPin size={16} /> {event.location}
                 </div>
-                <div className="flex items-center justify-between mt-auto">
+                <div className="flex flex-wrap items-center justify-between gap-4 mt-auto">
                   <span className="text-xl font-black text-slate-900">{priceLabel}</span>
-                  <button
-                    type="button"
-                    className="bg-slate-900 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-[#ff5a5f] transition-all"
-                  >
-                    <Ticket size={14} /> Adquirir Entrada
-                  </button>
+                  {event.websiteUrl ? (
+                    <a
+                      href={event.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-slate-900 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-[#ff5a5f] transition-all"
+                    >
+                      <ExternalLink size={14} /> Visit website
+                    </a>
+                  ) : (
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      No registration link
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
       </div>
+      {totalPages > 1 && (
+        <div className="mt-12">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+          />
+        </div>
+      )}
     </StaticPageLayout>
   );
 }

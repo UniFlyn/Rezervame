@@ -15,6 +15,56 @@ export interface Booking {
   recurring?: boolean;
   locked?: boolean;
   transactionId?: string;
+  paymentMethod?: string | null;
+  taxAmount?: number | null;
+  bookingGroupId?: string | null;
+  /** From API include — avoids relying on paginated services store */
+  serviceName?: string | null;
+  staffName?: string | null;
+  serviceDurationMinutes?: number | null;
+  accountHolderName?: string | null;
+  memberEmail?: string | null;
+  familyMemberName?: string | null;
+}
+
+export function normalizeBookingRow(raw: Record<string, unknown>): Booking {
+  const service = raw.service as { id?: string; name?: string; duration?: number } | null | undefined;
+  const staff = raw.staff as { id?: string; name?: string } | null | undefined;
+  const user = raw.user as { name?: string; email?: string } | null | undefined;
+  const familyMember = raw.familyMember as { name?: string } | null | undefined;
+  const dateRaw = raw.date;
+  return {
+    id: String(raw.id),
+    userId: String(raw.userId ?? ''),
+    customerName: String(raw.customerName ?? ''),
+    serviceId: (raw.serviceId as string | null) ?? service?.id ?? null,
+    staffId: (raw.staffId as string | null) ?? staff?.id ?? null,
+    date:
+      typeof dateRaw === 'string'
+        ? dateRaw
+        : dateRaw instanceof Date
+          ? dateRaw.toISOString()
+          : new Date(String(dateRaw)).toISOString(),
+    status: raw.status as Booking['status'],
+    price: Number(raw.price) || 0,
+    walkIn: Boolean(raw.walkIn),
+    recurring: Boolean(raw.recurring),
+    locked: Boolean(raw.locked),
+    transactionId: (raw.transactionId as string | undefined) ?? undefined,
+    paymentMethod:
+      (raw.paymentMethod as string | undefined) ??
+      (raw.transaction as { paymentMethod?: string } | null | undefined)?.paymentMethod ??
+      null,
+    taxAmount: raw.taxAmount != null ? Number(raw.taxAmount) : null,
+    bookingGroupId:
+      typeof raw.bookingGroupId === 'string' ? raw.bookingGroupId : null,
+    serviceName: service?.name ?? null,
+    staffName: staff?.name ?? null,
+    serviceDurationMinutes: service?.duration ?? null,
+    accountHolderName: user?.name ?? null,
+    memberEmail: user?.email ?? null,
+    familyMemberName: familyMember?.name ?? null,
+  };
 }
 
 export type BookingCreatePayload = {
@@ -54,7 +104,8 @@ export const useBookingsStore = create<BookingsState>()((set) => ({
   payBookingGroup: async (ids, method) => {
     const business = useBusinessStore.getState().business;
     if (!business) return;
-    await apiPost(`/business/${business.id}/bookings/pay-group`, { bookingIds: ids, paymentMethod: method }, 'BUSINESS');
+    await apiPost(`/business/${business.id}/pay-group`, { bookingIds: ids, paymentMethod: method }, 'BUSINESS');
+    await useBusinessStore.getState().hydrate();
     set((state) => ({
       bookings: state.bookings.map((b) => (ids.includes(b.id) ? { ...b, status: 'Paid' } : b)),
     }));
@@ -88,10 +139,7 @@ export const useBookingsStore = create<BookingsState>()((set) => ({
     // though the list view will use its own paginated fetch.
     const response = await apiGet<{ data: Booking[] }>(`/business/${business.id}/bookings?limit=100`, 'BUSINESS');
     const raw = Array.isArray(response) ? response : response.data || [];
-    const bookings = raw.map((b) => ({
-      ...b,
-      date: typeof b.date === 'string' ? b.date : new Date(b.date as unknown as Date).toISOString(),
-    }));
+    const bookings = raw.map((b) => normalizeBookingRow(b as Record<string, unknown>));
     set({ bookings });
   },
 }));

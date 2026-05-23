@@ -1,11 +1,14 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../data/api_config.dart';
 import '../data/api_repository.dart';
 import '../models/app_notification.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import '../utils/avatar_image_util.dart';
-import 'business_registration_flow.dart';
+import '../widgets/language_picker_sheet.dart';
 import 'customer_service_screen.dart';
 import 'edit_profile_screen.dart';
 import 'events_screen.dart';
@@ -16,7 +19,6 @@ import 'favorite_screen.dart';
 import 'invoices_screen.dart';
 import 'jobs_screen.dart';
 import 'login_screen.dart';
-import 'pricing_screen.dart';
 import 'static_info_screen.dart';
 
 /// Profile / My Account — menu structure and copy from Mobile `SettingsScreen`, MobileNew visuals.
@@ -55,6 +57,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute<void>(
         builder: (context) => StaticInfoScreen(title: title, sections: sections),
       ),
+    );
+  }
+
+  Future<void> _openBusinessJoinInBrowser() async {
+    final uri = Uri.parse(businessJoinWebUrl());
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Could not open ${uri.toString()}'), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -309,30 +323,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'changePassword'.tr(),
               onTap: _showChangePasswordSheet,
             ),
+            _menuTile(
+              icon: Icons.language_rounded,
+              title: 'selectLanguage'.tr(),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    context.locale.languageCode == 'es' ? 'spanish'.tr() : 'english'.tr(),
+                    style: AppTypography.body100.copyWith(
+                      color: AppColors.grey500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, size: 20, color: AppColors.grey400),
+                ],
+              ),
+              onTap: () => showLanguagePickerSheet(context),
+            ),
             const SizedBox(height: 8),
             _sectionHeader('business'.tr()),
             _menuTile(
               icon: Icons.store_rounded,
               title: 'registerBusiness'.tr(),
-              onTap: () => Navigator.push<void>(
-                context,
-                MaterialPageRoute<void>(builder: (context) => const BusinessRegistrationFlow()),
-              ),
-            ),
-            _menuTile(
-              icon: Icons.help_outline_rounded,
-              title: 'businessSupport'.tr(),
-              onTap: () => _navigateToStatic('businessSupport'.tr(), [
-                StaticSection(title: 'businessSupport'.tr(), content: 'businessSupportContent'.tr()),
-              ]),
-            ),
-            _menuTile(
-              icon: Icons.payments_outlined,
-              title: 'pricingTitle'.tr(),
-              onTap: () => Navigator.push<void>(
-                context,
-                MaterialPageRoute<void>(builder: (context) => const PricingScreen()),
-              ),
+              onTap: _openBusinessJoinInBrowser,
             ),
             _menuTile(
               icon: Icons.receipt_long_outlined,
@@ -466,6 +481,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return ListTile(
       onTap: onTap,
@@ -476,7 +492,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       titleAlignment: ListTileTitleAlignment.center,
       leading: _menuLeadingIcon(icon),
       title: Text(title, style: AppTypography.homeSectionTitle.copyWith(color: AppColors.grey900)),
-      trailing: const Icon(Icons.chevron_right, size: 20, color: AppColors.grey400),
+      trailing: trailing ??
+          const Icon(Icons.chevron_right, size: 20, color: AppColors.grey400),
     );
   }
 

@@ -47,6 +47,12 @@ export class UpdateBusinessPanelDto {
   @IsString()
   banner?: string;
 
+  /** Portfolio / venue gallery photos (shown on public venue page). */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
+
   /** Amenity keys from [Amenity.key] — replaces full list when sent. */
   @IsOptional()
   @IsArray()
@@ -104,6 +110,22 @@ export class UpdateBusinessPanelDto {
   @Type(() => Number)
   @IsNumber()
   taxPercentage?: number;
+
+  /** `manual` | `automatic` — whether new customer bookings need merchant approval. */
+  @IsOptional()
+  @IsString()
+  appointmentApprovalMode?: string;
+
+  /** When false, customers cannot cancel (except unpaid Pending bookings). */
+  @IsOptional()
+  @IsBoolean()
+  cancellationAllowed?: boolean;
+
+  /** Hours before appointment that cancellation is allowed (0 = anytime before start). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  cancellationHoursBefore?: number;
 
   @IsOptional()
   @IsString()

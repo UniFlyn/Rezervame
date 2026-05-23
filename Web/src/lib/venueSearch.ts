@@ -25,6 +25,7 @@ export type ApiVenue = {
   amenityLabelsEn?: string[];
   amenityLabelsEs?: string[];
   nextAvailable?: string;
+  todaySlotTimings?: string;
 };
 
 /** UI row for search / map (derived from [ApiVenue]). */
@@ -50,6 +51,7 @@ export type SearchVenueRow = {
   bannerUrl?: string | null;
   logoUrl?: string | null;
   nextAvailable?: string;
+  todaySlotTimings?: string;
 };
 
 const ES_CATEGORY: Record<string, string> = {
@@ -83,6 +85,39 @@ export function categoryLabelFromKey(key: string, lang: "en" | "es"): string {
 function isUsableImageUrl(u: string): boolean {
   const t = u.trim();
   return t.startsWith("http") || t.startsWith("data:") || t.startsWith("/");
+}
+
+/** Stable hash for picking a consistent portfolio image per service id. */
+export function stableHash32(input: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+    hash >>>= 0;
+  }
+  return hash || 1;
+}
+
+/** Deterministic portfolio pick — same [seed] always maps to the same image. */
+export function pickPortfolioImageUrl(portfolio: string[], seed: string): string | null {
+  const usable = portfolio.filter((u) => isUsableImageUrl(u));
+  if (!usable.length) return null;
+  return usable[stableHash32(seed) % usable.length] ?? null;
+}
+
+/** Service tile: own image, else a stable random image from the business portfolio. */
+export function serviceCardImageSrc(
+  serviceImageUrl: string | null | undefined,
+  portfolioImages: string[],
+  serviceId: string,
+): string {
+  const svc = (serviceImageUrl || "").trim();
+  if (isUsableImageUrl(svc)) return svc;
+  const pick = pickPortfolioImageUrl(portfolioImages, serviceId);
+  if (pick) return pick;
+  const first = portfolioImages.find((u) => isUsableImageUrl(u));
+  if (first) return first.trim();
+  return PLACEHOLDER_IMAGE_DATA_URI;
 }
 
 export function venueCardImageSrc(row: Pick<SearchVenueRow, "img" | "imageUrl" | "bannerUrl" | "logoUrl">): string {
@@ -156,6 +191,7 @@ export function mapApiVenueToRow(v: ApiVenue, lang: "en" | "es" = "en"): SearchV
     bannerUrl: v.bannerUrl ?? null,
     logoUrl: v.logoUrl ?? null,
     nextAvailable: v.nextAvailable,
+    todaySlotTimings: v.todaySlotTimings,
   };
 }
 
@@ -208,13 +244,11 @@ export async function fetchPublicVenues(
   } catch (e: unknown) {
     const name = e instanceof Error ? e.name : "";
     if (name === "AbortError") {
-      throw new Error(
-        `Venues request timed out after ${timeoutMs / 1000}s. Is the API running at ${API_BASE}?`,
-      );
+      throw new Error("Unable to load venues. Please try again in a moment.");
     }
-    throw e instanceof Error ? e : new Error("Failed to reach venues API");
+    throw e instanceof Error ? e : new Error("Unable to load venues right now.");
   }
-  if (!res.ok) throw new Error(`Failed to load venues (${res.status}). Check ${API_BASE}/mobile/venues`);
+  if (!res.ok) throw new Error("Unable to load venues right now.");
   
   const raw = await res.json();
   // Handle both old array response (for safety) and new object response
@@ -273,10 +307,40 @@ export type PublicEvent = {
   location: string;
   price: number;
   imageKey: string | null;
+  websiteUrl?: string | null;
 };
 
-export async function fetchPublicEvents(): Promise<PublicEvent[]> {
-  const res = await fetch(`${API_BASE}/mobile/events`, { cache: "no-store" });
+export type PaginatedResponse<T> = {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export async function fetchPublicEvents(
+  page = 1,
+  limit = 12,
+): Promise<PaginatedResponse<PublicEvent>> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  const res = await fetch(`${API_BASE}/mobile/events?${params}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to load events");
-  return res.json() as Promise<PublicEvent[]>;
+  const raw = await res.json();
+  if (Array.isArray(raw)) {
+    return {
+      data: raw as PublicEvent[],
+      total: raw.length,
+      page: 1,
+      limit: raw.length,
+      totalPages: 1,
+    };
+  }
+  return raw as PaginatedResponse<PublicEvent>;
+}
+
+export function publicEventImageSrc(e: PublicEvent): string {
+  const k = (e.imageKey || "").trim();
+  if (!k) return PLACEHOLDER_IMAGE_DATA_URI;
+  if (k.startsWith("http") || k.startsWith("/") || k.startsWith("data:")) return k;
+  return `https://images.unsplash.com/photo-${k.replace(/^photo-/, "")}?q=80&w=800&fit=crop`;
 }

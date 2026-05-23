@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   ChevronLeft,
@@ -19,6 +20,12 @@ import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 import { useI18n } from "@/components/I18nProvider";
 import { parseAvailability } from "@/lib/staffAvailability";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
+import {
+  bookingConfirmationToSearchParams,
+  saveBookingConfirmation,
+  type BookingConfirmationPayload,
+} from "@/lib/bookingConfirmation";
+import { BookingConfirmationView } from "@/components/BookingConfirmationView";
 
 type VenueServiceRow = {
   id: string;
@@ -47,7 +54,12 @@ export type BookingModalVenueData = {
   team: VenueTeamRow[];
   schedule?: { day: string; hours: string }[];
   taxPercentage?: number;
+  /** Platform commission % of subtotal (Admin → Default Commission). */
+  commissionPercent?: number;
+  /** @deprecated Alias for commissionPercent — was misused as a flat dollar fee. */
   serviceFee?: number;
+  /** `automatic` = confirm and pay at checkout; `manual` = request then pay after approval. */
+  appointmentApprovalMode?: 'manual' | 'automatic';
 };
 
 interface BookingModalProps {
@@ -60,7 +72,14 @@ interface BookingModalProps {
   promotions?: Array<{ serviceId: string; discountPercent: number; label?: string | null }>;
 }
 
-type Step = "SCHEDULE" | "SUMMARY" | "STAFF_LIST" | "PROFESSIONAL_DETAIL" | "CHECKOUT_PREVIEW" | "SERVICE_PICKER";
+type Step =
+  | "SCHEDULE"
+  | "SUMMARY"
+  | "STAFF_LIST"
+  | "PROFESSIONAL_DETAIL"
+  | "CHECKOUT_PREVIEW"
+  | "SERVICE_PICKER"
+  | "CONFIRMATION";
 
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -150,6 +169,21 @@ function combineDateAndTime(day: Date, timeStr: string): Date {
   return d;
 }
 
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return startOfLocalDay(a).getTime() === startOfLocalDay(b).getTime();
+}
+
+/** When [day] is today, slots at or before the current clock time are not bookable. */
+function isTimeSlotInPast(day: Date, timeStr: string, now: Date = new Date()): boolean {
+  if (!isSameLocalDay(day, now)) return false;
+  return combineDateAndTime(day, timeStr).getTime() <= now.getTime();
+}
+
+function filterBookableTimeSlots(slots: string[], day: Date, now: Date = new Date()): string[] {
+  if (!isSameLocalDay(day, now)) return slots;
+  return slots.filter((t) => !isTimeSlotInPast(day, t, now));
+}
+
 function formatTimeRange(start: Date, end: Date, locale: string): string {
   const o = { hour: "numeric" as const, minute: "2-digit" as const, hour12: true };
   return `${start.toLocaleTimeString(locale, o)} – ${end.toLocaleTimeString(locale, o)}`;
@@ -190,6 +224,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   const { t, language } = useI18n();
   const dateLocale = "en-US";
   const [step, setStep] = useState<Step>("SCHEDULE");
+  const [confirmationData, setConfirmationData] = useState<BookingConfirmationPayload | null>(null);
   const [dayOffset, setDayOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [selectedTime, setSelectedTime] = useState<string>("10:30 AM");
@@ -203,6 +238,13 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   const [serviceMemberMap, setServiceMemberMap] = useState<Record<number, string | null>>({});
   const [paymentMethod, setPaymentMethod] = useState<"ONLINE" | "VENUE">("ONLINE");
   const [checkoutPayTab, setCheckoutPayTab] = useState<"card" | "yappy" | "cash">("card");
+  const [payMethods, setPayMethods] = useState<
+    { id: "card" | "yappy" | "cash"; label: string; enabled: boolean }[]
+  >([
+    { id: "card", label: "Card", enabled: false },
+    { id: "yappy", label: "Yappy", enabled: true },
+    { id: "cash", label: "Cash", enabled: true },
+  ]);
   const [timePeriod, setTimePeriod] = useState<"all" | "morning" | "afternoon" | "evening">("all");
   const [serviceSearch, setServiceSearch] = useState("");
   const [isPaid, setIsPaid] = useState(false);
@@ -250,6 +292,21 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       setServiceMemberMap(initialMembers);
       setPaymentMethod("ONLINE");
       setIsPaid(false);
+      void apiGet<{ methods?: { id: string; label: string; enabled: boolean }[] }>("/public/payment-config")
+        .then((cfg) => {
+          if (cfg.methods?.length) {
+            setPayMethods(
+              cfg.methods.map((m) => ({
+                id: m.id as "card" | "yappy" | "cash",
+                label: m.label,
+                enabled: m.enabled,
+              })),
+            );
+            const first = cfg.methods.find((m) => m.enabled);
+            if (first) setCheckoutPayTab(first.id as "card" | "yappy" | "cash");
+          }
+        })
+        .catch(() => {});
       if (typeof window !== "undefined" && localStorage.getItem("rezervame_token")) {
         void apiGet<Array<{ id: string; name: string }>>("/mobile/family-members", "USER")
           .then((rows) => setFamilyGuests(Array.isArray(rows) ? rows : []))
@@ -326,14 +383,20 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     [selectedServices],
   );
 
+  const commissionPercent = useMemo(() => {
+    const raw = venueData.commissionPercent ?? venueData.serviceFee ?? 15;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : 15;
+  }, [venueData.commissionPercent, venueData.serviceFee]);
+
   const taxAmount = useMemo(
-    () => (subtotal * (venueData.taxPercentage || 0)) / 100,
-    [subtotal, venueData.taxPercentage]
+    () => (subtotal * (Number(venueData.taxPercentage) || 0)) / 100,
+    [subtotal, venueData.taxPercentage],
   );
 
   const serviceFee = useMemo(
-    () => venueData.serviceFee ?? 10,
-    [venueData.serviceFee]
+    () => (subtotal * commissionPercent) / 100,
+    [subtotal, commissionPercent],
   );
 
   const totalPrice = useMemo(
@@ -341,12 +404,15 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     [subtotal, taxAmount, serviceFee],
   );
 
+  const autoApproval = venueData.appointmentApprovalMode === 'automatic';
+
   const selectedDay = dayStrip[selectedDayIndex] ?? startOfLocalDay(new Date());
 
   useEffect(() => {
-    const slots = generateSlotsForDay(venueData.schedule, selectedDay);
-    if (slots.length > 0 && !slots.includes(selectedTime)) {
-      setSelectedTime(slots[0]);
+    const all = generateSlotsForDay(venueData.schedule, selectedDay);
+    const bookable = filterBookableTimeSlots(all, selectedDay);
+    if (bookable.length > 0 && (!bookable.includes(selectedTime) || isTimeSlotInPast(selectedDay, selectedTime))) {
+      setSelectedTime(bookable[0]);
     }
   }, [selectedDay, venueData.schedule, selectedTime]);
 
@@ -388,21 +454,37 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       toastWarning("Invalid time", "Choose a future date and time.");
       return;
     }
-    const iso = start.toISOString();
     setIsProcessing(true);
     try {
+      const bookingGroupId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `grp_${Date.now()}`;
+      const preferredPayment =
+        checkoutPayTab === "card"
+          ? "Card Payment"
+          : checkoutPayTab === "yappy"
+            ? "Yappy"
+            : "Cash Payment";
+      const bookingIds: string[] = [];
+      let cursor = new Date(start);
       for (const svc of selectedServices) {
         const staffRaw = assignments[svc.cartIndex];
+        const iso = cursor.toISOString();
         const body: {
           businessId: string;
           serviceId: string;
           date: string;
           staffId?: string;
           familyMemberId?: string;
+          bookingGroupId: string;
+          paymentMethod: string;
         } = {
           businessId,
           serviceId: svc.id,
           date: iso,
+          bookingGroupId,
+          paymentMethod: preferredPayment,
         };
         if (staffRaw && venueData.team.some((m) => m.id === staffRaw)) {
           body.staffId = staffRaw;
@@ -411,28 +493,78 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         if (memId) {
           body.familyMemberId = memId;
         }
-        
-        // Always submit as Pending — business must approve first
-        const extendedBody = {
-          ...body,
-          status: "Pending"
-        };
 
-        await apiPost<{ id: string }>("/mobile/bookings", extendedBody, "USER");
+        const created = await apiPost<{ id: string }>("/mobile/bookings", body, "USER");
+        if (created?.id) bookingIds.push(created.id);
+        const mins = parseDurationMinutes(svc);
+        cursor = new Date(cursor.getTime() + mins * 60_000);
       }
-      
-      toastSuccess(
-        "Booking Submitted!",
-        language === "en" 
-          ? "Your booking request has been sent. The business will review and confirm shortly." 
-          : "Tu solicitud de reserva ha sido enviada. El negocio la revisar\u00e1 y confirmar\u00e1 pronto."
-      );
+
+      const isCashCheckout = checkoutPayTab === "cash";
+      const iso = start.toISOString();
+      const serviceSummary = selectedServices.map((s) => s.name).join(", ");
+      const staffNames = new Set<string>();
+      for (const svc of selectedServices) {
+        const staffId = assignments[svc.cartIndex];
+        const member = venueData.team.find((m) => m.id === staffId);
+        if (member?.name) staffNames.add(member.name);
+      }
+      const professionalSummary =
+        staffNames.size > 0 ? Array.from(staffNames).join(", ") : "—";
+      const bookingForNames = new Set<string>();
+      for (const svc of selectedServices) {
+        const memId = serviceMemberMap[svc.cartIndex];
+        if (memId) {
+          const fm = familyGuests.find((m) => m.id === memId);
+          bookingForNames.add(fm?.name || (language === "en" ? "Family member" : "Familiar"));
+        } else {
+          bookingForNames.add(language === "en" ? "Myself" : "Yo");
+        }
+      }
+      const bookingForSummary = Array.from(bookingForNames).join(", ");
+
+      const confirmationPayload: BookingConfirmationPayload = {
+        date: iso,
+        venue: venueData?.name,
+        service: serviceSummary,
+        professional: professionalSummary,
+        bookingFor: bookingForSummary,
+        price: `$${totalPrice.toFixed(2)}`,
+        bookingId: bookingIds[0],
+        auto: autoApproval,
+        cash: isCashCheckout,
+        paid: autoApproval && !isCashCheckout,
+      };
+
+      if (autoApproval && bookingIds.length > 0 && !isCashCheckout) {
+        const cardEnabled = payMethods.find((m) => m.id === "card")?.enabled;
+        if (checkoutPayTab === "card" && cardEnabled) {
+          const checkout = await apiPost<{ url: string }>(
+            "/mobile/bookings/pay-group/stripe-checkout",
+            { bookingIds },
+            "USER",
+          );
+          if (checkout?.url) {
+            saveBookingConfirmation(confirmationPayload);
+            onBookingSuccess?.();
+            onClose();
+            window.location.href = checkout.url;
+            return;
+          }
+        }
+        await apiPost(
+          "/mobile/bookings/pay-group",
+          { bookingIds, paymentMethod: preferredPayment },
+          "USER",
+        );
+      }
+
+      saveBookingConfirmation(confirmationPayload);
       onBookingSuccess?.();
-      onClose();
-      const sp = new URLSearchParams();
-      sp.set("date", iso);
-      if (venueData?.name) sp.set("venue", venueData.name);
-      router.push(`/reservations/confirmation?${sp.toString()}`);
+      setConfirmationData(confirmationPayload);
+      setStep("CONFIRMATION");
+      const sp = bookingConfirmationToSearchParams(confirmationPayload);
+      window.history.replaceState(null, "", `/reservations/confirmation?${sp.toString()}`);
     } catch (e) {
       toastError(
         "Booking failed",
@@ -449,10 +581,16 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     selectedDay,
     selectedServices,
     selectedTime,
+    autoApproval,
+    checkoutPayTab,
+    payMethods,
+    language,
     venueData.id,
     venueData.name,
     venueData.team,
     serviceMemberMap,
+    familyGuests,
+    totalPrice,
   ]);
 
   const monthTitle = useMemo(
@@ -475,9 +613,34 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     return eligible.length === 0 && venueData.team.length > 0;
   }, [activeCartIndexForChange, venueData.team, selectedServiceIds]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (step !== "CONFIRMATION") return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [step]);
+
+  if (!isOpen && step !== "CONFIRMATION") return null;
+
+  if (step === "CONFIRMATION" && confirmationData && typeof document !== "undefined") {
+    return createPortal(
+      <BookingConfirmationView
+        data={confirmationData}
+        onGoHome={() => {
+          setConfirmationData(null);
+          setStep("SCHEDULE");
+          onClose();
+          router.push("/");
+        }}
+      />,
+      document.body,
+    );
+  }
 
   const handleCloseAttempt = () => {
+    if (step === "CONFIRMATION") return;
     if (step !== "SCHEDULE") {
       setIsDiscardModalOpen(true);
     } else {
@@ -494,6 +657,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       if (timePeriod === "afternoon") return p === "afternoon";
       return p === "evening";
     });
+    const bookableCount = filterBookableTimeSlots(allSlots, selectedDay).length;
     const periodLabels =
       language === "en"
         ? { all: "All", morning: "Morning", afternoon: "Afternoon", evening: "Evening" }
@@ -585,21 +749,27 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             <p className="text-sm font-bold uppercase tracking-widest text-slate-400 m-0">
               {allSlots.length === 0
                 ? ("Venue is closed on this day")
-                : ("No slots in this period")}
+                : bookableCount === 0
+                  ? ("No more times available today")
+                  : ("No slots in this period")}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2 mb-10 w-full max-w-[400px] max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
             {slots.map((time) => {
+              const past = isTimeSlotInPast(selectedDay, time);
               return (
                 <button
                   type="button"
                   key={time}
-                  onClick={() => setSelectedTime(time)}
+                  disabled={past}
+                  onClick={() => !past && setSelectedTime(time)}
                   className={`py-2.5 rounded-2xl border-2 text-[10px] font-black transition-all ${
-                    selectedTime === time
-                      ? "border-[#ff5a5f] text-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
-                      : "border-slate-100 text-slate-700 hover:border-slate-200 hover:bg-slate-50/50"
+                    past
+                      ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300 opacity-50"
+                      : selectedTime === time
+                        ? "border-[#ff5a5f] text-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
+                        : "border-slate-100 text-slate-700 hover:border-slate-200 hover:bg-slate-50/50"
                   }`}
                 >
                   {time}
@@ -674,48 +844,57 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center gap-2">
-                <div 
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:border-[#ff5a5f]/30 transition-colors shrink-0"
-                  onClick={() => {
-                    setActiveCartIndexForChange(svc.cartIndex);
-                    setStep("STAFF_LIST");
-                  }}
-                >
-                  <img src={prof?.img || ""} alt="" className="w-5 h-5 rounded-lg object-cover" />
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-bold text-slate-800 truncate max-w-[70px]">{prof?.name || t('all')}</p>
-                  </div>
-                </div>
-
-                <div className="flex-1 flex gap-1 justify-end items-center">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="mb-1.5 text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                    {t("bookingProfessionalLabel").replace(/:$/, "")}
+                  </p>
                   <button
                     type="button"
-                    onClick={() => setServiceMemberMap(prev => ({ ...prev, [svc.cartIndex]: null }))}
-                    className={`rounded-xl px-2.5 py-1.5 text-[9px] font-black uppercase transition-all ${
-                      memberIdForSvc === null
-                        ? "bg-slate-900 text-white shadow-lg shadow-slate-900/10"
-                        : "bg-white text-slate-400 border border-slate-100 hover:border-slate-200"
-                    }`}
+                    className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-2 text-left transition-colors hover:border-[#ff5a5f]/30"
+                    onClick={() => {
+                      setActiveCartIndexForChange(svc.cartIndex);
+                      setStep("STAFF_LIST");
+                    }}
                   >
-                    {t('bookingForMe')}
+                    <img src={prof?.img || ""} alt="" className="h-6 w-6 shrink-0 rounded-lg object-cover" />
+                    <span className="min-w-0 truncate text-[10px] font-bold text-slate-800">
+                      {prof?.name || t("all")}
+                    </span>
                   </button>
-                  <div className="flex gap-1 max-w-[110px] overflow-x-auto no-scrollbar">
+                </div>
+
+                <div className="min-w-0">
+                  <label
+                    htmlFor={`booking-for-${svc.cartIndex}`}
+                    className="mb-1.5 block text-[9px] font-bold uppercase tracking-widest text-slate-400"
+                  >
+                    {t("bookingForWhom")}
+                  </label>
+                  <select
+                    id={`booking-for-${svc.cartIndex}`}
+                    value={memberIdForSvc ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setServiceMemberMap((prev) => ({
+                        ...prev,
+                        [svc.cartIndex]: v === "" ? null : v,
+                      }));
+                    }}
+                    className="w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white px-3 py-2 pr-8 text-[11px] font-bold text-slate-800 shadow-sm outline-none transition focus:border-[#ff5a5f] focus:ring-2 focus:ring-[#ff5a5f]/15"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 0.65rem center",
+                    }}
+                  >
+                    <option value="">{t("bookingForMe")}</option>
                     {familyGuests.map((g) => (
-                      <button
-                        key={g.id}
-                        type="button"
-                        onClick={() => setServiceMemberMap(prev => ({ ...prev, [svc.cartIndex]: g.id }))}
-                        className={`rounded-xl px-2.5 py-1.5 text-[9px] font-black border transition-all whitespace-nowrap ${
-                          memberIdForSvc === g.id
-                            ? "bg-[#ff5a5f] text-white border-[#ff5a5f] shadow-lg shadow-[#ff5a5f]/10"
-                            : "bg-white text-slate-400 border-slate-100 hover:border-slate-200"
-                        }`}
-                      >
-                        {g.name.split(' ')[0]}
-                      </button>
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
                     ))}
-                  </div>
+                  </select>
                 </div>
               </div>
             </div>
@@ -999,21 +1178,32 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       </div>
 
       <div className="mb-6 flex gap-2">
-        {(["card", "yappy", "cash"] as const).map((tab) => (
+        {payMethods.map((tab) => (
           <button
-            key={tab}
+            key={tab.id}
             type="button"
-            onClick={() => setCheckoutPayTab(tab)}
-            className={`flex-1 rounded-xl border-2 py-3 text-[10px] font-black uppercase tracking-widest transition ${
-              checkoutPayTab === tab
+            disabled={!tab.enabled}
+            onClick={() => setCheckoutPayTab(tab.id)}
+            className={`flex-1 rounded-xl border-2 py-3 text-[10px] font-black uppercase tracking-widest transition disabled:cursor-not-allowed disabled:opacity-40 ${
+              checkoutPayTab === tab.id
                 ? "border-[#ff5a5f] bg-[#ff5a5f]/5 text-[#ff5a5f]"
                 : "border-slate-100 text-slate-400 hover:border-slate-200"
             }`}
           >
-            {tab === "card" ? ("Card") : tab === "yappy" ? "Yappy" : ("Cash")}
+            {tab.label}
           </button>
         ))}
       </div>
+      {!autoApproval && checkoutPayTab === "yappy" ? (
+        <p className="mb-4 text-center text-[10px] font-bold text-amber-700">
+          You will pay via Yappy after the business confirms your booking.
+        </p>
+      ) : null}
+      {!autoApproval && checkoutPayTab === "cash" ? (
+        <p className="mb-4 text-center text-[10px] font-bold text-slate-500">
+          Payment at the venue is collected after the business approves your booking.
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
       <div className="bg-slate-50 rounded-[32px] border border-slate-100 p-6 sm:p-8 space-y-6">
@@ -1056,11 +1246,15 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             <span className="text-sm font-black text-slate-600">${subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{"Service Fee"}</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              {`Service Fee (${commissionPercent}%)`}
+            </span>
             <span className="text-sm font-black text-slate-600">${serviceFee.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center pb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{"Tax"}</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              {`Tax (${Number(venueData.taxPercentage) || 0}%)`}
+            </span>
             <span className="text-sm font-black text-slate-600">${taxAmount.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center pt-2 border-t border-slate-100">
@@ -1071,22 +1265,39 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       </div>
 
       <div className="flex flex-col gap-4">
-      {/* Pending Approval Info */}
-      <div className="bg-amber-50 rounded-[24px] border border-amber-200 p-6 flex items-start gap-4 h-fit">
-        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-          <Clock size={20} className="text-amber-600" />
+      {!autoApproval ? (
+        <div className="bg-amber-50 rounded-[24px] border border-amber-200 p-6 flex items-start gap-4 h-fit">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+            <Clock size={20} className="text-amber-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-amber-900 uppercase tracking-wide mb-1">
+              {"Awaiting Business Approval"}
+            </p>
+            <p className="text-[11px] font-medium text-amber-700 leading-relaxed">
+              {language === "en"
+                ? "Your booking will be sent as a request. Once the business approves, you can make payment from your reservations page."
+                : "Tu reserva será enviada como solicitud. Una vez que el negocio la apruebe, podrás realizar el pago desde tu página de reservas."}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-[11px] font-black text-amber-900 uppercase tracking-wide mb-1">
-            {"Awaiting Business Approval"}
-          </p>
-          <p className="text-[11px] font-medium text-amber-700 leading-relaxed">
-            {language === "en" 
-              ? "Your booking will be sent as a request. Once the business approves, you can make payment from your reservations page." 
-              : "Tu reserva será enviada como solicitud. Una vez que el negocio la apruebe, podrás realizar el pago desde tu página de reservas."}
-          </p>
+      ) : (
+        <div className="bg-emerald-50 rounded-[24px] border border-emerald-200 p-6 flex items-start gap-4 h-fit">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <CreditCard size={20} className="text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-emerald-900 uppercase tracking-wide mb-1">
+              {"Instant confirmation"}
+            </p>
+            <p className="text-[11px] font-medium text-emerald-700 leading-relaxed">
+              {language === "en"
+                ? "This venue confirms bookings automatically. Complete payment below to secure your appointment."
+                : "Este negocio confirma las reservas automáticamente. Completa el pago abajo para asegurar tu cita."}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <button
         type="button"
@@ -1094,9 +1305,13 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         disabled={isProcessing}
         className="w-full bg-[#ff5a5f] text-white font-black py-5 rounded-[24px] text-xs uppercase tracking-[0.2em] shadow-2xl shadow-[#ff5a5f]/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60"
       >
-        {isProcessing 
-          ? ("Submitting...") 
-          : ("Submit Booking Request")}
+        {isProcessing
+          ? autoApproval
+            ? ("Processing payment...")
+            : ("Submitting...")
+          : autoApproval
+            ? (`Confirm & Pay $${totalPrice.toFixed(2)}`)
+            : ("Submit Booking Request")}
       </button>
       </div>
       </div>

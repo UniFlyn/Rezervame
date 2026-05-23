@@ -1,4 +1,4 @@
-import { IsEmail, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsEmail, IsInt, IsOptional, IsString, Min, MinLength, ValidateIf } from 'class-validator';
 
 export class CreateFamilyMemberDto {
   @IsString()
@@ -15,8 +15,9 @@ export class CreateFamilyMemberDto {
   gender!: string;
 
   @IsOptional()
+  @ValidateIf((_, v) => v != null && String(v).trim() !== '')
   @IsEmail()
-  email?: string;
+  email?: string | null;
 }
 
 export class UpdateFamilyMemberDto {
@@ -28,13 +29,15 @@ export class UpdateFamilyMemberDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  age?: number;
+  age?: number | null;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   gender?: string;
 
   @IsOptional()
+  @ValidateIf((_, v) => v != null && String(v).trim() !== '')
   @IsEmail()
-  email?: string;
+  email?: string | null;
 }

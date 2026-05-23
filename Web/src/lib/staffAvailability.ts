@@ -19,6 +19,17 @@ export function weekdayLabel(d: number): string {
   return WEEK_SHORT[d % 7] ?? '';
 }
 
+/** Show 0 as "0"; use dash only when value is null/undefined/blank. */
+export function formatStaffStatValue(value: unknown, emptyLabel = "—"): string {
+  if (value === null || value === undefined) return emptyLabel;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  const s = String(value).trim();
+  if (!s || s === "—") return emptyLabel;
+  const n = Number(s);
+  if (!Number.isNaN(n)) return String(n);
+  return s;
+}
+
 /** Avatar: saved image/data URL, or deterministic initials placeholder. */
 export function staffPhotoSrc(name: string, image?: string | null): string {
   const trimmed = (image || '').trim();

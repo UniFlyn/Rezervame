@@ -206,7 +206,12 @@ export default function BusinessBookingsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
+          {isLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]" aria-hidden>
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          )}
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -218,12 +223,7 @@ export default function BusinessBookingsPage() {
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 relative">
-              {isLoading && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-              )}
+            <tbody className="divide-y divide-slate-100">
               {bookingsData.map((booking) => (
                 <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-8 py-5">

@@ -5,17 +5,31 @@ import Link from 'next/link';
 import { useBusinessStore } from '../../../store/businessStore';
 import clsx from 'clsx';
 import { toastError, toastSuccess } from '@/lib/toast';
-import { Menu, LayoutDashboard, Users, List, Calendar, Settings } from 'lucide-react';
+import { Menu, LayoutDashboard, Users, List, Calendar, Settings, ShieldCheck, Zap, Clock } from 'lucide-react';
+import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from "@/lib/cancellationPolicy";
+import { BrowserPushSettings } from '@/components/BrowserPushSettings';
 
 export default function SettingsPage() {
   const business = useBusinessStore((state) => state.business);
   const updateBusiness = useBusinessStore((state) => state.updateBusiness);
+  const hydrate = useBusinessStore((state) => state.hydrate);
   const [pending, setPending] = useState<string | null>(null);
   const [banner, setBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
 
   const notifyBooking = business?.notifyBookingEmail ?? true;
   const notifyCancellation = business?.notifyCancellationEmail ?? true;
   const notifyDaily = business?.notifyDailySummary ?? false;
+  const approvalMode = business?.appointmentApprovalMode ?? 'manual';
+  const cancellationAllowed = business?.cancellationAllowed ?? true;
+  const cancellationHoursBefore = business?.cancellationHoursBefore ?? 24;
+  const policyPreview = formatCancellationPolicyMessage(
+    normalizeCancellationPolicy(business),
+    'en',
+  );
 
   async function savePatch(patch: Partial<Parameters<typeof updateBusiness>[0]>, key: string) {
     setPending(key);
@@ -72,6 +86,9 @@ export default function SettingsPage() {
           <p className="mb-8 text-[10px] font-bold uppercase tracking-widest text-slate-400">
             Choose what we email you about. Changes apply immediately.
           </p>
+          <div className="mb-8">
+            <BrowserPushSettings role="BUSINESS" language="en" />
+          </div>
 
           <ul className="space-y-6">
             <li className="-mx-4 flex cursor-default items-center justify-between rounded-2xl border-b border-slate-50 px-4 py-4 last:border-0 hover:bg-slate-50">
@@ -122,7 +139,116 @@ export default function SettingsPage() {
           </ul>
         </div>
 
-        <div className="p-10">
+        <div className="border-t border-gray-100 p-10">
+          <h3 className="mb-2 text-xl font-black uppercase tracking-tight text-slate-800">Appointment verification</h3>
+          <p className="mb-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Choose whether new online bookings need your approval or are confirmed instantly.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={pending === 'appointmentApprovalMode'}
+              onClick={() => void savePatch({ appointmentApprovalMode: 'manual' }, 'appointmentApprovalMode')}
+              className={clsx(
+                'rounded-2xl border-2 p-5 text-left transition-all',
+                approvalMode === 'manual'
+                  ? 'border-primary bg-primary/5 shadow-sm'
+                  : 'border-slate-100 bg-slate-50 hover:border-slate-200',
+                pending === 'appointmentApprovalMode' && 'opacity-60',
+              )}
+            >
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-100">
+                <ShieldCheck className="text-primary" size={20} />
+              </div>
+              <p className="text-sm font-black uppercase tracking-tight text-slate-800">Manual verification</p>
+              <p className="mt-2 text-[10px] font-bold leading-relaxed text-slate-500">
+                New bookings stay pending until you approve them in Appointments.
+              </p>
+            </button>
+            <button
+              type="button"
+              disabled={pending === 'appointmentApprovalMode'}
+              onClick={() => void savePatch({ appointmentApprovalMode: 'automatic' }, 'appointmentApprovalMode')}
+              className={clsx(
+                'rounded-2xl border-2 p-5 text-left transition-all',
+                approvalMode === 'automatic'
+                  ? 'border-primary bg-primary/5 shadow-sm'
+                  : 'border-slate-100 bg-slate-50 hover:border-slate-200',
+                pending === 'appointmentApprovalMode' && 'opacity-60',
+              )}
+            >
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-100">
+                <Zap className="text-primary" size={20} />
+              </div>
+              <p className="text-sm font-black uppercase tracking-tight text-slate-800">Automatic verification</p>
+              <p className="mt-2 text-[10px] font-bold leading-relaxed text-slate-500">
+                Bookings are confirmed immediately; customers can pay without waiting for approval.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 p-10">
+          <h3 className="mb-2 text-xl font-black uppercase tracking-tight text-slate-800">Cancellation policy</h3>
+          <p className="mb-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Control when customers can cancel bookings. Paid cancellations reverse your wallet credit automatically.
+          </p>
+          <ul className="mb-8 space-y-6">
+            <li className="-mx-4 flex cursor-default items-center justify-between rounded-2xl border-b border-slate-50 px-4 py-4 hover:bg-slate-50">
+              <div>
+                <p className="text-sm font-black uppercase tracking-tight text-slate-800">Allow cancellations</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  When off, customers cannot cancel (except unpaid pending requests)
+                </p>
+              </div>
+              <Toggle
+                pressed={cancellationAllowed}
+                disabled={pending === 'cancellationAllowed'}
+                onToggle={() =>
+                  void savePatch(
+                    {
+                      cancellationAllowed: !cancellationAllowed,
+                      ...(cancellationAllowed ? { cancellationHoursBefore: 0 } : { cancellationHoursBefore: 24 }),
+                    },
+                    'cancellationAllowed',
+                  )
+                }
+              />
+            </li>
+          </ul>
+          {cancellationAllowed ? (
+            <div className="max-w-md space-y-4">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Minimum notice (hours before appointment)
+              </label>
+              <select
+                value={cancellationHoursBefore}
+                disabled={pending === 'cancellationHoursBefore'}
+                onChange={(e) =>
+                  void savePatch(
+                    { cancellationHoursBefore: Number(e.target.value), cancellationAllowed: true },
+                    'cancellationHoursBefore',
+                  )
+                }
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-primary"
+              >
+                <option value={0}>Anytime before appointment</option>
+                <option value={2}>2 hours</option>
+                <option value={6}>6 hours</option>
+                <option value={10}>10 hours</option>
+                <option value={12}>12 hours</option>
+                <option value={24}>24 hours</option>
+                <option value={48}>48 hours</option>
+              </select>
+            </div>
+          ) : null}
+          <div className="mt-8 flex gap-3 rounded-2xl border border-slate-100 bg-slate-900 p-5 text-white">
+            <Clock className="shrink-0 text-[#ff5a5f]" size={20} />
+            <p className="text-xs font-medium leading-relaxed text-white/85">{policyPreview}</p>
+          </div>
+        </div>
+
+        <div className="p-10 border-t border-gray-100">
           <h3 className="mb-2 text-xl font-black uppercase tracking-tight text-slate-800">Tax Settings</h3>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6">
             Set the tax percentage applied to your services.

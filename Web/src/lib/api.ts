@@ -15,10 +15,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
       'name' in err &&
       (err as { name: string }).name === 'AbortError';
     if (aborted) {
-      const origin = 'https://rezervame-backend.onrender.com/api'.replace(/\/api\/?$/, '');
-      throw new Error(
-        `Request timed out after ${DEFAULT_FETCH_TIMEOUT_MS / 1000}s. Start the backend or wait for cold-start (up to 50s). Expected API: ${origin}`,
-      );
+      throw new Error("This is taking longer than usual. Please try again.");
     }
     throw err;
   } finally {

@@ -17,23 +17,41 @@ import {
   Tags,
   Sparkles,
   Tag,
-  CalendarDays
+  CalendarDays,
+  HelpCircle,
+  Briefcase,
+  type LucideIcon,
 } from 'lucide-react';
-import { cn } from '@/lib/utils'; // I'll create this helper if it doesn't exist
+import { cn } from '@/lib/utils';
 
-const menuItems = [
+type MenuChild = {
+  name: string;
+  icon: LucideIcon;
+  href: string;
+};
+
+type MenuItem = {
+  name: string;
+  icon: LucideIcon;
+  href: string;
+  children?: MenuChild[];
+};
+
+const menuItems: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { name: 'Businesses', icon: Store, href: '/admin/businesses' },
   { name: 'Users', icon: Users, href: '/admin/users' },
   { name: 'Bookings', icon: CalendarCheck, href: '/admin/bookings' },
+  { name: 'Categories', icon: Tags, href: '/admin/categories' },
+  { name: 'Amenities', icon: Sparkles, href: '/admin/amenities' },
   { name: 'Events', icon: CalendarDays, href: '/admin/events' },
+  { name: 'Careers', icon: Briefcase, href: '/admin/jobs' },
   { name: 'Promotions', icon: Tag, href: '/admin/promotions' },
   { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
   { name: 'Withdrawals', icon: ArrowDownCircle, href: '/admin/withdrawals' },
-  { name: 'Notifications', icon: Bell, href: '/admin/notifications' },
+  { name: 'Notifications & Support', icon: Bell, href: '/admin/notifications' },
+  { name: 'Customer FAQs', icon: HelpCircle, href: '/admin/customer-faqs' },
   { name: 'Subscriptions', icon: ShieldCheck, href: '/admin/subscriptions' },
-  { name: 'Categories', icon: Tags, href: '/admin/categories' },
-  { name: 'Amenities', icon: Sparkles, href: '/admin/amenities' },
   { name: 'Settings', icon: Settings, href: '/admin/settings' },
   { name: 'Logs', icon: FileText, href: '/admin/logs' },
 ];
@@ -54,21 +72,50 @@ export function Sidebar() {
 
       <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
-          const isActive = pathname === item.href;
+          const childActive = item.children?.some((c) => pathname === c.href) ?? false;
+          const isActive = pathname === item.href || childActive;
+          const showChildren = item.children && (isActive || childActive);
+
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors group",
-                isActive 
-                  ? "bg-blue-600 text-white" 
-                  : "hover:bg-slate-800 hover:text-white"
-              )}
-            >
-              <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "text-slate-400 group-hover:text-white")} />
-              <span className="font-medium text-sm">{item.name}</span>
-            </Link>
+            <div key={item.name} className="space-y-0.5">
+              <Link
+                href={item.href}
+                className={cn(
+                  "flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors group",
+                  pathname === item.href
+                    ? "bg-blue-600 text-white"
+                    : isActive
+                      ? "bg-slate-800 text-white"
+                      : "hover:bg-slate-800 hover:text-white"
+                )}
+              >
+                <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "text-slate-400 group-hover:text-white")} />
+                <span className="font-medium text-sm">{item.name}</span>
+              </Link>
+
+              {showChildren ? (
+                <div className="ml-4 space-y-0.5 border-l border-slate-700 pl-2">
+                  {item.children!.map((child) => {
+                    const childIsActive = pathname === child.href;
+                    return (
+                      <Link
+                        key={child.name}
+                        href={child.href}
+                        className={cn(
+                          "flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors group",
+                          childIsActive
+                            ? "bg-blue-600 text-white"
+                            : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                        )}
+                      >
+                        <child.icon className={cn("w-4 h-4", childIsActive ? "text-white" : "text-slate-500 group-hover:text-white")} />
+                        <span className="font-medium text-sm">{child.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </nav>

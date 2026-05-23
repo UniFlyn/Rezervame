@@ -2,6 +2,10 @@ import { BadRequestException, ServiceUnavailableException } from '@nestjs/common
 import { User } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { getStripeClient, resolveStripeSecretKey } from './stripe.util';
+import {
+  calculateBookingSettlement,
+  loadDefaultCommissionPercent,
+} from './booking-payment.util';
 
 function webAppBaseUrl(): string {
   return (
@@ -34,9 +38,9 @@ export async function createStripeCheckoutForBookings(
     throw new BadRequestException('All bookings are already completed or cancelled');
   }
 
-  const totalCents = Math.round(
-    payable.reduce((sum, b) => sum + b.price + (b.taxAmount || 0), 0) * 100,
-  );
+  const commissionPercent = await loadDefaultCommissionPercent(prisma);
+  const settlement = calculateBookingSettlement(payable, commissionPercent);
+  const totalCents = Math.round(settlement.customerTotal * 100);
   if (totalCents < 50) {
     throw new BadRequestException('Payment amount is too small for card checkout');
   }
@@ -65,8 +69,8 @@ export async function createStripeCheckoutForBookings(
         },
       },
     ],
-    success_url: `${base}/profile?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${base}/profile?payment=cancelled`,
+    success_url: `${base}/reservations/confirmation?paid=1&auto=1&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${base}/reservations/confirmation?payment=cancelled`,
     metadata: {
       userId: user.id,
       bookingIds: JSON.stringify(payable.map((b) => b.id)),
@@ -82,7 +86,7 @@ export async function createStripeCheckoutForBookings(
       stripeSessionId: session.id,
       userId: user.id,
       bookingIds: JSON.stringify(payable.map((b) => b.id)),
-      amount: totalCents / 100,
+      amount: settlement.customerTotal,
       status: 'pending',
     },
   });

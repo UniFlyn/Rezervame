@@ -2,6 +2,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../models/user_invoice.dart';
+
 /// Branded PDF invoice — aligned with Web `generateAndDownloadInvoicePDF`.
 Future<void> shareReservationInvoice({
   required Map<String, dynamic> reservation,
@@ -173,6 +175,44 @@ Future<void> shareReservationInvoice({
 
   final bytes = await doc.save();
   await Printing.sharePdf(bytes: bytes, filename: 'invoice-$ref.pdf');
+}
+
+/// PDF download for Profile → Invoices (matches Web `handleDownloadInvoice`).
+Future<void> shareUserInvoicePdf({
+  required UserInvoice invoice,
+  String customerName = 'Customer',
+  String? customerEmail,
+}) {
+  final items = invoice.lines
+      .map((line) => {
+            'name': line.title,
+            'price': _parseMoney(line.amount),
+            'staffName': '—',
+          })
+      .toList();
+  return shareReservationInvoice(
+    reservation: {
+      'refNumber': invoice.refNumber,
+      'venueName': invoice.venueName,
+      'address': invoice.locationLine ?? '',
+      'date': invoice.issuedDate,
+      'time': '',
+      'items': items,
+      'subtotal': invoice.subtotalAmount,
+      'taxAmount': invoice.taxAmount,
+      'totalPrice': invoice.totalAmount,
+      'taxPercentage': invoice.taxPercentage,
+    },
+    customerName: customerName,
+    customerEmail: customerEmail,
+    paymentMethod: invoice.paymentMethod,
+    paymentStatus: invoice.statusKey == 'invoicePaid' ? 'paid' : 'pending',
+  );
+}
+
+double _parseMoney(String value) {
+  final cleaned = value.replaceAll(RegExp(r'[^\d.]'), '');
+  return double.tryParse(cleaned) ?? 0;
 }
 
 pw.Widget _metaCard(String label, String title, String? subtitle) {

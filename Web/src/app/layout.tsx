@@ -7,6 +7,7 @@ import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import { LoginModal } from "../components/LoginModal";
 import { AppToaster } from "../components/AppToaster";
+import { WebPushManager } from "../components/WebPushManager";
 import { PageHeaderMetaProvider } from "../contexts/PageHeaderMetaContext";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({
               <Footer />
               <LoginModal />
               <AppToaster />
+              <WebPushManager />
             </div>
             </PageHeaderMetaProvider>
           </I18nProvider>

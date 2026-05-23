@@ -150,6 +150,9 @@ export default function WithdrawalsPage() {
               <div>
                 <p className="text-white/40 font-black uppercase tracking-[0.2em] text-[9px] mb-4">Available Balance</p>
                 <h3 className="text-5xl font-black tracking-tighter text-emerald-400">${business?.balance?.toFixed(2) ?? '0.00'}</h3>
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                  Available after customer payments (platform commission deducted). Total revenue: ${business?.revenue?.toFixed(2) ?? '0.00'}
+                </p>
               </div>
               <div className="border-l border-white/10 pl-8">
                 <p className="text-white/40 font-black uppercase tracking-[0.2em] text-[9px] mb-4">Lifetime Revenue</p>

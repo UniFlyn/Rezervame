@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import '../utils/booking_utils.dart';
+import '../utils/cancellation_policy.dart';
+import '../utils/payment_method.dart';
 import 'chained_network_image.dart';
 import 'reservation_status_badge.dart';
 import '../screens/invoices_screen.dart';
@@ -48,14 +51,45 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   bool _busy = false;
   _PaymentView _paymentView = _PaymentView.none;
   String _payMethod = 'card';
+  bool _stripeEnabled = false;
+  double _commissionPercent = 15;
+  List<Map<String, dynamic>> _payMethods = [
+    {'id': 'card', 'label': 'Card', 'enabled': true},
+    {'id': 'yappy', 'label': 'Yappy', 'enabled': true},
+    {'id': 'cash', 'label': 'Cash', 'enabled': true},
+  ];
 
-  bool get _isEn => true;
+  bool get _isEn => Localizations.localeOf(context).languageCode.startsWith('en');
 
   @override
   void initState() {
     super.initState();
     _res = Map<String, dynamic>.from(widget.reservation);
+    _loadPaymentConfig();
     _loadGroup();
+  }
+
+  Future<void> _loadPaymentConfig() async {
+    try {
+      final cfg = await _api.fetchPaymentConfig();
+      if (!mounted) return;
+      final methods = (cfg['methods'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList() ??
+          _payMethods;
+      setState(() {
+        _payMethods = methods;
+        _stripeEnabled = cfg['stripeEnabled'] == true;
+        _commissionPercent = (cfg['defaultCommission'] as num?)?.toDouble() ?? 15;
+      });
+    } catch (_) {}
+  }
+
+  bool _methodEnabled(String id) {
+    final m = _payMethods.where((x) => '${x['id']}' == id).toList();
+    if (m.isEmpty) return true;
+    return m.first['enabled'] != false;
   }
 
   Future<void> _loadGroup() async {
@@ -69,7 +103,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
       if (mounted && group.isNotEmpty) {
         final locale = Localizations.localeOf(context).languageCode;
         setState(() {
-          _res = mapUserBookingGroup(group, locale: locale);
+          _res = mapUserBookingGroup(group, locale: locale, commissionPercent: _commissionPercent);
           _loading = false;
         });
       } else if (mounted) {
@@ -93,7 +127,40 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
 
   double get _subtotal => (_res['subtotal'] as num?)?.toDouble() ?? 0;
   double get _taxAmount => (_res['taxAmount'] as num?)?.toDouble() ?? 0;
-  double get _total => (_res['totalPrice'] as num?)?.toDouble() ?? _subtotal + _taxAmount;
+  double get _commissionAmount => (_res['commissionAmount'] as num?)?.toDouble() ?? 0;
+  double get _commissionPercentValue => (_res['commissionPercent'] as num?)?.toDouble() ?? _commissionPercent;
+  double get _taxPercentValue => (_res['taxPercentage'] as num?)?.toDouble() ?? 0;
+  double get _total => (_res['totalPrice'] as num?)?.toDouble() ?? _subtotal + _taxAmount + _commissionAmount;
+
+  bool get _canCancelAll {
+    if (_res['canCancelAny'] == true) return true;
+    return _items.any((i) => i['canCancel'] == true);
+  }
+
+  bool _isCancellableItem(Map<String, dynamic> item) {
+    if (item['canCancel'] == true) return true;
+    final policy = CancellationPolicyConfig(
+      allowed: _res['cancellationAllowed'] != false,
+      hoursBefore: (_res['cancellationHoursBefore'] as num?)?.toInt() ?? 24,
+    );
+    final appt = DateTime.tryParse('${item['appointmentAt'] ?? ''}');
+    return canCustomerCancelBooking(
+      rawStatus: '${item['rawStatus'] ?? item['status']}',
+      appointmentAt: appt,
+      transactionId: item['transactionId']?.toString(),
+      policy: policy,
+    );
+  }
+
+  String get _cancellationPolicyMessage {
+    final msg = '${_res['cancellationPolicyMessage'] ?? ''}'.trim();
+    if (msg.isNotEmpty) return msg;
+    final policy = CancellationPolicyConfig(
+      allowed: _res['cancellationAllowed'] != false,
+      hoursBefore: (_res['cancellationHoursBefore'] as num?)?.toInt() ?? 24,
+    );
+    return formatCancellationPolicyMessage(policy, isEn: _isEn);
+  }
 
   Future<bool> _confirm({
     required String title,
@@ -142,51 +209,90 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   }
 
   Future<void> _cancelAllConfirmed() async {
-    final confirmed = _items.where((i) => '${i['status']}' == 'confirmed').toList();
-    if (confirmed.isEmpty) return;
+    final cancellable = _items.where(_isCancellableItem).toList();
+    if (cancellable.isEmpty) return;
     final ok = await _confirm(
       title: _isEn ? 'Cancel All Services' : 'Cancelar Todos los Servicios',
       message: _isEn
-          ? 'This will cancel all ${confirmed.length} service(s) in this booking. No individual confirmations will be asked.'
-          : 'Se cancelarán los ${confirmed.length} servicio(s) de esta reserva. No se pedirán confirmaciones individuales.',
+          ? 'This will cancel all ${cancellable.length} service(s) in this booking. No individual confirmations will be asked.'
+          : 'Se cancelarán los ${cancellable.length} servicio(s) de esta reserva. No se pedirán confirmaciones individuales.',
       confirmLabel: _isEn ? 'Cancel All' : 'Cancelar Todo',
       danger: true,
     );
     if (!ok) return;
     setState(() => _busy = true);
     try {
-      for (final item in confirmed) {
-        try {
-          await _api.cancelBooking('${item['id']}');
-        } catch (_) {}
-      }
+      final ids = cancellable.map((i) => '${i['id']}').toList();
+      await _api.cancelBookingGroup(ids);
       await _loadGroup();
       widget.onChanged?.call();
       if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _payNow() async {
-    final confirmedIds = _items.where((i) => '${i['status']}' == 'confirmed').map((i) => '${i['id']}').toList();
-    if (confirmedIds.isEmpty) {
+    final payableIds = _items
+        .where((i) {
+          final s = '${i['status']}';
+          return s == 'confirmed' || s == 'rescheduled';
+        })
+        .map((i) => '${i['id']}')
+        .toList();
+    if (payableIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isEn ? 'These bookings are already completed.' : 'Estas reservas ya están completadas.')),
+        SnackBar(
+          content: Text(
+            _isEn
+                ? 'There are no services awaiting payment in this reservation.'
+                : 'No hay servicios pendientes de pago en esta reserva.',
+          ),
+        ),
       );
       return;
     }
     setState(() => _busy = true);
     try {
-      final method = _payMethod == 'card' ? 'Card Payment' : 'Cash Payment';
-      await _api.payBookingGroup(
-        bookingIds: confirmedIds,
-        paymentMethod: method,
-        businessId: '${_res['businessId'] ?? ''}',
-      );
+      final cardEnabled = _methodEnabled('card');
+      if (_payMethod == 'card' && cardEnabled && _stripeEnabled) {
+        final url = await _api.payBookingGroupStripeCheckout(bookingIds: payableIds);
+        if (url != null) {
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+            return;
+          }
+        }
+      }
+
+      final method = apiPaymentMethodForPayTab(_payMethod);
+      if (_payMethod != 'cash') {
+        await _api.payBookingGroup(
+          bookingIds: payableIds,
+          paymentMethod: method,
+          businessId: '${_res['businessId'] ?? ''}',
+        );
+      }
+
       setState(() => _paymentView = _PaymentView.done);
       await _loadGroup();
       widget.onChanged?.call();
+      if (mounted && _payMethod == 'cash') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isEn
+                  ? 'Please bring \$${_total.toStringAsFixed(2)} in cash to your appointment.'
+                  : 'Lleva \$${_total.toStringAsFixed(2)} en efectivo a tu cita.',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))));
@@ -458,7 +564,11 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           ),
           Text('\$${item['price']}', style: AppTypography.body200.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(width: 8),
-          if (status == 'confirmed')
+          if (status == 'paid')
+            _itemStatusChip(_isEn ? 'Paid' : 'Pagado', const Color(0xFF0891B2), Icons.credit_card_rounded)
+          else if (status == 'cash_at_venue')
+            _itemStatusChip(_isEn ? 'Pay at Venue' : 'Pago en Local', const Color(0xFFD97706), Icons.payments_outlined)
+          else if (_isCancellableItem(item))
             TextButton(
               onPressed: _busy ? null : () => _cancelItem('${item['id']}'),
               child: Text(
@@ -483,6 +593,20 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
     );
   }
 
+  Widget _itemStatusChip(String label, Color color, IconData icon) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label.toUpperCase(),
+          style: AppTypography.body100.copyWith(color: color, fontWeight: FontWeight.w800, fontSize: 9, letterSpacing: 0.5),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPaymentPanel() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -499,9 +623,23 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
             style: AppTypography.body100.copyWith(color: AppColors.grey400, fontWeight: FontWeight.w800, letterSpacing: 1.5),
           ),
           const SizedBox(height: 16),
-          _summaryRow(_isEn ? 'Subtotal' : 'Subtotal', '\$${_subtotal.toStringAsFixed(2)}'),
+          _summaryRow(_isEn ? 'Services' : 'Servicios', '\$${_subtotal.toStringAsFixed(2)}'),
+          if (_commissionAmount > 0) ...[
+            const SizedBox(height: 8),
+            _summaryRow(
+              _isEn
+                  ? 'Service fee (${_commissionPercentValue.toStringAsFixed(0)}%)'
+                  : 'Tarifa de servicio (${_commissionPercentValue.toStringAsFixed(0)}%)',
+              '\$${_commissionAmount.toStringAsFixed(2)}',
+            ),
+          ],
           const SizedBox(height: 8),
-          _summaryRow(_isEn ? 'Tax' : 'Impuesto', '\$${_taxAmount.toStringAsFixed(2)}'),
+          _summaryRow(
+            _taxPercentValue > 0
+                ? (_isEn ? 'Tax (${_taxPercentValue.toStringAsFixed(0)}%)' : 'Impuesto (${_taxPercentValue.toStringAsFixed(0)}%)')
+                : (_isEn ? 'Tax' : 'Impuesto'),
+            '\$${_taxAmount.toStringAsFixed(2)}',
+          ),
           const Divider(height: 28),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -544,9 +682,13 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           ),
           const SizedBox(height: 12),
           _primaryButton(
-            _isEn ? 'Pay Online Now' : 'Pagar Online Ahora',
+            _isEn ? 'Review & Pay' : 'Revisar y Pagar',
             () => setState(() => _paymentView = _PaymentView.select),
           ),
+          if (_canCancelAll) ...[
+            const SizedBox(height: 10),
+            _cancelAllButton(compact: false),
+          ],
         ];
       case 'rescheduled':
         return [
@@ -558,6 +700,17 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           ),
           const SizedBox(height: 12),
           _primaryButton(_isEn ? 'Accept New Time' : 'Aceptar Nuevo Horario', _acceptReschedule),
+        ];
+      case 'cash_at_venue':
+        return [
+          _infoBox(
+            _isEn ? 'Pay at the venue' : 'Pago en el local',
+            _isEn
+                ? 'Your booking is confirmed. Please bring \$${_total.toStringAsFixed(2)} in cash when you arrive.\n\nThe venue will confirm your cash payment when you complete the service.'
+                : 'Tu reserva está confirmada. Lleva \$${_total.toStringAsFixed(2)} en efectivo cuando llegues.\n\nEl local confirmará tu pago en efectivo al completar el servicio.',
+            const Color(0xFFFFFBEB),
+            const Color(0xFFD97706),
+          ),
         ];
       case 'paid':
         return [
@@ -592,20 +745,17 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
         ];
       case 'pending':
         return [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.grey25,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.grey100),
-            ),
-            child: Center(
-              child: Text(
-                _isEn ? 'Waiting for Venue' : 'Esperando al Establecimiento',
-                style: AppTypography.body100.copyWith(color: AppColors.grey400, fontWeight: FontWeight.w800, letterSpacing: 1),
-              ),
-            ),
+          _infoBox(
+            _isEn ? 'Waiting for Venue' : 'Esperando al Establecimiento',
+            _isEn
+                ? 'You can cancel anytime before the venue accepts.'
+                : 'Puedes cancelar en cualquier momento antes de que el local acepte.',
+            AppColors.grey25,
+            AppColors.grey500,
+            center: true,
           ),
+          const SizedBox(height: 12),
+          _cancelAllButton(compact: false, label: _isEn ? 'Cancel Reservation' : 'Cancelar Reserva'),
         ];
       default:
         return [];
@@ -613,54 +763,96 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   }
 
   Widget _buildPaymentSelect() {
+    final tabs = ['card', 'yappy', 'cash'].where(_methodEnabled).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
-          onTap: () => setState(() => _payMethod = _payMethod == 'card' ? 'cash' : 'card'),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primary500, width: 2),
-              color: AppColors.primary50,
-            ),
-            child: Column(
-              children: [
-                Icon(
-                  _payMethod == 'card' ? Icons.credit_card_rounded : Icons.payments_rounded,
-                  color: AppColors.primary500,
-                  size: 28,
+        Row(
+          children: tabs.map((id) {
+            final selected = _payMethod == id;
+            String label;
+            IconData icon;
+            switch (id) {
+              case 'yappy':
+                label = _isEn ? 'Yappy' : 'Yappy';
+                icon = Icons.account_balance_wallet_outlined;
+                break;
+              case 'cash':
+                label = _isEn ? 'Cash' : 'Efectivo';
+                icon = Icons.payments_outlined;
+                break;
+              default:
+                label = _isEn ? 'Card' : 'Tarjeta';
+                icon = Icons.credit_card_rounded;
+            }
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: id != tabs.last ? 8 : 0),
+                child: InkWell(
+                  onTap: () => setState(() => _payMethod = id),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? AppColors.primary500 : AppColors.grey100,
+                        width: selected ? 2 : 1,
+                      ),
+                      color: selected ? AppColors.primary50 : AppColors.white,
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(icon, color: AppColors.primary500, size: 22),
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          style: AppTypography.body100.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: selected ? AppColors.primary500 : AppColors.grey500,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  _payMethod == 'card'
-                      ? (_isEn ? 'Pay with Card' : 'Pagar con Tarjeta')
-                      : (_isEn ? 'Pay with Cash' : 'Pagar en Efectivo'),
-                  style: AppTypography.body100.copyWith(color: AppColors.primary500, fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }).toList(),
         ),
+        if (_payMethod == 'yappy') ...[
+          const SizedBox(height: 12),
+          _infoBox(
+            _isEn ? 'Yappy' : 'Yappy',
+            _isEn
+                ? 'Complete transfer in the Yappy app, then confirm payment here.'
+                : 'Completa la transferencia en Yappy y luego confirma el pago aquí.',
+            const Color(0xFFEFF6FF),
+            const Color(0xFF2563EB),
+          ),
+        ],
+        if (_payMethod == 'cash') ...[
+          const SizedBox(height: 12),
+          _infoBox(
+            _isEn ? 'Cash at venue' : 'Efectivo en el local',
+            _isEn
+                ? 'Cash payment is collected at the venue when you arrive for your appointment.'
+                : 'El pago en efectivo se recoge en el local cuando llegues a tu cita.',
+            const Color(0xFFFFFBEB),
+            const Color(0xFFD97706),
+          ),
+        ],
         const SizedBox(height: 12),
         _darkButton(
-          _busy ? (_isEn ? 'Processing...' : 'Procesando...') : (_isEn ? 'Confirm & Pay' : 'Confirmar y Pagar'),
+          _busy ? (_isEn ? 'Processing...' : 'Procesando...') : (_isEn ? 'Pay \$${_total.toStringAsFixed(2)}' : 'Pagar \$${_total.toStringAsFixed(2)}'),
           _busy ? null : _payNow,
         ),
         const SizedBox(height: 10),
         Row(
           children: [
-            if (_status == 'confirmed')
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _busy ? null : _cancelAllConfirmed,
-                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.error, side: const BorderSide(color: Color(0xFFFECACA))),
-                  child: Text(_isEn ? 'Cancel All' : 'Cancelar Todo', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-                ),
-              ),
-            if (_status == 'confirmed') const SizedBox(width: 8),
+            if (_canCancelAll) Expanded(child: _cancelAllButton(compact: true)),
+            if (_canCancelAll) const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton(
                 onPressed: () => setState(() => _paymentView = _PaymentView.none),
@@ -713,6 +905,37 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
     );
   }
 
+  Widget _cancelAllButton({required bool compact, String? label}) {
+    final text = label ?? (_isEn ? 'Cancel All' : 'Cancelar Todo');
+    if (compact) {
+      return OutlinedButton(
+        onPressed: _busy ? null : _cancelAllConfirmed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          side: const BorderSide(color: Color(0xFFFECACA)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        child: Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+      );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: _busy ? null : _cancelAllConfirmed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          backgroundColor: const Color(0xFFFEF2F2),
+          side: const BorderSide(color: Color(0xFFFECACA)),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        child: Text(
+          text,
+          style: AppTypography.buttonMedium.copyWith(color: AppColors.error, fontSize: 11, letterSpacing: 0.8),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSafetyPanel() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -729,13 +952,19 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           ),
           const SizedBox(height: 16),
           _policyRow(
-            Icons.shield_outlined,
-            _isEn ? 'Secure encrypted payments powered by Rezervame.' : 'Pagos seguros y encriptados por Rezervame.',
+            _status == 'cash_at_venue' ? Icons.payments_outlined : Icons.shield_outlined,
+            _status == 'cash_at_venue'
+                ? (_isEn
+                    ? 'Cash payment is collected at the venue when you arrive for your appointment.'
+                    : 'El pago en efectivo se recoge en el local cuando llegues a tu cita.')
+                : (_isEn
+                    ? 'Secure encrypted payments powered by Rezervame.'
+                    : 'Pagos seguros y encriptados por Rezervame.'),
           ),
           const SizedBox(height: 12),
           _policyRow(
             Icons.schedule_rounded,
-            _isEn ? 'Cancellations must be done 24h before.' : 'Cancelaciones deben hacerse 24h antes.',
+            _cancellationPolicyMessage,
           ),
         ],
       ),

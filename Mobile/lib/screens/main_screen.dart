@@ -17,25 +17,35 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  final GlobalKey<FavoriteScreenState> _favoriteKey = GlobalKey<FavoriteScreenState>();
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const SearchHubScreen(),
-    const FavoriteScreen(),
-    const ProfileScreen(),
-  ];
+  void _onNavTap(int index) {
+    setState(() => _selectedIndex = index);
+    if (index == 2) {
+      _favoriteKey.currentState?.reload();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _screens,
+        children: [
+          const HomeScreen(),
+          const SearchHubScreen(),
+          FavoriteScreen(key: _favoriteKey, isActive: _selectedIndex == 2),
+          const ProfileScreen(),
+        ],
       ),
       bottomNavigationBar: _buildBottomNav(),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingHistoryScreen()));
+        onPressed: () async {
+          await Navigator.push<void>(
+            context,
+            MaterialPageRoute<void>(builder: (context) => const BookingHistoryScreen()),
+          );
+          _favoriteKey.currentState?.reload();
         },
         backgroundColor: AppColors.primary500,
         shape: const CircleBorder(),
@@ -70,7 +80,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = _selectedIndex == index;
     return InkWell(
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () => _onNavTap(index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

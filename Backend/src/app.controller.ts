@@ -18,9 +18,17 @@ import { isBusinessPubliclyVisible, requireBusinessOwner, requireUser } from './
 import { buildAuthResponse } from './auth/auth-response.util';
 import { verifyFirebaseIdToken } from './auth/firebase-auth.util';
 import { hashPassword, maybeUpgradePasswordHash, verifyPassword } from './auth/password.util';
-import { finalizeBookingGroupPayment } from './payments/booking-payment.util';
+import {
+  finalizeBookingGroupPayment,
+  finalizeBusinessBookingGroupPayment,
+  calculateBookingSettlement,
+  loadDefaultCommissionPercent,
+  dedupeTransactionsByBookingGroup,
+} from './payments/booking-payment.util';
 import { createStripeCheckoutForBookings } from './payments/stripe-checkout.util';
 import { resolveStripeSecretKey } from './payments/stripe.util';
+import { cancelBookingsForCustomer, enrichBookingCancellationFields } from './bookings/cancel-bookings.util';
+import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from './bookings/cancellation-policy.util';
 import { randomBytes } from 'crypto';
 import { WALK_IN_USER_EMAIL } from './constants';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -35,6 +43,25 @@ import { RegisterCustomerDto } from './dto/register-customer.dto';
 import { CreateFamilyMemberDto, UpdateFamilyMemberDto } from './dto/family-member.dto';
 import { allocateMerchantNumber } from './merchant-number.util';
 import { PrismaService } from './prisma.service';
+import { sendEmail, sendSms, loadMessagingConfig } from './notifications/notification-delivery.service';
+import {
+  notifyBusinessAccount,
+  notifyCustomerUser,
+  notifyPlatformAdmins,
+  notifyRoleBroadcast,
+} from './notifications/notification-hub.service';
+import {
+  getVapidPublicKey as readVapidPublicKey,
+  isWebPushConfigured,
+  notificationUrlForType,
+  sendWebPushToUser,
+  upsertWebPushSubscription,
+} from './notifications/web-push-delivery.service';
+import {
+  addSupportTicketReply,
+  createSupportTicket,
+  mapSupportTicketRow,
+} from './support/support-ticket.util';
 
 const BUSINESS_BYPASS_PASSWORD =
   process.env.NODE_ENV !== 'production' ? process.env.BUSINESS_BYPASS_PASSWORD || 'password' : '';
@@ -181,36 +208,195 @@ function getNextAvailableSlot(now: Date, bookings: any[], durationMin: number): 
   return 'No slots';
 }
 
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function parseMinutesFromTimeLabel(t: string): number {
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return 9 * 60;
+  let h = parseInt(m[1], 10);
+  const mins = parseInt(m[2], 10);
+  const ampm = m[3].toUpperCase();
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return h * 60 + mins;
+}
+
+function formatMinutesToTimeLabel(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const displayHour = h % 12 === 0 ? 12 : h % 12;
+  return `${String(displayHour).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function generateHalfHourSlotsFromRange(startLabel: string, endLabel: string): string[] {
+  const startMins = parseMinutesFromTimeLabel(startLabel);
+  let endMins = parseMinutesFromTimeLabel(endLabel);
+  if (endMins <= startMins) endMins = startMins + 540;
+  const slots: string[] = [];
+  for (let mins = startMins; mins < endMins; mins += 30) {
+    slots.push(formatMinutesToTimeLabel(mins));
+  }
+  return slots;
+}
+
+/** Today's bookable slot times from business profile working hours (JSON). */
+function getTodaySlotTimings(workingHoursJson?: string | null): string {
+  if (!workingHoursJson?.trim()) {
+    return '9:00 AM – 6:00 PM';
+  }
+  try {
+    const parsed = JSON.parse(workingHoursJson);
+    if (!Array.isArray(parsed)) return '9:00 AM – 6:00 PM';
+    const todayName = WEEKDAY_NAMES[new Date().getDay()];
+    const match = parsed.find(
+      (row: { day?: string }) => String(row?.day || '').toLowerCase() === todayName.toLowerCase(),
+    );
+    if (!match) return 'Closed today';
+    const hours = String(match.hours || '').trim();
+    if (!hours || hours.toLowerCase() === 'closed') return 'Closed today';
+    if (hours.includes(' - ')) {
+      const [start, end] = hours.split(' - ').map((s: string) => s.trim());
+      const slots = generateHalfHourSlotsFromRange(start, end);
+      if (slots.length === 0) return 'Closed today';
+      if (slots.length <= 6) return slots.join(', ');
+      return `${slots[0]} – ${slots[slots.length - 1]}`;
+    }
+    return hours;
+  } catch {
+    return '9:00 AM – 6:00 PM';
+  }
+}
+
+/** Optional public event / registration link — https only. */
+function normalizeEventWebsiteUrl(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  try {
+    const withProto = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+    const u = new URL(withProto);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 /** Web business panel shape (Prisma uses address/email/phone). */
 function safeImageUrl(url: any): string | null {
   if (typeof url !== "string") return null;
   const s = url.trim();
   if (!s) return null;
-  // If it's a data URI and larger than ~300KB, it's too risky for our current DB-based storage.
-  // We return null to prevent crashing the JSON response, forcing the user to re-upload a smaller one.
-  if (s.startsWith("data:") && s.length > 300000) {
+  // Inline images stored on Business rows — allow up to ~1.5MB base64 in DB/JSON responses.
+  if (s.startsWith("data:") && s.length > 1_500_000) {
     return null;
   }
   return s;
 }
 
-/** Strip oversized inline images from booking payloads (mobile list/detail). */
+/** List/search APIs: never embed base64 — keeps payloads small and pages load fast. */
+function listImageUrl(url: any): string | null {
+  const s = safeImageUrl(url);
+  if (!s || s.startsWith("data:")) return null;
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  // Relative upload paths — Web and Mobile resolve against API origin.
+  if (s.startsWith("/")) return s;
+  return null;
+}
+
+function sanitizeMobileBusinessLite(b: any) {
+  if (!b) return null;
+  const images = Array.isArray(b.images)
+    ? b.images.map((img: unknown) => listImageUrl(img)).filter(Boolean)
+    : [];
+  return {
+    id: b.id,
+    name: b.name,
+    address: b.address,
+    phone: b.phone,
+    email: b.email,
+    taxPercentage: b.taxPercentage,
+    logoUrl: listImageUrl(b.logoUrl),
+    bannerUrl: listImageUrl(b.bannerUrl),
+    categoryKeys: b.categoryKeys,
+    latitude: b.latitude ?? null,
+    longitude: b.longitude ?? null,
+    images,
+    appointmentApprovalMode: b.appointmentApprovalMode,
+    cancellationAllowed: b.cancellationAllowed ?? true,
+    cancellationHoursBefore: b.cancellationHoursBefore ?? 24,
+  };
+}
+
+function sanitizeMobileServiceLite(s: any) {
+  if (!s) return null;
+  return {
+    id: s.id,
+    name: s.name,
+    price: s.price,
+    duration: s.duration,
+    imageUrl: listImageUrl(s.imageUrl),
+  };
+}
+
+/** Strip inline/base64 images from mobile booking payloads (keeps list responses fast). */
 function sanitizeMobileBooking(b: any) {
   const out = { ...b };
-  if (b.business) {
-    out.business = {
-      ...b.business,
-      logoUrl: safeImageUrl(b.business.logoUrl),
-      bannerUrl: safeImageUrl(b.business.bannerUrl),
+  if (b.business) out.business = sanitizeMobileBusinessLite(b.business);
+  if (b.service) out.service = sanitizeMobileServiceLite(b.service);
+  if (b.staff) {
+    out.staff = {
+      id: b.staff.id,
+      name: b.staff.name,
+      role: b.staff.role,
     };
   }
-  if (b.service) {
-    out.service = {
-      ...b.service,
-      imageUrl: safeImageUrl(b.service.imageUrl),
+  if (b.familyMember) {
+    out.familyMember = {
+      id: b.familyMember.id,
+      name: b.familyMember.name,
     };
   }
-  return out;
+  if (b.transaction) {
+    out.transaction = {
+      id: b.transaction.id,
+      paymentMethod: b.transaction.paymentMethod,
+      amount: b.transaction.amount,
+    };
+  }
+  return enrichBookingCancellationFields(out);
+}
+
+function isCashPaymentMethod(method: string | null | undefined): boolean {
+  if (!method) return false;
+  const s = method.toLowerCase().trim();
+  return s.includes('cash') || s.includes('at venue');
+}
+
+function normalizeAppointmentApprovalMode(raw: string | null | undefined): 'manual' | 'automatic' {
+  const m = String(raw ?? 'manual').toLowerCase().trim();
+  if (
+    m === 'automatic' ||
+    m === 'auto' ||
+    m.includes('automatic') ||
+    m.includes('fully automatic') ||
+    m.includes('ai-assisted')
+  ) {
+    return 'automatic';
+  }
+  return 'manual';
+}
+
+function isAutomaticAppointmentApproval(business: {
+  appointmentApprovalMode?: string | null;
+}): boolean {
+  return normalizeAppointmentApprovalMode(business.appointmentApprovalMode) === 'automatic';
+}
+
+function initialBookingStatusForBusiness(business: {
+  appointmentApprovalMode?: string | null;
+}): 'Pending' | 'Approved' {
+  return isAutomaticAppointmentApproval(business) ? 'Approved' : 'Pending';
 }
 
 function mapBusiness(b: Business | null) {
@@ -223,7 +409,7 @@ function mapBusiness(b: Business | null) {
     banner: safeImageUrl(b.bannerUrl),
     images: (Array.isArray((b as any).images) && (b as any).images.length > 0)
       ? (b as any).images.map((img: string) => safeImageUrl(img)).filter(Boolean)
-      : [safeImageUrl(b.bannerUrl), safeImageUrl(b.logoUrl)].filter(Boolean),
+      : [safeImageUrl(b.bannerUrl)].filter(Boolean),
     description: b.description,
     category: categories.join(' · '),
     categories,
@@ -248,7 +434,171 @@ function mapBusiness(b: Business | null) {
     status: b.status,
     planId: b.planId ?? 'basic',
     plan: b.plan ?? 'Basic',
+    taxPercentage: b.taxPercentage ?? 0,
+    appointmentApprovalMode: normalizeAppointmentApprovalMode(b.appointmentApprovalMode),
+    cancellationAllowed: b.cancellationAllowed ?? true,
+    cancellationHoursBefore: b.cancellationHoursBefore ?? 24,
+    cancellationPolicyMessageEn: formatCancellationPolicyMessage(
+      normalizeCancellationPolicy(b),
+      'en',
+    ),
+    cancellationPolicyMessageEs: formatCancellationPolicyMessage(
+      normalizeCancellationPolicy(b),
+      'es',
+    ),
   };
+}
+
+const SYSTEM_CONFIG_PATCH_KEYS = [
+  'platformBranding',
+  'defaultCommission',
+  'slotHoldTime',
+  'approvalMode',
+  'twoFactorMandatory',
+  'minPasswordLength',
+  'sessionTimeout',
+  'maintenanceMode',
+  'databaseRetention',
+  'stripeApiKey',
+  'stripeWebhookSecret',
+  'googleMapsApiKey',
+  'yappyEnabled',
+  'yappyMerchantId',
+  'emailEnabled',
+  'smsEnabled',
+  'smtpHost',
+  'smtpPort',
+  'smtpSecure',
+  'smtpUser',
+  'smtpPass',
+  'emailFrom',
+  'adminNotifyEmail',
+  'twilioAccountSid',
+  'twilioAuthToken',
+  'twilioFromNumber',
+  'notifyNewTicketEmail',
+  'notifyNewTicketSms',
+  'socialFacebookUrl',
+  'socialInstagramUrl',
+  'socialLinkedinUrl',
+  'appStoreUrl',
+  'playStoreUrl',
+  'showFooterDownloadApp',
+  'footerAboutUrl',
+  'showFooterAbout',
+  'footerJobsUrl',
+  'showFooterJobs',
+  'footerPrivacyUrl',
+  'showFooterPrivacy',
+  'footerTermsUrl',
+  'showFooterTerms',
+  'footerHowUrl',
+  'showFooterHow',
+  'footerSupportUrl',
+  'showFooterSupport',
+  'footerEventsUrl',
+  'showFooterEvents',
+  'footerJoinUrl',
+  'showFooterJoin',
+  'footerBizLoginUrl',
+  'showFooterBizLogin',
+  'footerPricingUrl',
+  'showFooterPricing',
+  'footerBizSupportUrl',
+  'showFooterBizSupport',
+  'updatedBy',
+] as const;
+
+const SYSTEM_CONFIG_BOOLEAN_KEYS = new Set([
+  'twoFactorMandatory',
+  'maintenanceMode',
+  'yappyEnabled',
+  'emailEnabled',
+  'smsEnabled',
+  'smtpSecure',
+  'notifyNewTicketEmail',
+  'notifyNewTicketSms',
+  'showFooterDownloadApp',
+  'showFooterAbout',
+  'showFooterJobs',
+  'showFooterPrivacy',
+  'showFooterTerms',
+  'showFooterHow',
+  'showFooterSupport',
+  'showFooterEvents',
+  'showFooterJoin',
+  'showFooterBizLogin',
+  'showFooterPricing',
+  'showFooterBizSupport',
+]);
+
+const SYSTEM_CONFIG_NUMBER_KEYS = new Set([
+  'defaultCommission',
+  'slotHoldTime',
+  'minPasswordLength',
+  'sessionTimeout',
+  'databaseRetention',
+  'smtpPort',
+]);
+
+function pickSystemConfigPatch(body: Record<string, unknown>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  for (const key of SYSTEM_CONFIG_PATCH_KEYS) {
+    if (body[key] === undefined) continue;
+    if (SYSTEM_CONFIG_NUMBER_KEYS.has(key)) {
+      const n = Number(body[key]);
+      if (!Number.isNaN(n)) data[key] = n;
+      continue;
+    }
+    if (SYSTEM_CONFIG_BOOLEAN_KEYS.has(key)) {
+      data[key] = Boolean(body[key]);
+      continue;
+    }
+    if (key === 'smtpPass' && body[key] === '***') continue;
+    data[key] = body[key];
+  }
+  return data;
+}
+
+function maskSystemConfigSecrets(row: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...row };
+  if (out.smtpPass) out.smtpPass = '***';
+  if (out.twilioAuthToken) out.twilioAuthToken = '***';
+  if (out.stripeApiKey) out.stripeApiKey = '***';
+  if (out.stripeWebhookSecret) out.stripeWebhookSecret = '***';
+  return out;
+}
+
+async function loadSystemConfigSafe(prisma: PrismaService) {
+  const baseSelect = {
+    id: true,
+    platformBranding: true,
+    defaultCommission: true,
+    platformBalance: true,
+    slotHoldTime: true,
+    approvalMode: true,
+    twoFactorMandatory: true,
+    minPasswordLength: true,
+    sessionTimeout: true,
+    maintenanceMode: true,
+    databaseRetention: true,
+    updatedAt: true,
+    updatedBy: true,
+  } as const;
+  try {
+    let row = await prisma.systemConfig.findUnique({ where: { id: 1 } });
+    if (!row) {
+      row = await prisma.systemConfig.create({ data: { id: 1 } });
+    }
+    return row;
+  } catch {
+    const row = await prisma.systemConfig.findFirst({ select: baseSelect });
+    if (row) return row;
+    return prisma.systemConfig.create({
+      data: { id: 1 },
+      select: baseSelect,
+    });
+  }
 }
 
 async function resolveBookingCreateUser(prisma: PrismaService, body: CreateBookingDto): Promise<string> {
@@ -278,8 +628,15 @@ function mapBusinessPatch(body: UpdateBusinessPanelDto): Record<string, unknown>
     data.categoryLabel = t || null;
     data.categoryLabels = t ? [t] : [];
   }
-  if (body.logo !== undefined) data.logoUrl = body.logo?.trim() ? body.logo.trim() : null;
-  if (body.banner !== undefined) data.bannerUrl = body.banner?.trim() ? body.banner.trim() : null;
+  if (body.logo !== undefined) data.logoUrl = body.logo?.trim() ? safeImageUrl(body.logo.trim()) : null;
+  if (body.banner !== undefined) data.bannerUrl = body.banner?.trim() ? safeImageUrl(body.banner.trim()) : null;
+  if (body.images !== undefined) {
+    const list = Array.isArray(body.images) ? body.images : [];
+    data.images = list
+      .map((img) => (typeof img === 'string' ? safeImageUrl(img.trim()) : null))
+      .filter((u): u is string => Boolean(u))
+      .slice(0, 16);
+  }
   if (body.amenityKeys !== undefined) data.amenityKeys = body.amenityKeys;
   if (body.socialYoutube !== undefined) data.socialYoutube = body.socialYoutube;
   if (body.socialInstagram !== undefined) data.socialInstagram = body.socialInstagram;
@@ -292,6 +649,25 @@ function mapBusinessPatch(body: UpdateBusinessPanelDto): Record<string, unknown>
   if (body.latitude !== undefined) data.latitude = body.latitude;
   if (body.longitude !== undefined) data.longitude = body.longitude;
   if (body.taxPercentage !== undefined) data.taxPercentage = body.taxPercentage;
+  if (body.appointmentApprovalMode !== undefined) {
+    data.appointmentApprovalMode = normalizeAppointmentApprovalMode(body.appointmentApprovalMode);
+  }
+  if (body.cancellationAllowed !== undefined) {
+    data.cancellationAllowed = Boolean(body.cancellationAllowed);
+  }
+  if (body.cancellationHoursBefore !== undefined) {
+    const h = Number(body.cancellationHoursBefore);
+    if (!Number.isFinite(h) || h < 0 || h > 168) {
+      throw new BadRequestException('cancellationHoursBefore must be between 0 and 168');
+    }
+    data.cancellationHoursBefore = Math.floor(h);
+    if (data.cancellationAllowed === undefined && h >= 0) {
+      data.cancellationAllowed = true;
+    }
+  }
+  if (body.cancellationAllowed === false) {
+    data.cancellationHoursBefore = 0;
+  }
   if (body.planId !== undefined) data.planId = body.planId;
   if (body.plan !== undefined) data.plan = body.plan;
   return data;
@@ -307,6 +683,32 @@ function categoryKeyFromServiceCategory(category: string): string {
   return 'hairService';
 }
 
+/** Category keys used for home counts and `/mobile/venues?category=` — business tags + service categories. */
+function businessEffectiveCategoryKeys(
+  categoryKeys: string[] | null | undefined,
+  services: { category: string }[] | null | undefined,
+): Set<string> {
+  const keys = new Set<string>();
+  for (const k of categoryKeys ?? []) {
+    if (k) keys.add(k);
+  }
+  for (const row of services ?? []) {
+    const cat = row?.category;
+    if (cat) keys.add(categoryKeyFromServiceCategory(cat));
+  }
+  return keys;
+}
+
+function businessMatchesCategoryFilter(
+  categoryKeys: string[] | null | undefined,
+  services: { category: string }[] | null | undefined,
+  filterKeys: string[],
+): boolean {
+  if (!filterKeys.length) return true;
+  const effective = businessEffectiveCategoryKeys(categoryKeys, services);
+  return filterKeys.some((k) => effective.has(k));
+}
+
 @Controller('api')
 export class AppController {
   constructor(private readonly prisma: PrismaService) {}
@@ -314,11 +716,8 @@ export class AppController {
   @Get('admin/config')
   async getAdminConfig(@Headers('authorization') authorization?: string) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
-    let config = await this.prisma.systemConfig.findUnique({ where: { id: 1 } });
-    if (!config) {
-      config = await this.prisma.systemConfig.create({ data: { id: 1 } });
-    }
-    return config;
+    const row = await loadSystemConfigSafe(this.prisma);
+    return maskSystemConfigSecrets(row as Record<string, unknown>);
   }
 
   @Post('admin/config')
@@ -327,13 +726,27 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
-    // Remove metadata fields from body if present
-    const { id, updatedAt, ...data } = body as any;
-    return this.prisma.systemConfig.upsert({
-      where: { id: 1 },
-      update: data,
-      create: { ...data, id: 1 },
-    });
+    const data = pickSystemConfigPatch(body);
+    if (Object.keys(data).length === 0) {
+      return loadSystemConfigSafe(this.prisma);
+    }
+    try {
+      return await this.prisma.systemConfig.upsert({
+        where: { id: 1 },
+        update: data,
+        create: { ...data, id: 1 },
+      });
+    } catch {
+      const patch = pickSystemConfigPatch(body);
+      delete patch.stripeApiKey;
+      delete patch.stripeWebhookSecret;
+      delete patch.googleMapsApiKey;
+      return this.prisma.systemConfig.upsert({
+        where: { id: 1 },
+        update: patch,
+        create: { ...patch, id: 1 },
+      });
+    }
   }
 
 
@@ -351,6 +764,9 @@ export class AppController {
     const passwordOk = user ? await verifyPassword(body.password, user.password) : false;
     if (!user || (!passwordOk && !isBusinessBypass)) {
       throw new BadRequestException('Invalid credentials');
+    }
+    if ((user.status || '').toLowerCase() === 'blocked') {
+      throw new BadRequestException('Your account has been suspended. Contact support.');
     }
     const upgraded = await maybeUpgradePasswordHash(body.password, user.password);
     if (upgraded) {
@@ -409,7 +825,218 @@ export class AppController {
     if (user.role !== Role.USER) {
       throw new BadRequestException('This email is registered as a business or admin account. Use email login.');
     }
+    if ((user.status || '').toLowerCase() === 'blocked') {
+      throw new BadRequestException('Your account has been suspended. Contact support.');
+    }
     return buildAuthResponse(user);
+  }
+
+  @Get('public/push/vapid-public-key')
+  getPublicVapidKey() {
+    const publicKey = readVapidPublicKey();
+    return {
+      publicKey: publicKey || null,
+      configured: isWebPushConfigured(),
+    };
+  }
+
+  @Get('push/status')
+  async getPushStatus(@Headers('authorization') authorization?: string) {
+    const user = await requireUser(this.prisma, authorization, [
+      Role.USER,
+      Role.BUSINESS,
+      Role.ADMIN,
+    ]);
+    const count = await this.prisma.webPushSubscription.count({
+      where: { userId: user.id },
+    });
+    return {
+      configured: isWebPushConfigured(),
+      enabled: user.webPushEnabled,
+      subscribed: count > 0,
+      subscriptionCount: count,
+    };
+  }
+
+  @Post('push/subscribe')
+  async subscribePush(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      endpoint?: string;
+      keys?: { p256dh?: string; auth?: string };
+    },
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const user = await requireUser(this.prisma, authorization, [
+      Role.USER,
+      Role.BUSINESS,
+      Role.ADMIN,
+    ]);
+    if (!isWebPushConfigured()) {
+      throw new BadRequestException(
+        'Browser push is not configured on the server (VAPID keys missing).',
+      );
+    }
+    await upsertWebPushSubscription(this.prisma, user.id, {
+      endpoint: body.endpoint,
+      keys: body.keys,
+      userAgent,
+    });
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { webPushEnabled: true },
+    });
+    return { ok: true };
+  }
+
+  @Delete('push/unsubscribe')
+  async unsubscribePush(
+    @Headers('authorization') authorization?: string,
+    @Query('endpoint') endpoint?: string,
+  ) {
+    const user = await requireUser(this.prisma, authorization, [
+      Role.USER,
+      Role.BUSINESS,
+      Role.ADMIN,
+    ]);
+    if (endpoint?.trim()) {
+      await this.prisma.webPushSubscription.deleteMany({
+        where: { userId: user.id, endpoint: endpoint.trim() },
+      });
+    } else {
+      await this.prisma.webPushSubscription.deleteMany({
+        where: { userId: user.id },
+      });
+    }
+    const remaining = await this.prisma.webPushSubscription.count({
+      where: { userId: user.id },
+    });
+    if (remaining === 0) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { webPushEnabled: false },
+      });
+    }
+    return { ok: true };
+  }
+
+  @Patch('push/preferences')
+  async updatePushPreferences(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { enabled?: boolean },
+  ) {
+    const user = await requireUser(this.prisma, authorization, [
+      Role.USER,
+      Role.BUSINESS,
+      Role.ADMIN,
+    ]);
+    if (body.enabled === false) {
+      await this.prisma.webPushSubscription.deleteMany({
+        where: { userId: user.id },
+      });
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { webPushEnabled: false },
+      });
+      return { enabled: false, subscribed: false };
+    }
+    if (body.enabled === true) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { webPushEnabled: true },
+      });
+      const count = await this.prisma.webPushSubscription.count({
+        where: { userId: user.id },
+      });
+      return { enabled: true, subscribed: count > 0 };
+    }
+    return {
+      enabled: user.webPushEnabled,
+      subscribed:
+        (await this.prisma.webPushSubscription.count({
+          where: { userId: user.id },
+        })) > 0,
+    };
+  }
+
+  @Post('push/test')
+  async testPush(@Headers('authorization') authorization?: string) {
+    const user = await requireUser(this.prisma, authorization, [
+      Role.USER,
+      Role.BUSINESS,
+      Role.ADMIN,
+    ]);
+    if (!isWebPushConfigured()) {
+      throw new BadRequestException('VAPID keys not configured');
+    }
+    const result = await sendWebPushToUser(this.prisma, user.id, {
+      title: 'Rezervame',
+      body: 'Browser push notifications are working.',
+      url: notificationUrlForType('test', user.role),
+      tag: 'test',
+    });
+    return result;
+  }
+
+  @Get('public/site/footer')
+  async getPublicSiteFooter() {
+    const cfg = await loadSystemConfigSafe(this.prisma);
+    const row = cfg as Record<string, unknown>;
+    const trimUrl = (v: unknown) => {
+      const s = typeof v === 'string' ? v.trim() : '';
+      return s || null;
+    };
+    const buildNavLink = (
+      enabled: unknown,
+      url: unknown,
+      defaultUrl: string,
+      labelKey: string,
+    ) => {
+      if (enabled === false) return null;
+      const href = trimUrl(url) || defaultUrl;
+      return {
+        labelKey,
+        url: href,
+        external: /^https?:\/\//i.test(href),
+      };
+    };
+    const showFooterDownloadApp = row.showFooterDownloadApp !== false;
+    const appStoreUrl = trimUrl(row.appStoreUrl);
+    const playStoreUrl = trimUrl(row.playStoreUrl);
+    const clientLinks = [
+      showFooterDownloadApp
+        ? buildNavLink(true, null, '/download', 'footerDownload')
+        : null,
+      buildNavLink(row.showFooterHow, row.footerHowUrl, '/how-it-works', 'footerHow'),
+      buildNavLink(row.showFooterSupport, row.footerSupportUrl, '/customer-service', 'footerSupport'),
+      buildNavLink(row.showFooterEvents, row.footerEventsUrl, '/events', 'footerEvents'),
+    ].filter(Boolean);
+    const businessLinks = [
+      buildNavLink(row.showFooterJoin, row.footerJoinUrl, '/business/join', 'footerJoin'),
+      buildNavLink(row.showFooterBizLogin, row.footerBizLoginUrl, '/business/login', 'footerApp'),
+      buildNavLink(row.showFooterPricing, row.footerPricingUrl, '/pricing', 'footerPrices'),
+      buildNavLink(row.showFooterBizSupport, row.footerBizSupportUrl, '/business/support', 'footerSupportBiz'),
+    ].filter(Boolean);
+    const legalLinks = [
+      buildNavLink(row.showFooterAbout, row.footerAboutUrl, '/about', 'footerAboutUs'),
+      buildNavLink(row.showFooterJobs, row.footerJobsUrl, '/jobs', 'footerJobs'),
+      buildNavLink(row.showFooterPrivacy, row.footerPrivacyUrl, '/privacy', 'footerPrivacy'),
+      buildNavLink(row.showFooterTerms, row.footerTermsUrl, '/terms', 'footerTerms'),
+    ].filter(Boolean);
+    return {
+      socialFacebookUrl: trimUrl(row.socialFacebookUrl),
+      socialInstagramUrl: trimUrl(row.socialInstagramUrl),
+      socialLinkedinUrl: trimUrl(row.socialLinkedinUrl),
+      appStoreUrl,
+      playStoreUrl,
+      showFooterDownloadApp,
+      showDownloadSection:
+        showFooterDownloadApp && Boolean(appStoreUrl || playStoreUrl),
+      clientLinks,
+      businessLinks,
+      legalLinks,
+    };
   }
 
   @Get('public/payment-config')
@@ -417,11 +1044,40 @@ export class AppController {
     const stripeSecret = await resolveStripeSecretKey(this.prisma);
     const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY?.trim() || '';
     const stripeEnabled = !!stripeSecret && !!stripePublishableKey;
+    const cfg = await loadSystemConfigSafe(this.prisma);
+    const yappyEnabled = (cfg as { yappyEnabled?: boolean }).yappyEnabled !== false;
+    const yappyMerchantId = (cfg as { yappyMerchantId?: string | null }).yappyMerchantId ?? '';
+    const defaultCommission =
+      (cfg as { defaultCommission?: number }).defaultCommission ?? 15;
     return {
       stripeEnabled,
       stripePublishableKey: stripeEnabled ? stripePublishableKey : '',
       cashPayEnabled: true,
+      yappyEnabled,
+      yappyMerchantId: yappyMerchantId || undefined,
+      defaultCommission,
+      methods: [
+        { id: 'card', label: 'Card', enabled: stripeEnabled },
+        { id: 'yappy', label: 'Yappy', enabled: yappyEnabled },
+        { id: 'cash', label: 'Cash at venue', enabled: true },
+      ],
     };
+  }
+
+  @Get('public/customer-service/faqs')
+  async getPublicCustomerServiceFaqs() {
+    const rows = await this.prisma.customerServiceFaq.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map((f) => ({
+      id: f.id,
+      questionEn: f.questionEn,
+      questionEs: f.questionEs,
+      answerEn: f.answerEn,
+      answerEs: f.answerEs,
+      sortOrder: f.sortOrder,
+    }));
   }
 
   /** Current merchant profile — no persisted client snapshot; call after login or on panel load. */
@@ -447,6 +1103,7 @@ export class AppController {
       address: user.address ?? '',
       gender: user.gender ?? '',
       age: user.age ?? null,
+      webPushEnabled: user.webPushEnabled,
     };
   }
 
@@ -487,6 +1144,7 @@ export class AppController {
       address: updatedUser.address ?? '',
       gender: updatedUser.gender ?? '',
       age: updatedUser.age ?? null,
+      webPushEnabled: updatedUser.webPushEnabled,
     };
   }
 
@@ -527,33 +1185,137 @@ export class AppController {
   }
 
   @Get('admin/dashboard')
-  async getAdminDashboard(@Headers('authorization') authorization?: string) {
+  async getAdminDashboard(
+    @Headers('authorization') authorization?: string,
+    @Query('range') rangeQuery?: string,
+  ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const range = ['day', 'week', 'month', 'ytd'].includes(String(rangeQuery || '').toLowerCase())
+      ? String(rangeQuery).toLowerCase()
+      : 'ytd';
     const now = new Date();
+
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    let periodStart = new Date(now);
+    let periodEnd = endOfToday;
+    let prevStart = new Date(now);
+    let prevEnd = new Date(now);
+
+    if (range === 'day') {
+      periodStart.setHours(0, 0, 0, 0);
+      prevEnd = new Date(periodStart.getTime() - 1);
+      prevStart = new Date(prevEnd);
+      prevStart.setHours(0, 0, 0, 0);
+    } else if (range === 'week') {
+      periodStart.setDate(now.getDate() - 6);
+      periodStart.setHours(0, 0, 0, 0);
+      prevEnd = new Date(periodStart.getTime() - 1);
+      prevStart = new Date(prevEnd);
+      prevStart.setDate(prevStart.getDate() - 6);
+      prevStart.setHours(0, 0, 0, 0);
+    } else if (range === 'month') {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      prevEnd = new Date(periodStart.getTime() - 1);
+      prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+    } else {
+      periodStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      prevStart = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
+      prevEnd = new Date(
+        now.getFullYear() - 1,
+        now.getMonth(),
+        now.getDate(),
+        23,
+        59,
+        59,
+        999,
+      );
+    }
+
+    const aggregatePeriod = async (start: Date, end: Date) => {
+      const bookingWhere = { date: { gte: start, lte: end } };
+      const txWhere = { date: { gte: start, lte: end }, status: 'Completed' };
+      const [
+        activeBusinesses,
+        newBusinesses,
+        bookingCount,
+        bookingRevenueAgg,
+        commissionAgg,
+        userRegistrations,
+        bookerGroups,
+        pendingApprovals,
+      ] = await Promise.all([
+        this.prisma.business.count({ where: { status: 'active' } }),
+        this.prisma.business.count({
+          where: { joinedDate: { gte: start, lte: end } },
+        }),
+        this.prisma.booking.count({ where: bookingWhere }),
+        this.prisma.booking.aggregate({
+          where: bookingWhere,
+          _sum: { price: true },
+        }),
+        this.prisma.transaction.aggregate({
+          where: txWhere,
+          _sum: { commissionAmount: true },
+        }),
+        this.prisma.user.count({
+          where: { role: Role.USER, createdAt: { gte: start, lte: end } },
+        }),
+        this.prisma.booking.groupBy({
+          by: ['userId'],
+          where: bookingWhere,
+        }),
+        this.prisma.business.count({ where: { status: 'pending' } }),
+      ]);
+      const bookings = bookingCount;
+      const grossBookingValue = bookingRevenueAgg._sum.price ?? 0;
+      const revenue = commissionAgg._sum.commissionAmount ?? 0;
+      const distinctBookers = bookerGroups.length;
+      const avgBookingValue = bookings > 0 ? grossBookingValue / bookings : 0;
+      const bookingsPerCustomer = distinctBookers > 0 ? bookings / distinctBookers : 0;
+      const revenuePerCustomer = distinctBookers > 0 ? revenue / distinctBookers : 0;
+      const customersPerBooking = bookings > 0 ? distinctBookers / bookings : 0;
+      return {
+        businesses: activeBusinesses,
+        newBusinesses,
+        users: userRegistrations,
+        bookings,
+        revenue,
+        pendingApprovals,
+        avgBookingValue,
+        distinctBookers,
+        bookingsPerCustomer,
+        revenuePerCustomer,
+        customersPerBooking,
+      };
+    };
+
     const startOfRollingWeek = new Date(now);
     startOfRollingWeek.setDate(now.getDate() - 6);
     startOfRollingWeek.setHours(0, 0, 0, 0);
 
-    const [businessCount, userCount, bookingCount, revenueAgg, recentActivities, bookingsLastWeek, txsSixMo, pendingApprovals] =
+    const [current, previous, recentActivities, bookingsLastWeek, txsSixMo, systemConfig] =
       await Promise.all([
-        this.prisma.business.count(),
-        this.prisma.user.count({ where: { role: Role.USER } }),
-        this.prisma.booking.count(),
-        this.prisma.transaction.aggregate({ _sum: { amount: true } }),
-        this.prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 8 }),
+        aggregatePeriod(periodStart, periodEnd),
+        aggregatePeriod(prevStart, prevEnd),
+        this.prisma.notification.findMany({
+          where: { role: Role.ADMIN, type: { not: 'BROADCAST' } },
+          orderBy: { createdAt: 'desc' },
+          take: 8,
+        }),
         this.prisma.booking.findMany({
           where: { date: { gte: startOfRollingWeek } },
           select: { date: true },
         }),
         this.prisma.transaction.findMany({
           where: {
-            date: {
-              gte: new Date(now.getFullYear(), now.getMonth() - 5, 1),
-            },
+            date: { gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) },
+            status: 'Completed',
           },
-          select: { date: true, amount: true },
+          select: { date: true, commissionAmount: true },
         }),
-        this.prisma.business.count({ where: { status: 'pending' } }),
+        loadSystemConfigSafe(this.prisma),
       ]);
 
     const weeklyBookings: { day: string; bookings: number }[] = [];
@@ -578,10 +1340,10 @@ export class AppController {
     for (const t of txsSixMo) {
       const key = `${t.date.getFullYear()}-${String(t.date.getMonth() + 1).padStart(2, '0')}`;
       if (revenueByKey.has(key)) {
-        revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + t.amount);
+        revenueByKey.set(key, (revenueByKey.get(key) ?? 0) + (t.commissionAmount ?? 0));
       }
     }
-    const revenue = monthKeys.map((k) => {
+    const revenueChart = monthKeys.map((k) => {
       const [y, m] = k.split('-').map(Number);
       const dt = new Date(y, m - 1, 1);
       return {
@@ -590,21 +1352,56 @@ export class AppController {
       };
     });
 
-    const revenueTotal = revenueAgg._sum.amount ?? 0;
-    const avgBookingValue = bookingCount > 0 ? revenueTotal / bookingCount : 0;
+    const platformBalance = (systemConfig as { platformBalance?: number }).platformBalance ?? 0;
+
+    const pctChange = (cur: number, prev: number) => {
+      if (prev === 0) return cur > 0 ? 100 : 0;
+      return ((cur - prev) / prev) * 100;
+    };
 
     return {
+      range,
       stats: {
-        businesses: businessCount,
-        users: userCount,
-        bookings: bookingCount,
-        revenue: revenueTotal,
-        pendingApprovals,
-        avgBookingValue,
+        businesses: current.businesses,
+        newBusinesses: current.newBusinesses,
+        users: current.users,
+        bookings: current.bookings,
+        revenue: current.revenue,
+        pendingApprovals: current.pendingApprovals,
+        avgBookingValue: current.avgBookingValue,
+        bookingsPerCustomer: current.bookingsPerCustomer,
+        revenuePerCustomer: current.revenuePerCustomer,
+        customersPerBooking: current.customersPerBooking,
+        distinctBookers: current.distinctBookers,
+        platformBalance,
+      },
+      previous: {
+        businesses: previous.businesses,
+        newBusinesses: previous.newBusinesses,
+        users: previous.users,
+        bookings: previous.bookings,
+        revenue: previous.revenue,
+        pendingApprovals: previous.pendingApprovals,
+        avgBookingValue: previous.avgBookingValue,
+        bookingsPerCustomer: previous.bookingsPerCustomer,
+        revenuePerCustomer: previous.revenuePerCustomer,
+        customersPerBooking: previous.customersPerBooking,
+        distinctBookers: previous.distinctBookers,
+      },
+      changes: {
+        businesses: pctChange(current.newBusinesses, previous.newBusinesses),
+        bookings: pctChange(current.bookings, previous.bookings),
+        revenue: pctChange(current.revenue, previous.revenue),
+        users: pctChange(current.users, previous.users),
+        avgBookingValue: pctChange(current.avgBookingValue, previous.avgBookingValue),
+        bookingsPerCustomer: pctChange(current.bookingsPerCustomer, previous.bookingsPerCustomer),
+        revenuePerCustomer: pctChange(current.revenuePerCustomer, previous.revenuePerCustomer),
+        customersPerBooking: pctChange(current.customersPerBooking, previous.customersPerBooking),
+        pendingApprovals: pctChange(current.pendingApprovals, previous.pendingApprovals),
       },
       charts: {
         weeklyBookings,
-        revenue,
+        revenue: revenueChart,
       },
       recentActivities: recentActivities.map((n) => ({
         id: n.id,
@@ -665,6 +1462,7 @@ export class AppController {
         location: body.location,
         price: Number(body.price),
         imageKey: body.imageKey,
+        websiteUrl: normalizeEventWebsiteUrl(body.websiteUrl),
         active: body.active !== undefined ? body.active : true,
       },
     });
@@ -677,11 +1475,18 @@ export class AppController {
     @Headers('authorization') auth?: string,
   ) {
     await requireUser(this.prisma, auth, [Role.ADMIN]);
-    const { id: _, createdAt, ...rest } = body;
     return this.prisma.event.update({
       where: { id },
       data: {
-        ...rest,
+        title: body.title,
+        body: body.body,
+        location: body.location,
+        imageKey: body.imageKey,
+        active: body.active,
+        websiteUrl:
+          body.websiteUrl !== undefined
+            ? normalizeEventWebsiteUrl(body.websiteUrl)
+            : undefined,
         startAt: body.startAt ? new Date(body.startAt) : undefined,
         price: body.price !== undefined ? Number(body.price) : undefined,
       },
@@ -836,26 +1641,37 @@ export class AppController {
         },
       });
     }
-    if ((status === 'rejected' || status === 'suspended') && reasonText) {
-      await this.prisma.notification.create({
-        data: {
-          type: status === 'rejected' ? 'BUSINESS_REJECTED' : 'BUSINESS_UPDATED',
-          title: status === 'rejected' ? `Business rejected: ${updated.name}` : `Business suspended: ${updated.name}`,
-          body: reasonText,
-          role: Role.ADMIN,
-        },
+    if (status === 'active') {
+      void notifyBusinessAccount(this.prisma, updated, {
+        type: 'BUSINESS_APPROVED',
+        title: 'Your business was approved',
+        body:
+          reasonText ||
+          'Your REZERVAME business account is active. Log in to the business panel to manage bookings.',
+        emailSubject: '[Rezervame] Business approved — you can start accepting bookings',
+      });
+    } else if (status === 'rejected') {
+      void notifyBusinessAccount(this.prisma, updated, {
+        type: 'BUSINESS_REJECTED',
+        title: 'Business application not approved',
+        body: reasonText || 'Your application was not approved at this time.',
+        emailSubject: '[Rezervame] Business application update',
+      });
+    } else if (status === 'suspended') {
+      void notifyBusinessAccount(this.prisma, updated, {
+        type: 'BUSINESS_SUSPENDED',
+        title: 'Business account suspended',
+        body: reasonText || 'Your business account has been suspended. Contact support for help.',
+        emailSubject: '[Rezervame] Business account suspended',
+      });
+    } else if (status === 'pending' && before.status !== 'pending') {
+      void notifyBusinessAccount(this.prisma, updated, {
+        type: 'BUSINESS_PENDING',
+        title: 'Application under review',
+        body: 'Your business registration is pending admin review.',
       });
     }
-    if (status === 'active' && reasonText) {
-      await this.prisma.notification.create({
-        data: {
-          type: 'BUSINESS_UPDATED',
-          title: `Business reactivated: ${updated.name}`,
-          body: reasonText,
-          role: Role.ADMIN,
-        },
-      });
-    }
+
     return { ok: true, id: updated.id, status: updated.status };
   }
 
@@ -997,6 +1813,20 @@ export class AppController {
       data: { status: newStatus },
       include: { user: true, business: true, service: true },
     });
+
+    if (cur !== newStatus) {
+      void notifyCustomerUser(this.prisma, updated.user, {
+        type: 'BOOKING_STATUS',
+        title: `Booking ${newStatus}`,
+        body: `Your appointment at ${updated.business.name} is now ${newStatus}.`,
+      });
+      void notifyBusinessAccount(this.prisma, updated.business, {
+        type: 'BOOKING_STATUS',
+        title: `Booking ${newStatus}`,
+        body: `${updated.customerName} — ${updated.service?.name || 'service'} is now ${newStatus}.`,
+      });
+    }
+
     return {
       ok: true,
       id: updated.id,
@@ -1262,12 +2092,78 @@ export class AppController {
     };
   }
 
+  @Patch('admin/users/:id/status')
+  async patchAdminUserStatus(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { status?: string },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target || target.role !== Role.USER) {
+      throw new BadRequestException('Customer user not found');
+    }
+    const next = (body.status || '').toLowerCase() === 'blocked' ? 'blocked' : 'active';
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { status: next },
+    });
+    if (next === 'blocked' && updated.email) {
+      void sendEmail(
+        this.prisma,
+        updated.email,
+        '[Rezervame] Account suspended',
+        `<p>Hi ${updated.name},</p><p>Your Rezervame customer account has been suspended. Contact support if you believe this is a mistake.</p>`,
+        `Hi ${updated.name}, your Rezervame account has been suspended.`,
+      );
+    } else if (next === 'active' && updated.email) {
+      void sendEmail(
+        this.prisma,
+        updated.email,
+        '[Rezervame] Account reactivated',
+        `<p>Hi ${updated.name},</p><p>Your Rezervame customer account is active again. You can sign in and book appointments.</p>`,
+        `Hi ${updated.name}, your Rezervame account is active again.`,
+      );
+    }
+    return { ok: true, id: updated.id, status: updated.status };
+  }
+
+  @Post('admin/users/:id/email')
+  async emailAdminUser(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { subject?: string; message?: string },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target?.email) throw new BadRequestException('User email not found');
+    const message = String(body.message || '').trim();
+    if (!message) throw new BadRequestException('Message is required');
+    const subject = String(body.subject || '').trim() || 'Message from Rezervame';
+    const safe = message
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br/>');
+    return sendEmail(
+      this.prisma,
+      target.email,
+      subject.startsWith('[') ? subject : `[Rezervame] ${subject}`,
+      `<p>${safe}</p>`,
+      message,
+    );
+  }
+
   @Delete('admin/users/:id')
   async deleteAdminUser(
     @Headers('authorization') authorization: string | undefined,
     @Param('id') id: string,
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target || target.role !== Role.USER) {
+      throw new BadRequestException('Customer user not found');
+    }
     await this.prisma.user.delete({ where: { id } });
     return { ok: true, id };
   }
@@ -1322,6 +2218,26 @@ export class AppController {
     return { ok: true, id };
   }
 
+  @Get('admin/wallet')
+  async getAdminWallet(@Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const config = await loadSystemConfigSafe(this.prisma);
+    const platformBalance = (config as { platformBalance?: number }).platformBalance ?? 0;
+    const commissionAgg = await this.prisma.transaction.aggregate({
+      _sum: { commissionAmount: true },
+    });
+    const pendingWithdrawals = await this.prisma.withdrawal.aggregate({
+      where: { status: { equals: 'Pending', mode: 'insensitive' } },
+      _sum: { amount: true },
+    });
+    return {
+      platformBalance: Number(platformBalance.toFixed(2)),
+      totalCommissionRecorded: Number((commissionAgg._sum.commissionAmount ?? 0).toFixed(2)),
+      pendingMerchantWithdrawals: Number((pendingWithdrawals._sum.amount ?? 0).toFixed(2)),
+      defaultCommission: (config as { defaultCommission?: number }).defaultCommission ?? 15,
+    };
+  }
+
   @Get('admin/withdrawals')
   async getAdminWithdrawals(
     @Query('page') page: string = '1',
@@ -1338,7 +2254,7 @@ export class AppController {
       where.status = { equals: status, mode: 'insensitive' };
     }
 
-    const [total, w, pendingTotal] = await Promise.all([
+    const [total, w, pendingTotal, pendingCount] = await Promise.all([
       this.prisma.withdrawal.count({ where }),
       this.prisma.withdrawal.findMany({
         where,
@@ -1350,6 +2266,9 @@ export class AppController {
       this.prisma.withdrawal.aggregate({
         where: { status: { equals: 'Pending', mode: 'insensitive' } },
         _sum: { amount: true },
+      }),
+      this.prisma.withdrawal.count({
+        where: { status: { equals: 'Pending', mode: 'insensitive' } },
       }),
     ]);
 
@@ -1370,6 +2289,7 @@ export class AppController {
       limit: l,
       totalPages: Math.ceil(total / l),
       totalPendingAmount: pendingTotal._sum.amount || 0,
+      pendingCount,
     };
   }
 
@@ -1381,6 +2301,46 @@ export class AppController {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     await this.prisma.withdrawal.delete({ where: { id } });
     return { ok: true, id };
+  }
+
+  @Post('admin/withdrawals/batch-approve')
+  async batchApproveAdminWithdrawals(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body?: { ids?: string[] },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+
+    const where: {
+      status: { equals: string; mode: 'insensitive' };
+      id?: { in: string[] };
+    } = {
+      status: { equals: 'Pending', mode: 'insensitive' },
+    };
+    if (Array.isArray(body?.ids) && body.ids.length > 0) {
+      where.id = { in: body.ids };
+    }
+
+    const pending = await this.prisma.withdrawal.findMany({
+      where,
+      select: { id: true, amount: true },
+    });
+    if (pending.length === 0) {
+      throw new BadRequestException('No pending withdrawals to approve');
+    }
+
+    const now = new Date();
+    await this.prisma.withdrawal.updateMany({
+      where: { id: { in: pending.map((p) => p.id) } },
+      data: { status: 'Approved', processedDate: now },
+    });
+
+    const totalAmount = pending.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    return {
+      ok: true,
+      approved: pending.length,
+      totalAmount: Number(totalAmount.toFixed(2)),
+      ids: pending.map((p) => p.id),
+    };
   }
 
   @Post('admin/withdrawals/:id/approve')
@@ -1423,22 +2383,259 @@ export class AppController {
     });
   }
 
-  @Get('admin/notifications')
-  async getAdminNotifications(@Headers('authorization') authorization?: string) {
+  @Get('admin/alert-feed')
+  async getAdminAlertFeed(
+    @Headers('authorization') authorization?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
-    const items = await this.prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
-    return items.map((n) => ({
-      id: n.id,
-      category: n.type.toLowerCase().includes('ncr')
-        ? 'security'
-        : n.type.toLowerCase().includes('order')
-          ? 'merchant'
-          : 'system',
-      status: 'open',
-      title: n.title,
-      description: n.body,
-      time: n.createdAt.toISOString(),
-    }));
+    const p = Math.max(1, parseInt(page));
+    const l = Math.max(1, parseInt(limit));
+    const where = { role: Role.ADMIN, type: { not: 'BROADCAST' } };
+    const [total, rows, unread] = await Promise.all([
+      this.prisma.notification.count({ where }),
+      this.prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * l,
+        take: l,
+      }),
+      this.prisma.notification.count({ where: { ...where, read: false } }),
+    ]);
+    return {
+      data: rows.map((n) => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        body: n.body,
+        read: n.read,
+        createdAt: n.createdAt.toISOString(),
+      })),
+      total,
+      unread,
+      page: p,
+      limit: l,
+      totalPages: Math.ceil(total / l),
+    };
+  }
+
+  @Patch('admin/alert-feed/:id/read')
+  async markAdminAlertRead(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    await this.prisma.notification.updateMany({
+      where: { id, role: Role.ADMIN },
+      data: { read: true },
+    });
+    return { ok: true };
+  }
+
+  @Patch('admin/alert-feed/read-all')
+  async markAllAdminAlertsRead(@Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    await this.prisma.notification.updateMany({
+      where: { role: Role.ADMIN, read: false, type: { not: 'BROADCAST' } },
+      data: { read: true },
+    });
+    return { ok: true };
+  }
+
+  /** Legacy alias — support tickets list (see also /admin/alert-feed for platform alerts). */
+  @Get('admin/notifications')
+  async getAdminNotifications(
+    @Headers('authorization') authorization?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.getAdminSupportTickets(authorization, page, limit, status, search);
+  }
+
+  @Get('admin/support-tickets')
+  async getAdminSupportTickets(
+    @Headers('authorization') authorization?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const p = Math.max(1, parseInt(page));
+    const l = Math.max(1, parseInt(limit));
+    const where: {
+      status?: { equals: string; mode: 'insensitive' };
+      OR?: Array<Record<string, unknown>>;
+    } = {};
+    if (status && status !== 'all') {
+      where.status = { equals: status, mode: 'insensitive' };
+    }
+    const q = (search || '').trim();
+    if (q) {
+      where.OR = [
+        { ticketRef: { contains: q, mode: 'insensitive' } },
+        { subject: { contains: q, mode: 'insensitive' } },
+        { requesterName: { contains: q, mode: 'insensitive' } },
+        { requesterEmail: { contains: q, mode: 'insensitive' } },
+        { business: { name: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+    const [total, rows, openCount] = await Promise.all([
+      this.prisma.supportTicket.count({ where }),
+      this.prisma.supportTicket.findMany({
+        where,
+        include: {
+          business: { select: { name: true, merchantNumber: true, email: true } },
+          user: { select: { name: true, email: true } },
+          messages: { orderBy: { createdAt: 'asc' }, take: 1 },
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip: (p - 1) * l,
+        take: l,
+      }),
+      this.prisma.supportTicket.count({
+        where: { status: { in: ['open', 'in_progress', 'Open', 'In_progress', 'IN_PROGRESS'] } },
+      }),
+    ]);
+    return {
+      data: rows.map((t) =>
+        mapSupportTicketRow({
+          ...t,
+          messages: t.messages,
+        }),
+      ),
+      total,
+      page: p,
+      limit: l,
+      totalPages: Math.ceil(total / l),
+      openCount,
+    };
+  }
+
+  @Get('admin/support-tickets/:id')
+  async getAdminSupportTicket(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id },
+      include: {
+        business: { select: { name: true, merchantNumber: true, email: true, phone: true } },
+        user: { select: { name: true, email: true, phone: true } },
+        messages: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!ticket) throw new BadRequestException('Ticket not found');
+    return mapSupportTicketRow(ticket, { includeInlineAttachments: true });
+  }
+
+  @Patch('admin/support-tickets/:id/status')
+  async updateAdminSupportTicketStatus(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { status: string },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const status = String(body.status || '').trim().toLowerCase();
+    const allowed = ['open', 'in_progress', 'resolved', 'closed'];
+    if (!allowed.includes(status)) throw new BadRequestException('Invalid status');
+    const ticket = await this.prisma.supportTicket.update({
+      where: { id },
+      data: {
+        status,
+        resolvedAt: status === 'resolved' || status === 'closed' ? new Date() : null,
+      },
+      include: { business: true, user: true },
+    });
+    if (ticket.requesterEmail) {
+      void sendEmail(
+        this.prisma,
+        ticket.requesterEmail,
+        `[Rezervame] Ticket ${ticket.ticketRef} — ${status}`,
+        `<p>Your support ticket <strong>${ticket.ticketRef}</strong> is now <strong>${status}</strong>.</p>`,
+      );
+    }
+    return mapSupportTicketRow(ticket);
+  }
+
+  @Post('admin/support-tickets/:id/reply')
+  async replyAdminSupportTicket(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: { message: string },
+  ) {
+    const admin = await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    await addSupportTicketReply(this.prisma, id, {
+      body: body.message,
+      senderRole: Role.ADMIN,
+      senderName: admin.name,
+    });
+    const updated = await this.prisma.supportTicket.findUnique({
+      where: { id },
+      include: {
+        business: { select: { name: true, merchantNumber: true, email: true, phone: true } },
+        user: { select: { name: true, email: true, phone: true } },
+        messages: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!updated) throw new BadRequestException('Ticket not found');
+    return mapSupportTicketRow(updated, { includeInlineAttachments: true });
+  }
+
+  @Post('admin/support-tickets/batch-resolve')
+  async batchResolveAdminSupportTickets(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body?: { ids?: string[] },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const where: { status: { in: string[] }; id?: { in: string[] } } = {
+      status: { in: ['open', 'in_progress'] },
+    };
+    if (Array.isArray(body?.ids) && body.ids.length > 0) {
+      where.id = { in: body.ids };
+    }
+    const pending = await this.prisma.supportTicket.findMany({ where, select: { id: true } });
+    if (pending.length === 0) throw new BadRequestException('No open tickets to resolve');
+    const now = new Date();
+    await this.prisma.supportTicket.updateMany({
+      where: { id: { in: pending.map((p) => p.id) } },
+      data: { status: 'resolved', resolvedAt: now },
+    });
+    return { ok: true, resolved: pending.length };
+  }
+
+  @Post('admin/email/test')
+  async testAdminEmail(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { to?: string },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const cfg = await loadMessagingConfig(this.prisma);
+    const to = (body.to || cfg.adminNotifyEmail || '').trim();
+    if (!to) throw new BadRequestException('Provide test recipient email');
+    const result = await sendEmail(
+      this.prisma,
+      to,
+      '[Rezervame] Test email',
+      '<p>SMTP configuration test from Rezervame Admin.</p>',
+      'SMTP configuration test from Rezervame Admin.',
+    );
+    return result;
+  }
+
+  @Post('admin/sms/test')
+  async testAdminSms(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { to?: string },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const to = String(body.to || '').trim();
+    if (!to) throw new BadRequestException('Provide test phone number (E.164)');
+    return sendSms(this.prisma, to, 'Rezervame SMS test — configuration OK.');
   }
 
   @Get('admin/plans')
@@ -1511,7 +2708,10 @@ export class AppController {
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER, Role.BUSINESS]);
     await this.prisma.notification.updateMany({
-      where: { id, userId: user.id },
+      where: {
+        id,
+        OR: [{ userId: user.id }, { userId: null, role: user.role as Role }],
+      },
       data: { read: true },
     });
     return { ok: true };
@@ -1521,7 +2721,10 @@ export class AppController {
   async markAllNotificationsRead(@Headers('authorization') authorization?: string) {
     const user = await requireUser(this.prisma, authorization, [Role.USER, Role.BUSINESS]);
     await this.prisma.notification.updateMany({
-      where: { userId: user.id, read: false },
+      where: {
+        read: false,
+        OR: [{ userId: user.id }, { userId: null, role: user.role as Role }],
+      },
       data: { read: true },
     });
     return { ok: true };
@@ -1534,6 +2737,107 @@ export class AppController {
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     await this.prisma.notification.delete({ where: { id } });
+    return { ok: true, id };
+  }
+
+  @Get('admin/customer-service/faqs')
+  async getAdminCustomerServiceFaqs(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+    @Query('search') search: string = '',
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const p = Math.max(1, parseInt(page));
+    const l = Math.max(1, parseInt(limit));
+    const where: {
+      OR?: Array<Record<string, unknown>>;
+    } = {};
+    const q = search.trim();
+    if (q) {
+      where.OR = [
+        { questionEn: { contains: q, mode: 'insensitive' } },
+        { questionEs: { contains: q, mode: 'insensitive' } },
+        { answerEn: { contains: q, mode: 'insensitive' } },
+        { answerEs: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const [total, data] = await Promise.all([
+      this.prisma.customerServiceFaq.count({ where }),
+      this.prisma.customerServiceFaq.findMany({
+        where,
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        skip: (p - 1) * l,
+        take: l,
+      }),
+    ]);
+    return { data, total, page: p, limit: l, totalPages: Math.ceil(total / l) };
+  }
+
+  @Post('admin/customer-service/faqs')
+  async createAdminCustomerServiceFaq(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      questionEn: string;
+      questionEs?: string;
+      answerEn: string;
+      answerEs?: string;
+      sortOrder?: number;
+      active?: boolean;
+    },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const questionEn = String(body.questionEn || '').trim();
+    const answerEn = String(body.answerEn || '').trim();
+    if (questionEn.length < 3) throw new BadRequestException('Question (EN) must be at least 3 characters');
+    if (answerEn.length < 3) throw new BadRequestException('Answer (EN) must be at least 3 characters');
+    const questionEs = String(body.questionEs || questionEn).trim();
+    const answerEs = String(body.answerEs || answerEn).trim();
+    return this.prisma.customerServiceFaq.create({
+      data: {
+        questionEn,
+        questionEs,
+        answerEn,
+        answerEs,
+        sortOrder: body.sortOrder ?? 0,
+        active: body.active !== false,
+      },
+    });
+  }
+
+  @Patch('admin/customer-service/faqs/:id')
+  async updateAdminCustomerServiceFaq(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      questionEn?: string;
+      questionEs?: string;
+      answerEn?: string;
+      answerEs?: string;
+      sortOrder?: number;
+      active?: boolean;
+    },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const data: Record<string, unknown> = {};
+    if (body.questionEn !== undefined) data.questionEn = String(body.questionEn).trim();
+    if (body.questionEs !== undefined) data.questionEs = String(body.questionEs).trim();
+    if (body.answerEn !== undefined) data.answerEn = String(body.answerEn).trim();
+    if (body.answerEs !== undefined) data.answerEs = String(body.answerEs).trim();
+    if (body.sortOrder !== undefined) data.sortOrder = Number(body.sortOrder);
+    if (body.active !== undefined) data.active = Boolean(body.active);
+    return this.prisma.customerServiceFaq.update({ where: { id }, data });
+  }
+
+  @Delete('admin/customer-service/faqs/:id')
+  async deleteAdminCustomerServiceFaq(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    await this.prisma.customerServiceFaq.delete({ where: { id } });
     return { ok: true, id };
   }
 
@@ -1728,15 +3032,29 @@ export class AppController {
     @Body() body: { message: string; target: string },
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
-    const n = await this.prisma.notification.create({
-      data: {
-        type: 'BROADCAST',
-        title: `Broadcast: ${body.target}`,
-        body: body.message,
-        role: Role.USER,
-      },
-    });
-    return { id: n.id, status: 'sent' };
+    const message = String(body.message || '').trim();
+    if (message.length < 4) throw new BadRequestException('Message too short');
+    const target = body.target || 'all_users';
+    const roles: Role[] =
+      target === 'all_businesses'
+        ? [Role.BUSINESS]
+        : target === 'all_users'
+          ? [Role.USER]
+          : [Role.USER];
+    const pushResults = await Promise.all(
+      roles.map((role) =>
+        notifyRoleBroadcast(this.prisma, role, message, target),
+      ),
+    );
+    const pushSent = pushResults.reduce((n, r) => n + r.pushSent, 0);
+    const pushFailed = pushResults.reduce((n, r) => n + r.pushFailed, 0);
+    const pushRecipients = pushResults.reduce((n, r) => n + r.pushRecipients, 0);
+    return {
+      id: 'broadcast',
+      status: 'sent',
+      roles,
+      push: { sent: pushSent, failed: pushFailed, recipients: pushRecipients },
+    };
   }
 
   @Get('business/:id')
@@ -1775,17 +3093,25 @@ export class AppController {
     const geo = parseUserGeoQuery(userLat, userLng);
     const distanceLabel = distanceLabelBetween(geo.lat, geo.lng, b.latitude, b.longitude);
     
-    // Fetch global admin configuration for service fee
-    const adminConfig = await this.prisma.systemConfig.findFirst();
-    const serviceFee = adminConfig?.defaultCommission ?? 10;
+    let commissionPercent = 15;
+    try {
+      const adminConfig = await this.prisma.systemConfig.findFirst({
+        select: { defaultCommission: true },
+      });
+      commissionPercent = adminConfig?.defaultCommission ?? 15;
+    } catch {
+      commissionPercent = 15;
+    }
 
     return {
       ...base,
       rating: ratingStr,
       reviews: reviewsStr,
       distanceLabel,
-      taxPercentage: b.taxPercentage || 0,
-      serviceFee,
+      taxPercentage: b.taxPercentage ?? 0,
+      commissionPercent,
+      /** @deprecated Use commissionPercent (% of subtotal), not a flat fee. */
+      serviceFee: commissionPercent,
       amenities: rows.map((a) => ({
         key: a.key,
         labelEn: a.labelEn,
@@ -2109,7 +3435,11 @@ export class AppController {
         _count: { _all: true },
       }),
       this.prisma.booking.findMany({
-        where: { staffId: { in: staffIds }, userId: { not: { equals: '' } } },
+        where: {
+          staffId: { in: staffIds },
+          userId: { not: '' },
+          status: { notIn: ['cancelled', 'CANCELLED', 'rejected', 'REJECTED'] },
+        },
         select: { staffId: true, userId: true },
         distinct: ['staffId', 'userId'],
       }),
@@ -2146,6 +3476,7 @@ export class AppController {
         return {
           ...s,
           image: safeImageUrl(s.image),
+          experienceYears: s.experienceYears ?? 0,
           rating: Number(stats.rating.toFixed(1)),
           reviews: stats.reviews,
           clients: stats.clients,
@@ -2179,7 +3510,7 @@ export class AppController {
         );
       }
     }
-    return this.prisma.staff.create({
+    const created = await this.prisma.staff.create({
       data: {
         businessId: id,
         name: body.name,
@@ -2192,6 +3523,7 @@ export class AppController {
         experienceYears: body.experienceYears ?? 0,
       },
     });
+    return { ...created, image: safeImageUrl(created.image) };
   }
 
   @Patch('staff/:id')
@@ -2203,7 +3535,7 @@ export class AppController {
     const row = await this.prisma.staff.findUnique({ where: { id } });
     if (!row) throw new BadRequestException('Staff not found');
     await requireBusinessOwner(this.prisma, authorization, row.businessId);
-    return this.prisma.staff.update({
+    const updated = await this.prisma.staff.update({
       where: { id },
       data: {
         ...(body.name !== undefined ? { name: body.name } : {}),
@@ -2216,6 +3548,7 @@ export class AppController {
         ...(body.experienceYears !== undefined ? { experienceYears: body.experienceYears } : {}),
       },
     });
+    return { ...updated, image: safeImageUrl(updated.image) };
   }
 
   @Delete('staff/:id')
@@ -2275,7 +3608,7 @@ export class AppController {
         this.prisma.booking.count({ where }),
         this.prisma.booking.findMany({
           where,
-          include: { service: true, staff: true, user: true, transaction: true },
+          include: { service: true, staff: true, user: true, familyMember: true, transaction: true },
           orderBy: { date: 'desc' },
           skip: (p - 1) * l,
           take: l,
@@ -2329,13 +3662,25 @@ export class AppController {
 
       const earningStatuses = ['Completed', 'Paid'];
       if (earningStatuses.includes(b.status)) {
+        const commissionPct = await loadDefaultCommissionPercent(this.prisma);
+        const settlement = calculateBookingSettlement(
+          [{ price: b.price, taxAmount: b.taxAmount }],
+          commissionPct,
+        );
         await tx.business.update({
           where: { id },
           data: {
-            balance: { increment: b.price },
-            revenue: { increment: b.price },
+            balance: { increment: settlement.businessCredit },
+            revenue: { increment: settlement.customerTotal },
           },
         });
+        if (settlement.commissionAmount > 0) {
+          await tx.systemConfig.upsert({
+            where: { id: 1 },
+            update: { platformBalance: { increment: settlement.commissionAmount } },
+            create: { id: 1, platformBalance: settlement.commissionAmount },
+          });
+        }
       }
       return b;
     });
@@ -2348,70 +3693,13 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
-    if (!Array.isArray(body.bookingIds) || body.bookingIds.length === 0) {
-      throw new BadRequestException('bookingIds must be a non-empty array');
-    }
-
-    const [bookings, config] = await Promise.all([
-      this.prisma.booking.findMany({
-        where: { id: { in: body.bookingIds }, businessId: id },
-        include: { staff: true, service: true, user: true },
-      }),
-      this.prisma.systemConfig.findUnique({ where: { id: 1 } }),
-    ]);
-    
-    if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
-
-    const payableBookings = bookings.filter(
-      (b) => b.status !== 'Cancelled' && b.status !== 'Rejected' && b.status !== 'Completed' && b.status !== 'Paid',
-    );
-    if (payableBookings.length === 0) throw new BadRequestException('All bookings are already completed or paid');
-
-    const grossAmount = payableBookings.reduce((sum, b) => sum + b.price, 0);
-    const totalTax = payableBookings.reduce((sum, b) => sum + (b.taxAmount || 0), 0);
-    
-    // Calculate commission
-    const commissionPct = config?.defaultCommission ?? 15;
-    const commissionAmount = Number((grossAmount * (commissionPct / 100)).toFixed(2));
-    const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
-
-    const staffNames = [...new Set(payableBookings.map((b) => b.staff?.name).filter(Boolean))].join(', ');
-    const serviceNames = payableBookings.map((b) => b.service?.name || 'Service').join(', ');
     const method = body.paymentMethod || 'Cash';
-
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        bookingId: payableBookings[0].id,
-        businessId: id,
-        amount: grossAmount + totalTax,
-        taxAmount: totalTax,
-        status: 'Completed',
-        paymentMethod: method,
-        description: serviceNames,
-        customerEmail: payableBookings[0].user?.email || null,
-        staffMember: staffNames || null,
-        bookings: {
-          connect: payableBookings.map(b => ({ id: b.id }))
-        }
-      },
-    });
-
-    // Mark all as Paid
-    await this.prisma.booking.updateMany({
-      where: { id: { in: payableBookings.map(b => b.id) } },
-      data: { status: 'Paid', transactionId: transaction.id },
-    });
-
-
-    await this.prisma.business.update({
-      where: { id },
-      data: { 
-        revenue: { increment: grossAmount },
-        balance: { increment: netAmount }
-      },
-    });
-
-    return transaction;
+    return finalizeBusinessBookingGroupPayment(
+      this.prisma,
+      id,
+      body.bookingIds ?? [],
+      method,
+    );
   }
 
   @Patch('business/:id/bookings/:bookingId/propose-reschedule')
@@ -2447,7 +3735,19 @@ export class AppController {
     const data: Record<string, unknown> = {};
     if (body.customerName !== undefined) data.customerName = body.customerName;
     if (body.date !== undefined) data.date = new Date(body.date);
-    if (body.status !== undefined) data.status = body.status;
+    if (body.status !== undefined) {
+      const next = body.status;
+      if (next === 'Completed' && old.status !== 'Paid') {
+        const cashPending =
+          isCashPaymentMethod(old.paymentMethod) && !old.transactionId;
+        if (cashPending) {
+          throw new BadRequestException(
+            'Confirm cash payment received before marking this booking completed',
+          );
+        }
+      }
+      data.status = next;
+    }
     if (body.price !== undefined) data.price = body.price;
     if (body.serviceId !== undefined) {
       data.serviceId =
@@ -2465,37 +3765,64 @@ export class AppController {
       const isEarned = updated.status && earningStatuses.includes(updated.status);
 
       if (!wasEarned && isEarned) {
-        // Fetch commission
-        const config = await tx.systemConfig.findUnique({ where: { id: 1 } });
-        const commissionPct = config?.defaultCommission ?? 15;
-        const amount = updated.price;
-        const commissionAmount = Number((amount * (commissionPct / 100)).toFixed(2));
-        const netAmount = Number((amount - commissionAmount).toFixed(2));
-
+        const commissionPct = await loadDefaultCommissionPercent(this.prisma);
+        const settlement = calculateBookingSettlement(
+          [{ price: updated.price, taxAmount: updated.taxAmount }],
+          commissionPct,
+        );
         await tx.business.update({
           where: { id: updated.businessId },
           data: {
-            balance: { increment: netAmount },
-            revenue: { increment: amount },
+            balance: { increment: settlement.businessCredit },
+            revenue: { increment: settlement.customerTotal },
           },
         });
-      }
-      else if (wasEarned && !isEarned) {
-        // Fetch commission (from when it was added)
-        const config = await tx.systemConfig.findUnique({ where: { id: 1 } });
-        const commissionPct = config?.defaultCommission ?? 15;
-        const amount = old.price;
-        const commissionAmount = Number((amount * (commissionPct / 100)).toFixed(2));
-        const netAmount = Number((amount - commissionAmount).toFixed(2));
-
+        if (settlement.commissionAmount > 0) {
+          await tx.systemConfig.upsert({
+            where: { id: 1 },
+            update: { platformBalance: { increment: settlement.commissionAmount } },
+            create: { id: 1, platformBalance: settlement.commissionAmount },
+          });
+        }
+      } else if (wasEarned && !isEarned) {
+        const commissionPct = await loadDefaultCommissionPercent(this.prisma);
+        const settlement = calculateBookingSettlement(
+          [{ price: old.price, taxAmount: old.taxAmount }],
+          commissionPct,
+        );
         await tx.business.update({
           where: { id: updated.businessId },
           data: {
-            balance: { decrement: netAmount },
-            revenue: { decrement: amount },
+            balance: { decrement: settlement.businessCredit },
+            revenue: { decrement: settlement.customerTotal },
           },
         });
+        if (settlement.commissionAmount > 0) {
+          await tx.systemConfig.upsert({
+            where: { id: 1 },
+            update: { platformBalance: { decrement: settlement.commissionAmount } },
+            create: { id: 1, platformBalance: 0 },
+          });
+        }
       }
+      if (body.status !== undefined && old.status !== updated.status) {
+        const customer = await this.prisma.user.findUnique({
+          where: { id: updated.userId },
+          select: { id: true, email: true, phone: true },
+        });
+        const biz = await this.prisma.business.findUnique({
+          where: { id: updated.businessId },
+          select: { name: true, email: true, owner: true, phone: true },
+        });
+        if (customer) {
+          void notifyCustomerUser(this.prisma, customer, {
+            type: 'BOOKING_STATUS',
+            title: `Booking ${updated.status}`,
+            body: `Your appointment at ${biz?.name || 'the venue'} is now ${updated.status}.`,
+          });
+        }
+      }
+
       return updated;
     });
   }
@@ -2788,22 +4115,187 @@ export class AppController {
   @Post('business/:id/support-request')
   async createBusinessSupportRequest(
     @Param('id') id: string,
-    @Body() body: { message: string },
+    @Body() body: { message: string; subject?: string; category?: string; screenshotUrl?: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const { user } = await requireBusinessOwner(this.prisma, authorization, id);
+    const biz = await this.prisma.business.findUnique({ where: { id } });
+    const ticket = await createSupportTicket(this.prisma, {
+      subject: body.subject || `Support from ${biz?.name ?? 'merchant'}`,
+      message: body.message,
+      category: body.category || 'merchant',
+      screenshotUrl: body.screenshotUrl,
+      businessId: id,
+      userId: user.id,
+      createdByRole: Role.BUSINESS,
+      requesterName: biz?.owner || biz?.name || user.name,
+      requesterEmail: biz?.email || user.email,
+      requesterPhone: biz?.phone,
+    });
+    return { ok: true, ticketId: ticket.id, ticketRef: ticket.ticketRef };
+  }
+
+  @Get('business/:id/support/tickets')
+  async getBusinessSupportTickets(
+    @Param('id') id: string,
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
-    const message = String(body.message || '').trim();
-    if (message.length < 8) throw new BadRequestException('Message must be at least 8 characters');
-    const biz = await this.prisma.business.findUnique({ where: { id } });
-    await this.prisma.notification.create({
-      data: {
-        type: 'MERCHANT_SUPPORT',
-        title: `Merchant request: ${biz?.name ?? id}`,
-        body: message.slice(0, 4000),
-        role: Role.ADMIN,
-      },
+    const rows = await this.prisma.supportTicket.findMany({
+      where: { businessId: id },
+      include: { messages: { orderBy: { createdAt: 'asc' }, take: 1 } },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
     });
-    return { ok: true };
+    return rows.map((t) => mapSupportTicketRow({ ...t, messages: t.messages }));
+  }
+
+  @Post('business/:id/support/tickets')
+  async createBusinessSupportTicket(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      subject: string;
+      message: string;
+      category?: string;
+      priority?: string;
+      screenshotUrl?: string;
+    },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const { user } = await requireBusinessOwner(this.prisma, authorization, id);
+    const biz = await this.prisma.business.findUnique({ where: { id } });
+    const ticket = await createSupportTicket(this.prisma, {
+      subject: body.subject,
+      message: body.message,
+      category: body.category || 'technical',
+      priority: body.priority,
+      screenshotUrl: body.screenshotUrl,
+      businessId: id,
+      userId: user.id,
+      createdByRole: Role.BUSINESS,
+      requesterName: biz?.owner || biz?.name || user.name,
+      requesterEmail: biz?.email || user.email,
+      requesterPhone: biz?.phone,
+    });
+    return mapSupportTicketRow(ticket);
+  }
+
+  @Get('business/:id/support/tickets/:ticketId')
+  async getBusinessSupportTicket(
+    @Param('id') id: string,
+    @Param('ticketId') ticketId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireBusinessOwner(this.prisma, authorization, id);
+    const ticket = await this.prisma.supportTicket.findFirst({
+      where: { id: ticketId, businessId: id },
+      include: { messages: { orderBy: { createdAt: 'asc' } }, business: true },
+    });
+    if (!ticket) throw new BadRequestException('Ticket not found');
+    return mapSupportTicketRow(ticket);
+  }
+
+  @Post('business/:id/support/tickets/:ticketId/reply')
+  async replyBusinessSupportTicket(
+    @Param('id') id: string,
+    @Param('ticketId') ticketId: string,
+    @Body() body: { message: string; screenshotUrl?: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const { user } = await requireBusinessOwner(this.prisma, authorization, id);
+    const ticket = await this.prisma.supportTicket.findFirst({
+      where: { id: ticketId, businessId: id },
+    });
+    if (!ticket) throw new BadRequestException('Ticket not found');
+    const biz = await this.prisma.business.findUnique({ where: { id } });
+    await addSupportTicketReply(this.prisma, ticketId, {
+      body: body.message,
+      senderRole: Role.BUSINESS,
+      senderName: biz?.owner || user.name,
+      attachmentUrl: body.screenshotUrl,
+      reopen: true,
+    });
+    const updated = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      include: { messages: { orderBy: { createdAt: 'asc' } }, business: true },
+    });
+    return mapSupportTicketRow(updated!);
+  }
+
+  @Get('support/tickets')
+  async getUserSupportTickets(@Headers('authorization') authorization?: string) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const rows = await this.prisma.supportTicket.findMany({
+      where: { userId: user.id },
+      include: { messages: { orderBy: { createdAt: 'asc' }, take: 1 } },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
+    return rows.map((t) => mapSupportTicketRow({ ...t, messages: t.messages }));
+  }
+
+  @Post('support/tickets')
+  async createUserSupportTicket(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      subject: string;
+      message: string;
+      category?: string;
+      screenshotUrl?: string;
+      businessId?: string;
+    },
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const ticket = await createSupportTicket(this.prisma, {
+      subject: body.subject,
+      message: body.message,
+      category: body.category || 'customer',
+      screenshotUrl: body.screenshotUrl,
+      businessId: body.businessId || null,
+      userId: user.id,
+      createdByRole: Role.USER,
+      requesterName: user.name,
+      requesterEmail: user.email,
+      requesterPhone: user.phone,
+    });
+    return mapSupportTicketRow(ticket);
+  }
+
+  @Get('support/tickets/:ticketId')
+  async getUserSupportTicket(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const ticket = await this.prisma.supportTicket.findFirst({
+      where: { id: ticketId, userId: user.id },
+      include: { messages: { orderBy: { createdAt: 'asc' } } },
+    });
+    if (!ticket) throw new BadRequestException('Ticket not found');
+    return mapSupportTicketRow(ticket);
+  }
+
+  @Post('support/tickets/:ticketId/reply')
+  async replyUserSupportTicket(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+    @Body() body: { message: string; screenshotUrl?: string },
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const ticket = await this.prisma.supportTicket.findFirst({
+      where: { id: ticketId, userId: user.id },
+    });
+    if (!ticket) throw new BadRequestException('Ticket not found');
+    const result = await addSupportTicketReply(this.prisma, ticketId, {
+      body: body.message,
+      senderRole: Role.USER,
+      senderName: user.name,
+      attachmentUrl: body.screenshotUrl,
+      reopen: true,
+    });
+    return mapSupportTicketRow({ ...result.ticket, messages: [result.message] });
   }
 
   @Get('business/:id/machines')
@@ -2910,14 +4402,22 @@ export class AppController {
     });
     if (!booking) throw new BadRequestException('Booking not found');
 
-    // Find all bookings for this user, at this business, on this exact date/time
+    const dayStart = new Date(booking.date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(booking.date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const groupWhere = booking.bookingGroupId
+      ? { userId: user.id, bookingGroupId: booking.bookingGroupId }
+      : {
+          userId: user.id,
+          businessId: booking.businessId,
+          date: { gte: dayStart, lte: dayEnd },
+        };
+
     const group = await this.prisma.booking.findMany({
-      where: {
-        userId: user.id,
-        businessId: booking.businessId,
-        date: booking.date,
-      },
-      include: { business: true, service: true, staff: true, familyMember: true },
+      where: groupWhere,
+      include: { business: true, service: true, staff: true, familyMember: true, transaction: true },
       orderBy: { date: 'asc' },
     });
     return group.map(sanitizeMobileBooking);
@@ -2935,18 +4435,29 @@ export class AppController {
 
     // For mobile, we usually want ongoing and history separately.
     // We'll paginate the history, and keep ongoing (usually few) as is or limited.
+    const ongoingStatuses = ['Pending', 'Approved', 'Paid', 'Rescheduled'];
+    const historyStatuses = ['Completed', 'Rejected', 'Cancelled'];
     const [ongoing, historyTotal, history] = await Promise.all([
       this.prisma.booking.findMany({
-        where: { userId: user.id, status: { in: ['Pending', 'Approved', 'Paid', 'Rescheduled'] } },
+        where: {
+          userId: user.id,
+          OR: ongoingStatuses.map((status) => ({ status: { equals: status, mode: 'insensitive' as const } })),
+        },
         include: { business: true, service: true, staff: true, familyMember: true, transaction: true },
         orderBy: { date: 'asc' },
         take: 50,
       }),
       this.prisma.booking.count({
-        where: { userId: user.id, status: { in: ['Completed', 'Rejected', 'Cancelled'] } },
+        where: {
+          userId: user.id,
+          OR: historyStatuses.map((status) => ({ status: { equals: status, mode: 'insensitive' as const } })),
+        },
       }),
       this.prisma.booking.findMany({
-        where: { userId: user.id, status: { in: ['Completed', 'Rejected', 'Cancelled'] } },
+        where: {
+          userId: user.id,
+          OR: historyStatuses.map((status) => ({ status: { equals: status, mode: 'insensitive' as const } })),
+        },
         include: { business: true, service: true, staff: true, familyMember: true, transaction: true },
         orderBy: { date: 'desc' },
         skip: (p - 1) * l,
@@ -3034,14 +4545,28 @@ export class AppController {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
     const row = await this.prisma.familyMember.findFirst({ where: { id, userId: user.id } });
     if (!row) throw new BadRequestException('Family member not found');
+    const data: {
+      name?: string;
+      age?: number | null;
+      gender?: string;
+      email?: string | null;
+    } = {};
+    if (body.name !== undefined) data.name = String(body.name).trim();
+    if (body.age !== undefined) {
+      const ageNum = Number(body.age);
+      data.age = Number.isFinite(ageNum) && ageNum >= 0 ? Math.floor(ageNum) : null;
+    }
+    if (body.gender !== undefined) data.gender = String(body.gender).trim();
+    if (body.email !== undefined) {
+      const rawEmail = body.email;
+      data.email =
+        rawEmail === null || rawEmail === undefined
+          ? null
+          : String(rawEmail).trim() || null;
+    }
     return this.prisma.familyMember.update({
       where: { id },
-      data: {
-        ...(body.name !== undefined ? { name: body.name.trim() } : {}),
-        ...(body.age !== undefined ? { age: body.age } : {}),
-        ...(body.gender !== undefined ? { gender: body.gender.trim() } : {}),
-        ...(body.email !== undefined ? { email: body.email.trim() || null } : {}),
-      },
+      data,
     });
   }
 
@@ -3060,18 +4585,8 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
-    const booking = await this.prisma.booking.findFirst({
-      where: { id, userId: user.id },
-    });
-    if (!booking) throw new BadRequestException('Booking not found');
-    if (booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Rejected') {
-      throw new BadRequestException('Cannot cancel this booking');
-    }
-    await this.prisma.booking.update({
-      where: { id },
-      data: { status: 'Cancelled' },
-    });
-    return { ok: true };
+    const result = await cancelBookingsForCustomer(this.prisma, user.id, [id]);
+    return { ok: true, ...result };
   }
 
   @Post('mobile/bookings/cancel-group')
@@ -3081,26 +4596,8 @@ export class AppController {
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
     const ids = Array.isArray(body.bookingIds) ? body.bookingIds.filter((id) => typeof id === 'string' && id.trim()) : [];
-    if (ids.length === 0) throw new BadRequestException('bookingIds must be a non-empty array');
-
-    const bookings = await this.prisma.booking.findMany({
-      where: { id: { in: ids }, userId: user.id },
-    });
-    if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
-
-    const cancellable = bookings.filter(
-      (b) => b.status !== 'Completed' && b.status !== 'Cancelled' && b.status !== 'Rejected',
-    );
-    if (cancellable.length === 0) {
-      throw new BadRequestException('No cancellable bookings in this group');
-    }
-
-    await this.prisma.booking.updateMany({
-      where: { id: { in: cancellable.map((b) => b.id) } },
-      data: { status: 'Cancelled' },
-    });
-
-    return { ok: true, cancelled: cancellable.length };
+    const result = await cancelBookingsForCustomer(this.prisma, user.id, ids);
+    return { ok: true, ...result };
   }
 
   @Post('mobile/bookings/:id/pay')
@@ -3110,36 +4607,8 @@ export class AppController {
     @Body() body: { paymentMethod?: string } = {},
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
-    const booking = await this.prisma.booking.findFirst({
-      where: { id, userId: user.id },
-      include: { business: true, service: true, staff: true },
-    });
-    if (!booking) throw new BadRequestException('Booking not found');
-    if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
-      throw new BadRequestException('Cannot pay for a cancelled booking');
-    }
-    await this.prisma.booking.update({
-      where: { id },
-      data: { status: 'Paid' },
-    });
-    // Create transaction so it appears in invoice history
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        bookingId: booking.id,
-        businessId: booking.businessId,
-        amount: booking.price,
-        status: 'Completed',
-        type: body.paymentMethod || 'Cash Payment',
-        customerEmail: user.email,
-        staffMember: booking.staff?.name ?? null,
-      },
-    });
-    // Update business revenue
-    await this.prisma.business.update({
-      where: { id: booking.businessId },
-      data: { revenue: { increment: booking.price } },
-    });
-    return { ok: true, transactionId: transaction.id };
+    const method = body.paymentMethod || 'Cash Payment';
+    return finalizeBookingGroupPayment(this.prisma, user, [id], method);
   }
 
   /** Pay for a GROUP of bookings (cash / in-person). Card payments use stripe-checkout. */
@@ -3215,6 +4684,7 @@ export class AppController {
       staffId?: string;
       familyMemberId?: string;
       paymentMethod?: string;
+      bookingGroupId?: string;
     },
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
@@ -3291,12 +4761,16 @@ export class AppController {
       ? service.price * (1 - activePromotion.discountPercent / 100)
       : service.price;
 
-    const status = 'Pending';
+    const status = initialBookingStatusForBusiness(business);
     const taxPercentage = business.taxPercentage || 0;
     const taxAmount = (finalPrice * taxPercentage) / 100;
+    const autoApproved = status === 'Approved';
 
     const rawPaymentMethod = typeof body.paymentMethod === 'string' ? body.paymentMethod.trim() : '';
     const paymentMethod = rawPaymentMethod || 'Online';
+
+    const rawGroupId = typeof body.bookingGroupId === 'string' ? body.bookingGroupId.trim() : '';
+    const bookingGroupId = rawGroupId.length > 0 ? rawGroupId : null;
 
     const booking = await this.prisma.booking.create({
       data: {
@@ -3311,18 +4785,54 @@ export class AppController {
         price: finalPrice,
         taxAmount,
         paymentMethod,
+        bookingGroupId,
       },
     });
 
-    await this.prisma.notification.create({
-      data: {
-        userId: user.id,
-        role: Role.USER,
-        type: 'BOOKING_CREATED',
-        title: 'Booking request submitted',
-        body: `Your appointment request at ${business.name} was submitted and is pending approval.`,
-      },
+    void notifyCustomerUser(this.prisma, user, {
+      type: autoApproved ? 'BOOKING_APPROVED' : 'BOOKING_CREATED',
+      title: autoApproved ? 'Booking confirmed' : 'Booking request submitted',
+      body: autoApproved
+        ? `Your appointment at ${business.name} is confirmed. You can complete payment when ready.`
+        : `Your appointment request at ${business.name} was submitted and is pending approval.`,
     });
+
+    void notifyPlatformAdmins(this.prisma, {
+      type: 'BOOKING_CREATED',
+      title: `New booking — ${business.name}`,
+      body: `${customerName} booked ${service.name} for ${date.toLocaleString()} (${status}).`,
+      emailSubject: `[Rezervame] New booking at ${business.name}`,
+    });
+
+    void notifyBusinessAccount(this.prisma, business, {
+      type: 'BOOKING_CREATED',
+      title: autoApproved ? 'New confirmed booking' : 'New booking request',
+      body: `${customerName} — ${service.name} on ${date.toLocaleString()}.`,
+      emailSubject: autoApproved
+        ? `[Rezervame] New confirmed booking`
+        : `[Rezervame] New booking request`,
+    });
+
+    if (business.notifyBookingEmail && business.email) {
+      void sendEmail(
+        this.prisma,
+        business.email,
+        autoApproved ? `[Rezervame] New confirmed booking` : `[Rezervame] New booking request`,
+        autoApproved
+          ? `<p><strong>${customerName}</strong> booked <strong>${service.name}</strong> on ${date.toLocaleString()} (auto-confirmed).</p><p>Preferred payment: ${paymentMethod}</p>`
+          : `<p><strong>${customerName}</strong> requested <strong>${service.name}</strong> on ${date.toLocaleString()}.</p><p>Preferred payment: ${paymentMethod}</p>`,
+      );
+    }
+    if (user.email) {
+      void sendEmail(
+        this.prisma,
+        user.email,
+        autoApproved ? `[Rezervame] Booking confirmed` : `[Rezervame] Booking request sent`,
+        autoApproved
+          ? `<p>Your appointment at <strong>${business.name}</strong> is confirmed. You can pay from your reservations when ready.</p>`
+          : `<p>Your request at <strong>${business.name}</strong> was submitted and is pending approval.</p>`,
+      );
+    }
 
     return booking;
   }
@@ -3337,24 +4847,14 @@ export class AppController {
     const p = Math.max(1, parseInt(page));
     const l = Math.max(1, parseInt(limit));
 
-    const userBookings = await this.prisma.booking.findMany({
-      where: { userId: user.id },
-      select: { id: true },
+    const allTx = await this.prisma.transaction.findMany({
+      where: { bookings: { some: { userId: user.id } } },
+      include: { business: true, bookings: { include: { service: true, staff: true } } },
+      orderBy: { date: 'desc' },
     });
-    const bookingIds = userBookings.map((b) => b.id);
-
-    const [total, tx] = await Promise.all([
-      this.prisma.transaction.count({
-        where: { bookingId: { in: bookingIds } },
-      }),
-      this.prisma.transaction.findMany({
-        where: { bookingId: { in: bookingIds } },
-        include: { business: true, bookings: { include: { service: true, staff: true } } },
-        orderBy: { date: 'desc' },
-        skip: (p - 1) * l,
-        take: l,
-      }),
-    ]);
+    const deduped = dedupeTransactionsByBookingGroup(allTx);
+    const total = deduped.length;
+    const tx = deduped.slice((p - 1) * l, p * l);
 
     const data = tx.map((t) => {
       const logo = (t.business.logoUrl || '').trim();
@@ -3421,22 +4921,25 @@ export class AppController {
       ];
     }
     
-    // Multiple categories support (comma separated)
-    if (category && category !== 'all') {
-      const cats = category.split(',').filter(Boolean);
-      if (cats.length > 0) {
-        where.categoryKeys = { hasSome: cats };
-      }
-    }
+    const categoryFilter =
+      category && category !== 'all'
+        ? category.split(',').map((c) => c.trim()).filter(Boolean)
+        : [];
 
     // Fetch businesses with their reviews to calculate ratings for filtering
-    const businesses = await this.prisma.business.findMany({
+    let businesses = await this.prisma.business.findMany({
       where,
       include: {
         reviews: { select: { businessRating: true } },
         services: { orderBy: { price: 'asc' } },
       },
     });
+
+    if (categoryFilter.length > 0) {
+      businesses = businesses.filter((b) =>
+        businessMatchesCategoryFilter(b.categoryKeys, b.services, categoryFilter),
+      );
+    }
 
     const minR = parseFloat(minRating || '0');
 
@@ -3449,16 +4952,30 @@ export class AppController {
         : 0;
       const minPrice = b.services?.[0]?.price ?? 0;
       const firstServiceImage = (b.services || [])
-        .map((s: { imageUrl?: string | null }) => safeImageUrl(s.imageUrl))
-        .find((u: string | null) => u && (u.startsWith('http') || u.startsWith('data:')));
+        .map((s: { imageUrl?: string | null }) => listImageUrl(s.imageUrl))
+        .find((u: string | null) => Boolean(u));
       
       const distance = haversineKm(geo?.lat ?? 0, geo?.lng ?? 0, b.latitude ?? 0, b.longitude ?? 0);
-      
+      const bannerUrl = listImageUrl(b.bannerUrl);
+      const logoUrl = listImageUrl(b.logoUrl);
+      const portfolioImageUrls: string[] = [];
+      for (const img of Array.isArray(b.images) ? b.images : []) {
+        const u = listImageUrl(img);
+        if (u && !portfolioImageUrls.includes(u)) portfolioImageUrls.push(u);
+      }
+      if (bannerUrl && !portfolioImageUrls.includes(bannerUrl)) {
+        portfolioImageUrls.push(bannerUrl);
+      }
+      if (logoUrl && !portfolioImageUrls.includes(logoUrl)) {
+        portfolioImageUrls.push(logoUrl);
+      }
+
       return {
         id: b.id,
         businessId: b.id,
         name: b.name,
-        categoryKey: b.categoryKeys?.[0] ?? 'barber',
+        categoryKey: Array.from(businessEffectiveCategoryKeys(b.categoryKeys, b.services))[0] ?? 'barber',
+        categoryKeys: Array.from(businessEffectiveCategoryKeys(b.categoryKeys, b.services)),
         rating: avg.toFixed(1),
         reviews: String(count),
         price: minPrice.toFixed(2),
@@ -3467,14 +4984,16 @@ export class AppController {
         serviceName: b.services?.[0]?.name ?? null,
         serviceDurationMinutes: b.services?.[0]?.duration ?? null,
         serviceImageUrl: firstServiceImage,
-        imageUrl: firstServiceImage ?? safeImageUrl(b.bannerUrl) ?? safeImageUrl(b.logoUrl),
-        bannerUrl: safeImageUrl(b.bannerUrl),
-        logoUrl: safeImageUrl(b.logoUrl),
+        imageUrl: firstServiceImage ?? bannerUrl ?? logoUrl,
+        bannerUrl,
+        logoUrl,
+        portfolioImageUrls,
         locationLabel: b.address.split(',')[0],
         distanceLabel: distanceLabelBetween(geo.lat, geo.lng, b.latitude, b.longitude),
         distance,
         ratingNum: avg,
         priceNum: minPrice,
+        todaySlotTimings: getTodaySlotTimings(b.workingHours),
       };
     });
 
@@ -3505,32 +5024,64 @@ export class AppController {
   }
 
   @Get('mobile/notifications')
-  async getMobileNotifications(@Headers('authorization') authorization?: string) {
-    await requireUser(this.prisma, authorization, [Role.USER]);
-    const notifications = await this.prisma.notification.findMany({
-      where: {
-        OR: [{ role: Role.USER }, { type: 'BROADCAST' }],
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    });
-    return notifications.map((n) => ({
+  async getMobileNotifications(
+    @Headers('authorization') authorization?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
+    const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
+    const where = {
+      OR: [
+        { userId: user.id },
+        { role: Role.USER, userId: null },
+        { type: 'BROADCAST' },
+      ],
+    };
+    const [notifications, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * l,
+        take: l,
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
+    const data = notifications.map((n) => ({
       id: n.id,
       type: n.type,
       title: n.title,
       body: n.body,
       createdAt: n.createdAt.toISOString(),
     }));
+    return {
+      data,
+      total,
+      page: p,
+      limit: l,
+      totalPages: total > 0 ? Math.ceil(total / l) : 0,
+    };
   }
 
   @Get('mobile/events')
-  async getMobileEvents() {
-    const events = await this.prisma.event.findMany({
-      where: { active: true },
-      orderBy: { startAt: 'asc' },
-      take: 50,
-    });
-    return events.map((e) => ({
+  async getMobileEvents(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '12',
+  ) {
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 12));
+    const where = { active: true };
+    const [events, total] = await Promise.all([
+      this.prisma.event.findMany({
+        where,
+        orderBy: { startAt: 'asc' },
+        skip: (p - 1) * l,
+        take: l,
+      }),
+      this.prisma.event.count({ where }),
+    ]);
+    const data = events.map((e) => ({
       id: e.id,
       title: e.title,
       body: e.body,
@@ -3538,7 +5089,15 @@ export class AppController {
       location: e.location,
       price: e.price,
       imageKey: e.imageKey,
+      websiteUrl: e.websiteUrl,
     }));
+    return {
+      data,
+      total,
+      page: p,
+      limit: l,
+      totalPages: total > 0 ? Math.ceil(total / l) : 0,
+    };
   }
 
   @Get('public/plans')
@@ -3558,28 +5117,15 @@ export class AppController {
     });
     const activeBusinesses = await this.prisma.business.findMany({
       where: { status: 'active' },
-      select: { id: true, categoryKeys: true },
+      select: {
+        id: true,
+        categoryKeys: true,
+        services: { select: { category: true } },
+      },
     });
-    const services = await this.prisma.service.findMany({
-      where: { business: { status: 'active' } },
-      select: { businessId: true, category: true },
-    });
-    const keysByBusiness = new Map<string, Set<string>>();
-    for (const b of activeBusinesses) {
-      const s = new Set<string>();
-      for (const k of b.categoryKeys) {
-        if (k) s.add(k);
-      }
-      keysByBusiness.set(b.id, s);
-    }
-    for (const row of services) {
-      const k = categoryKeyFromServiceCategory(row.category);
-      const set = keysByBusiness.get(row.businessId);
-      if (set) set.add(k);
-    }
     const countByKey = new Map<string, number>();
-    for (const [, set] of keysByBusiness) {
-      for (const k of set) {
+    for (const b of activeBusinesses) {
+      for (const k of businessEffectiveCategoryKeys(b.categoryKeys, b.services)) {
         countByKey.set(k, (countByKey.get(k) ?? 0) + 1);
       }
     }
@@ -3618,7 +5164,13 @@ export class AppController {
       phone: string;
       address: string;
       categories: string[];
-      services: Array<{ name: string; price: number; duration: number; category?: string }>;
+      services: Array<{
+        name: string;
+        price: number;
+        duration: number;
+        category?: string;
+        imageUrl?: string;
+      }>;
       idDocumentImage?: string;
       licenseDocumentImage?: string;
       insuranceDocumentImage?: string;
@@ -3706,6 +5258,7 @@ export class AppController {
               price: Number(s.price) || 0,
               duration: Number(s.duration) || 30,
               category: (s.category || categories[0] || 'general').toString(),
+              imageUrl: safeImageUrl(String((s as { imageUrl?: string }).imageUrl || '')),
             })),
           },
         },
@@ -3725,6 +5278,20 @@ export class AppController {
       return biz;
     });
 
+    void notifyPlatformAdmins(this.prisma, {
+      type: 'BUSINESS_REGISTRATION',
+      title: `New business registration: ${name}`,
+      body: `${owner} (${email}) applied for ${name}. Merchant #${created.merchantNumber ?? '—'}. Plan: ${finalPlanName}. Review in Admin → Businesses.`,
+      emailSubject: `[Rezervame] New business registration — ${name}`,
+    });
+
+    void notifyBusinessAccount(this.prisma, created, {
+      type: 'BUSINESS_REGISTRATION',
+      title: 'Registration received',
+      body: 'Thank you for registering. Our team will review your application within 24–48 hours.',
+      emailSubject: '[Rezervame] We received your business registration',
+    });
+
     return {
       id: created.id,
       merchantNumber: created.merchantNumber,
@@ -3733,13 +5300,132 @@ export class AppController {
     };
   }
 
-  @Get('mobile/jobs')
-  async getMobileJobs() {
-    return this.prisma.jobPosting.findMany({
-      where: { active: true },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+  @Get('admin/jobs')
+  async getAdminJobs(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '50',
+    @Query('search') search: string = '',
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const p = Math.max(1, parseInt(page));
+    const l = Math.max(1, parseInt(limit));
+    const where: { OR?: Array<Record<string, unknown>> } = {};
+    const q = search.trim();
+    if (q) {
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { location: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const [total, data] = await Promise.all([
+      this.prisma.jobPosting.count({ where }),
+      this.prisma.jobPosting.findMany({
+        where,
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+        skip: (p - 1) * l,
+        take: l,
+      }),
+    ]);
+    return { data, total, page: p, limit: l, totalPages: Math.ceil(total / l) };
+  }
+
+  @Post('admin/jobs')
+  async createAdminJob(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      title: string;
+      location: string;
+      description: string;
+      applyUrl?: string;
+      sortOrder?: number;
+      active?: boolean;
+    },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const title = String(body.title || '').trim();
+    const location = String(body.location || '').trim();
+    const description = String(body.description || '').trim();
+    if (title.length < 2) throw new BadRequestException('Title is required');
+    if (location.length < 2) throw new BadRequestException('Location is required');
+    if (description.length < 5) throw new BadRequestException('Description is required');
+    return this.prisma.jobPosting.create({
+      data: {
+        title,
+        location,
+        description,
+        applyUrl: normalizeEventWebsiteUrl(body.applyUrl),
+        sortOrder: body.sortOrder ?? 0,
+        active: body.active !== false,
+      },
     });
+  }
+
+  @Patch('admin/jobs/:id')
+  async updateAdminJob(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      title?: string;
+      location?: string;
+      description?: string;
+      applyUrl?: string | null;
+      sortOrder?: number;
+      active?: boolean;
+    },
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const data: Record<string, unknown> = {};
+    if (body.title !== undefined) data.title = String(body.title).trim();
+    if (body.location !== undefined) data.location = String(body.location).trim();
+    if (body.description !== undefined) data.description = String(body.description).trim();
+    if (body.applyUrl !== undefined) {
+      data.applyUrl = body.applyUrl === null || `${body.applyUrl}`.trim() === ''
+        ? null
+        : normalizeEventWebsiteUrl(body.applyUrl);
+    }
+    if (body.sortOrder !== undefined) data.sortOrder = Number(body.sortOrder);
+    if (body.active !== undefined) data.active = Boolean(body.active);
+    return this.prisma.jobPosting.update({ where: { id }, data });
+  }
+
+  @Delete('admin/jobs/:id')
+  async deleteAdminJob(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    await this.prisma.jobPosting.delete({ where: { id } });
+    return { ok: true, id };
+  }
+
+  @Get('mobile/jobs')
+  async getMobileJobs(
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '12',
+  ) {
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 12));
+    const where = { active: true };
+    const [data, total] = await Promise.all([
+      this.prisma.jobPosting.findMany({
+        where,
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+        skip: (p - 1) * l,
+        take: l,
+      }),
+      this.prisma.jobPosting.count({ where }),
+    ]);
+    return {
+      data,
+      total,
+      page: p,
+      limit: l,
+      totalPages: total > 0 ? Math.ceil(total / l) : 0,
+    };
   }
 
   @Get('mobile/favorites')
@@ -3747,14 +5433,52 @@ export class AppController {
     @Headers('authorization') authorization?: string,
     @Query('userLat') userLat?: string,
     @Query('userLng') userLng?: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '12',
+    @Query('search') search?: string,
+    @Query('category') category?: string,
   ) {
     const geo = parseUserGeoQuery(userLat, userLng);
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
-    const rows = await this.prisma.userFavorite.findMany({
-      where: { userId: user.id, business: { status: 'active' } },
-      include: { business: true },
-    });
-    if (rows.length === 0) return [];
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 12));
+
+    const favoriteChipKeys: Record<string, string[]> = {
+      hair: ['hairService', 'barber'],
+      facial: ['spaService', 'beautyService'],
+      wax: ['nailCare'],
+    };
+
+    const businessWhere: any = { status: 'active' };
+    const q = search?.trim();
+    if (q) {
+      businessWhere.OR = [
+        { name: { contains: q, mode: 'insensitive' } },
+        { address: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const chip = category?.trim().toLowerCase();
+    if (chip && chip !== 'all') {
+      const keys = favoriteChipKeys[chip];
+      if (keys?.length) {
+        businessWhere.categoryKeys = { hasSome: keys };
+      }
+    }
+
+    const favWhere = { userId: user.id, business: businessWhere };
+    const [rows, total] = await Promise.all([
+      this.prisma.userFavorite.findMany({
+        where: favWhere,
+        include: { business: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * l,
+        take: l,
+      }),
+      this.prisma.userFavorite.count({ where: favWhere }),
+    ]);
+    if (rows.length === 0) {
+      return { data: [], total, page: p, limit: l, totalPages: total > 0 ? Math.ceil(total / l) : 0 };
+    }
     const businessIds = rows.map((r) => r.businessId);
     const itemImages = await this.prisma.service.findMany({
       where: { businessId: { in: businessIds } },
@@ -3764,8 +5488,8 @@ export class AppController {
     const itemImageByBusiness = new Map<string, string | null>();
     for (const s of itemImages) {
       if (itemImageByBusiness.has(s.businessId)) continue;
-      const img = (s.imageUrl || '').trim();
-      itemImageByBusiness.set(s.businessId, img || null);
+      const img = listImageUrl(s.imageUrl);
+      if (img) itemImageByBusiness.set(s.businessId, img);
     }
     const [reviewAgg, reviewCounts, minPrices] = await Promise.all([
       this.prisma.review.groupBy({
@@ -3794,7 +5518,7 @@ export class AppController {
       reviewCounts.map((x) => [x.businessId, x._count._all]),
     );
     const minPriceByBiz = new Map(minPrices.map((p) => [p.businessId, p._min.price ?? 0]));
-    return rows.map((r) => {
+    const data = rows.map((r) => {
       const b = r.business;
       const rv = reviewByBiz.get(b.id);
       const ratingNum = rv?.avg != null ? Number(rv.avg.toFixed(1)) : 0;
@@ -3804,24 +5528,36 @@ export class AppController {
       const bizLat = b.latitude ?? null;
       const bizLng = b.longitude ?? null;
       const distanceLabel = distanceLabelBetween(geo.lat, geo.lng, bizLat, bizLng);
+      const bannerUrl = listImageUrl(b.bannerUrl);
+      const logoUrl = listImageUrl(b.logoUrl);
+      const serviceImageUrl = listImageUrl(imageUrl);
       return {
         id: r.id,
         businessId: b.id,
         name: b.name,
         categoryKey: (b.categoryKeys && b.categoryKeys[0]) || 'beautyService',
+        categoryKeys: b.categoryKeys ?? [],
         rating: String(ratingNum),
         reviews: String(reviewsCount),
         price: `$${Number(minSvc || 0).toFixed(2)}`,
         lat: bizLat ?? 0,
         lng: bizLng ?? 0,
-        imageUrl,
-        logoUrl: b.logoUrl,
-        bannerUrl: b.bannerUrl,
+        imageUrl: serviceImageUrl,
+        serviceImageUrl,
+        logoUrl,
+        bannerUrl,
         unsplashImgId: null,
         locationLabel: b.address,
         distanceLabel,
       };
     });
+    return {
+      data,
+      total,
+      page: p,
+      limit: l,
+      totalPages: total > 0 ? Math.ceil(total / l) : 0,
+    };
   }
 
   @Post('mobile/favorites')

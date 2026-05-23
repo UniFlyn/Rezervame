@@ -23,6 +23,7 @@ import {
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { formatCurrency, cn } from "@/lib/utils";
+import { PageLoader } from "@/components/admin/AppLoader";
 
 type DashboardPayload = {
   stats?: {
@@ -134,12 +135,7 @@ export default function SubscriptionsPage() {
   ];
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-        <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Syncing subscription data...</p>
-      </div>
-    );
+    return <PageLoader label="Loading plans…" />;
   }
 
   return (

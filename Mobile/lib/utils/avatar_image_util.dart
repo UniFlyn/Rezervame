@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'app_colors.dart';
 import 'app_typography.dart';
+import 'image_url.dart';
 
 /// Backend rejects data URIs larger than ~300KB ([safeImageUrl] in API).
 const int kMaxAvatarDataUriLength = 280000;
@@ -90,7 +91,8 @@ Widget buildProfileAvatar({
   required String initials,
   double radius = 60,
 }) {
-  final url = (imageUrl ?? '').trim();
+  final raw = (imageUrl ?? '').trim();
+  final url = resolveMediaUrl(raw) ?? raw;
 
   if (url.startsWith('data:')) {
     final bytes = _decodeDataUri(url);

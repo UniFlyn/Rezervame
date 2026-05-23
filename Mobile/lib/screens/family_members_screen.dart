@@ -123,6 +123,110 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
     }
   }
 
+  void _showEditMemberModal(Map<String, dynamic> member) {
+    String name = '${member['name'] ?? ''}';
+    String age = '${member['age'] ?? ''}';
+    String gender = 'genderMale';
+    final g = '${member['gender'] ?? ''}'.toLowerCase();
+    if (g.contains('fem') || g.contains('mujer')) {
+      gender = 'genderFemale';
+    } else if (g.contains('other') || g.contains('otr')) {
+      gender = 'genderOther';
+    }
+    bool submitting = false;
+    final id = '${member['id']}';
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            top: 20,
+            left: 24,
+            right: 24,
+          ),
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Edit family member', style: AppTypography.screenTitle.copyWith(color: AppColors.grey900)),
+              const SizedBox(height: 24),
+              TextField(
+                decoration: InputDecoration(labelText: 'fullName'.tr(), filled: true, fillColor: AppColors.grey25),
+                controller: TextEditingController(text: name),
+                onChanged: (val) => name = val,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(labelText: 'age'.tr(), filled: true, fillColor: AppColors.grey25),
+                      keyboardType: TextInputType.number,
+                      controller: TextEditingController(text: age),
+                      onChanged: (val) => age = val,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: gender,
+                      decoration: InputDecoration(labelText: 'gender'.tr(), filled: true, fillColor: AppColors.grey25),
+                      items: ['genderMale', 'genderFemale', 'genderOther']
+                          .map((g) => DropdownMenuItem(value: g, child: Text(g.tr())))
+                          .toList(),
+                      onChanged: (val) => setModalState(() => gender = val!),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          setModalState(() => submitting = true);
+                          try {
+                            await _api.updateFamilyMember(
+                              id: id,
+                              name: name,
+                              age: int.tryParse(age) ?? 0,
+                              gender: gender.tr(),
+                            );
+                            await _loadMembers();
+                            if (context.mounted) Navigator.pop(context);
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                              );
+                            }
+                          } finally {
+                            setModalState(() => submitting = false);
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary500),
+                  child: Text('save'.tr()),
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showAddMemberModal() {
     String name = '';
     String age = '';
@@ -325,6 +429,10 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                                   ),
                                 ],
                               ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, color: AppColors.primary500),
+                              onPressed: () => _showEditMemberModal(member),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.redAccent),

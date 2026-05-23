@@ -7,6 +7,7 @@ import '../models/venue_listing.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import '../widgets/chained_network_image.dart';
+import '../widgets/list_pagination_bar.dart';
 import 'service_detail_screen.dart';
 
 class MyFavoritesScreen extends StatefulWidget {
@@ -22,6 +23,10 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
   bool _loading = true;
   bool _loggedIn = false;
   String? _error;
+  int _page = 1;
+  int _totalPages = 1;
+  int _total = 0;
+  static const int _pageSize = 12;
 
   @override
   void initState() {
@@ -29,10 +34,12 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({int? page}) async {
+    final nextPage = page ?? _page;
     setState(() {
       _loading = true;
       _error = null;
+      _page = nextPage;
     });
     final token = await AuthSession.getToken();
     if (token == null || token.isEmpty) {
@@ -45,11 +52,13 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
       return;
     }
     try {
-      final list = await _repo.fetchFavoriteVenueMaps();
+      final res = await _repo.fetchFavoriteVenueMaps(page: nextPage, limit: _pageSize);
       if (!mounted) return;
       setState(() {
         _loggedIn = true;
-        _favorites = list;
+        _favorites = (res['data'] as List<Map<String, dynamic>>?) ?? [];
+        _total = (res['total'] as int?) ?? _favorites.length;
+        _totalPages = (res['totalPages'] as int?) ?? 1;
         _loading = false;
       });
     } catch (e) {
@@ -129,8 +138,16 @@ class _MyFavoritesScreenState extends State<MyFavoritesScreen> {
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.all(20),
-                            itemCount: _favorites.length,
+                            itemCount: _favorites.length + 1,
                             itemBuilder: (context, index) {
+                              if (index == _favorites.length) {
+                                return ListPaginationBar(
+                                  page: _page,
+                                  totalPages: _totalPages,
+                                  total: _total,
+                                  onPageChange: (p) => _load(page: p),
+                                );
+                              }
                               final fav = _favorites[index];
                               final bid = '${fav['businessId'] ?? ''}';
                               return GestureDetector(

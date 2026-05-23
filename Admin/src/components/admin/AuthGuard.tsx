@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiGet } from "@/lib/api";
+import { PageLoader } from "@/components/admin/AppLoader";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -42,11 +43,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [pathname, router]);
 
   if (!ready) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm font-semibold text-slate-600">
-        Loading admin…
-      </div>
-    );
+    return <PageLoader label="Loading…" />;
   }
 
   return <>{children}</>;

@@ -30,6 +30,23 @@ model User {
   reviews   Review[]
   favorites UserFavorite[]
   familyMembers FamilyMember[]
+  supportTickets SupportTicket[]
+  webPushEnabled Boolean @default(false)
+  webPushSubscriptions WebPushSubscription[]
+}
+
+model WebPushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model FamilyMember {
@@ -58,15 +75,16 @@ model UserFavorite {
 }
 
 model Event {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  startAt   DateTime
-  location  String
-  price     Float    @default(0)
-  imageKey  String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  title      String
+  body       String
+  startAt    DateTime
+  location   String
+  price      Float    @default(0)
+  imageKey   String?
+  websiteUrl String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
 }
 
 model JobPosting {
@@ -74,6 +92,8 @@ model JobPosting {
   title       String
   location    String
   description String
+  applyUrl    String?
+  sortOrder   Int      @default(0)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
 }
@@ -158,11 +178,18 @@ model Business {
   socialTiktok             String?
   workingHours             String?
   taxPercentage            Float          @default(0)
+  /// `manual` = merchant must approve (Pending); `automatic` = bookings start as Approved.
+  appointmentApprovalMode  String         @default("manual")
+  /// When false, customers cannot cancel (except unpaid Pending bookings).
+  cancellationAllowed      Boolean        @default(true)
+  /// Minimum hours before appointment start that a customer may cancel (when allowed). 0 = anytime before start.
+  cancellationHoursBefore  Int            @default(24)
   promotions               Promotion[]
   plan                     String         @default("Basic")
   planExpires              DateTime?
   planId                   String?
   subscriptionPlan         SubscriptionPlan? @relation(fields: [planId], references: [id])
+  supportTickets           SupportTicket[]
 }
 
 model BusinessStatusHistory {
@@ -247,6 +274,11 @@ model Booking {
   taxAmount      Float          @default(0)
   isReviewed     Boolean        @default(false)
   paymentMethod  String?        // Preferred method selected at checkout (Online, Card Payment, etc.)
+  bookingGroupId String?        // Multi-service checkout session id
+  createdAt      DateTime       @default(now())
+
+  @@index([bookingGroupId])
+  @@index([userId, businessId, date])
 }
 
 model Review {
@@ -277,6 +309,7 @@ model Transaction {
   staffMember   String?
   amount        Float
   taxAmount     Float    @default(0)
+  commissionAmount Float @default(0)
   status        String
   date          DateTime @default(now())
   type          String   @default("Earning")
@@ -358,10 +391,75 @@ model Notification {
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+model SupportTicket {
+  id            String   @id @default(cuid())
+  ticketRef     String   @unique
+  subject       String
+  category      String   @default("general")
+  status        String   @default("open")
+  priority      String   @default("normal")
+  businessId    String?
+  business      Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdByRole Role
+  requesterName String
+  requesterEmail String?
+  screenshotUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  resolvedAt    DateTime?
+  messages      SupportMessage[]
+
+  @@index([status, createdAt])
+  @@index([businessId])
+  @@index([userId])
+}
+
+model SupportMessage {
+  id            String        @id @default(cuid())
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  body          String
+  senderRole    Role
+  senderName    String?
+  attachmentUrl String?
+  createdAt     DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+model CustomerServiceFaq {
+  id         String   @id @default(cuid())
+  questionEn String
+  questionEs String
+  answerEn   String
+  answerEs   String
+  sortOrder  Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model NotificationDelivery {
+  id        String   @id @default(cuid())
+  channel   String
+  recipient String
+  subject   String?
+  body      String
+  status    String   @default("pending")
+  error     String?
+  meta      String?
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+}
+
 model SystemConfig {
   id                Int      @id @default(1)
   platformBranding  String   @default("Rezervame")
   defaultCommission Float    @default(15)
+  platformBalance   Float    @default(0)
   slotHoldTime      Int      @default(5)
   approvalMode      String   @default("Manual Verification")
   twoFactorMandatory Boolean @default(true)
@@ -372,6 +470,50 @@ model SystemConfig {
   stripeApiKey         String?
   stripeWebhookSecret  String?
   googleMapsApiKey     String?
+  yappyEnabled         Boolean  @default(true)
+  yappyMerchantId      String?
+  emailEnabled         Boolean  @default(false)
+  smsEnabled           Boolean  @default(false)
+  smtpHost             String?
+  smtpPort             Int      @default(587)
+  smtpSecure           Boolean  @default(false)
+  smtpUser             String?
+  smtpPass             String?
+  emailFrom            String?
+  adminNotifyEmail     String?
+  twilioAccountSid     String?
+  twilioAuthToken      String?
+  twilioFromNumber     String?
+  notifyNewTicketEmail Boolean  @default(true)
+  notifyNewTicketSms   Boolean  @default(false)
+  socialFacebookUrl    String?
+  socialInstagramUrl   String?
+  socialLinkedinUrl    String?
+  appStoreUrl          String?
+  playStoreUrl         String?
+  showFooterDownloadApp Boolean @default(true)
+  footerAboutUrl       String?
+  showFooterAbout      Boolean  @default(true)
+  footerJobsUrl        String?
+  showFooterJobs       Boolean  @default(true)
+  footerPrivacyUrl     String?
+  showFooterPrivacy    Boolean  @default(true)
+  footerTermsUrl       String?
+  showFooterTerms      Boolean  @default(true)
+  footerHowUrl         String?
+  showFooterHow        Boolean  @default(true)
+  footerSupportUrl     String?
+  showFooterSupport    Boolean  @default(true)
+  footerEventsUrl      String?
+  showFooterEvents     Boolean  @default(true)
+  footerJoinUrl        String?
+  showFooterJoin       Boolean  @default(true)
+  footerBizLoginUrl    String?
+  showFooterBizLogin   Boolean  @default(true)
+  footerPricingUrl     String?
+  showFooterPricing    Boolean  @default(true)
+  footerBizSupportUrl  String?
+  showFooterBizSupport Boolean  @default(true)
   updatedAt            DateTime @updatedAt
   updatedBy            String   @default("System Admin")
 }

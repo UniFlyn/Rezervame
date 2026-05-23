@@ -12,11 +12,13 @@ import {
   X,
   Save,
   Loader2,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Link2,
 } from "lucide-react";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { formatDate, cn } from "@/lib/utils";
+import { TableLoader } from "@/components/admin/TableLoader";
 
 interface Event {
   id: string;
@@ -26,6 +28,7 @@ interface Event {
   location: string;
   price: number;
   imageKey: string | null;
+  websiteUrl?: string | null;
   active: boolean;
   createdAt: string;
 }
@@ -163,14 +166,7 @@ export default function EventsAdminPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                      <p className="text-sm text-slate-500 font-medium tracking-tight">Loading events...</p>
-                    </div>
-                  </td>
-                </tr>
+                <TableLoader label="Loading events…" />
               ) : filteredEvents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
@@ -196,6 +192,17 @@ export default function EventsAdminPage() {
                         <div className="min-w-0">
                           <p className="font-bold text-slate-900 text-sm truncate">{event.title}</p>
                           <p className="text-xs text-slate-500 line-clamp-1">{event.body}</p>
+                          {event.websiteUrl ? (
+                            <a
+                              href={event.websiteUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Link2 size={10} /> Website
+                            </a>
+                          ) : null}
                         </div>
                       </div>
                     </td>
@@ -329,6 +336,27 @@ export default function EventsAdminPage() {
                       placeholder="0.00"
                     />
                   </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">
+                    Website link
+                  </label>
+                  <div className="relative">
+                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                      type="url"
+                      value={editingEvent.websiteUrl ?? ""}
+                      onChange={(e) =>
+                        setEditingEvent({ ...editingEvent, websiteUrl: e.target.value })
+                      }
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-900"
+                      placeholder="https://your-event-page.com"
+                    />
+                  </div>
+                  <p className="mt-2 ml-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    Optional — registration page or event site shown to customers
+                  </p>
                 </div>
 
                 <div className="md:col-span-2">

@@ -12,6 +12,7 @@ import { toastError, toastSuccess } from "@/lib/toast";
 import { formatCurrency, formatDate, formatMerchantNumericId, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
 import TablePagination from "@/components/admin/TablePagination";
+import { OverlayLoader } from "@/components/admin/OverlayLoader";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -30,40 +31,57 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 export default function WithdrawalsPage() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [wallet, setWallet] = useState<{ platformBalance: number; totalCommissionRecorded: number; defaultCommission: number } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [totalPendingAmount, setTotalPendingAmount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [batchProcessing, setBatchProcessing] = useState(false);
   const pageSize = 10;
 
-  useEffect(() => {
-    const fetchWithdrawals = async () => {
-      setIsLoading(true);
-      try {
-        const query = new URLSearchParams({
-          page: String(page),
-          limit: String(pageSize),
-          search: searchTerm,
-          status: statusFilter,
-        });
-        const response = await apiGet<{ data: any[]; total: number; totalPages: number; totalPendingAmount: number }>(`/admin/withdrawals?${query.toString()}`);
-        setWithdrawals(response.data);
-        setTotalItems(response.total);
-        setTotalPages(response.totalPages);
-        setTotalPendingAmount(response.totalPendingAmount || 0);
-      } catch (err) {
-        console.error("Failed to fetch withdrawals", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const reloadWithdrawals = async () => {
+    setIsLoading(true);
+    try {
+      const query = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+        search: searchTerm,
+        status: statusFilter,
+      });
+      const response = await apiGet<{
+        data: any[];
+        total: number;
+        totalPages: number;
+        totalPendingAmount: number;
+        pendingCount: number;
+      }>(`/admin/withdrawals?${query.toString()}`);
+      setWithdrawals(response.data);
+      setTotalItems(response.total);
+      setTotalPages(response.totalPages);
+      setTotalPendingAmount(response.totalPendingAmount || 0);
+      setPendingCount(response.pendingCount || 0);
+    } catch (err) {
+      console.error("Failed to fetch withdrawals", err);
+      toastError("Could not load withdrawals", "Refresh the page and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    void apiGet<{ platformBalance: number; totalCommissionRecorded: number; defaultCommission: number }>("/admin/wallet")
+      .then(setWallet)
+      .catch(() => setWallet(null));
+  }, []);
+
+  useEffect(() => {
     const debounceTimer = setTimeout(() => {
-      fetchWithdrawals();
+      void reloadWithdrawals();
     }, 300);
 
     return () => clearTimeout(debounceTimer);
@@ -107,6 +125,38 @@ export default function WithdrawalsPage() {
     }
   }
 
+  async function batchApproveWithdrawals() {
+    if (pendingCount === 0) {
+      toastError("Nothing to approve", "There are no pending withdrawal requests.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Approve all ${pendingCount} pending withdrawal${pendingCount === 1 ? "" : "s"} (${formatCurrency(totalPendingAmount)})?`,
+      )
+    ) {
+      return;
+    }
+    setBatchProcessing(true);
+    try {
+      const result = await apiPost<{ approved: number; totalAmount: number }>(
+        "/admin/withdrawals/batch-approve",
+        {},
+      );
+      setShowBatchModal(false);
+      await reloadWithdrawals();
+      toastSuccess(
+        "Batch approved",
+        `${result.approved} withdrawal${result.approved === 1 ? "" : "s"} (${formatCurrency(result.totalAmount)}) marked as approved.`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Batch approval failed";
+      toastError("Batch process failed", msg);
+    } finally {
+      setBatchProcessing(false);
+    }
+  }
+
   async function rejectWithdrawal(id: string) {
     if (!window.confirm("Reject this payout request? Funds will be returned to business balance.")) return;
     try {
@@ -133,14 +183,38 @@ export default function WithdrawalsPage() {
         <p className="text-slate-500 text-sm mt-1">Review and process payout requests from registered businesses.</p>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-6 rounded-3xl border border-slate-200 shadow-sm shadow-slate-200/50">
-        <div className="flex items-center gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="p-3 bg-emerald-50 rounded-2xl">
+            <ArrowDownCircle className="w-8 h-8 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Platform wallet (commission)</p>
+            <h3 className="text-2xl font-black text-slate-900">{formatCurrency(wallet?.platformBalance ?? 0)}</h3>
+            <p className="text-[11px] font-bold text-slate-400 mt-1">
+              {wallet?.defaultCommission ?? 15}% per payment · Recorded: {formatCurrency(wallet?.totalCommissionRecorded ?? 0)}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
           <div className="p-3 bg-blue-50 rounded-2xl">
             <ArrowDownCircle className="w-8 h-8 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Pending</p>
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Merchant withdrawals pending</p>
             <h3 className="text-2xl font-black text-slate-900">{formatCurrency(totalPendingAmount)}</h3>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-6 rounded-3xl border border-slate-200 shadow-sm shadow-slate-200/50">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-slate-100 rounded-2xl">
+            <ArrowDownCircle className="w-8 h-8 text-slate-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Payout queue</p>
+            <h3 className="text-lg font-black text-slate-900">Review merchant withdrawal requests below</h3>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -191,11 +265,7 @@ export default function WithdrawalsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 relative">
-              {isLoading && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-                </div>
-              )}
+              {isLoading ? <OverlayLoader /> : null}
               {withdrawals.map((wd, index) => (
                 <tr key={wd.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-5 text-sm font-semibold text-slate-700">{(page - 1) * pageSize + index + 1}</td>
@@ -280,23 +350,37 @@ export default function WithdrawalsPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-3 p-6 text-sm text-slate-700">
-              <p>Pending withdrawals in queue: {withdrawals.filter((wd) => wd.status === "pending").length}</p>
-              <p>This preview confirms the batch process workflow is now active in UI.</p>
+            <div className="space-y-4 p-6 text-sm text-slate-700">
+              <p>
+                Approve every <strong>pending</strong> merchant payout in the queue (all pages), not only the rows
+                visible on this screen.
+              </p>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Queue summary</p>
+                <p className="mt-2 text-lg font-black text-slate-900">
+                  {pendingCount} request{pendingCount === 1 ? "" : "s"} · {formatCurrency(totalPendingAmount)}
+                </p>
+              </div>
+              {pendingCount === 0 ? (
+                <p className="text-amber-700 font-semibold">No pending withdrawals to process right now.</p>
+              ) : null}
             </div>
             <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
               <button
                 type="button"
+                disabled={batchProcessing}
                 onClick={() => setShowBatchModal(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => setShowBatchModal(false)}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                disabled={batchProcessing || pendingCount === 0}
+                onClick={() => void batchApproveWithdrawals()}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               >
+                {batchProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Confirm Batch
               </button>
             </div>

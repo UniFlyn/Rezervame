@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/api_repository.dart';
 import '../data/auth_session.dart';
 import '../utils/app_colors.dart';
 import 'onboarding_screen.dart';
@@ -21,11 +22,30 @@ class _SplashScreenState extends State<SplashScreen> {
   void _navigateToNext() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    
+
+    try {
+      await ApiRepository().bootstrapMobileData();
+    } catch (e, st) {
+      debugPrint('bootstrapMobileData failed (is the backend running?): $e');
+      debugPrint('$st');
+    }
+
     final token = await AuthSession.getToken();
     if (!mounted) return;
 
-    if (token != null && token.isNotEmpty) {
+    var hasValidSession = token != null && token.isNotEmpty;
+    if (hasValidSession) {
+      final profile = await ApiRepository().fetchUserSession();
+      if (!mounted) return;
+      if (profile == null) {
+        await AuthSession.setToken(null);
+        hasValidSession = false;
+      }
+    }
+
+    if (!mounted) return;
+
+    if (hasValidSession) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute<void>(builder: (context) => const MainScreen()),

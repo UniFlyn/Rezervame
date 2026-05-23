@@ -19,7 +19,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _dobController = TextEditingController();
   String _selectedGender = 'Female';
 
   /// Web/register stores `male` | `female` | `other`; dropdown uses title case.
@@ -172,7 +171,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _dobController.dispose();
     super.dispose();
   }
 
@@ -206,8 +204,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _buildField('Email', _emailController, Icons.email_outlined),
                   const SizedBox(height: 20),
                   _buildField('Phone Number', _phoneController, Icons.phone_outlined),
-                  const SizedBox(height: 20),
-                  _buildField('Date of Birth', _dobController, Icons.calendar_today_outlined),
                   const SizedBox(height: 20),
                   _buildDropdownField('Gender', _genderOptions),
                   const SizedBox(height: 48),

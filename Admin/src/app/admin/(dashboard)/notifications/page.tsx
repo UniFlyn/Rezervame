@@ -1,30 +1,47 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { 
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
   Bell,
   Send,
   CheckCircle2,
   Clock,
-  AlertTriangle,
+  MessageSquare,
   X,
-  Trash2
+  Loader2,
+  Eye,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
-import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { toastError, toastSuccess } from "@/lib/toast";
 import TablePagination from "@/components/admin/TablePagination";
+import { OverlayLoader } from "@/components/admin/OverlayLoader";
+import { BrowserPushSettings } from "@/components/admin/BrowserPushSettings";
 
-type NotificationStatus = "open" | "resolved" | "in_review";
-type NotificationCategory = "security" | "finance" | "merchant" | "system";
-
-type AlertItem = {
+type SupportTicket = {
   id: string;
-  category: NotificationCategory;
-  status: NotificationStatus;
-  title: string;
-  description: string;
-  time: string;
+  ticketRef: string;
+  subject: string;
+  category: string;
+  status: string;
+  priority: string;
+  businessName: string | null;
+  requesterName: string;
+  requesterEmail: string | null;
+  screenshotUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessage: string | null;
+  messages?: Array<{
+    id: string;
+    body: string;
+    senderRole: string;
+    senderName: string | null;
+    attachmentUrl: string | null;
+    createdAt: string;
+  }>;
 };
 
 type BroadcastRow = {
@@ -37,119 +54,326 @@ type BroadcastRow = {
   summary: string;
 };
 
+type PlatformAlert = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+};
+
+const statusStyles: Record<string, string> = {
+  open: "bg-amber-100 text-amber-700",
+  in_progress: "bg-blue-100 text-blue-700",
+  resolved: "bg-emerald-100 text-emerald-700",
+  closed: "bg-slate-100 text-slate-600",
+};
+
 export default function NotificationsPage() {
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [openCount, setOpenCount] = useState(0);
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
-  const [systemAlerts, setSystemAlerts] = useState<AlertItem[]>([]);
-  const [activeTab, setActiveTab] = useState("feed");
+  const [activeTab, setActiveTab] = useState<"alerts" | "support" | "broadcast">("alerts");
+  const [alerts, setAlerts] = useState<PlatformAlert[]>([]);
+  const [alertUnread, setAlertUnread] = useState(0);
+  const [alertsLoading, setAlertsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [detail, setDetail] = useState<SupportTicket | null>(null);
+  const [reply, setReply] = useState("");
+  const [replying, setReplying] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
   const [target, setTarget] = useState("all_users");
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [feedPage, setFeedPage] = useState(1);
-  const [broadcastPage, setBroadcastPage] = useState(1);
   const pageSize = 10;
 
+  const loadTickets = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const query = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+        status: statusFilter,
+        search: searchTerm,
+      });
+      const res = await apiGet<{
+        data: SupportTicket[];
+        total: number;
+        totalPages: number;
+        openCount: number;
+      }>(`/admin/support-tickets?${query.toString()}`);
+      setTickets(res.data);
+      setTotalItems(res.total);
+      setTotalPages(res.totalPages);
+      setOpenCount(res.openCount ?? 0);
+    } catch (err) {
+      toastError("Failed to load tickets", String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, searchTerm, statusFilter]);
+
   useEffect(() => {
-    void apiGet<AlertItem[]>("/admin/notifications").then((rows) => {
-      setSystemAlerts(
-        rows.map((r, idx) => ({
-          ...r,
-          id: String(r.id || `alert-${idx + 1}`),
-          category: (r.category as NotificationCategory) || "system",
-          status: (r.status as NotificationStatus) || "open",
-        })),
-      );
-    });
-    void apiGet<BroadcastRow[]>("/admin/broadcasts").then(setBroadcasts);
+    const t = setTimeout(() => void loadTickets(), 300);
+    return () => clearTimeout(t);
+  }, [loadTickets]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const loadAlerts = useCallback(async () => {
+    setAlertsLoading(true);
+    try {
+      const res = await apiGet<{
+        data: PlatformAlert[];
+        unread: number;
+      }>("/admin/alert-feed?limit=50");
+      setAlerts(res.data);
+      setAlertUnread(res.unread ?? 0);
+    } catch (err) {
+      toastError("Failed to load alerts", String(err));
+    } finally {
+      setAlertsLoading(false);
+    }
   }, []);
 
-  const handleSend = async () => {
-    setIsSending(true);
-    await apiPost("/admin/broadcast", { target, message });
-    const history = await apiGet<BroadcastRow[]>("/admin/broadcasts");
-    setBroadcasts(history);
-    const rows = await apiGet<AlertItem[]>("/admin/notifications");
-    setSystemAlerts(
-      rows.map((r, idx) => ({
-        ...r,
-        id: String(r.id || `alert-${idx + 1}`),
-        category: (r.category as NotificationCategory) || "system",
-        status: (r.status as NotificationStatus) || "open",
-      })),
-    );
-    setIsSending(false);
-    setMessage("");
-    setShowCompose(false);
-  };
-
-  const filteredAlerts = useMemo(() => systemAlerts.filter((alert) => {
-    const normalized = searchTerm.toLowerCase();
-    const matchesSearch =
-      alert.title.toLowerCase().includes(normalized) ||
-      alert.description.toLowerCase().includes(normalized);
-    const matchesCategory = categoryFilter === "all" || alert.category === categoryFilter;
-    const matchesStatus = statusFilter === "all" || alert.status === statusFilter;
-    return matchesSearch && matchesCategory && matchesStatus;
-  }), [systemAlerts, searchTerm, categoryFilter, statusFilter]);
-  const totalFeedPages = Math.max(1, Math.ceil(filteredAlerts.length / pageSize));
-  const pagedAlerts = filteredAlerts.slice((feedPage - 1) * pageSize, feedPage * pageSize);
-  const totalBroadcastPages = Math.max(1, Math.ceil(broadcasts.length / pageSize));
-  const pagedBroadcasts = broadcasts.slice((broadcastPage - 1) * pageSize, broadcastPage * pageSize);
   useEffect(() => {
-    setFeedPage(1);
-  }, [searchTerm, categoryFilter, statusFilter]);
+    void loadAlerts();
+    void apiGet<BroadcastRow[]>("/admin/broadcasts").then(setBroadcasts).catch(() => setBroadcasts([]));
+  }, [loadAlerts]);
 
-  async function deleteNotification(id: string | number) {
-    if (!window.confirm("Delete this notification permanently?")) return;
-    await apiDelete(`/admin/notifications/${String(id)}`);
-    setSystemAlerts((prev) => prev.filter((n) => String(n.id) !== String(id)));
-    setBroadcasts((prev) => prev.filter((n) => String(n.id) !== String(id)));
+  useEffect(() => {
+    if (activeTab === "alerts") void loadAlerts();
+  }, [activeTab, loadAlerts]);
+
+  async function markAlertRead(id: string) {
+    try {
+      await apiPatch(`/admin/alert-feed/${id}/read`, {});
+      await loadAlerts();
+    } catch {
+      toastError("Could not mark alert as read");
+    }
   }
 
-  const headerKpis = [
-    { label: "Total Alerts", value: systemAlerts.length.toString(), icon: Bell },
-    { label: "Open", value: systemAlerts.filter((item) => item.status === "open").length.toString(), icon: AlertTriangle },
-    { label: "Resolved", value: systemAlerts.filter((item) => item.status === "resolved").length.toString(), icon: CheckCircle2 },
-    { label: "Avg. Response", value: "14m", icon: Clock },
-  ];
+  async function markAllAlertsRead() {
+    try {
+      await apiPatch("/admin/alert-feed/read-all", {});
+      await loadAlerts();
+      toastSuccess("All alerts marked read");
+    } catch {
+      toastError("Could not mark alerts read");
+    }
+  }
+
+  async function openTicket(id: string) {
+    try {
+      const row = await apiGet<SupportTicket>(`/admin/support-tickets/${id}`);
+      setDetail(row);
+      setReply("");
+    } catch (err) {
+      toastError("Could not load ticket", String(err));
+    }
+  }
+
+  async function updateStatus(id: string, status: string) {
+    try {
+      await apiPatch(`/admin/support-tickets/${id}/status`, { status });
+      toastSuccess("Status updated");
+      await loadTickets();
+      if (detail?.id === id) void openTicket(id);
+    } catch (err) {
+      toastError("Update failed", String(err));
+    }
+  }
+
+  async function sendReply() {
+    if (!detail || !reply.trim()) return;
+    setReplying(true);
+    try {
+      await apiPost(`/admin/support-tickets/${detail.id}/reply`, { message: reply.trim() });
+      toastSuccess("Reply sent", "Merchant will be notified by email/SMS when configured.");
+      setReply("");
+      try {
+        await openTicket(detail.id);
+        await loadTickets();
+      } catch {
+        toastSuccess("Reply saved", "Refresh the ticket list if it does not update.");
+      }
+    } catch (err) {
+      toastError("Reply failed", String(err));
+    } finally {
+      setReplying(false);
+    }
+  }
+
+  async function batchResolve() {
+    if (!window.confirm(`Mark all ${openCount} open tickets as resolved?`)) return;
+    try {
+      const res = await apiPost<{ resolved: number }>("/admin/support-tickets/batch-resolve", {});
+      toastSuccess("Batch complete", `${res.resolved} ticket(s) resolved.`);
+      await loadTickets();
+    } catch (err) {
+      toastError("Batch failed", String(err));
+    }
+  }
+
+  async function handleBroadcast() {
+    if (!message.trim()) return;
+    setIsSending(true);
+    try {
+      const res = await apiPost<{
+        status: string;
+        push?: { sent: number; failed: number; recipients: number };
+      }>("/admin/broadcast", { target, message: message.trim() });
+      const history = await apiGet<BroadcastRow[]>("/admin/broadcasts");
+      setBroadcasts(history);
+      setMessage("");
+      setShowCompose(false);
+      const push = res.push;
+      const pushNote =
+        push && push.recipients > 0
+          ? `Browser push: ${push.sent} delivered to ${push.recipients} opted-in account(s).`
+          : push
+            ? "In-app broadcast saved. No browsers opted in for push yet."
+            : undefined;
+      toastSuccess("Broadcast sent", pushNote);
+    } catch (err) {
+      toastError("Broadcast failed", String(err));
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  const kpis = useMemo(
+    () => [
+      { label: "Open tickets", value: String(openCount), icon: AlertTriangleIcon },
+      { label: "On this page", value: String(tickets.length), icon: MessageSquare },
+      { label: "Resolved", value: String(tickets.filter((t) => t.status === "resolved").length), icon: CheckCircle2 },
+      { label: "Total listed", value: String(totalItems), icon: Bell },
+    ],
+    [openCount, tickets, totalItems],
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Notification Center</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage system-wide alerts and outgoing broadcast communications.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Notifications</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Platform alerts (registrations, bookings), support tickets, and broadcasts to businesses or customers.
+          </p>
         </div>
-
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-          <button 
-            onClick={() => setActiveTab("feed")}
+        <div className="flex rounded-2xl border border-slate-200 bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("alerts")}
             className={cn(
-              "px-6 py-2 rounded-xl text-xs font-semibold uppercase tracking-wide transition-all flex items-center gap-2",
-              activeTab === "feed" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+              "flex items-center gap-2 rounded-xl px-5 py-2 text-xs font-semibold uppercase tracking-wide transition",
+              activeTab === "alerts" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400",
             )}
           >
-            <Bell className="w-3 h-3" /> System Feed
+            <Bell className="h-3 w-3" /> Alerts
+            {alertUnread > 0 ? (
+              <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-black text-white">
+                {alertUnread}
+              </span>
+            ) : null}
           </button>
-          <button 
+          <button
+            type="button"
+            onClick={() => setActiveTab("support")}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-5 py-2 text-xs font-semibold uppercase tracking-wide transition",
+              activeTab === "support" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400",
+            )}
+          >
+            <MessageSquare className="h-3 w-3" /> Support tickets
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("broadcast")}
             className={cn(
-              "px-6 py-2 rounded-xl text-xs font-semibold uppercase tracking-wide transition-all flex items-center gap-2",
-              activeTab === "broadcast" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+              "flex items-center gap-2 rounded-xl px-5 py-2 text-xs font-semibold uppercase tracking-wide transition",
+              activeTab === "broadcast" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400",
             )}
           >
-            <Send className="w-3 h-3" /> Broadcast Tool
+            <Send className="h-3 w-3" /> Broadcasts
           </button>
         </div>
       </div>
 
-      {activeTab === "feed" ? (
+      {activeTab === "alerts" ? (
+        <div className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={alertUnread === 0}
+              onClick={() => void markAllAlertsRead()}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Mark all read
+            </button>
+            <button
+              type="button"
+              onClick={() => void loadAlerts()}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
+            >
+              Refresh
+            </button>
+          </div>
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {alertsLoading ? <OverlayLoader /> : null}
+            {alerts.length === 0 && !alertsLoading ? (
+              <p className="px-6 py-12 text-center text-sm text-slate-500">No platform alerts yet.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {alerts.map((a) => (
+                  <li
+                    key={a.id}
+                    className={cn(
+                      "flex gap-4 px-6 py-4 hover:bg-slate-50",
+                      !a.read && "bg-blue-50/40",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                          {a.type.replace(/_/g, " ")}
+                        </span>
+                        {!a.read ? (
+                          <span className="text-[9px] font-bold uppercase text-blue-600">New</span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm font-bold text-slate-900">{a.title}</p>
+                      <p className="mt-1 text-sm text-slate-600">{a.body}</p>
+                      <p className="mt-2 text-xs text-slate-400">{formatDate(a.createdAt)}</p>
+                    </div>
+                    {!a.read ? (
+                      <button
+                        type="button"
+                        onClick={() => void markAlertRead(a.id)}
+                        className="shrink-0 self-start rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-bold uppercase text-slate-600 hover:bg-white"
+                      >
+                        Mark read
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : activeTab === "support" ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            {headerKpis.map((item) => (
+            {kpis.map((item) => (
               <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.label}</p>
@@ -160,254 +384,246 @@ export default function NotificationsPage() {
             ))}
           </div>
 
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={openCount === 0}
+              onClick={() => void batchResolve()}
+              className="rounded-2xl bg-slate-900 px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Resolve all open
+            </button>
+          </div>
+
           <FilterToolbar
-            searchPlaceholder="Search alerts by title or description..."
+            searchPlaceholder="Search ticket ref, subject, business, email..."
             searchValue={searchTerm}
             onSearchChange={setSearchTerm}
             filterGroups={[
               {
-                key: "notification-category",
-                label: "Category",
-                value: categoryFilter,
-                onChange: setCategoryFilter,
-                options: [
-                  { label: "All", value: "all" },
-                  { label: "Security", value: "security" },
-                  { label: "Finance", value: "finance" },
-                  { label: "Merchant", value: "merchant" },
-                  { label: "System", value: "system" },
-                ],
-              },
-              {
-                key: "notification-status",
+                key: "ticket-status",
                 label: "Status",
                 value: statusFilter,
                 onChange: setStatusFilter,
                 options: [
                   { label: "All", value: "all" },
                   { label: "Open", value: "open" },
-                  { label: "In Review", value: "in_review" },
+                  { label: "In progress", value: "in_progress" },
                   { label: "Resolved", value: "resolved" },
+                  { label: "Closed", value: "closed" },
                 ],
               },
             ]}
           />
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {isLoading ? <OverlayLoader /> : null}
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Category</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Title</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Time</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500 text-right">Actions</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-500">Ticket</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-500">From</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-500">Category</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-500">Status</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-500">Updated</th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase text-slate-500">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pagedAlerts.map((alert) => (
-                    <tr key={alert.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 text-sm capitalize text-slate-700">{alert.category}</td>
+                  {tickets.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4">
-                        <p className="text-sm font-semibold text-slate-900">{alert.title}</p>
-                        <p className="text-xs text-slate-500">{alert.description}</p>
+                        <p className="font-mono text-xs font-bold text-slate-700">{t.ticketRef}</p>
+                        <p className="text-sm font-semibold text-slate-900">{t.subject}</p>
+                        {t.lastMessage ? <p className="mt-1 line-clamp-1 text-xs text-slate-500">{t.lastMessage}</p> : null}
                       </td>
+                      <td className="px-6 py-4 text-sm">
+                        <p className="font-semibold text-slate-800">{t.requesterName}</p>
+                        <p className="text-xs text-slate-500">{t.businessName || t.requesterEmail || "—"}</p>
+                      </td>
+                      <td className="px-6 py-4 text-sm capitalize text-slate-600">{t.category}</td>
                       <td className="px-6 py-4">
-                        <span className={cn(
-                          "rounded-full px-2.5 py-1 text-xs font-semibold capitalize",
-                          alert.status === "resolved"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : alert.status === "open"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-blue-100 text-blue-700",
-                        )}>
-                          {alert.status.replace("_", " ")}
+                        <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold capitalize", statusStyles[t.status] ?? statusStyles.open)}>
+                          {t.status.replace("_", " ")}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{alert.time}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{formatDate(t.updatedAt)}</td>
                       <td className="px-6 py-4 text-right">
-                        <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-                          View
-                        </button>
-                        <button className="ml-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-                          Resolve
-                        </button>
                         <button
                           type="button"
-                          onClick={() => void deleteNotification(alert.id)}
-                          className="ml-2 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                          onClick={() => void openTicket(t.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                         >
-                          Delete
+                          <Eye className="h-3.5 w-3.5" /> View
                         </button>
                       </td>
                     </tr>
                   ))}
-                  {filteredAlerts.length === 0 ? (
+                  {tickets.length === 0 && !isLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-500">
-                        No notifications found for current filters.
+                      <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
+                        No support tickets yet. They appear when merchants or customers submit requests.
                       </td>
                     </tr>
                   ) : null}
                 </tbody>
               </table>
             </div>
-            <TablePagination
-              page={feedPage}
-              totalPages={totalFeedPages}
-              totalItems={filteredAlerts.length}
-              pageSize={pageSize}
-              onPageChange={setFeedPage}
-            />
+            <TablePagination page={page} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={setPage} />
           </div>
         </div>
       ) : (
         <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="mb-3 text-sm text-slate-600">
+              Enable browser push on this machine to receive platform alerts. Customer and business broadcasts are sent to every opted-in browser for that role.
+            </p>
+            <BrowserPushSettings compact />
+          </div>
           <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-slate-900">Broadcast Transmission History</h3>
+            <p className="text-sm text-slate-600">In-app broadcasts for users/businesses (separate from support tickets).</p>
             <button
               type="button"
               onClick={() => setShowCompose(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold uppercase text-white hover:bg-blue-700"
             >
-              <Send className="h-4 w-4" />
-              Compose Broadcast
+              <Send className="h-4 w-4" /> Compose
             </button>
           </div>
-
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Broadcast ID</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Audience</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Summary</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Reach</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Read Rate</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500">Sent</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500 text-right">Action</th>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b bg-slate-50 text-xs uppercase text-slate-500">
+                  <th className="px-6 py-4">Audience</th>
+                  <th className="px-6 py-4">Summary</th>
+                  <th className="px-6 py-4">Sent</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {broadcasts.map((b) => (
+                  <tr key={b.id}>
+                    <td className="px-6 py-4 text-sm">{b.audience}</td>
+                    <td className="px-6 py-4 text-sm">{b.summary}</td>
+                    <td className="px-6 py-4 text-sm">{formatDate(b.sentAt)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {broadcasts.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-6 py-8 text-center text-sm text-slate-500">
-                        No broadcasts yet. Compose one to reach users or businesses.
-                      </td>
-                    </tr>
-                  ) : (
-                    pagedBroadcasts.map((history) => (
-                      <tr key={history.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 text-sm font-mono text-slate-700">{history.id}</td>
-                        <td className="px-6 py-4 text-sm text-slate-700">{history.audience}</td>
-                        <td className="px-6 py-4 text-sm text-slate-700">{history.summary}</td>
-                        <td className="px-6 py-4 text-sm text-slate-700">{history.reach}</td>
-                        <td className="px-6 py-4 text-sm text-slate-700">{history.readRate}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                            {history.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-700">
-                          {new Date(history.sentAt).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => void deleteNotification(history.id)}
-                            className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <TablePagination
-              page={broadcastPage}
-              totalPages={totalBroadcastPages}
-              totalItems={broadcasts.length}
-              pageSize={pageSize}
-              onPageChange={setBroadcastPage}
-            />
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {showCompose ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">Compose Broadcast</h2>
-              <button
-                type="button"
-                onClick={() => setShowCompose(false)}
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
-              >
+      {detail ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <p className="font-mono text-xs font-bold text-slate-500">{detail.ticketRef}</p>
+                <h2 className="text-lg font-semibold text-slate-900">{detail.subject}</h2>
+              </div>
+              <button type="button" onClick={() => setDetail(null)} className="rounded-lg p-2 hover:bg-slate-100">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-4 p-6">
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Audience
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: "all_users", label: "All Users" },
-                    { id: "all_businesses", label: "All Businesses" },
-                    { id: "pro_users", label: "Pro Subscribers" },
-                    { id: "new_merchants", label: "New Merchants" },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setTarget(option.id)}
-                      className={cn(
-                        "rounded-lg border px-3 py-2 text-sm font-medium transition",
-                        target === option.id
-                          ? "border-blue-600 bg-blue-50 text-blue-700"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50",
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+            <div className="flex-1 space-y-4 overflow-y-auto p-6">
+              <div className="flex flex-wrap gap-2">
+                {(["open", "in_progress", "resolved", "closed"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => void updateStatus(detail.id, s)}
+                    className={cn(
+                      "rounded-lg px-3 py-1 text-xs font-semibold capitalize",
+                      detail.status === s ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600",
+                    )}
+                  >
+                    {s.replace("_", " ")}
+                  </button>
+                ))}
               </div>
-            </div>
-            <div className="space-y-2 px-6 pb-6">
-              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Message
-              </label>
+              {detail.screenshotUrl ? (
+                <img src={detail.screenshotUrl} alt="Attachment" className="max-h-48 rounded-xl border object-contain" />
+              ) : null}
+              <div className="space-y-3">
+                {(detail.messages ?? []).map((m) => (
+                  <div
+                    key={m.id}
+                    className={cn(
+                      "rounded-xl p-4 text-sm",
+                      m.senderRole === "ADMIN" ? "bg-blue-50 text-blue-900" : "bg-slate-50 text-slate-800",
+                    )}
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                      {m.senderName || m.senderRole} · {formatDate(m.createdAt)}
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap">{m.body}</p>
+                    {m.attachmentUrl ? (
+                      <img src={m.attachmentUrl} alt="" className="mt-3 max-h-40 rounded-lg border object-contain" />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
               <textarea
-                className="h-40 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
-                placeholder="Type your message..."
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
+                className="h-24 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-blue-300"
+                placeholder="Reply to merchant/customer..."
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
               />
             </div>
-            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+            <div className="flex justify-end gap-2 border-t px-6 py-4">
+              <button type="button" onClick={() => setDetail(null)} className="rounded-lg border px-4 py-2 text-sm font-semibold">
+                Close
+              </button>
               <button
                 type="button"
-                onClick={() => setShowCompose(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                disabled={replying || !reply.trim()}
+                onClick={() => void sendReply()}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
+                {replying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Send reply
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showCompose ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold">Compose broadcast</h3>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {[
+                { id: "all_users", label: "All users" },
+                { id: "all_businesses", label: "All businesses" },
+              ].map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setTarget(o.id)}
+                  className={cn("rounded-lg border py-2 text-sm font-medium", target === o.id ? "border-blue-600 bg-blue-50" : "")}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="mt-4 h-32 w-full rounded-xl border p-3 text-sm"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowCompose(false)} className="rounded-lg border px-4 py-2 text-sm">
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleSend}
-                disabled={!message || isSending}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSending}
+                onClick={() => void handleBroadcast()}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
               >
-                {isSending ? "Sending..." : "Send Broadcast"}
+                Send
               </button>
             </div>
           </div>
@@ -415,4 +631,8 @@ export default function NotificationsPage() {
       ) : null}
     </div>
   );
+}
+
+function AlertTriangleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return <Clock {...props} />;
 }

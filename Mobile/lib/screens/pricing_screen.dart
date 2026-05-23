@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import 'business_registration_flow.dart';
 
 class PricingScreen extends StatelessWidget {
   const PricingScreen({super.key});
@@ -139,7 +140,12 @@ class PricingScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 60,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push<void>(
+                      context,
+                      MaterialPageRoute<void>(builder: (context) => const BusinessRegistrationFlow()),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isFeatured ? AppColors.primary500 : AppColors.grey900,
                     foregroundColor: AppColors.white,

@@ -3,7 +3,6 @@ import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useI18n } from "../../components/I18nProvider";
 import { Search, Map as MapIcon, List, LayoutGrid, Star, Heart, Filter, ChevronDown, Check, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import {
   fetchPublicVenues,
   fetchPublicCategories,
@@ -19,6 +18,10 @@ import { apiGet, apiDelete, apiPost } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import en from "../../../../shared/locales/en.json";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
+import { AppLoader } from "@/components/ui/AppLoader";
+import { Pagination } from "@/components/ui/pagination";
+import { userFacingError } from "@/lib/userFacingError";
+import { goToVenue } from "@/lib/goToVenue";
 
 function SearchContent() {
   const { t, language } = useI18n();
@@ -29,11 +32,10 @@ function SearchContent() {
 
   useEffect(() => {
     if (isLoggedIn) {
-      apiGet<any[]>("/mobile/favorites", "USER")
+      apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>("/mobile/favorites?limit=100", "USER")
         .then((res) => {
-          if (Array.isArray(res)) {
-            setFavorites(res.map((f: any) => f.businessId));
-          }
+          const rows = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+          setFavorites(rows.map((f: { businessId?: string }) => f.businessId).filter(Boolean) as string[]);
         })
         .catch(() => {});
     } else {
@@ -118,7 +120,7 @@ function SearchContent() {
         })
         .catch((e: unknown) => {
           if (cancelled) return;
-          setVenuesError(e instanceof Error ? e.message : "Failed to load venues");
+          setVenuesError(userFacingError(e, "Unable to load venues right now."));
         })
         .finally(() => {
           if (!cancelled) setVenuesLoading(false);
@@ -144,7 +146,7 @@ function SearchContent() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage, sortBy, categoryKeyFromQuery, searchQuery, selectedCategories, selectedRatings]);
+  }, [currentPage, itemsPerPage, sortBy, categoryKeyFromQuery, searchQuery, selectedCategories, selectedRatings]);
 
   const [categories, setCategories] = useState<PublicCategory[]>([]);
 
@@ -174,10 +176,10 @@ function SearchContent() {
   useEffect(() => {
     setMeta({
       title: searchResultsTitle,
-      subtitle: `${filteredAndSortedResults.length} ${t("searchResultCount")}`,
+      subtitle: `${totalItems} ${t("searchResultCount")}`,
     });
     return () => clearMeta();
-  }, [searchResultsTitle, filteredAndSortedResults.length, t, setMeta, clearMeta]);
+  }, [searchResultsTitle, totalItems, t, setMeta, clearMeta]);
 
   const markerBounds = useMemo(() => {
     const list = filteredAndSortedResults;
@@ -203,12 +205,7 @@ function SearchContent() {
     return { minLat, maxLat, minLng, maxLng };
   }, [filteredAndSortedResults]);
 
-  // Pagination Logic
-  const localTotalPages = Math.ceil(filteredAndSortedResults.length / itemsPerPage);
-  const paginatedResults = filteredAndSortedResults.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedResults = filteredAndSortedResults;
 
   // Reset page when filters change
   useEffect(() => {
@@ -224,15 +221,7 @@ function SearchContent() {
   };
 
   if (venuesLoading) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4 px-6 py-20">
-        <div
-          className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#ff5a5f]"
-          aria-hidden
-        />
-        <p className="text-sm font-semibold text-slate-600">{t('loadingVenues')}</p>
-      </div>
-    );
+    return <AppLoader label={t("loadingVenues")} variant="page" />;
   }
 
   return (
@@ -330,7 +319,19 @@ function SearchContent() {
               {viewMode === "list" && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {paginatedResults.map((res) => (
-                        <Link href={`/venue/${res.businessId}`} key={res.businessId} className="group flex flex-row bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-lg transition-all duration-300 p-3 cursor-pointer min-h-[120px]">
+                        <div
+                          key={res.businessId}
+                          role="link"
+                          tabIndex={0}
+                          onClick={() => goToVenue(res.businessId)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              goToVenue(res.businessId);
+                            }
+                          }}
+                          className="group flex min-h-[120px] cursor-pointer flex-row overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 transition-all duration-300 hover:shadow-lg"
+                        >
                             <div className="relative w-36 sm:w-44 h-28 sm:h-32 overflow-hidden rounded-xl flex-shrink-0">
                                 <img 
                                   src={businessListingImageSrc(res)} 
@@ -371,8 +372,8 @@ function SearchContent() {
                                         <div className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-1.5 rounded-full border border-slate-100 tracking-tight max-w-full">
                                             {res.locationLabel} • {res.distanceLabel}
                                         </div>
-                                        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border tracking-tight ${res.nextAvailable?.includes('Today') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-[#ff5a5f]/5 text-[#ff5a5f] border-[#ff5a5f]/10'}`}>
-                                            <Clock className="w-3.5 h-3.5" /> Next: {res.nextAvailable || '—'}
+                                        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border tracking-tight max-w-full ${res.todaySlotTimings?.toLowerCase().includes('closed') ? 'bg-slate-50 text-slate-500 border-slate-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                                            <Clock className="w-3.5 h-3.5 shrink-0" /> {t('todaySlots')}: {res.todaySlotTimings || '—'}
                                         </div>
                                     </div>
                                 </div>
@@ -381,12 +382,19 @@ function SearchContent() {
                                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{t('priceFrom')}</span>
                                         <span className="font-extrabold text-lg text-slate-900">${res.price.toFixed(2)}</span>
                                     </div>
-                                    <span className="bg-[#ff5a5f] text-white px-5 py-2 rounded-lg font-bold text-xs">
-                                        {t('bookBtn')}
-                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        goToVenue(res.businessId);
+                                      }}
+                                      className="rounded-lg bg-[#ff5a5f] px-5 py-2 text-xs font-bold text-white transition hover:bg-[#e0454a]"
+                                    >
+                                        {t("bookBtn")}
+                                    </button>
                                 </div>
                             </div>
-                        </Link>
+                        </div>
                     ))}
                 </div>
               )}
@@ -401,7 +409,19 @@ function SearchContent() {
               {viewMode === "grid" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 animate-in fade-in zoom-in-95 duration-700">
                     {paginatedResults.map((res) => (
-                        <Link href={`/venue/${res.businessId}`} key={res.businessId} className="group bg-white rounded-[40px] border border-slate-100 overflow-hidden hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 flex flex-col cursor-pointer border-b-[6px] border-b-[#ff5a5f]/10 translate-y-0 hover:translate-y-[-8px]">
+                        <div
+                          key={res.businessId}
+                          role="link"
+                          tabIndex={0}
+                          onClick={() => goToVenue(res.businessId)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              goToVenue(res.businessId);
+                            }
+                          }}
+                          className="group flex translate-y-0 cursor-pointer flex-col overflow-hidden rounded-[40px] border border-b-[6px] border-b-[#ff5a5f]/10 border-slate-100 bg-white transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-slate-200/50"
+                        >
                             <div className="relative h-64 overflow-hidden">
                                 <img 
                                   src={businessListingImageSrc(res)} 
@@ -429,52 +449,32 @@ function SearchContent() {
                                 <p className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-widest mb-2">{res.category}</p>
                                 <h3 className="text-xl font-black text-slate-900 leading-tight mb-4 group-hover:text-[#ff5a5f] transition-colors line-clamp-2">{res.name}</h3>
                                 
-                                <div className={`mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl w-fit ${res.nextAvailable?.includes('Today') ? 'bg-green-50 text-green-600' : 'bg-[#ff5a5f]/5 text-[#ff5a5f]'}`}>
-                                    <Clock size={12} /> Next: {res.nextAvailable || '—'}
+                                <div className={`mb-4 flex items-center gap-2 text-[10px] font-semibold normal-case tracking-tight px-3 py-1.5 rounded-xl w-fit max-w-full ${res.todaySlotTimings?.toLowerCase().includes('closed') ? 'bg-slate-50 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
+                                    <Clock size={12} className="shrink-0" /> {t('todaySlots')}: {res.todaySlotTimings || '—'}
                                 </div>
                                 
                                 <div className="mt-auto flex justify-between items-center pt-6 border-t border-slate-50">
                                     <span className="font-black text-2xl text-slate-900">${res.price.toFixed(2)}</span>
-                                    <button className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-[#ff5a5f] transition-all duration-500 shadow-lg hover:rotate-90">
-                                        <ChevronRight className="w-6 h-6" strokeWidth={3} />
-                                    </button>
+                                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg transition-all duration-500 group-hover:rotate-90 group-hover:bg-[#ff5a5f]">
+                                        <ChevronRight className="h-6 w-6" strokeWidth={3} />
+                                    </span>
                                 </div>
                             </div>
-                        </Link>
+                        </div>
                     ))}
                 </div>
               )}
 
               {/* PAGINATION */}
-              {localTotalPages > 1 && (
-                <div className="mt-20 flex justify-center items-center gap-3">
-                    <button 
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${currentPage === 1 ? 'border-slate-50 text-slate-200 cursor-not-allowed' : 'border-slate-100 text-slate-600 hover:border-[#ff5a5f] hover:text-[#ff5a5f] hover:bg-white active:scale-95 shadow-sm'}`}
-                    >
-                        <ChevronLeft className="w-6 h-6" strokeWidth={3} />
-                    </button>
-                    
-                    <div className="flex bg-white border-2 border-slate-100 rounded-2xl p-1.5 shadow-sm">
-                        {Array.from({length: localTotalPages}).map((_, i) => (
-                            <button
-                                key={i + 1}
-                                onClick={() => setCurrentPage(i + 1)}
-                                className={`w-12 h-11 rounded-xl text-xs font-black transition-all duration-500 ${currentPage === i + 1 ? 'bg-slate-900 text-white shadow-xl scale-110' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
-                            >
-                                {i + 1}
-                            </button>
-                        ))}
-                    </div>
-
-                    <button 
-                        disabled={currentPage === localTotalPages}
-                        onClick={() => setCurrentPage(p => Math.min(localTotalPages, p + 1))}
-                        className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${currentPage === localTotalPages ? 'border-slate-50 text-slate-200 cursor-not-allowed' : 'border-slate-100 text-slate-600 hover:border-[#ff5a5f] hover:text-[#ff5a5f] hover:bg-white active:scale-95 shadow-sm'}`}
-                    >
-                        <ChevronRight className="w-6 h-6" strokeWidth={3} />
-                    </button>
+              {totalPages > 1 && (
+                <div className="mt-12 rounded-2xl border border-slate-100 overflow-hidden">
+                  <Pagination
+                    page={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    pageSize={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                  />
                 </div>
               )}
            </div>
@@ -555,7 +555,7 @@ function SearchContent() {
                             </div>
                             <button 
                                 type="button"
-                                onClick={() => router.push(`/venue/${activeVenue.businessId}`)}
+                                onClick={() => goToVenue(activeVenue.businessId)}
                                 className="w-full bg-[#ff5a5f] text-white text-[10px] font-bold py-2 rounded-lg mt-2 hover:bg-[#e0454a]"
                             >
                                 {t('viewDetails')}
@@ -587,12 +587,7 @@ function SearchContent() {
 export default function SearchPage() {
   return (
     <Suspense
-      fallback={
-        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 py-16">
-          <div className="h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-[#ff5a5f]" aria-hidden />
-          <p className="text-sm font-semibold text-slate-500">Loading search…</p>
-        </div>
-      }
+      fallback={<AppLoader label="Loading venues…" variant="section" />}
     >
       <SearchContent />
     </Suspense>

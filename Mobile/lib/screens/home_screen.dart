@@ -1,15 +1,23 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/api_repository.dart';
+import '../data/auth_session.dart';
 import '../data/home_feed_content.dart';
 import '../data/venue_catalog.dart';
 import '../models/venue_listing.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../data/user_location.dart';
+import '../utils/avatar_image_util.dart';
 import '../widgets/chained_network_image.dart';
+import '../widgets/event_cover_image.dart';
+import 'location_map_picker_screen.dart';
 import 'events_screen.dart';
 import 'notifications_screen.dart';
+import 'profile_screen.dart';
+import 'login_screen.dart';
 import 'search_results_screen.dart';
 import 'service_detail_screen.dart';
 
@@ -25,9 +33,13 @@ class _HomeScreenState extends State<HomeScreen> {
   static const double _bannerHeight = 184;
 
   late final PageController _bannerPageController;
-  late final Future<Map<String, dynamic>?> _userSessionFuture;
   final ApiRepository _api = ApiRepository();
   int _bannerPageIndex = 0;
+  Map<String, dynamic>? _userSession;
+  String _locationLabel = '';
+  bool _feedLoading = true;
+  String? _feedError;
+  final Set<String> _favoriteBusinessIds = {};
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).take(2).toList();
@@ -39,7 +51,90 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _bannerPageController = PageController();
-    _userSessionFuture = _api.fetchUserSession();
+    _reloadUserSession();
+    _loadLocationLabel();
+    _loadFavorites();
+    _bootstrapFeed();
+  }
+
+  Future<void> _loadFavorites() async {
+    final token = await AuthSession.getToken();
+    if (token == null || token.isEmpty) return;
+    final res = await _api.fetchFavoriteVenueMaps(page: 1, limit: 200);
+    final maps = (res['data'] as List<Map<String, dynamic>>?) ?? [];
+    if (!mounted) return;
+    setState(() {
+      _favoriteBusinessIds
+        ..clear()
+        ..addAll(
+          maps.map((m) => '${m['businessId'] ?? m['id'] ?? ''}').where((id) => id.isNotEmpty),
+        );
+    });
+  }
+
+  Future<void> _toggleFavorite(String? businessId) async {
+    final bid = businessId?.trim() ?? '';
+    if (bid.isEmpty) return;
+    final token = await AuthSession.getToken();
+    if (token == null || token.isEmpty) {
+      if (!mounted) return;
+      Navigator.push<void>(context, MaterialPageRoute<void>(builder: (context) => const LoginScreen()));
+      return;
+    }
+    final isFav = _favoriteBusinessIds.contains(bid);
+    final ok = isFav ? await _api.removeFavorite(bid) : await _api.addFavorite(bid);
+    if (!ok || !mounted) return;
+    setState(() {
+      if (isFav) {
+        _favoriteBusinessIds.remove(bid);
+      } else {
+        _favoriteBusinessIds.add(bid);
+      }
+    });
+  }
+
+  Future<void> _bootstrapFeed() async {
+    setState(() {
+      _feedLoading = true;
+      _feedError = null;
+    });
+    try {
+      await _api.refreshCatalogAndHomeFeed();
+      await _loadFavorites();
+      if (VenueCatalog.all.isEmpty) {
+        _feedError =
+            'Could not load venues. Start the API: npm run dev:api (http://127.0.0.1:4000/api)';
+      }
+    } catch (e) {
+      _feedError = e.toString().replaceAll('Exception: ', '');
+    } finally {
+      if (mounted) {
+        setState(() => _feedLoading = false);
+      }
+    }
+  }
+
+  Future<void> _reloadUserSession() async {
+    final row = await _api.fetchUserSession();
+    if (mounted) setState(() => _userSession = row);
+  }
+
+  Future<void> _loadLocationLabel() async {
+    final label = await UserLocation.getDisplayLabel(fallback: 'homeLocationBrowse'.tr());
+    if (mounted) setState(() => _locationLabel = label);
+  }
+
+  Future<void> _openChangeLocation() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(builder: (context) => const LocationMapPickerScreen(selectOnly: true)),
+    );
+    if (changed == true) {
+      await _loadLocationLabel();
+      await _api.refreshCatalogAndHomeFeed();
+      await _loadFavorites();
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -109,8 +204,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: RefreshIndicator(
           color: AppColors.primary500,
           onRefresh: () async {
-            await ApiRepository().refreshCatalogAndHomeFeed();
-            setState(() {});
+            await _bootstrapFeed();
+            await _reloadUserSession();
+            await _loadLocationLabel();
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -119,25 +215,65 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
+              if (_feedError != null) ...[
+                const SizedBox(height: 12),
+                _buildFeedErrorBanner(),
+              ],
               const SizedBox(height: 22),
               _buildHeroBanner(),
               const SizedBox(height: 20),
               _buildSearchBar(),
               const SizedBox(height: 28),
-              _buildBrowseCategoriesSection(),
-              const SizedBox(height: 28),
-              _buildNearbySection(),
-              const SizedBox(height: 28),
-              _buildTopServicesGridSection(),
-              const SizedBox(height: 28),
-              _buildUpcomingEvents(),
-              const SizedBox(height: 28),
-              _buildBeauticiansSection(),
-              const SizedBox(height: 16),
+              if (_feedLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: CircularProgressIndicator(color: AppColors.primary500)),
+                )
+              else ...[
+                _buildBrowseCategoriesSection(),
+                const SizedBox(height: 28),
+                _buildNearbySection(),
+                const SizedBox(height: 28),
+                _buildTopServicesGridSection(),
+                const SizedBox(height: 28),
+                _buildUpcomingEvents(),
+                const SizedBox(height: 28),
+                _buildBeauticiansSection(),
+                const SizedBox(height: 16),
+              ],
             ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFeedErrorBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _feedError!,
+            style: AppTypography.body200.copyWith(color: AppColors.grey700, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: _bootstrapFeed,
+              child: Text('Retry', style: AppTypography.buttonMedium.copyWith(color: AppColors.primary500)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -504,10 +640,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
-                      child: const Icon(Icons.favorite_border, color: AppColors.primary500, size: 18),
+                    child: GestureDetector(
+                      onTap: () => _toggleFavorite(f.businessId),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
+                        child: Icon(
+                          f.businessId != null && _favoriteBusinessIds.contains(f.businessId)
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: AppColors.primary500,
+                          size: 18,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -561,7 +706,137 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  String _formatEventStart(String iso) {
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return iso;
+    final y = dt.year;
+    final mo = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    final h = dt.hour.toString().padLeft(2, '0');
+    final mi = dt.minute.toString().padLeft(2, '0');
+    return '$y-$mo-$d · $h:$mi';
+  }
+
+  Future<void> _openEvent(HomeUpcomingEventItem event) async {
+    final url = event.websiteUrl;
+    if (url != null && url.isNotEmpty) {
+      final uri = Uri.tryParse(url.startsWith('http') ? url : 'https://$url');
+      if (uri != null && await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    if (!mounted) return;
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (context) => const EventsScreen()),
+    );
+  }
+
+  Widget _buildUpcomingEventCard(HomeUpcomingEventItem event) {
+    final priceLabel = event.price <= 0 ? 'eventFree'.tr() : '\$${event.price.toStringAsFixed(2)}';
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openEvent(event),
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          width: 280,
+          height: 168,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.grey100),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                EventCoverImage(
+                  imageKey: event.imageKey,
+                  height: 168,
+                  width: 280,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        AppColors.black.withValues(alpha: 0.78),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      priceLabel,
+                      style: AppTypography.body100.copyWith(
+                        color: AppColors.grey900,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.heading200.copyWith(color: AppColors.white, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatEventStart(event.startAtIso),
+                        style: AppTypography.body100.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
+                      ),
+                      if (event.location.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          event.location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.body100.copyWith(color: Colors.white60, fontSize: 11),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildUpcomingEvents() {
+    if (kHomeUpcomingEvents.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -575,65 +850,15 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
         const SizedBox(height: 14),
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              Navigator.push<void>(
-                context,
-                MaterialPageRoute<void>(builder: (context) => const EventsScreen()),
-              );
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              height: 168,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.grey100),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.black.withValues(alpha: 0.05),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-                image: const DecorationImage(
-                  image: AssetImage('assets/home/hero_banner_right.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      AppColors.black.withValues(alpha: 0.78),
-                    ],
-                  ),
-                ),
-                padding: const EdgeInsets.all(20),
-                alignment: Alignment.bottomLeft,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'eventMasterclass'.tr(),
-                      style: AppTypography.heading200.copyWith(color: AppColors.white, fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'eventDate1'.tr(),
-                      style: AppTypography.body100.copyWith(color: Colors.white70, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        SizedBox(
+          height: 168,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            clipBehavior: Clip.none,
+            itemCount: kHomeUpcomingEvents.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) => _buildUpcomingEventCard(kHomeUpcomingEvents[index]),
           ),
         ),
       ],
@@ -660,13 +885,50 @@ class _HomeScreenState extends State<HomeScreen> {
               final b = kHomeBeauticians[index];
               return Column(
                 children: [
-                  CircleAvatar(
-                    radius: 34,
-                    backgroundColor: AppColors.primary50,
-                    child: Text(
-                      _initials(b.name),
-                      style: AppTypography.heading300.copyWith(color: AppColors.primary500, fontSize: 18),
-                    ),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      buildProfileAvatar(
+                        imageUrl: b.imageUrl,
+                        initials: _initials(b.name),
+                        radius: 34,
+                      ),
+                      if (b.rating > 0)
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.grey100),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.black.withValues(alpha: 0.06),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star_rounded, color: Color(0xFFFFC107), size: 10),
+                                const SizedBox(width: 2),
+                                Text(
+                                  b.rating.toStringAsFixed(1),
+                                  style: AppTypography.body100.copyWith(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.grey900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
@@ -689,81 +951,87 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader() {
-    final preview = VenueCatalog.nearbyPreview(1);
-    final locationLine =
-        preview.isNotEmpty ? preview.first.locationLabel : 'homeLocationBrowse'.tr();
+    final row = _userSession;
+    final name = '${row?['name'] ?? ''}'.trim();
+    final avatarUrl = '${row?['avatar'] ?? ''}'.trim();
+    final greeting =
+        name.isNotEmpty ? 'homeGreetingNamed'.tr(namedArgs: {'name': name}) : 'homeGreetingGuest'.tr();
 
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: _userSessionFuture,
-      builder: (context, snap) {
-        final row = snap.data;
-        final name = '${row?['name'] ?? ''}'.trim();
-        final avatarUrl = '${row?['avatar'] ?? ''}'.trim();
-        final greeting =
-            name.isNotEmpty ? 'homeGreetingNamed'.tr(namedArgs: {'name': name}) : 'homeGreetingGuest'.tr();
+    final avatar = buildProfileAvatar(
+      imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
+      initials: _initials(name.isNotEmpty ? name : '?'),
+      radius: 24,
+    );
 
-        final Widget avatar = avatarUrl.startsWith('http')
-            ? CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.grey100,
-                backgroundImage: NetworkImage(avatarUrl),
-              )
-            : CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.grey100,
-                child: Text(
-                  _initials(name.isNotEmpty ? name : '?'),
-                  style: AppTypography.heading300.copyWith(color: AppColors.grey700, fontSize: 14),
-                ),
+    return Row(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () async {
+              await Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(builder: (context) => const ProfileScreen()),
               );
-
-        return Row(
-          children: [
-            avatar,
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    greeting,
-                    style: AppTypography.body100.copyWith(color: AppColors.grey500, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on_rounded, color: AppColors.primary500, size: 18),
-                      const SizedBox(width: 2),
-                      Flexible(
-                        child: Text(
-                          locationLine,
-                          style: AppTypography.heading300.copyWith(color: AppColors.grey900),
-                          overflow: TextOverflow.ellipsis,
+              await _reloadUserSession();
+            },
+            customBorder: const CircleBorder(),
+            child: avatar,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                greeting,
+                style: AppTypography.body100.copyWith(color: AppColors.grey500, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _openChangeLocation,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_on_rounded, color: AppColors.primary500, size: 18),
+                        const SizedBox(width: 2),
+                        Flexible(
+                          child: Text(
+                            _locationLabel,
+                            style: AppTypography.heading300.copyWith(color: AppColors.grey900),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ],
+                        const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.grey400, size: 18),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-            Material(
-              color: AppColors.grey25,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute<void>(builder: (context) => const NotificationsScreen()),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Icon(Icons.notifications_none_rounded, color: AppColors.grey900, size: 22),
                 ),
               ),
+            ],
+          ),
+        ),
+        Material(
+          color: AppColors.grey25,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute<void>(builder: (context) => const NotificationsScreen()),
             ),
-          ],
-        );
-      },
+            child: const Padding(
+              padding: EdgeInsets.all(12),
+              child: Icon(Icons.notifications_none_rounded, color: AppColors.grey900, size: 22),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

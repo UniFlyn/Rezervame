@@ -5,11 +5,12 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Instagram, Twitter, Youtube, Sparkles, CheckCircle } from 'lucide-react';
+import { Instagram, Twitter, Youtube, Sparkles, CheckCircle, X, ImagePlus } from 'lucide-react';
 import { fetchPublicAmenities, type PublicAmenity } from '@/lib/venueSearch';
 import { amenityLucideIcon } from '@/lib/amenityIcons';
 import { toastError, toastSuccess, toastWarning } from '@/lib/toast';
 import { PLACEHOLDER_IMAGE_DATA_URI } from '@/lib/placeholderImage';
+import { compressImageFile } from '@/lib/compressImage';
 
 const BUSINESS_CATEGORIES = [
   'Beauty salon',
@@ -34,6 +35,8 @@ const optionalImageOrHttps = z
     const t = v.trim();
     return t === '' || /^https?:\/\/.+/i.test(t) || /^data:image\//i.test(t);
   }, { message: 'Use https:// URL or upload an image file' });
+
+const MAX_GALLERY_PHOTOS = 12;
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -72,15 +75,6 @@ function parseCategoriesFromBusiness(b: {
   return [c];
 }
 
-async function readFileAsDataUrl(file: File): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Unable to read image'));
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function ProfilePage() {
   const business = useBusinessStore((state) => state.business);
   const updateBusiness = useBusinessStore((state) => state.updateBusiness);
@@ -89,6 +83,7 @@ export default function ProfilePage() {
   const [amenityCatalog, setAmenityCatalog] = useState<PublicAmenity[]>([]);
   const [amenityKeysDraft, setAmenityKeysDraft] = useState<string[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [galleryDraft, setGalleryDraft] = useState<string[]>([]);
   const [workingHoursDraft, setWorkingHoursDraft] = useState<Array<{ day: string; open: boolean; start: string; end: string }>>([
     { day: "Monday", open: true, start: "09:00 AM", end: "06:00 PM" },
     { day: "Tuesday", open: true, start: "09:00 AM", end: "06:00 PM" },
@@ -139,6 +134,8 @@ export default function ProfilePage() {
 
   const syncFromBusiness = useCallback(() => {
     if (!business) return;
+    const keepLogo = getValues('logo')?.trim() || '';
+    const keepBanner = getValues('banner')?.trim() || '';
     reset({
       name: business.name || '',
       description: business.description || '',
@@ -150,11 +147,20 @@ export default function ProfilePage() {
       socialInstagram: business.socialInstagram || '',
       socialX: business.socialX || '',
       socialTiktok: business.socialTiktok || '',
-      logo: business.logo || '',
-      banner: business.banner || '',
+      logo: business.logo || keepLogo || '',
+      banner: business.banner || keepBanner || '',
     });
     setAmenityKeysDraft([...(business.amenityKeys ?? [])]);
-    
+
+    const logo = (business.logo || '').trim();
+    const banner = (business.banner || '').trim();
+    const skip = new Set([logo, banner].filter(Boolean));
+    const gallery = (business.images ?? []).filter((u) => {
+      const s = (u || '').trim();
+      return s && !skip.has(s);
+    });
+    setGalleryDraft(gallery.length > 0 ? gallery : banner ? [banner] : []);
+
     if (business.workingHours) {
       try {
         const parsed = JSON.parse(business.workingHours);
@@ -193,7 +199,7 @@ export default function ProfilePage() {
         console.error("Error parsing loaded workingHours:", e);
       }
     }
-  }, [business, reset]);
+  }, [business, reset, getValues]);
 
   useEffect(() => {
     syncFromBusiness();
@@ -272,15 +278,17 @@ export default function ProfilePage() {
   const onSubmit = async (data: ProfileFormValues) => {
     setErrorMessage(null);
     try {
-      // Use the values from the form data directly as they are synced via setValue
+      const logo = (getValues('logo') || data.logo || '').trim();
+      const banner = (getValues('banner') || data.banner || '').trim();
       await updateBusiness({
         ...data,
         socialYoutube: data.socialYoutube?.trim() || '',
         socialInstagram: data.socialInstagram?.trim() || '',
         socialX: data.socialX?.trim() || '',
         socialTiktok: data.socialTiktok?.trim() || '',
-        logo: data.logo,
-        banner: data.banner,
+        logo,
+        banner,
+        images: galleryDraft.filter((u) => u.trim()).slice(0, MAX_GALLERY_PHOTOS),
         categories: data.categories,
         amenityKeys: amenityKeysDraft,
         workingHours: JSON.stringify(
@@ -334,6 +342,7 @@ export default function ProfilePage() {
       <div className="relative group">
         <div className="relative h-56 w-full overflow-hidden rounded-3xl border-4 border-white bg-slate-100 shadow-2xl sm:h-64 sm:rounded-[40px]">
           <img
+            key={bannerVal ? bannerVal.slice(0, 48) : 'banner-empty'}
             src={bannerVal || PLACEHOLDER_IMAGE_DATA_URI}
             alt="Business Banner"
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
@@ -342,7 +351,12 @@ export default function ProfilePage() {
           <div className="absolute inset-x-0 bottom-0 flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-8">
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
               <div className="h-20 w-20 shrink-0 rounded-2xl bg-white p-1 shadow-2xl sm:h-24 sm:w-24 sm:rounded-3xl">
-                <img src={logoVal || PLACEHOLDER_IMAGE_DATA_URI} alt="Logo" className="h-full w-full rounded-xl object-contain sm:rounded-2xl" />
+                <img
+                  key={logoVal ? logoVal.slice(0, 48) : 'logo-empty'}
+                  src={logoVal || PLACEHOLDER_IMAGE_DATA_URI}
+                  alt="Logo"
+                  className="h-full w-full rounded-xl object-contain sm:rounded-2xl"
+                />
               </div>
               <div className="min-w-0 text-left">
                 <h1 className="truncate text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
@@ -362,7 +376,11 @@ export default function ProfilePage() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  void readFileAsDataUrl(file).then((url) => setValue('logo', url, { shouldValidate: true, shouldDirty: true }));
+                  void compressImageFile(file, { maxWidth: 512, maxHeight: 512, maxBytes: 280_000 })
+                    .then((url) => setValue('logo', url, { shouldValidate: true, shouldDirty: true }))
+                    .catch((err) =>
+                      toastError('Logo upload failed', err instanceof Error ? err.message : 'Try another image'),
+                    );
                   e.target.value = '';
                 }}
               />
@@ -668,13 +686,87 @@ export default function ProfilePage() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  void readFileAsDataUrl(file).then((dataUrl) =>
-                    setValue('banner', dataUrl, { shouldValidate: true, shouldDirty: true }),
-                  );
+                  void compressImageFile(file, { maxWidth: 1600, maxHeight: 900, maxBytes: 400_000 })
+                    .then((dataUrl) =>
+                      setValue('banner', dataUrl, { shouldValidate: true, shouldDirty: true }),
+                    )
+                    .catch((err) =>
+                      toastError('Banner upload failed', err instanceof Error ? err.message : 'Try another image'),
+                    );
                   e.target.value = '';
                 }}
               />
             </label>
+
+            <div className="mt-8 border-t border-slate-100 pt-8">
+              <div className="mb-6">
+                <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">Photo gallery</h3>
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Add up to {MAX_GALLERY_PHOTOS} photos for your public venue page. Logo stays on the banner; these appear in the gallery.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {galleryDraft.map((src, idx) => (
+                  <div
+                    key={`${src.slice(0, 24)}-${idx}`}
+                    className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-slate-100 bg-slate-50"
+                  >
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setGalleryDraft((prev) => prev.filter((_, i) => i !== idx))}
+                      className="absolute right-2 top-2 rounded-full bg-slate-900/80 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      aria-label="Remove photo"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {galleryDraft.length < MAX_GALLERY_PHOTOS ? (
+                  <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
+                    <ImagePlus className="mb-2 h-6 w-6 text-slate-300" />
+                    <span className="px-2 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                      Add photo
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        if (files.length === 0) return;
+                        void (async () => {
+                          const remaining = MAX_GALLERY_PHOTOS - galleryDraft.length;
+                          const picked = files.slice(0, remaining);
+                          try {
+                            const urls = await Promise.all(
+                              picked.map((file) =>
+                                compressImageFile(file, {
+                                  maxWidth: 1200,
+                                  maxHeight: 900,
+                                  maxBytes: 350_000,
+                                }),
+                              ),
+                            );
+                            setGalleryDraft((prev) => [...prev, ...urls].slice(0, MAX_GALLERY_PHOTOS));
+                          } catch (err) {
+                            toastError(
+                              'Photo upload failed',
+                              err instanceof Error ? err.message : 'Try another image',
+                            );
+                          }
+                        })();
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                ) : null}
+              </div>
+              <p className="mt-3 text-[10px] font-bold text-slate-400">
+                {galleryDraft.length} / {MAX_GALLERY_PHOTOS} photos · Save changes to publish
+              </p>
+            </div>
           </div>
 
           {/* PLAN MANAGEMENT CARD */}

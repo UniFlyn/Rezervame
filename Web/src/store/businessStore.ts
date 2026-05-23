@@ -6,6 +6,8 @@ export interface Business {
   name: string;
   logo: string;
   banner: string;
+  /** Gallery photos for the public venue page (excludes logo). */
+  images?: string[];
   description: string;
   /** Joined display string for headers and legacy UIs. */
   category: string;
@@ -32,6 +34,12 @@ export interface Business {
   /** Business onboarding / moderation status from API (`Business.status`). */
   status?: string;
   taxPercentage?: number;
+  /** `manual` = approve each booking; `automatic` = instant confirmation */
+  appointmentApprovalMode?: 'manual' | 'automatic';
+  cancellationAllowed?: boolean;
+  cancellationHoursBefore?: number;
+  cancellationPolicyMessageEn?: string;
+  cancellationPolicyMessageEs?: string;
   planId?: string;
   plan?: string;
 }
@@ -53,7 +61,14 @@ export const useBusinessStore = create<BusinessState>()((set, get) => ({
     const current = get().business;
     if (!current) return;
     const updated = await apiPatch<Business>(`/business/${current.id}`, data, 'BUSINESS');
-    set({ business: updated });
+    set({
+      business: {
+        ...updated,
+        logo: updated.logo || data.logo || current.logo,
+        banner: updated.banner || data.banner || current.banner,
+        images: updated.images ?? data.images ?? current.images,
+      },
+    });
   },
   deductBalance: async (amount) => {
     const current = get().business;

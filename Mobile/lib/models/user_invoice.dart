@@ -19,6 +19,11 @@ class UserInvoice {
     this.venueImageUrl,
     required this.lines,
     this.locationLine,
+    required this.subtotalAmount,
+    required this.taxAmount,
+    required this.totalAmount,
+    this.taxPercentage = 0,
+    this.paymentMethod = 'Online',
   });
 
   final String id;
@@ -34,4 +39,11 @@ class UserInvoice {
   final String? venueImageUrl;
   final List<InvoiceLineItem> lines;
   final String? locationLine;
+  final double subtotalAmount;
+  final double taxAmount;
+  final double totalAmount;
+  final double taxPercentage;
+  final String paymentMethod;
+
+  String get refNumber => id.length > 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
 }

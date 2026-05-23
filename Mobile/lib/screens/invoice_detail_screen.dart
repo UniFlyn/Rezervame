@@ -1,18 +1,54 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../data/api_repository.dart';
 import '../models/user_invoice.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/invoice_pdf_util.dart';
 import '../widgets/chained_network_image.dart';
 
-class InvoiceDetailScreen extends StatelessWidget {
+class InvoiceDetailScreen extends StatefulWidget {
   const InvoiceDetailScreen({super.key, required this.invoice});
 
   final UserInvoice invoice;
 
   @override
+  State<InvoiceDetailScreen> createState() => _InvoiceDetailScreenState();
+}
+
+class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
+  final _api = ApiRepository();
+  bool _downloading = false;
+
+  Future<void> _downloadPdf() async {
+    if (_downloading) return;
+    setState(() => _downloading = true);
+    try {
+      final session = await _api.fetchUserSession();
+      final name = '${session?['name'] ?? ''}'.trim();
+      final email = '${session?['email'] ?? ''}'.trim();
+      await shareUserInvoicePdf(
+        invoice: widget.invoice,
+        customerName: name.isNotEmpty ? name : 'Customer',
+        customerEmail: email.isNotEmpty ? email : null,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final invoice = widget.invoice;
     final loc = invoice.locationLine;
 
     return Scaffold(
@@ -122,16 +158,18 @@ class InvoiceDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('invoiceDownloadStarted'.tr()),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              icon: const Icon(Icons.download_outlined, color: AppColors.primary500, size: 20),
-              label: Text('invoiceDownloadPdf'.tr(), style: AppTypography.buttonMedium.copyWith(color: AppColors.primary500)),
+              onPressed: _downloading ? null : _downloadPdf,
+              icon: _downloading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary500),
+                    )
+                  : const Icon(Icons.download_outlined, color: AppColors.primary500, size: 20),
+              label: Text(
+                _downloading ? 'invoiceDownloadStarted'.tr() : 'invoiceDownloadPdf'.tr(),
+                style: AppTypography.buttonMedium.copyWith(color: AppColors.primary500),
+              ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primary500),
                 padding: const EdgeInsets.symmetric(vertical: 14),

@@ -20,6 +20,7 @@ import { apiDelete, apiGet, apiPatch } from "@/lib/api";
 import { formatDate, formatCurrency, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
 import TablePagination from "@/components/admin/TablePagination";
+import { OverlayLoader } from "@/components/admin/OverlayLoader";
 
 /* ─── Status Config ─── */
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
@@ -182,11 +183,7 @@ export default function BookingsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 relative">
-              {isLoading && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-                </div>
-              )}
+              {isLoading ? <OverlayLoader /> : null}
               {bookingsData.map((booking) => {
                 const actions = getActions(booking.status);
                 const isLoading = updatingId === booking.id;

@@ -5,13 +5,29 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useI18n } from '@/components/I18nProvider';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
-import { DATE_LOCALE } from '@/lib/locale';
+import { dateLocaleFor, type AppLanguage } from '@/lib/locale';
 import { 
   Calendar, Clock, X, CheckCircle2, ChevronLeft, 
   MapPin, Phone, CreditCard, Banknote, Shield,
   FileText, Download, Star, Loader2, Heart, Check
 } from 'lucide-react';
 import { toastError, toastSuccess } from '@/lib/toast';
+import { computeBookingTotals } from '@/lib/bookingTotals';
+import {
+  aggregateGroupUiStatus,
+  mapBookingItemUiStatus,
+  resolveBookingPaymentMethod,
+} from '@/lib/paymentMethod';
+import {
+  reservationStatusBadgeClass,
+  reservationStatusLabel,
+  type ReservationUiStatus,
+} from '@/lib/reservationStatus';
+import {
+  canCustomerCancelBooking,
+  policyMessageForBooking,
+  normalizeCancellationPolicy,
+} from "@/lib/cancellationPolicy";
 
 const PLACEHOLDER_IMAGE_DATA_URI = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f1f5f9'/%3E%3Cpath d='M50 40c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm0 16c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z' fill='%23cbd5e1'/%3E%3C/svg%3E";
 
@@ -26,28 +42,44 @@ interface Reservation {
   time: string;
   price: string;
   totalPrice: number;
-  status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
+  status: ReservationUiStatus;
+  paymentMethod?: string;
   img: string;
   taxAmount: number;
   taxPercentage: number;
+  commissionAmount: number;
+  commissionPercent: number;
   subtotal: number;
   address?: string;
   phone?: string;
   isReviewed?: boolean;
   businessId?: string;
-  items: { 
-    id: string; 
-    name: string; 
-    price: string; 
-    customerName?: string; 
+  items: {
+    id: string;
+    name: string;
+    price: string;
+    customerName?: string;
     staffName?: string;
-    status: "pending" | "confirmed" | "completed" | "cancelled" | "paid" | "rescheduled";
+    status: ReservationUiStatus;
+    paymentMethod?: string;
     isReviewed?: boolean;
     taxAmount?: number;
+    canCancel?: boolean;
+    rawStatus?: string;
+    appointmentAt?: string;
   }[];
+  cancellationAllowed?: boolean;
+  cancellationHoursBefore?: number;
+  cancellationPolicyMessage?: string;
+  canCancelAny?: boolean;
+  transactionId?: string | null;
 }
 
-function mapUserBookingGroup(group: any[], language: string): Reservation {
+function mapUserBookingGroup(
+  group: any[],
+  language: AppLanguage,
+  commissionPercent: number,
+): Reservation {
   if (!group || group.length === 0) {
     throw new Error("Empty booking group");
   }
@@ -65,55 +97,53 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
     refNumber = String(Math.abs(hash % 90000) + 10000);
   }
 
-  const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(DATE_LOCALE, { year: "numeric", month: "long", day: "numeric" });
-  const timeStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString(DATE_LOCALE, { hour: "numeric", minute: "2-digit" });
+  const dateLocale = dateLocaleFor(language);
+  const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(dateLocale, { year: "numeric", month: "long", day: "numeric" });
+  const timeStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString(dateLocale, { hour: "numeric", minute: "2-digit" });
 
-  const subtotal = group.reduce((sum, item) => sum + Number(item?.price || 0), 0);
-  const taxAmount = group.reduce((sum, item) => {
-    const storedTax = Number(item?.taxAmount || 0);
-    if (storedTax > 0) return sum + storedTax;
-    const currentTax = (Number(item?.price || 0) * (b.business?.taxPercentage || 0)) / 100;
-    return sum + currentTax;
-  }, 0);
-  const totalPrice = subtotal + taxAmount;
+  const totals = computeBookingTotals(
+    group,
+    Number(b.business?.taxPercentage || 0),
+    commissionPercent,
+  );
+  const cancelPolicy = normalizeCancellationPolicy(b.business);
   
-  const items = group.map(item => {
-    const st = (item?.status || "").toLowerCase();
-    let status: Reservation["status"] = "pending";
-    if (st === "completed") status = "completed";
-    else if (st === "cancelled" || st === "rejected") status = "cancelled";
-    else if (st === "paid") status = "paid";
-    else if (st === "rescheduled") status = "rescheduled";
-    else if (st === "approved" || st === "confirmed") {
-        if (item?.transactionId) status = "paid";
-        else status = "confirmed";
-    }
-    else status = "pending";
-    
+  const items = group.map((item) => {
+    const status = mapBookingItemUiStatus({
+      status: item?.status,
+      transactionId: item?.transactionId,
+      paymentMethod: item?.paymentMethod,
+      transaction: item?.transaction,
+    });
+    const appointmentAt = item?.date ? new Date(item.date) : new Date(NaN);
+    const canCancel =
+      item?.canCancel === true ||
+      canCustomerCancelBooking({
+        status: String(item?.status || ""),
+        appointmentAt,
+        transactionId: item?.transactionId,
+        business: b.business,
+      }).allowed;
+
     return {
-        id: item?.id || Math.random().toString(),
-        name: item?.service?.name || "Service",
-        price: Number(item?.price || 0).toFixed(2),
-        customerName: item?.customer?.name || item?.customerName || "Customer",
-        staffName: item?.staff?.name || item?.staffName,
-        status,
-        isReviewed: item?.isReviewed || false,
+      id: item?.id || Math.random().toString(),
+      name: item?.service?.name || "Service",
+      price: Number(item?.price || 0).toFixed(2),
+      customerName: item?.customer?.name || item?.customerName || "Customer",
+      staffName: item?.staff?.name || item?.staffName,
+      status,
+      isReviewed: item?.isReviewed || false,
+      canCancel,
+      rawStatus: String(item?.status || ""),
+      appointmentAt: item?.date,
     };
   });
 
-  const activeItems = items.filter(i => i.status !== "cancelled");
-  const mainStatus: Reservation["status"] =
-    activeItems.length === 0
-      ? "cancelled"
-      : activeItems.every(i => i.status === "completed")
-        ? "completed"
-        : activeItems.some(i => i.status === "pending")
-          ? "pending"
-          : activeItems.some(i => i.status === "rescheduled")
-            ? "rescheduled"
-            : activeItems.some(i => i.status === "paid")
-              ? "paid"
-              : "confirmed";
+  const mainStatus = aggregateGroupUiStatus(items.map((i) => i.status));
+  const paymentMethod = resolveBookingPaymentMethod({
+    paymentMethod: b.paymentMethod,
+    transaction: b.transaction,
+  });
 
   return {
     id: b.id || "unknown",
@@ -124,18 +154,34 @@ function mapUserBookingGroup(group: any[], language: string): Reservation {
     staffName: b.staff?.name || b.staffName,
     date: dateStr,
     time: timeStr,
-    price: `$${totalPrice.toFixed(2)}`,
-    totalPrice,
+    price: `$${totals.totalPrice.toFixed(2)}`,
+    totalPrice: totals.totalPrice,
     status: mainStatus,
     img: b.service?.imageUrl || b.business?.bannerUrl || b.business?.logoUrl || PLACEHOLDER_IMAGE_DATA_URI,
-    subtotal,
-    taxAmount,
-    taxPercentage: b.business?.taxPercentage || 0,
+    subtotal: totals.subtotal,
+    taxAmount: totals.taxAmount,
+    taxPercentage: totals.taxPercentage,
+    commissionAmount: totals.commissionAmount,
+    commissionPercent: totals.commissionPercent,
     isReviewed: items.every(i => i.isReviewed),
     address: b.business?.address || "",
     phone: b.business?.phone,
     items,
     businessId: b.businessId,
+    paymentMethod,
+    cancellationAllowed: cancelPolicy.allowed,
+    cancellationHoursBefore: cancelPolicy.hoursBefore,
+    cancellationPolicyMessage: policyMessageForBooking(
+      {
+        status: String(b.status || ""),
+        appointmentAt: d,
+        transactionId: b.transactionId,
+        business: b.business,
+      },
+      language,
+    ),
+    canCancelAny: items.some((i) => i.canCancel),
+    transactionId: b.transactionId ?? null,
   };
 }
 
@@ -155,6 +201,7 @@ export default function ReservationClient() {
   const { isLoggedIn, isHydrated } = useAuth() as any;
   const [loading, setLoading] = useState(true);
   const [res, setRes] = useState<Reservation | null>(null);
+  const [defaultCommission, setDefaultCommission] = useState(15);
   const [paymentView, setPaymentView] = useState<"none" | "select" | "done">("none");
   const [payingLoading, setPayingLoading] = useState(false);
 
@@ -185,9 +232,19 @@ export default function ReservationClient() {
         setLoading(false);
         return;
       }
+      let commissionPct = defaultCommission;
+      try {
+        const cfg = await apiGet<{ defaultCommission?: number }>("/public/payment-config");
+        if (typeof cfg?.defaultCommission === "number") {
+          commissionPct = cfg.defaultCommission;
+          setDefaultCommission(cfg.defaultCommission);
+        }
+      } catch {
+        /* use cached default */
+      }
       const data = await apiGet(`/mobile/bookings/${id}/group`, "USER");
       if (Array.isArray(data) && data.length > 0) {
-        setRes(mapUserBookingGroup(data, language));
+        setRes(mapUserBookingGroup(data, language, commissionPct));
       } else {
         toastError("Not found", "Reservation not found.");
         router.push("/profile?tab=bookings");
@@ -245,20 +302,20 @@ export default function ReservationClient() {
       toastSuccess("Service cancelled");
       loadGroup();
     } catch (e) {
-      toastError("Cancellation failed", "Please try again later.");
+      toastError("Cancellation failed", e instanceof Error ? e.message : "Please try again later.");
     }
   }
 
   async function handleCancelAllInGroup(group: Reservation) {
+    const ids = group.items.filter((i) => i.canCancel).map((i) => i.id);
+    if (ids.length === 0) return;
     if (!confirm("Are you sure you want to cancel ALL services in this reservation?")) return;
     try {
-      await apiPost("/mobile/bookings/cancel-group", {
-        bookingIds: group.items.map(i => i.id)
-      }, "USER");
+      await apiPost("/mobile/bookings/cancel-group", { bookingIds: ids }, "USER");
       toastSuccess("All services cancelled");
       loadGroup();
     } catch (e) {
-      toastError("Cancellation failed", "Please try again later.");
+      toastError("Cancellation failed", e instanceof Error ? e.message : "Please try again later.");
     }
   }
 
@@ -395,20 +452,8 @@ export default function ReservationClient() {
                           <p className="font-black text-slate-800">{res.date} at {res.time}</p>
                        </div>
                     </div>
-                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                      res.status === 'confirmed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                      res.status === 'paid' ? 'bg-cyan-50 text-cyan-600 border border-cyan-100' :
-                      res.status === 'completed' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                      res.status === 'rescheduled' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                      res.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                      'bg-slate-50 text-slate-600 border border-slate-100'
-                    }`}>
-                      {res.status === 'confirmed' ? ('Awaiting Payment') :
-                       res.status === 'paid' ? ('Paid') :
-                       res.status === 'completed' ? ('Completed') :
-                       res.status === 'rescheduled' ? ('Rescheduled') :
-                       res.status === 'pending' ? ('Pending') :
-                       res.status}
+                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${reservationStatusBadgeClass(res.status)}`}>
+                      {reservationStatusLabel(res.status, language)}
                     </div>
                  </div>
 
@@ -430,7 +475,19 @@ export default function ReservationClient() {
                             </div>
                             <div className="flex items-center gap-6">
                                <span className="font-black text-slate-900">${item.price}</span>
-                               {item.status === 'confirmed' && (
+                               {item.status === 'paid' && (
+                                 <span className="text-[10px] font-black text-cyan-600 uppercase tracking-widest flex items-center gap-1">
+                                   <CreditCard size={12} />
+                                   {"Paid"}
+                                 </span>
+                               )}
+                               {item.status === 'cash_at_venue' && (
+                                 <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                                   <Banknote size={12} />
+                                   {"Pay at Venue"}
+                                 </span>
+                               )}
+                               {item.canCancel && (
                                  <button 
                                    onClick={() => handleCancelReservation(item.id)}
                                    className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-600 transition"
@@ -460,11 +517,23 @@ export default function ReservationClient() {
                 
                 <div className="space-y-3">
                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-slate-400">{"Subtotal"}</span>
+                      <span className="text-sm font-bold text-slate-400">{"Services"}</span>
                       <span className="text-sm font-black text-slate-600">${res.subtotal.toFixed(2)}</span>
                    </div>
+                   {res.commissionAmount > 0 && (
+                     <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-slate-400">
+                          {`Service fee (${res.commissionPercent}%)`}
+                        </span>
+                        <span className="text-sm font-black text-slate-600">${res.commissionAmount.toFixed(2)}</span>
+                     </div>
+                   )}
                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-slate-400">{"Tax"}</span>
+                      <span className="text-sm font-bold text-slate-400">
+                        {res.taxPercentage > 0
+                          ? `Tax (${res.taxPercentage}%)`
+                          : "Tax"}
+                      </span>
                       <span className="text-sm font-black text-slate-600">${res.taxAmount.toFixed(2)}</span>
                    </div>
                    <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
@@ -522,6 +591,20 @@ export default function ReservationClient() {
                    </div>
                  )}
 
+                {paymentView === "none" && res.status === "cash_at_venue" && (
+                   <div className="mt-8 space-y-4">
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                         <p className="text-[10px] font-black text-amber-900 uppercase tracking-widest mb-1">{"Pay at the venue"}</p>
+                         <p className="text-amber-800 text-[10px] font-medium leading-relaxed">
+                           {`Your booking is confirmed. Please bring $${res.totalPrice.toFixed(2)} in cash when you arrive.`}
+                         </p>
+                         <p className="text-amber-700/90 text-[10px] font-medium mt-2">
+                           {"The venue will confirm your cash payment when you complete the service."}
+                         </p>
+                      </div>
+                   </div>
+                 )}
+
                  {res.status === "completed" && !res.isReviewed && (
                    <div className="mt-8 space-y-4">
                       <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
@@ -537,9 +620,18 @@ export default function ReservationClient() {
                    </div>
                  )}
 
-                {paymentView === "none" && res.status === "pending" && (
-                   <div className="mt-8 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
+                {paymentView === "none" && res.status === "pending" && res.canCancelAny && (
+                   <div className="mt-8 space-y-4">
+                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
+                         <p className="text-slate-500 text-[10px] font-medium mt-2">{res.cancellationPolicyMessage}</p>
+                      </div>
+                      <button
+                        onClick={() => handleCancelAllInGroup(res)}
+                        className="w-full bg-red-50 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100"
+                      >
+                         {"Cancel Reservation"}
+                      </button>
                    </div>
                 )}
 
@@ -560,7 +652,7 @@ export default function ReservationClient() {
                       </button>
 
                       <div className="flex gap-4">
-                      {res.status === 'confirmed' && (
+                      {res.canCancelAny && (
                         <button 
                           onClick={() => handleCancelAllInGroup(res)}
                           className="flex-1 bg-red-50 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100"
@@ -595,16 +687,37 @@ export default function ReservationClient() {
              <div className="bg-slate-900 rounded-[40px] p-8 text-white shadow-xl shadow-slate-200">
                 <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-6">{"Safety & Policy"}</h3>
                 <div className="space-y-6">
-                   <div className="flex gap-4">
-                      <Shield className="text-primary flex-shrink-0" size={20} />
-                      <p className="text-xs font-medium text-white/80 leading-relaxed">
-                         {"Secure encrypted payments powered by Rezervame."}
-                      </p>
-                   </div>
+                   {res.status !== 'cash_at_venue' ? (
+                     <div className="flex gap-4">
+                        <Shield className="text-primary flex-shrink-0" size={20} />
+                        <p className="text-xs font-medium text-white/80 leading-relaxed">
+                           {"Secure encrypted payments powered by Rezervame."}
+                        </p>
+                     </div>
+                   ) : (
+                     <div className="flex gap-4">
+                        <Banknote className="text-primary flex-shrink-0" size={20} />
+                        <p className="text-xs font-medium text-white/80 leading-relaxed">
+                           {"Cash payment is collected at the venue when you arrive for your appointment."}
+                        </p>
+                     </div>
+                   )}
                    <div className="flex gap-4">
                       <Clock className="text-primary flex-shrink-0" size={20} />
                       <p className="text-xs font-medium text-white/80 leading-relaxed">
-                         {"Cancellations must be done 24h before."}
+                         {res.cancellationPolicyMessage ||
+                           policyMessageForBooking(
+                             {
+                               status: res.status,
+                               appointmentAt: res.items[0]?.appointmentAt ?? res.date,
+                               transactionId: res.transactionId,
+                               business: {
+                                 cancellationAllowed: res.cancellationAllowed,
+                                 cancellationHoursBefore: res.cancellationHoursBefore,
+                               },
+                             },
+                             language,
+                           )}
                       </p>
                    </div>
                 </div>

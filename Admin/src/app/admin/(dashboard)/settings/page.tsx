@@ -13,11 +13,75 @@ import {
   Database,
   Lock,
   ChevronRight,
-  Loader2
+  Loader2,
+  Share2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiGet, apiPost } from "@/lib/api";
 import { toastError, toastSuccess } from "@/lib/toast";
+
+type FooterLinkItem = {
+  label: string;
+  urlKey: string | null;
+  showKey: string;
+  placeholder: string;
+  fixedUrl?: string;
+};
+
+function FooterLinkEditor({
+  title,
+  items,
+  settings,
+  setSettings,
+}: {
+  title: string;
+  items: FooterLinkItem[];
+  settings: Record<string, unknown>;
+  setSettings: React.Dispatch<React.SetStateAction<Record<string, unknown>>>;
+}) {
+  return (
+    <div className="space-y-4">
+      <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">{title}</h3>
+      <div className="space-y-3">
+        {items.map((item) => {
+          const show = settings[item.showKey] !== false;
+          const urlValue =
+            item.fixedUrl ??
+            (typeof settings[item.urlKey ?? ""] === "string" ? (settings[item.urlKey!] as string) : "");
+          return (
+            <div
+              key={item.showKey}
+              className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 md:grid-cols-[1fr_2fr_auto]"
+            >
+              <span className="text-sm font-bold text-slate-800 self-center">{item.label}</span>
+              <input
+                placeholder={item.placeholder}
+                value={urlValue}
+                disabled={!!item.fixedUrl}
+                onChange={(e) => {
+                  if (!item.urlKey) return;
+                  setSettings((prev) => ({ ...prev, [item.urlKey!]: e.target.value }));
+                }}
+                className="rounded-xl border border-slate-100 bg-white px-4 py-3 text-sm font-bold disabled:opacity-60"
+              />
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600 self-center whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={show}
+                  onChange={(e) =>
+                    setSettings((prev) => ({ ...prev, [item.showKey]: e.target.checked }))
+                  }
+                  className="h-4 w-4 accent-blue-600"
+                />
+                Show
+              </label>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
@@ -37,13 +101,59 @@ export default function SettingsPage() {
     databaseRetention: 90,
     stripeApiKey: "",
     googleMapsApiKey: "",
+    yappyEnabled: true,
+    yappyMerchantId: "",
+    emailEnabled: false,
+    smsEnabled: false,
+    smtpHost: "",
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUser: "",
+    smtpPass: "",
+    emailFrom: "",
+    adminNotifyEmail: "",
+    twilioAccountSid: "",
+    twilioAuthToken: "",
+    twilioFromNumber: "",
+    notifyNewTicketEmail: true,
+    notifyNewTicketSms: false,
+    socialFacebookUrl: "",
+    socialInstagramUrl: "",
+    socialLinkedinUrl: "",
+    appStoreUrl: "",
+    playStoreUrl: "",
+    showFooterDownloadApp: true,
+    footerAboutUrl: "/about",
+    showFooterAbout: true,
+    footerJobsUrl: "/jobs",
+    showFooterJobs: true,
+    footerPrivacyUrl: "/privacy",
+    showFooterPrivacy: true,
+    footerTermsUrl: "/terms",
+    showFooterTerms: true,
+    footerHowUrl: "/how-it-works",
+    showFooterHow: true,
+    footerSupportUrl: "/customer-service",
+    showFooterSupport: true,
+    footerEventsUrl: "/events",
+    showFooterEvents: true,
+    footerJoinUrl: "/business/join",
+    showFooterJoin: true,
+    footerBizLoginUrl: "/business/login",
+    showFooterBizLogin: true,
+    footerPricingUrl: "/pricing",
+    showFooterPricing: true,
+    footerBizSupportUrl: "/business/support",
+    showFooterBizSupport: true,
     updatedAt: "",
     updatedBy: "System Admin"
   });
+  const [testEmail, setTestEmail] = useState("");
+  const [testPhone, setTestPhone] = useState("");
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && ["general", "security", "notifications", "platform"].includes(tab)) {
+    if (tab && ["general", "security", "notifications", "platform", "footer"].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -82,8 +192,9 @@ export default function SettingsPage() {
   const tabs = [
     { id: 'general', name: 'General', icon: Settings },
     { id: 'security', name: 'Security', icon: Lock },
-    { id: 'notifications', name: 'Alerts', icon: Bell },
+    { id: 'notifications', name: 'Email & SMS', icon: Bell },
     { id: 'platform', name: 'Platform', icon: Database },
+    { id: 'footer', name: 'Footer & Apps', icon: Share2 },
   ];
 
   if (isLoading) {
@@ -282,39 +393,144 @@ export default function SettingsPage() {
             )}
 
             {activeTab === 'notifications' && (
-              <div className="space-y-10 animate-in fade-in duration-500">
-                <div className="space-y-6">
-                   <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest border-b border-slate-50 pb-4 italic">System Event Alerts</h3>
-                   <div className="space-y-4">
-                     {[
-                       { id: 'nbf', label: 'New Business Signup', desc: 'Notify when a merchant register their shop.' },
-                       { id: 'lbr', label: 'Low Balance Warning', desc: 'Alert admins of insufficient platform buffer.' },
-                       { id: 'srq', label: 'System Recovery Requests', desc: 'Notify on critical error reports.' }
-                     ].map((item) => (
-                       <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                         <div className="space-y-1">
-                           <p className="text-sm font-bold text-slate-800">{item.label}</p>
-                           <p className="text-xs text-slate-400 font-medium italic">{item.desc}</p>
-                         </div>
-                         <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Email</span>
-                            <input type="checkbox" className="w-5 h-5 accent-blue-600 cursor-pointer" defaultChecked />
-                         </div>
-                       </div>
-                     ))}
-                   </div>
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <p className="text-sm text-slate-500">
+                  Configure SMTP and Twilio for ticket alerts, payment receipts, and booking emails. Leave disabled until credentials are ready — requests are logged safely.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
+                    <input type="checkbox" checked={settings.emailEnabled} onChange={(e) => setSettings({ ...settings, emailEnabled: e.target.checked })} className="h-5 w-5 accent-blue-600" />
+                    Enable outbound email
+                  </label>
+                  <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
+                    <input type="checkbox" checked={settings.smsEnabled} onChange={(e) => setSettings({ ...settings, smsEnabled: e.target.checked })} className="h-5 w-5 accent-blue-600" />
+                    Enable SMS (Twilio)
+                  </label>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <input placeholder="SMTP host" value={settings.smtpHost || ""} onChange={(e) => setSettings({ ...settings, smtpHost: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input type="number" placeholder="SMTP port" value={settings.smtpPort} onChange={(e) => setSettings({ ...settings, smtpPort: Number(e.target.value) })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input placeholder="SMTP user" value={settings.smtpUser || ""} onChange={(e) => setSettings({ ...settings, smtpUser: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input type="password" placeholder="SMTP password" value={settings.smtpPass || ""} onChange={(e) => setSettings({ ...settings, smtpPass: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input placeholder="From address" value={settings.emailFrom || ""} onChange={(e) => setSettings({ ...settings, emailFrom: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input placeholder="Admin notify email" value={settings.adminNotifyEmail || ""} onChange={(e) => setSettings({ ...settings, adminNotifyEmail: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input placeholder="Twilio Account SID" value={settings.twilioAccountSid || ""} onChange={(e) => setSettings({ ...settings, twilioAccountSid: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold md:col-span-2" />
+                  <input type="password" placeholder="Twilio Auth Token" value={settings.twilioAuthToken || ""} onChange={(e) => setSettings({ ...settings, twilioAuthToken: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input placeholder="Twilio from number (+1...)" value={settings.twilioFromNumber || ""} onChange={(e) => setSettings({ ...settings, twilioFromNumber: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                </div>
+                <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-6">
+                  <input placeholder="Test email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm" />
+                  <button type="button" onClick={async () => { try { await apiPost("/admin/email/test", { to: testEmail }); toastSuccess("Test email sent or logged (check SMTP)"); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold uppercase text-white">Test email</button>
+                  <input placeholder="Test phone +507..." value={testPhone} onChange={(e) => setTestPhone(e.target.value)} className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm" />
+                  <button type="button" onClick={async () => { try { await apiPost("/admin/sms/test", { to: testPhone }); toastSuccess("Test SMS sent or logged"); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold uppercase text-white">Test SMS</button>
+                </div>
+                <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save email & SMS
+                </button>
+              </div>
+            )}
 
+            {activeTab === 'footer' && (
+              <div className="space-y-10 animate-in fade-in duration-500">
+                <p className="text-sm text-slate-500">
+                  Configure social links, app store URLs, and all footer navigation links (clients, business, legal).
+                  Use internal paths (e.g. /about) or full https URLs for external pages.
+                </p>
+                <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={settings.showFooterDownloadApp !== false}
+                    onChange={(e) => setSettings({ ...settings, showFooterDownloadApp: e.target.checked })}
+                    className="h-5 w-5 accent-blue-600"
+                  />
+                  Show &quot;Download App&quot; in footer (client links + store badges when URLs are set)
+                </label>
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Social media</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <input
+                      placeholder="Facebook URL (https://facebook.com/...)"
+                      value={settings.socialFacebookUrl || ""}
+                      onChange={(e) => setSettings({ ...settings, socialFacebookUrl: e.target.value })}
+                      className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold"
+                    />
+                    <input
+                      placeholder="Instagram URL (https://instagram.com/...)"
+                      value={settings.socialInstagramUrl || ""}
+                      onChange={(e) => setSettings({ ...settings, socialInstagramUrl: e.target.value })}
+                      className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold"
+                    />
+                    <input
+                      placeholder="LinkedIn URL (https://linkedin.com/...)"
+                      value={settings.socialLinkedinUrl || ""}
+                      onChange={(e) => setSettings({ ...settings, socialLinkedinUrl: e.target.value })}
+                      className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold"
+                    />
+                  </div>
+                </div>
+                <FooterLinkEditor
+                  title="Legal"
+                  items={[
+                    { label: "About us", urlKey: "footerAboutUrl", showKey: "showFooterAbout", placeholder: "/about" },
+                    { label: "Careers", urlKey: "footerJobsUrl", showKey: "showFooterJobs", placeholder: "/jobs" },
+                    { label: "Privacy Policy", urlKey: "footerPrivacyUrl", showKey: "showFooterPrivacy", placeholder: "/privacy" },
+                    { label: "Terms of Service", urlKey: "footerTermsUrl", showKey: "showFooterTerms", placeholder: "/terms" },
+                  ]}
+                  settings={settings}
+                  setSettings={setSettings}
+                />
+                <FooterLinkEditor
+                  title="For clients"
+                  items={[
+                    { label: "Download App", urlKey: null, showKey: "showFooterDownloadApp", placeholder: "/download", fixedUrl: "/download" },
+                    { label: "How it works", urlKey: "footerHowUrl", showKey: "showFooterHow", placeholder: "/how-it-works" },
+                    { label: "Customer Support", urlKey: "footerSupportUrl", showKey: "showFooterSupport", placeholder: "/customer-service" },
+                    { label: "Events", urlKey: "footerEventsUrl", showKey: "showFooterEvents", placeholder: "/events" },
+                  ]}
+                  settings={settings}
+                  setSettings={setSettings}
+                />
+                <FooterLinkEditor
+                  title="For business"
+                  items={[
+                    { label: "Join as business", urlKey: "footerJoinUrl", showKey: "showFooterJoin", placeholder: "/business/join" },
+                    { label: "Business login", urlKey: "footerBizLoginUrl", showKey: "showFooterBizLogin", placeholder: "/business/login" },
+                    { label: "Pricing", urlKey: "footerPricingUrl", showKey: "showFooterPricing", placeholder: "/pricing" },
+                    { label: "Business support", urlKey: "footerBizSupportUrl", showKey: "showFooterBizSupport", placeholder: "/business/support" },
+                  ]}
+                  settings={settings}
+                  setSettings={setSettings}
+                />
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">App stores</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input
+                      placeholder="App Store URL"
+                      value={settings.appStoreUrl || ""}
+                      onChange={(e) => setSettings({ ...settings, appStoreUrl: e.target.value })}
+                      className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold"
+                    />
+                    <input
+                      placeholder="Google Play URL"
+                      value={settings.playStoreUrl || ""}
+                      onChange={(e) => setSettings({ ...settings, playStoreUrl: e.target.value })}
+                      className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold"
+                    />
+                  </div>
+                </div>
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                   <div className="text-xs font-bold text-slate-400 italic">Connected to SMTP: mail.rezervame.com</div>
-                   <button 
+                  <div className="text-xs font-bold text-slate-400 italic">
+                    Empty URLs hide the corresponding icon or store button.
+                  </div>
+                  <button
                     onClick={handleSave}
                     disabled={isSaving}
                     className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
-                   >
-                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                     Confirm Config
-                   </button>
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save footer
+                  </button>
                 </div>
               </div>
             )}
@@ -358,6 +574,16 @@ export default function SettingsPage() {
                      Platform Connectivity (API Keys)
                   </label>
                   <div className="space-y-3">
+                    <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
+                      <input type="checkbox" checked={!!settings.yappyEnabled} onChange={(e) => setSettings({ ...settings, yappyEnabled: e.target.checked })} className="h-5 w-5 accent-blue-600" />
+                      Enable Yappy payment option (UI; API credentials coming soon)
+                    </label>
+                    <input
+                      placeholder="Yappy merchant ID (optional)"
+                      value={settings.yappyMerchantId || ""}
+                      onChange={(e) => setSettings({ ...settings, yappyMerchantId: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold"
+                    />
                     <div className="relative group">
                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase">Stripe</span>
                        <input 

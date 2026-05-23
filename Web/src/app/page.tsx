@@ -14,6 +14,8 @@ import {
   type SearchVenueRow,
 } from "../lib/venueSearch";
 import { Clock } from "lucide-react";
+import { goToVenue } from "@/lib/goToVenue";
+import { HomeEventsSection } from "@/components/HomeEventsSection";
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -23,7 +25,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const p1 = fetchPublicVenues()
+    const p1 = fetchPublicVenues(20_000, undefined, { limit: 40, page: 1 })
       .then((rows) => setApiVenues(rows.data))
       .catch(() => setApiVenues([]));
     const p2 = fetchPublicCategories()
@@ -42,7 +44,7 @@ export default function Home() {
     () =>
       categories.map((c) => ({
         key: c.key,
-        title: c.labelEn,
+        title: (language === "es" ? c.labelEs || c.labelEn : c.labelEn) || c.key,
         stat: c.activeBusinessCount ?? 0,
         img: (c.imageUrl || "").trim(),
       })),
@@ -59,7 +61,7 @@ export default function Home() {
           seen.add(v.businessId);
           return true;
         })
-        .slice(0, 4)
+        .slice(0, 5)
         .map((v) => ({
           businessId: v.businessId,
           serviceName: (v.serviceName && v.serviceName.trim()) || v.name,
@@ -68,7 +70,7 @@ export default function Home() {
           rating: v.rating,
           durationMin: v.serviceDurationMinutes || 0,
           imgSrc: businessBannerHeroSrc(v),
-          nextAvailable: v.nextAvailable,
+          todaySlotTimings: v.todaySlotTimings,
         }));
     },
     [venues],
@@ -77,14 +79,14 @@ export default function Home() {
   /** Below Featured: popular services (by reviews), service imagery; avoids duplicating the same four as Featured when possible. */
   const topServiceMenuCards = useMemo(() => {
     const byRating = [...venues].sort((a, b) => b.rating - a.rating);
-    const featuredIds = new Set(byRating.slice(0, 4).map((v) => v.businessId));
+    const featuredIds = new Set(byRating.slice(0, 5).map((v) => v.businessId));
     let list = [...venues]
       .filter((v) => !featuredIds.has(v.businessId))
       .sort((a, b) => b.reviews - a.reviews || b.rating - a.rating);
-    if (list.length < 4) {
+    if (list.length < 5) {
       list = [...venues].sort((a, b) => b.reviews - a.reviews || b.rating - a.rating);
     }
-    return list.slice(0, 8).map((v) => ({
+    return list.slice(0, 5).map((v) => ({
       businessId: v.businessId,
       serviceName: (v.serviceName && v.serviceName.trim()) || v.name,
       salonName: v.name,
@@ -92,7 +94,7 @@ export default function Home() {
       rating: v.rating,
       durationMin: v.serviceDurationMinutes || 0,
       imgSrc: venueCardImageSrc(v),
-      nextAvailable: v.nextAvailable,
+      todaySlotTimings: v.todaySlotTimings,
     }));
   }, [venues]);
 
@@ -114,7 +116,7 @@ export default function Home() {
           p: `$${v.price.toFixed(2)}`,
           id: v.businessId,
           location: v.locationLabel,
-          nextAvailable: v.nextAvailable,
+          todaySlotTimings: v.todaySlotTimings,
           imgSrc: businessListingImageSrc(v),
         }));
     },
@@ -145,9 +147,9 @@ export default function Home() {
           <p className="mx-auto mb-10 max-w-xl text-lg font-normal opacity-90">{t("heroSubtitle")}</p>
 
           {heroCategoryChips.length > 0 ? (
-            <div className="mx-auto w-full max-w-3xl">
+            <div className="mx-auto w-full max-w-5xl px-2">
               <p className="mb-4 text-sm font-semibold text-white/95">{t("featuredServices")}</p>
-              <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4">
+              <div className="flex flex-nowrap items-center justify-center gap-2 overflow-x-auto pb-1 sm:gap-3 md:gap-4 no-scrollbar">
                 {heroCategoryChips.map((svc) => (
                   <button
                     key={svc.key}
@@ -155,7 +157,7 @@ export default function Home() {
                     onClick={() =>
                       router.push(`/search?categoryKey=${encodeURIComponent(svc.key)}`)
                     }
-                    className="inline-flex h-11 min-w-[128px] items-center justify-center rounded-lg border border-white/30 bg-black/50 px-5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-black/70"
+                    className="inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-white/30 bg-black/50 px-4 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-black/70 sm:h-11 sm:px-5"
                   >
                     {svc.label}
                   </button>
@@ -181,9 +183,7 @@ export default function Home() {
               ))
             ) : dynamicCategories.length === 0 ? (
               <p className="text-sm font-medium text-slate-500 px-2 py-8">
-                {language === "en"
-                  ? "No categories loaded yet. Start the API and add categories in admin."
-                  : "Aún no hay categorías. Inicia el API y agrega categorías en admin."}
+                {t("noCategoriesYet")}
               </p>
             ) : (
               dynamicCategories.map((cat, i) => (
@@ -240,18 +240,16 @@ export default function Home() {
               </button>
            </div>
            
-           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8 relative z-10">
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 relative z-10">
               {featuredVenueCards.length === 0 ? (
                 <p className="col-span-full text-center text-sm font-medium text-slate-500 py-12">
-                  {language === "en"
-                    ? "No featured venues yet. Add active businesses in the admin panel."
-                    : "Aún no hay negocios destacados. Agrega negocios activos en el panel admin."}
+                  {t("homeEmptyFeatured")}
                 </p>
               ) : (
               featuredVenueCards.map((serv, i) => (
                  <div 
                    key={`${serv.businessId}-${i}`} 
-                   onClick={() => router.push(`/venue/${serv.businessId}`)}
+                   onClick={() => goToVenue(serv.businessId)}
                    className="group cursor-pointer bg-white rounded-3xl p-3 sm:p-4 shadow-md hover:shadow-2xl hover:shadow-[#ff5a5f]/10 border border-slate-100/80 transition-all duration-500 flex flex-col h-full transform hover:-translate-y-1.5 ring-1 ring-transparent hover:ring-[#ff5a5f]/20"
                  >
                     <div className="relative h-48 sm:h-52 rounded-2xl overflow-hidden mb-4 shadow-inner bg-slate-100">
@@ -306,12 +304,10 @@ export default function Home() {
               <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
             </button>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-2 pt-1 snap-x snap-mandatory no-scrollbar -mx-1 px-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {topServiceMenuCards.length === 0 ? (
-              <p className="px-2 py-8 text-sm font-medium text-slate-500">
-                {language === "en"
-                  ? "No services to show yet."
-                  : "Aún no hay servicios para mostrar."}
+              <p className="col-span-full px-2 py-8 text-center text-sm font-medium text-slate-500">
+                {t("homeEmptyServices")}
               </p>
             ) : (
               topServiceMenuCards.map((row, i) => (
@@ -319,14 +315,14 @@ export default function Home() {
                   key={`top-svc-${row.businessId}-${i}`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => router.push(`/venue/${row.businessId}`)}
+                  onClick={() => goToVenue(row.businessId)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      router.push(`/venue/${row.businessId}`);
+                      goToVenue(row.businessId);
                     }
                   }}
-                  className="group snap-start shrink-0 w-[min(280px,85vw)] cursor-pointer rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-[#ff5a5f]/25 hover:shadow-md"
+                  className="group flex h-full cursor-pointer flex-col rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-[#ff5a5f]/25 hover:shadow-md"
                 >
                   <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">
                     <img
@@ -353,8 +349,8 @@ export default function Home() {
                       <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
                         {row.durationMin > 0 ? `${row.durationMin} ${t("min")}` : `— ${t("min")}`}
                       </span>
-                      <div className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-wide ${row.nextAvailable?.includes('Today') ? 'text-green-600' : 'text-[#ff5a5f]'}`}>
-                        <Clock size={10} className="shrink-0" /> Next: {row.nextAvailable || '—'}
+                      <div className={`flex items-center gap-1 text-[9px] font-semibold normal-case tracking-tight max-w-[140px] text-right leading-tight ${row.todaySlotTimings?.toLowerCase().includes('closed') ? 'text-slate-400' : 'text-slate-600'}`}>
+                        <Clock size={10} className="shrink-0" /> {t('todaySlots')}: {row.todaySlotTimings || '—'}
                       </div>
                     </div>
                   </div>
@@ -373,15 +369,21 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[18px] text-left mb-10 w-full">
             {dynamicBestBusinesses.length === 0 ? (
               <p className="col-span-full text-center text-sm font-medium text-slate-500 py-10">
-                {language === "en"
-                  ? "No businesses to show yet."
-                  : "Aún no hay negocios para mostrar."}
+                {t("homeEmptyBusinesses")}
               </p>
             ) : (
             dynamicBestBusinesses.map((biz, i) => (
               <div 
                 key={`${biz.id}-${i}`} 
-                onClick={() => router.push(`/venue/${biz.id}`)}
+                role="button"
+                tabIndex={0}
+                onClick={() => goToVenue(biz.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    goToVenue(biz.id);
+                  }
+                }}
                 className="bg-white rounded-[16px] shadow-sm border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col pt-1 pl-1 pr-1 pb-1"
               >
                 <div className="relative h-[150px] rounded-[13px] overflow-hidden bg-slate-100">
@@ -416,12 +418,19 @@ export default function Home() {
                   <div className="mt-auto">
                     <div className="flex justify-between items-center mb-4">
                       <span className="flex flex-col xs:flex-row xs:items-center text-slate-500 font-semibold text-[10px] leading-tight max-w-[55%]">
-                         <div className="flex items-center mb-0.5 xs:mb-0"><svg className="w-[14px] h-[14px] mr-1 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {t('nextAppt')}</div> 
-                         {biz.nextAvailable || "—"}
+                         <div className="flex items-center mb-0.5 xs:mb-0"><svg className="w-[14px] h-[14px] mr-1 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {t('todaySlots')}:</div> 
+                         <span className="line-clamp-2">{biz.todaySlotTimings || "—"}</span>
                       </span>
                       <span className="font-black text-slate-900 text-[16px] tracking-tight">{biz.p}</span>
                     </div>
-                    <button className="w-full py-[10px] bg-[#fd5b60] hover:bg-[#e64e52] text-white text-[13px] font-black rounded-[10px] transition tracking-wide shadow-sm">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goToVenue(biz.id);
+                      }}
+                      className="w-full py-[10px] bg-[#fd5b60] hover:bg-[#e64e52] text-white text-[13px] font-black rounded-[10px] transition tracking-wide shadow-sm"
+                    >
                       {t('bookBtn')}
                     </button>
                   </div>
@@ -437,6 +446,8 @@ export default function Home() {
             {t('viewAllBiz')} <span className="ml-1 group-hover:translate-x-1 transition-transform">→</span>
           </button>
         </section>
+
+        <HomeEventsSection />
 
       </main>
 
