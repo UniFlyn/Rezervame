@@ -35,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final PageController _bannerPageController;
   final ApiRepository _api = ApiRepository();
   int _bannerPageIndex = 0;
+  HomePromoBannerItem? _remoteHeroBanner;
   Map<String, dynamic>? _userSession;
   String _locationLabel = '';
   bool _feedLoading = true;
@@ -51,10 +52,29 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _bannerPageController = PageController();
+    _loadRemoteHeroBanner();
     _reloadUserSession();
     _loadLocationLabel();
     _loadFavorites();
     _bootstrapFeed();
+  }
+
+  Future<void> _loadRemoteHeroBanner() async {
+    final cfg = await _api.fetchPublicHeroBanner();
+    if (!mounted || cfg == null) return;
+    if (cfg['enabled'] == false) return;
+    final title = '${cfg['title'] ?? ''}'.trim();
+    final subtitle = '${cfg['subtitle'] ?? ''}'.trim();
+    final imageUrl = '${cfg['imageUrl'] ?? ''}'.trim();
+    if (title.isEmpty && subtitle.isEmpty && imageUrl.isEmpty) return;
+    setState(() {
+      _remoteHeroBanner = HomePromoBannerItem(
+        rawTitle: title.isEmpty ? null : title,
+        rawSubtitle: subtitle.isEmpty ? null : subtitle,
+        unsplashId: imageUrl,
+        cta: HomePromoBannerCta.featured,
+      );
+    });
   }
 
   Future<void> _loadFavorites() async {
@@ -1036,6 +1056,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeroBanner() {
+    final banners = [
+      if (_remoteHeroBanner != null) _remoteHeroBanner!,
+      ...kHomePromoBanners,
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1046,19 +1070,19 @@ class _HomeScreenState extends State<HomeScreen> {
             child: PageView.builder(
               controller: _bannerPageController,
               physics: const BouncingScrollPhysics(),
-              itemCount: kHomePromoBanners.length,
+              itemCount: banners.length,
               onPageChanged: (i) => setState(() => _bannerPageIndex = i),
               itemBuilder: (context, index) {
-                return _buildPromoBannerPage(kHomePromoBanners[index]);
+                return _buildPromoBannerPage(banners[index]);
               },
             ),
           ),
         ),
-        if (kHomePromoBanners.length > 1) ...[
+        if (banners.length > 1) ...[
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(kHomePromoBanners.length, (i) {
+            children: List.generate(banners.length, (i) {
               final active = i == _bannerPageIndex;
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
@@ -1162,7 +1186,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPromoBannerImage(HomePromoBannerItem item) {
     final raw = item.unsplashId.trim();
-    final String? primaryUrl = raw.startsWith('http')
+    final String? primaryUrl = raw.startsWith('http') || raw.startsWith('data:')
         ? raw
         : (raw.isNotEmpty ? 'https://images.unsplash.com/photo-$raw?q=80&w=600&fit=crop' : null);
     final chain = ChainedNetworkImage.chainFrom(

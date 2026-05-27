@@ -28,7 +28,15 @@ type FooterLinkItem = {
   fixedUrl?: string;
 };
 
-function FooterLinkEditor({
+type ApprovalMode = "Manual" | "Automatic";
+
+function normalizeApprovalMode(value: unknown): ApprovalMode {
+  const v = String(value ?? "").toLowerCase();
+  if (v.includes("auto") || v.includes("full")) return "Automatic";
+  return "Manual";
+}
+
+function FooterLinkEditor<T extends Record<string, unknown>>({
   title,
   items,
   settings,
@@ -36,8 +44,8 @@ function FooterLinkEditor({
 }: {
   title: string;
   items: FooterLinkItem[];
-  settings: Record<string, unknown>;
-  setSettings: React.Dispatch<React.SetStateAction<Record<string, unknown>>>;
+  settings: T;
+  setSettings: React.Dispatch<React.SetStateAction<T>>;
 }) {
   return (
     <div className="space-y-4">
@@ -93,7 +101,7 @@ export default function SettingsPage() {
     platformBranding: "Rezervame",
     defaultCommission: 15,
     slotHoldTime: 5,
-    approvalMode: "Manual Verification",
+    approvalMode: "Manual" as ApprovalMode,
     twoFactorMandatory: true,
     minPasswordLength: 12,
     sessionTimeout: 60,
@@ -145,6 +153,13 @@ export default function SettingsPage() {
     showFooterPricing: true,
     footerBizSupportUrl: "/business/support",
     showFooterBizSupport: true,
+    homeHeroEnabled: true,
+    homeHeroTitle: "",
+    homeHeroSubtitle: "",
+    homeHeroDealText: "",
+    homeHeroImageUrl: "",
+    homeHeroCtaText: "",
+    homeHeroCtaUrl: "",
     updatedAt: "",
     updatedBy: "System Admin"
   });
@@ -167,7 +182,11 @@ export default function SettingsPage() {
       setIsLoading(true);
       const data = await apiGet<any>("/admin/config");
       if (data) {
-        setSettings(prev => ({ ...prev, ...data }));
+        setSettings((prev) => ({
+          ...prev,
+          ...data,
+          approvalMode: normalizeApprovalMode(data.approvalMode),
+        }));
       }
     } catch (err) {
       toastError("Failed to load settings", String(err));
@@ -179,9 +198,17 @@ export default function SettingsPage() {
   async function handleSave() {
     try {
       setIsSaving(true);
-      const updated = await apiPost<any>("/admin/config", settings);
-      setSettings(prev => ({ ...prev, ...updated }));
-      toastSuccess("Settings committed", "System configuration has been updated globally.");
+      const payload = {
+        ...settings,
+        approvalMode: normalizeApprovalMode(settings.approvalMode),
+      };
+      const updated = await apiPost<any>("/admin/config", payload);
+      setSettings((prev) => ({
+        ...prev,
+        ...updated,
+        approvalMode: normalizeApprovalMode(updated.approvalMode),
+      }));
+      toastSuccess("Settings saved", "Your changes were applied.");
     } catch (err) {
       toastError("Failed to save settings", String(err));
     } finally {
@@ -201,7 +228,7 @@ export default function SettingsPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Loading configuration...</p>
+        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Loading settings...</p>
       </div>
     );
   }
@@ -211,7 +238,7 @@ export default function SettingsPage() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Settings</h1>
-          <p className="text-slate-500 text-sm mt-1">Configure global platform parameters and security protocols.</p>
+          <p className="text-slate-500 text-sm mt-1">Manage platform defaults, security, notifications, and footer links.</p>
         </div>
         {isSaving && (
           <div className="flex items-center gap-2 text-blue-600 animate-pulse">
@@ -303,19 +330,19 @@ export default function SettingsPage() {
                    </label>
                    <select 
                     value={settings.approvalMode}
-                    onChange={(e) => setSettings({...settings, approvalMode: e.target.value})}
+                    onChange={(e) => setSettings({ ...settings, approvalMode: e.target.value as ApprovalMode })}
                     className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition appearance-none cursor-pointer"
                    >
-                      <option>Manual Verification</option>
-                      <option>AI-Assisted (Auto)</option>
-                      <option>Fully Automatic</option>
+                      <option value="Manual">Manual</option>
+                      <option value="Automatic">Automatic</option>
                    </select>
                  </div>
                </div>
 
                <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                  <div className="text-xs font-bold text-slate-400 italic">
-                    Last updated: {settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : "Never"} by {settings.updatedBy}
+                  <div className="text-xs font-medium text-slate-500">
+                    Last updated: {settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : "Never"}
+                    {settings.updatedBy ? ` · ${settings.updatedBy}` : ""}
                   </div>
                   <button 
                     onClick={handleSave}
@@ -323,7 +350,7 @@ export default function SettingsPage() {
                     className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
                   >
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Commit Changes
+                    Save changes
                   </button>
                </div>
              </div>
@@ -345,7 +372,7 @@ export default function SettingsPage() {
                         checked={settings.twoFactorMandatory}
                         onChange={(e) => setSettings({...settings, twoFactorMandatory: e.target.checked})}
                       />
-                      <span className="text-sm font-bold text-slate-800 italic uppercase">Mandatory for all admins</span>
+                      <span className="text-sm font-bold text-slate-800">Required for all admin accounts</span>
                     </div>
                   </div>
                   
@@ -379,7 +406,9 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                   <div className="text-xs font-bold text-slate-400 italic">Security status: {settings.twoFactorMandatory ? "Robust" : "Vulnerable"}</div>
+                   <div className="text-xs font-medium text-slate-500">
+                     Two-factor authentication: {settings.twoFactorMandatory ? "Required" : "Optional"}
+                   </div>
                    <button 
                     onClick={handleSave}
                     disabled={isSaving}
@@ -395,7 +424,7 @@ export default function SettingsPage() {
             {activeTab === 'notifications' && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <p className="text-sm text-slate-500">
-                  Configure SMTP and Twilio for ticket alerts, payment receipts, and booking emails. Leave disabled until credentials are ready — requests are logged safely.
+                  Email and SMS settings for booking confirmations, receipts, and support alerts.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
@@ -420,9 +449,9 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-6">
                   <input placeholder="Test email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm" />
-                  <button type="button" onClick={async () => { try { await apiPost("/admin/email/test", { to: testEmail }); toastSuccess("Test email sent or logged (check SMTP)"); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold uppercase text-white">Test email</button>
+                  <button type="button" onClick={async () => { try { await apiPost("/admin/email/test", { to: testEmail }); toastSuccess("Test email sent", "Check the inbox for the recipient you entered."); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold uppercase text-white">Test email</button>
                   <input placeholder="Test phone +507..." value={testPhone} onChange={(e) => setTestPhone(e.target.value)} className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm" />
-                  <button type="button" onClick={async () => { try { await apiPost("/admin/sms/test", { to: testPhone }); toastSuccess("Test SMS sent or logged"); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold uppercase text-white">Test SMS</button>
+                  <button type="button" onClick={async () => { try { await apiPost("/admin/sms/test", { to: testPhone }); toastSuccess("Test SMS sent"); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold uppercase text-white">Test SMS</button>
                 </div>
                 <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -434,8 +463,7 @@ export default function SettingsPage() {
             {activeTab === 'footer' && (
               <div className="space-y-10 animate-in fade-in duration-500">
                 <p className="text-sm text-slate-500">
-                  Configure social links, app store URLs, and all footer navigation links (clients, business, legal).
-                  Use internal paths (e.g. /about) or full https URLs for external pages.
+                  Social links, app store buttons, and footer navigation for the customer site.
                 </p>
                 <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
                   <input
@@ -444,7 +472,7 @@ export default function SettingsPage() {
                     onChange={(e) => setSettings({ ...settings, showFooterDownloadApp: e.target.checked })}
                     className="h-5 w-5 accent-blue-600"
                   />
-                  Show &quot;Download App&quot; in footer (client links + store badges when URLs are set)
+                  Show Download App in the footer
                 </label>
                 <div className="space-y-4">
                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Social media</h3>
@@ -520,8 +548,8 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                  <div className="text-xs font-bold text-slate-400 italic">
-                    Empty URLs hide the corresponding icon or store button.
+                  <div className="text-xs font-medium text-slate-500">
+                    Leave a URL empty to hide that footer link.
                   </div>
                   <button
                     onClick={handleSave}
@@ -551,7 +579,7 @@ export default function SettingsPage() {
                         checked={settings.maintenanceMode}
                         onChange={(e) => setSettings({...settings, maintenanceMode: e.target.checked})}
                       />
-                      <span className="text-sm font-bold text-slate-800 italic uppercase">Redirect visitors to offline page</span>
+                      <span className="text-sm font-bold text-slate-800">Show maintenance page to visitors</span>
                     </div>
                   </div>
                   
@@ -569,14 +597,94 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
+                <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 tracking-wide">Home Master Banner</h3>
+                      <p className="text-sm font-medium text-slate-500">
+                        Controls the top banner on Web and the first promo banner on Mobile.
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={settings.homeHeroEnabled !== false}
+                        onChange={(e) => setSettings({ ...settings, homeHeroEnabled: e.target.checked })}
+                        className="h-5 w-5 accent-rose-600"
+                      />
+                      Enabled
+                    </label>
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Title</label>
+                      <input
+                        value={settings.homeHeroTitle || ""}
+                        onChange={(e) => setSettings({ ...settings, homeHeroTitle: e.target.value })}
+                        placeholder="Beauty bookings, instant"
+                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Subtitle</label>
+                      <input
+                        value={settings.homeHeroSubtitle || ""}
+                        onChange={(e) => setSettings({ ...settings, homeHeroSubtitle: e.target.value })}
+                        placeholder="Find and book with top local experts"
+                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Deal pill (optional)</label>
+                      <input
+                        value={settings.homeHeroDealText || ""}
+                        onChange={(e) => setSettings({ ...settings, homeHeroDealText: e.target.value })}
+                        placeholder="30% OFF · This week only"
+                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Banner image URL</label>
+                      <input
+                        value={settings.homeHeroImageUrl || ""}
+                        onChange={(e) => setSettings({ ...settings, homeHeroImageUrl: e.target.value })}
+                        placeholder="https://... (or /relative)"
+                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
+                      />
+                      <p className="text-[11px] font-semibold text-slate-500">
+                        Tip: use an https image URL for fastest loading.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">CTA text</label>
+                      <input
+                        value={settings.homeHeroCtaText || ""}
+                        onChange={(e) => setSettings({ ...settings, homeHeroCtaText: e.target.value })}
+                        placeholder="Book now"
+                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">CTA URL</label>
+                      <input
+                        value={settings.homeHeroCtaUrl || ""}
+                        onChange={(e) => setSettings({ ...settings, homeHeroCtaUrl: e.target.value })}
+                        placeholder="/search?categoryKey=hairService (or https://...)"
+                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 italic">
-                     Platform Connectivity (API Keys)
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                     Payments & maps
                   </label>
                   <div className="space-y-3">
                     <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
                       <input type="checkbox" checked={!!settings.yappyEnabled} onChange={(e) => setSettings({ ...settings, yappyEnabled: e.target.checked })} className="h-5 w-5 accent-blue-600" />
-                      Enable Yappy payment option (UI; API credentials coming soon)
+                      Enable Yappy payments
                     </label>
                     <input
                       placeholder="Yappy merchant ID (optional)"
@@ -608,14 +716,13 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                   <div className="text-xs font-bold text-slate-400 italic">Environment: Production (v2.1.0)</div>
                    <button 
                     onClick={handleSave}
                     disabled={isSaving}
                     className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
                    >
                      {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                     Commit changes
+                     Save platform settings
                    </button>
                 </div>
               </div>

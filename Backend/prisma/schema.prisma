@@ -461,7 +461,7 @@ model SystemConfig {
   defaultCommission Float    @default(15)
   platformBalance   Float    @default(0)
   slotHoldTime      Int      @default(5)
-  approvalMode      String   @default("Manual Verification")
+  approvalMode      String   @default("Manual")
   twoFactorMandatory Boolean @default(true)
   minPasswordLength Int      @default(12)
   sessionTimeout    Int      @default(60)
@@ -514,6 +514,16 @@ model SystemConfig {
   showFooterPricing    Boolean  @default(true)
   footerBizSupportUrl  String?
   showFooterBizSupport Boolean  @default(true)
+
+  /// Home hero / master banner (shared by Web + Mobile)
+  homeHeroEnabled      Boolean  @default(true)
+  homeHeroTitle        String?  /// e.g. "Summer Deals"
+  homeHeroSubtitle     String?  /// e.g. "Up to 30% off this week"
+  homeHeroDealText     String?  /// e.g. "30% OFF"
+  homeHeroImageUrl     String?  /// http(s) or data: (small) or /relative
+  homeHeroCtaText      String?  /// e.g. "Book now"
+  homeHeroCtaUrl       String?  /// e.g. "/search?categoryKey=hairService"
+
   updatedAt            DateTime @updatedAt
   updatedBy            String   @default("System Admin")
 }

@@ -536,6 +536,13 @@ const SYSTEM_CONFIG_PATCH_KEYS = [
   'showFooterPricing',
   'footerBizSupportUrl',
   'showFooterBizSupport',
+  'homeHeroEnabled',
+  'homeHeroTitle',
+  'homeHeroSubtitle',
+  'homeHeroDealText',
+  'homeHeroImageUrl',
+  'homeHeroCtaText',
+  'homeHeroCtaUrl',
   'updatedBy',
 ] as const;
 
@@ -560,6 +567,7 @@ const SYSTEM_CONFIG_BOOLEAN_KEYS = new Set([
   'showFooterBizLogin',
   'showFooterPricing',
   'showFooterBizSupport',
+  'homeHeroEnabled',
 ]);
 
 const SYSTEM_CONFIG_NUMBER_KEYS = new Set([
@@ -1066,6 +1074,26 @@ export class AppController {
       clientLinks,
       businessLinks,
       legalLinks,
+    };
+  }
+
+  @Get('public/site/hero')
+  async getPublicSiteHero() {
+    const cfg = await loadSystemConfigSafe(this.prisma);
+    const row = cfg as Record<string, unknown>;
+    const trim = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+    const asBool = (v: unknown) => v !== false;
+    const imageRaw = trim(row.homeHeroImageUrl);
+    const ctaUrlRaw = trim(row.homeHeroCtaUrl);
+    return {
+      enabled: asBool(row.homeHeroEnabled),
+      title: trim(row.homeHeroTitle) || null,
+      subtitle: trim(row.homeHeroSubtitle) || null,
+      dealText: trim(row.homeHeroDealText) || null,
+      imageUrl: imageRaw ? safeImageUrl(imageRaw) : null,
+      ctaText: trim(row.homeHeroCtaText) || null,
+      ctaUrl: ctaUrlRaw || null,
+      ctaExternal: /^https?:\/\//i.test(ctaUrlRaw),
     };
   }
 

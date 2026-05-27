@@ -13,9 +13,10 @@ import {
   type PublicCategory,
   type SearchVenueRow,
 } from "../lib/venueSearch";
-import { Clock } from "lucide-react";
+import { ArrowRight, Clock, Heart, MapPin, Star } from "lucide-react";
 import { goToVenue } from "@/lib/goToVenue";
 import { HomeEventsSection } from "@/components/HomeEventsSection";
+import { fetchSiteHeroConfig, type SiteHeroConfig } from "@/lib/siteHero";
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -23,6 +24,7 @@ export default function Home() {
   const [apiVenues, setApiVenues] = useState<ApiVenue[]>([]);
   const [categories, setCategories] = useState<PublicCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [siteHero, setSiteHero] = useState<SiteHeroConfig | null>(null);
 
   useEffect(() => {
     const p1 = fetchPublicVenues(20_000, undefined, { limit: 40, page: 1 })
@@ -31,8 +33,9 @@ export default function Home() {
     const p2 = fetchPublicCategories()
       .then(setCategories)
       .catch(() => setCategories([]));
+    const p3 = fetchSiteHeroConfig().then(setSiteHero).catch(() => setSiteHero(null));
     
-    Promise.all([p1, p2]).finally(() => setIsLoading(false));
+    Promise.all([p1, p2, p3]).finally(() => setIsLoading(false));
   }, []);
 
   const venues = useMemo(
@@ -137,14 +140,41 @@ export default function Home() {
       {/* HERO SECTION — search lives in global header (Rezervame 2.0) */}
       <div
         className="relative flex h-[420px] flex-col items-center justify-center bg-cover bg-center pt-8"
-        style={{ backgroundImage: "url('/HeroSection.png')" }}
+        style={{
+          backgroundImage: `url('${
+            siteHero?.enabled !== false && siteHero?.imageUrl ? siteHero.imageUrl : "/HeroSection.png"
+          }')`,
+        }}
       >
         <div className="absolute inset-0 bg-black/50" />
         <div className="relative z-10 w-full max-w-4xl px-4 text-center text-white">
+          {siteHero?.enabled !== false && siteHero?.dealText ? (
+            <div className="mx-auto mb-4 inline-flex items-center rounded-full bg-white/10 px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-white backdrop-blur-sm ring-1 ring-white/20">
+              {siteHero.dealText}
+            </div>
+          ) : null}
           <h2 className="mx-auto mb-3 max-w-2xl text-[40px] font-extrabold leading-tight drop-shadow-md md:text-[44px]">
-            {t("heroTitle")}
+            {siteHero?.enabled !== false && siteHero?.title ? siteHero.title : t("heroTitle")}
           </h2>
-          <p className="mx-auto mb-10 max-w-xl text-lg font-normal opacity-90">{t("heroSubtitle")}</p>
+          <p className="mx-auto mb-8 max-w-xl text-lg font-normal opacity-90">
+            {siteHero?.enabled !== false && siteHero?.subtitle ? siteHero.subtitle : t("heroSubtitle")}
+          </p>
+
+          {siteHero?.enabled !== false && siteHero?.ctaUrl ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (siteHero.ctaExternal) window.open(siteHero.ctaUrl!, "_blank", "noreferrer");
+                else router.push(siteHero.ctaUrl!);
+              }}
+              className="mx-auto mb-8 inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-[13px] font-black uppercase tracking-wide text-slate-900 shadow-lg shadow-black/15 transition hover:bg-white/95"
+            >
+              {siteHero.ctaText || t("bookBtn")}
+              <span className="ml-2">→</span>
+            </button>
+          ) : (
+            <div className="mb-2" />
+          )}
 
           {heroCategoryChips.length > 0 ? (
             <div className="mx-auto w-full max-w-5xl px-2">
@@ -219,75 +249,112 @@ export default function Home() {
           </div>
         </section>
 
-        {/* FEATURED SERVICES */}
-        <section className="relative mb-12 overflow-hidden rounded-[32px] border border-[#ff5a5f]/10 bg-gradient-to-br from-[#fff7f7] via-slate-50 to-white p-8 md:p-12">
-           <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-[#ff5a5f]/8 rounded-full blur-[120px] pointer-events-none"></div>
-           <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-blue-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+        {/* FEATURED — bento / asymmetric grid (distinct from list sections below) */}
+        <section className="relative mb-16 overflow-hidden rounded-[32px] border border-[#ff5a5f]/10 bg-gradient-to-br from-[#fff7f7] via-slate-50 to-white p-8 md:p-12">
+          <div className="pointer-events-none absolute right-0 top-0 h-1/2 w-1/2 rounded-full bg-[#ff5a5f]/8 blur-[120px]" />
+          <div className="pointer-events-none absolute bottom-0 left-0 h-1/3 w-1/3 rounded-full bg-indigo-500/5 blur-[100px]" />
 
-            <div className="flex flex-col md:flex-row justify-between items-end mb-12 relative z-10 gap-6">
-              <div className="text-left">
-                 <span className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5a5f] mb-2">REZERVAME</span>
-                 <h3 className="text-[32px] font-extrabold text-slate-900 tracking-wide mb-2">{t('featuredServicesTitle')}</h3>
-                 <p className="text-slate-500 font-medium tracking-normal">{t('featuredServicesSub2')}</p>
+          <div className="relative z-10 mb-10 flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+            <div className="text-left">
+              <span className="mb-2 inline-block text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5a5f]">
+                REZERVAME
+              </span>
+              <h3 className="mb-2 text-[32px] font-extrabold tracking-wide text-slate-900">{t("featuredServicesTitle")}</h3>
+              <p className="font-medium tracking-normal text-slate-500">{t("featuredServicesSub2")}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/search")}
+              className="group inline-flex items-center rounded-xl border-2 border-slate-200 bg-white px-7 py-3 text-[14px] font-bold text-slate-900 shadow-sm transition-all duration-300 hover:border-[#ff5a5f]/40 hover:text-[#ff5a5f]"
+            >
+              {t("viewAllFeatured")}{" "}
+              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+            </button>
+          </div>
+
+          <div className="relative z-10">
+            {featuredVenueCards.length === 0 ? (
+              <p className="py-12 text-center text-sm font-medium text-slate-500">{t("homeEmptyFeatured")}</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-2">
+                {featuredVenueCards.map((serv, i) => {
+                  const isHero = i === 0;
+                  return (
+                    <div
+                      key={`${serv.businessId}-${i}`}
+                      onClick={() => goToVenue(serv.businessId)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          goToVenue(serv.businessId);
+                        }
+                      }}
+                      className={`group cursor-pointer overflow-hidden rounded-[28px] border border-white/60 bg-white/90 shadow-lg shadow-slate-200/50 ring-1 ring-slate-100/80 transition duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-[#ff5a5f]/10 hover:ring-[#ff5a5f]/20 ${
+                        isHero ? "lg:row-span-2 lg:min-h-[420px]" : "flex flex-col"
+                      }`}
+                    >
+                      <div
+                        className={`relative shrink-0 overflow-hidden bg-slate-100 ${
+                          isHero ? "h-[240px] lg:h-[min(58%,520px)] lg:flex-1" : "h-44 sm:h-40 lg:h-[46%]"
+                        }`}
+                      >
+                        <img
+                          src={serv.imgSrc}
+                          alt={serv.salonName}
+                          className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+                        <div className="absolute left-3 top-3 flex flex-col gap-1.5 sm:left-4 sm:top-4">
+                          <span className="rounded-lg bg-[#ff5a5f] px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-white shadow-lg">
+                            {t("recommended")}
+                          </span>
+                        </div>
+                        <div className="absolute right-3 top-3 flex items-center rounded-xl bg-white/95 px-2.5 py-1 text-[11px] font-black text-slate-900 shadow backdrop-blur-sm sm:right-4 sm:top-4">
+                          <Star className="mr-1 h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden />
+                          {serv.rating.toFixed(1)}
+                        </div>
+                        {isHero ? (
+                          <div className="absolute bottom-0 left-0 right-0 p-5 md:p-6">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">{serv.salonName}</p>
+                            <h4 className="mt-1 text-2xl font-black leading-tight text-white drop-shadow-sm md:text-3xl">{serv.serviceName}</h4>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className={`flex flex-1 flex-col justify-between p-4 sm:p-5 ${isHero ? "lg:pt-2" : ""}`}>
+                        {!isHero ? (
+                          <>
+                            <h4 className="line-clamp-2 font-extrabold leading-snug tracking-wide text-slate-900 transition group-hover:text-[#ff5a5f]">
+                              {serv.serviceName}
+                            </h4>
+                            <p className="mt-1 truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">{serv.salonName}</p>
+                          </>
+                        ) : (
+                          <div className="hidden lg:block" aria-hidden />
+                        )}
+                        <div className={`mt-4 flex items-end justify-between border-t border-slate-100 pt-4 ${isHero ? "lg:mt-auto" : ""}`}>
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:hidden">{serv.salonName}</span>
+                            <p className="font-black text-2xl tabular-nums text-slate-900 lg:text-3xl">${serv.price.toFixed(2)}</p>
+                          </div>
+                          <div className="flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-white">
+                            <Clock className="h-3 w-3 opacity-90" aria-hidden />
+                            {serv.durationMin > 0 ? `${serv.durationMin} ${t("min")}` : `— ${t("min")}`}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <button
-                type="button"
-                onClick={() => router.push("/search")}
-                className="inline-flex font-bold text-slate-900 text-[14px] bg-white px-7 py-3 rounded-xl border-2 border-slate-200 hover:border-[#ff5a5f]/40 hover:text-[#ff5a5f] shadow-sm transition-all duration-300 group items-center"
-              >
-                {t("viewAllFeatured")}{" "}
-                <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
-              </button>
-           </div>
-           
-           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 relative z-10">
-              {featuredVenueCards.length === 0 ? (
-                <p className="col-span-full text-center text-sm font-medium text-slate-500 py-12">
-                  {t("homeEmptyFeatured")}
-                </p>
-              ) : (
-              featuredVenueCards.map((serv, i) => (
-                 <div 
-                   key={`${serv.businessId}-${i}`} 
-                   onClick={() => goToVenue(serv.businessId)}
-                   className="group cursor-pointer bg-white rounded-3xl p-3 sm:p-4 shadow-md hover:shadow-2xl hover:shadow-[#ff5a5f]/10 border border-slate-100/80 transition-all duration-500 flex flex-col h-full transform hover:-translate-y-1.5 ring-1 ring-transparent hover:ring-[#ff5a5f]/20"
-                 >
-                    <div className="relative h-48 sm:h-52 rounded-2xl overflow-hidden mb-4 shadow-inner bg-slate-100">
-                       <img
-                         src={serv.imgSrc}
-                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
-                         alt={serv.salonName}
-                       />
-                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-70" />
-                       <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                         <span className="bg-[#ff5a5f] text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">{t('recommended')}</span>
-                       </div>
-                       <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md text-slate-900 px-2.5 py-1 rounded-lg text-[11px] font-black shadow-sm flex items-center">
-                          <span className="text-amber-400 mr-1.5 text-xs">★</span>{serv.rating.toFixed(1)}
-                       </div>
-                    </div>
-                    <div className="flex justify-between items-start mb-2 flex-1 px-1">
-                      <h4 className="font-extrabold text-slate-900 text-base leading-snug group-hover:text-[#ff5a5f] transition-colors line-clamp-2 tracking-wide">{serv.serviceName}</h4>
-                    </div>
-                    <div className="px-1 py-3 flex items-center justify-between border-t border-slate-50 mt-auto">
-                       <div className="flex flex-col min-w-0">
-                          <span className="text-[11px] text-slate-400 font-bold uppercase tracking-normal mb-0.5 truncate">{serv.salonName}</span>
-                          <span className="font-black text-slate-900 text-lg">${serv.price.toFixed(2)}</span>
-                       </div>
-                       <div className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center shrink-0 ml-2">
-                          <svg className="w-3 h-3 mr-1.5 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          {serv.durationMin > 0 ? `${serv.durationMin} ${t('min')}` : `— ${t('min')}`}
-                       </div>
-                    </div>
-                 </div>
-              ))
-              )}
-           </div>
+            )}
+          </div>
         </section>
 
-        {/* TOP SERVICES — horizontal menu below Featured */}
-        <section className="mb-12 w-full">
-          <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        {/* TOP SERVICES — editorial list rows (distinct from Featured bento & venue cards) */}
+        <section className="mb-16 w-full">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="text-left">
               <span className="mb-1 inline-block text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5a5f]">
                 REZERVAME
@@ -298,153 +365,196 @@ export default function Home() {
             <button
               type="button"
               onClick={() => router.push("/search")}
-              className="group inline-flex shrink-0 items-center self-start rounded-xl border-2 border-slate-200 bg-white px-6 py-2.5 text-[14px] font-bold text-slate-900 shadow-sm transition-all hover:border-[#ff5a5f]/40 hover:text-[#ff5a5f] sm:self-auto"
+              className="group inline-flex shrink-0 items-center self-start rounded-full border border-slate-200 bg-white px-5 py-2.5 text-[13px] font-bold text-slate-900 shadow-sm transition-all hover:border-[#ff5a5f]/35 hover:text-[#ff5a5f] sm:self-auto"
             >
-              {t("viewAllTopServices")}{" "}
-              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+              {t("viewAllTopServices")}
+              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            {topServiceMenuCards.length === 0 ? (
-              <p className="col-span-full px-2 py-8 text-center text-sm font-medium text-slate-500">
-                {t("homeEmptyServices")}
+
+          <div className="relative mx-auto max-w-4xl">
+            <div className="pointer-events-none absolute inset-y-8 left-[52px] hidden w-px bg-gradient-to-b from-transparent via-[#ff5a5f]/20 to-transparent md:block" aria-hidden />
+
+            <ul className="flex flex-col gap-3 md:gap-4">
+              {topServiceMenuCards.length === 0 ? (
+                <li className="py-10 text-center text-sm font-medium text-slate-500">{t("homeEmptyServices")}</li>
+              ) : (
+                topServiceMenuCards.map((row, i) => (
+                  <li key={`top-svc-${row.businessId}-${i}`}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => goToVenue(row.businessId)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          goToVenue(row.businessId);
+                        }
+                      }}
+                      className="group flex cursor-pointer gap-4 rounded-2xl border border-slate-100/90 bg-white p-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-slate-100/80 transition hover:border-[#ff5a5f]/20 hover:bg-gradient-to-r hover:from-white hover:to-rose-50/40 hover:shadow-lg md:gap-6 md:p-4"
+                    >
+                      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-inner md:h-[108px] md:w-[108px]">
+                        <img
+                          src={row.imgSrc}
+                          alt=""
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        />
+                        <span className="absolute bottom-2 left-2 rounded-md bg-white/95 px-1.5 py-0.5 text-[10px] font-black text-slate-900 shadow-sm backdrop-blur-sm">
+                          #{i + 1}
+                        </span>
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col justify-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[#ff5a5f]">{row.salonName}</p>
+                        <h4 className="mt-0.5 line-clamp-2 text-lg font-extrabold leading-snug text-slate-900 transition group-hover:text-[#ff5a5f] md:text-xl">
+                          {row.serviceName}
+                        </h4>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-semibold text-slate-500">
+                          <span className="inline-flex items-center gap-1 text-slate-800">
+                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden />
+                            {row.rating.toFixed(1)}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                            {row.durationMin > 0 ? `${row.durationMin} ${t("min")}` : `— ${t("min")}`}
+                          </span>
+                          <span
+                            className={`truncate text-[11px] font-medium ${row.todaySlotTimings?.toLowerCase().includes("closed") ? "text-slate-400" : "text-slate-600"}`}
+                          >
+                            {t("todaySlots")}: {row.todaySlotTimings || "—"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end justify-center gap-2 border-l border-slate-100 pl-4 md:pl-6">
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{t("fromPrice") ?? "From"}</span>
+                        <span className="font-black tabular-nums text-slate-900 text-xl md:text-2xl">${row.price.toFixed(2)}</span>
+                        <span className="hidden items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[#ff5a5f] transition group-hover:flex sm:flex">
+                          {t("bookBtn")}
+                          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                        </span>
+                      </div>
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </section>
+
+        {/* TOP VENUES — clean 2-col cards w/ overlay + meta (distinct from sections above) */}
+        <section className="mb-16 w-full">
+          <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+            <div className="text-left">
+              <span className="mb-1 inline-block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                {t("bestNear")}
+              </span>
+              <h3 className="text-[28px] font-extrabold tracking-wide text-slate-900">{t("bestNearSub")}</h3>
+              <p className="mt-1 max-w-2xl font-medium text-slate-500">
+                {t("bestNear")}: {t("bestNearSub")}
               </p>
-            ) : (
-              topServiceMenuCards.map((row, i) => (
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/search")}
+              className="group inline-flex items-center rounded-xl bg-slate-900 px-5 py-3 text-[13px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {t("viewAllBiz")}
+              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+            </button>
+          </div>
+
+          {dynamicBestBusinesses.length === 0 ? (
+            <p className="py-10 text-center text-sm font-medium text-slate-500">{t("homeEmptyBusinesses")}</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {dynamicBestBusinesses.map((biz, i) => (
                 <div
-                  key={`top-svc-${row.businessId}-${i}`}
+                  key={`${biz.id}-${i}`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => goToVenue(row.businessId)}
+                  onClick={() => goToVenue(biz.id)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      goToVenue(row.businessId);
+                      goToVenue(biz.id);
                     }
                   }}
-                  className="group flex h-full cursor-pointer flex-col rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-[#ff5a5f]/25 hover:shadow-md"
+                  className="group overflow-hidden rounded-[26px] border border-slate-100 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(255,90,95,0.16)]"
                 >
-                  <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">
-                    <img
-                      src={row.imgSrc}
-                      alt={row.serviceName}
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent opacity-80" />
-                    <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
-                      <span className="truncate text-[11px] font-black uppercase tracking-wide text-white drop-shadow">
-                        {row.salonName}
+                  <div className="relative h-[220px] bg-slate-100">
+                    <img src={biz.imgSrc} alt={biz.n} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+
+                    <div className="absolute left-4 top-4 flex items-center gap-2">
+                      <span className="rounded-full bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-900 backdrop-blur-sm">
+                        {t("recommended")}
                       </span>
-                      <span className="shrink-0 rounded-md bg-white/95 px-2 py-0.5 text-[10px] font-black text-slate-900">
-                        ★ {row.rating.toFixed(1)}
+                      <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white backdrop-blur-sm">
+                        #{i + 1}
                       </span>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-sm backdrop-blur-sm transition hover:bg-white"
+                      aria-label="Favorite"
+                    >
+                      <Heart className="h-4 w-4 text-slate-900" aria-hidden />
+                    </button>
+
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <h4 className="text-xl font-black leading-tight text-white drop-shadow-sm">{biz.n}</h4>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] font-semibold text-white/85">
+                        <span className="inline-flex items-center gap-1">
+                          <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden />
+                          {biz.rat} <span className="text-white/70">{biz.rts}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-4 w-4 text-white/75" aria-hidden />
+                          <span className="truncate">{biz.location || "—"}</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <h4 className="line-clamp-2 px-0.5 text-[15px] font-extrabold leading-snug text-slate-900 group-hover:text-[#ff5a5f]">
-                    {row.serviceName}
-                  </h4>
-                  <div className="mt-3 flex items-start justify-between px-0.5">
-                    <span className="font-black text-slate-900 text-lg">${row.price.toFixed(2)}</span>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                        {row.durationMin > 0 ? `${row.durationMin} ${t("min")}` : `— ${t("min")}`}
-                      </span>
-                      <div className={`flex items-center gap-1 text-[9px] font-semibold normal-case tracking-tight max-w-[140px] text-right leading-tight ${row.todaySlotTimings?.toLowerCase().includes('closed') ? 'text-slate-400' : 'text-slate-600'}`}>
-                        <Clock size={10} className="shrink-0" /> {t('todaySlots')}: {row.todaySlotTimings || '—'}
+
+                  <div className="p-5">
+                    <div className="flex flex-wrap gap-2">
+                      {biz.s.slice(0, 4).map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-700"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 flex items-end justify-between gap-4 border-t border-slate-100 pt-4">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-[12px] font-semibold text-slate-500">
+                          <Clock className="h-4 w-4 text-slate-400" aria-hidden /> {t("todaySlots")}:{" "}
+                          <span className="line-clamp-2">{biz.todaySlotTimings || "—"}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-black tabular-nums text-slate-900 text-xl">{biz.p}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goToVenue(biz.id);
+                          }}
+                          className="rounded-xl bg-[#ff5a5f] px-5 py-3 text-[12px] font-black uppercase tracking-wide text-white shadow-sm transition hover:bg-[#e0454a]"
+                        >
+                          {t("bookBtn")}
+                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* BEST BUSINESSES */}
-        <section className="text-center mb-16 w-full">
-          <div className="flex flex-col items-center mb-10">
-             <h3 className="text-[28px] font-extrabold text-slate-900 leading-tight mb-1 tracking-wide">{t('bestNear')}</h3>
-             <p className="text-slate-500 font-medium tracking-normal">{t('bestNearSub')}</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-[18px] text-left mb-10 w-full">
-            {dynamicBestBusinesses.length === 0 ? (
-              <p className="col-span-full text-center text-sm font-medium text-slate-500 py-10">
-                {t("homeEmptyBusinesses")}
-              </p>
-            ) : (
-            dynamicBestBusinesses.map((biz, i) => (
-              <div 
-                key={`${biz.id}-${i}`} 
-                role="button"
-                tabIndex={0}
-                onClick={() => goToVenue(biz.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    goToVenue(biz.id);
-                  }
-                }}
-                className="bg-white rounded-[16px] shadow-sm border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col pt-1 pl-1 pr-1 pb-1"
-              >
-                <div className="relative h-[150px] rounded-[13px] overflow-hidden bg-slate-100">
-                  <img 
-                    src={biz.imgSrc} 
-                    alt={biz.n} 
-                    className="w-full h-full object-cover" 
-                  />
-                  <div className="absolute top-2.5 left-2.5 bg-black text-white text-[10px] px-2.5 py-1 rounded-[6px] font-bold tracking-wide shadow-sm">{t('recommended')}</div>
-                  <button className="absolute top-2.5 right-2.5 w-7 h-7 flex items-center justify-center bg-white shadow-sm rounded-full hover:bg-slate-50"><svg className="w-3.5 h-3.5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg></button>
-                </div>
-                <div className="px-3 pt-4 pb-3 flex flex-col flex-1">
-                  <h4 className="font-black text-[15px] text-slate-900 leading-tight mb-1">{biz.n}</h4>
-                  <p className="text-[12px] text-slate-500 mb-2 font-medium">{t('beautySalon')}</p>
-                  
-                  <div className="flex items-center text-[11px] font-black text-slate-800 mb-3">
-                    <span className="text-amber-400 mr-[3px] text-sm leading-none">★</span> 
-                    <span className="leading-none pt-0.5">{biz.rat} <span className="text-slate-400 font-semibold ml-1 font-sans">{biz.rts}</span></span>
-                  </div>
-                  
-                  <div className="flex items-center text-[10.5px] text-slate-500 mb-3.5 font-semibold">
-                    <svg className="w-[14px] h-[14px] text-slate-400 mr-[4px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    <span className="truncate">{biz.location || "—"}</span>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-[5px] mb-5 border-b border-slate-100 pb-5">
-                     {biz.s.map(sTag => (
-                        <span key={sTag} className="bg-slate-50 border border-slate-100/60 text-slate-600 px-[6px] py-[3px] rounded-[5px] text-[10px] font-black">{sTag}</span>
-                     ))}
-                  </div>
-                  
-                  <div className="mt-auto">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="flex flex-col xs:flex-row xs:items-center text-slate-500 font-semibold text-[10px] leading-tight max-w-[55%]">
-                         <div className="flex items-center mb-0.5 xs:mb-0"><svg className="w-[14px] h-[14px] mr-1 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {t('todaySlots')}:</div> 
-                         <span className="line-clamp-2">{biz.todaySlotTimings || "—"}</span>
-                      </span>
-                      <span className="font-black text-slate-900 text-[16px] tracking-tight">{biz.p}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goToVenue(biz.id);
-                      }}
-                      className="w-full py-[10px] bg-[#fd5b60] hover:bg-[#e64e52] text-white text-[13px] font-black rounded-[10px] transition tracking-wide shadow-sm"
-                    >
-                      {t('bookBtn')}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-            )}
-          </div>
-          <button 
-            onClick={() => router.push('/search')}
-            className="font-bold text-slate-900 text-[15px] hover:text-[#ff5a5f] transition inline-flex items-center group"
-          >
-            {t('viewAllBiz')} <span className="ml-1 group-hover:translate-x-1 transition-transform">→</span>
-          </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <HomeEventsSection />

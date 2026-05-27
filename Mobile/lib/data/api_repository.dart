@@ -459,7 +459,9 @@ class ApiRepository {
   }
 
   Future<List<VenueListing>> fetchVenues() async {
-    final res = await http.get(await _uriWithUserGeo('mobile/venues'), headers: await _headers(auth: false));
+    final res = await http
+        .get(await _uriWithUserGeo('mobile/venues'), headers: await _headers(auth: false))
+        .timeout(const Duration(seconds: 20));
     if (res.statusCode < 200 || res.statusCode >= 300) return [];
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     final items = (body['data'] as List<dynamic>).cast<Map<String, dynamic>>();
@@ -512,11 +514,18 @@ class ApiRepository {
     if (sortBy != null) params['sortBy'] = sortBy;
     if (minRating != null && minRating > 0) params['minRating'] = '$minRating';
 
-    final res = await http.get(base.replace(queryParameters: params), headers: await _headers(auth: false));
-    if (res.statusCode < 200 || res.statusCode >= 300) return {'data': <VenueListing>[], 'total': 0};
-    
+    final res = await http
+        .get(base.replace(queryParameters: params), headers: await _headers(auth: false))
+        .timeout(const Duration(seconds: 20));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      return {'data': <VenueListing>[], 'total': 0, 'totalPages': 1};
+    }
+
     final body = jsonDecode(res.body) as Map<String, dynamic>;
-    final items = (body['data'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final raw = body['data'];
+    final items = raw is List
+        ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : <Map<String, dynamic>>[];
     final venues = items.map((it) {
       return VenueListing(
         id: VenueListing.resolveListingId(it['id'], businessId: it['businessId'] as String?),
@@ -528,8 +537,8 @@ class ApiRepository {
         rating: '${it['rating']}',
         reviews: '${it['reviews']}',
         price: '${it['price']}',
-        lat: (it['lat'] as num).toDouble(),
-        lng: (it['lng'] as num).toDouble(),
+        lat: (it['lat'] as num?)?.toDouble() ?? 0,
+        lng: (it['lng'] as num?)?.toDouble() ?? 0,
         unsplashImgId: it['unsplashImgId'] as String?,
         serviceImageUrl: (it['serviceImageUrl'] ?? it['imageUrl']) as String?,
         logoUrl: it['logoUrl'] as String?,
@@ -769,7 +778,9 @@ class ApiRepository {
   }
 
   Future<List<Map<String, dynamic>>> fetchPublicCategories() async {
-    final res = await http.get(Uri.parse('$_baseUrl/public/categories'), headers: await _headers(auth: false));
+    final res = await http
+        .get(Uri.parse('$_baseUrl/public/categories'), headers: await _headers(auth: false))
+        .timeout(const Duration(seconds: 15));
     if (res.statusCode < 200 || res.statusCode >= 300) return [];
     return (jsonDecode(res.body) as List<dynamic>).cast<Map<String, dynamic>>();
   }
@@ -1030,6 +1041,21 @@ class ApiRepository {
       };
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  /// Public hero/master banner (Web + Mobile).
+  Future<Map<String, dynamic>?> fetchPublicHeroBanner() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$_baseUrl/public/site/hero'), headers: await _headers(auth: false))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded as Map);
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String?> payBookingGroupStripeCheckout({required List<String> bookingIds}) async {
