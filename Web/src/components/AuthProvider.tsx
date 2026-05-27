@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { apiGet, apiPost, apiPostOptional } from "@/lib/api";
+import { userFacingError } from "@/lib/userFacingError";
 
 interface User {
   id?: string;
@@ -130,8 +131,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       "/auth/login",
       { email: email.trim().toLowerCase(), password },
     );
-    if (!result || result.user.role !== "USER") {
-      throw new Error("Invalid user credentials");
+    if (!result) {
+      throw new Error("Invalid email or password.");
+    }
+    if (result.user.role !== "USER") {
+      throw new Error("Invalid email or password.");
     }
     if (typeof window !== "undefined") {
       localStorage.setItem("rezervame_token", result.token);

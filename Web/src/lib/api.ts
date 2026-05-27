@@ -89,12 +89,15 @@ export async function apiPostOptional<T>(
     headers: { 'Content-Type': 'application/json', ...buildHeaders(role) },
     body: JSON.stringify(body),
   });
+  if (res.status >= 500) {
+    throw new Error(await errorMessage(res));
+  }
   if (!res.ok) return null;
   const text = await res.text();
   if (!text || !text.trim()) return null;
   try {
     return JSON.parse(text) as T;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
