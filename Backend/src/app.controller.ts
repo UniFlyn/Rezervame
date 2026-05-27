@@ -304,6 +304,36 @@ function listImageUrl(url: any): string | null {
   return null;
 }
 
+/**
+ * Controlled inline-data fallback for list/search cards.
+ * Keeps payload bounded while still showing image when business has no http(s) URL yet.
+ */
+function listSmallInlineImageUrl(url: any, maxLen = 180_000): string | null {
+  const s = safeImageUrl(url);
+  if (!s || !s.startsWith("data:")) return null;
+  if (s.length > maxLen) return null;
+  return s;
+}
+
+/** First HTTP gallery image for list cards — never embed base64 in list/search payloads. */
+function firstListThumbnail(images: unknown): string | null {
+  if (!Array.isArray(images)) return null;
+  for (const img of images) {
+    const u = listImageUrl(img) ?? listSmallInlineImageUrl(img);
+    if (u) return u;
+  }
+  return null;
+}
+
+function collectServiceListImageUrls(services: { imageUrl?: string | null }[] = []) {
+  const out: string[] = [];
+  for (const s of services) {
+    const u = listImageUrl(s.imageUrl) ?? listSmallInlineImageUrl(s.imageUrl);
+    if (u && !out.includes(u)) out.push(u);
+  }
+  return out;
+}
+
 function sanitizeMobileBusinessLite(b: any) {
   if (!b) return null;
   const images = Array.isArray(b.images)
@@ -4951,16 +4981,22 @@ export class AppController {
         ? validRatings.reduce((sum: number, r: any) => sum + r.businessRating, 0) / validRatings.length 
         : 0;
       const minPrice = b.services?.[0]?.price ?? 0;
-      const firstServiceImage = (b.services || [])
-        .map((s: { imageUrl?: string | null }) => listImageUrl(s.imageUrl))
-        .find((u: string | null) => Boolean(u));
-      
+      const serviceListImages = collectServiceListImageUrls(b.services || []);
+      const firstServiceImage = serviceListImages[0] ?? null;
+      const galleryThumb = firstListThumbnail(b.images);
+
       const distance = haversineKm(geo?.lat ?? 0, geo?.lng ?? 0, b.latitude ?? 0, b.longitude ?? 0);
-      const bannerUrl = listImageUrl(b.bannerUrl);
-      const logoUrl = listImageUrl(b.logoUrl);
+      const bannerUrl = listImageUrl(b.bannerUrl) ?? listSmallInlineImageUrl(b.bannerUrl);
+      const logoUrl = listImageUrl(b.logoUrl) ?? listSmallInlineImageUrl(b.logoUrl);
       const portfolioImageUrls: string[] = [];
+      for (const u of serviceListImages) {
+        if (!portfolioImageUrls.includes(u)) portfolioImageUrls.push(u);
+      }
+      if (galleryThumb && !portfolioImageUrls.includes(galleryThumb)) {
+        portfolioImageUrls.push(galleryThumb);
+      }
       for (const img of Array.isArray(b.images) ? b.images : []) {
-        const u = listImageUrl(img);
+        const u = listImageUrl(img) ?? listSmallInlineImageUrl(img);
         if (u && !portfolioImageUrls.includes(u)) portfolioImageUrls.push(u);
       }
       if (bannerUrl && !portfolioImageUrls.includes(bannerUrl)) {
@@ -4969,6 +5005,8 @@ export class AppController {
       if (logoUrl && !portfolioImageUrls.includes(logoUrl)) {
         portfolioImageUrls.push(logoUrl);
       }
+      const cardImage =
+        firstServiceImage ?? galleryThumb ?? bannerUrl ?? logoUrl ?? null;
 
       return {
         id: b.id,
@@ -4984,7 +5022,7 @@ export class AppController {
         serviceName: b.services?.[0]?.name ?? null,
         serviceDurationMinutes: b.services?.[0]?.duration ?? null,
         serviceImageUrl: firstServiceImage,
-        imageUrl: firstServiceImage ?? bannerUrl ?? logoUrl,
+        imageUrl: cardImage,
         bannerUrl,
         logoUrl,
         portfolioImageUrls,
@@ -5131,6 +5169,7 @@ export class AppController {
     }
     return categories.map((c) => ({
       ...c,
+      imageUrl: listImageUrl(c.imageUrl),
       activeBusinessCount: countByKey.get(c.key) ?? 0,
     }));
   }
