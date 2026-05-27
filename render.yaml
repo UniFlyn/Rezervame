@@ -1,14 +1,22 @@
 services:
   - type: web
-    name: rezervame-backend
+    name: rezervame
     plan: free
     runtime: node
-    buildCommand: cd Backend && npm install --production=false && npx prisma generate && (npx prisma migrate deploy || npx prisma db push) && npm run build
-    startCommand: cd Backend && node dist/src/main
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: DATABASE_URL
-        sync: false # User will provide this in the Render dashboard
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
       - key: PORT
         value: 4000
       - key: NODE_ENV
         value: production
+      - key: WEB_APP_URL
+        value: https://rezervame-web.web.app
+      - key: ADMIN_APP_URL
+        value: https://rezervame-admin.web.app

@@ -3,7 +3,7 @@
  * Production smoke test — run with backend up:
  *   API_BASE=http://localhost:4000 node scripts/smoke-production.mjs
  */
-const base = (process.env.API_BASE || "http://localhost:4000").replace(/\/$/, "");
+const base = (process.env.API_BASE || "https://rezervame.onrender.com").replace(/\/$/, "");
 
 async function req(path, opts = {}) {
   const url = `${base}${path}`;
