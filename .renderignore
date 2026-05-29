@@ -1,0 +1,10 @@
+# Keep Backend/dist in the deploy (built during build). Only exclude heavy dev trees.
+Web/node_modules
+Web/.next
+Web/out
+Admin/node_modules
+Admin/.next
+Admin/out
+Mobile/build
+Mobile/.dart_tool
+.git
