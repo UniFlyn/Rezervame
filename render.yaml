@@ -1,3 +1,11 @@
+# Optional: free Render Postgres (same region as API; expires after 30 days on free tier).
+# Prefer Supabase for long-lived free DB — see Backend/docs/DATABASE-OPTIONS.md
+databases:
+  - name: rezervame-db
+    plan: free
+    databaseName: rezervame
+    user: rezervame
+
 services:
   - type: web
     name: rezervame
@@ -6,6 +14,9 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Set AWS RDS URL manually in Render dashboard (sync: false — do not overwrite).
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
@@ -20,3 +31,15 @@ services:
         value: https://rezervame-web.web.app
       - key: ADMIN_APP_URL
         value: https://rezervame-admin.web.app
+      - key: POSTMARK_FROM_EMAIL
+        value: noreply@rezervame.com
+      - key: POSTMARK_REPLY_TO
+        value: soporte@rezervame.com
+      - key: POSTMARK_MESSAGE_STREAM
+        value: outbound
+      - key: POSTMARK_API_KEY
+        sync: false
+      - key: POSTMARK_WEBHOOK_TOKEN
+        sync: false
+      - key: CRON_SECRET
+        sync: false

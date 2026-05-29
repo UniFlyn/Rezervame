@@ -275,6 +275,8 @@ model Booking {
   isReviewed     Boolean        @default(false)
   paymentMethod  String?        // Preferred method selected at checkout (Online, Card Payment, etc.)
   bookingGroupId String?        // Multi-service checkout session id
+  reminderSent24h Boolean       @default(false)
+  reminderSent1h  Boolean       @default(false)
   createdAt      DateTime       @default(now())
 
   @@index([bookingGroupId])
