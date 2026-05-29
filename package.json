@@ -19,6 +19,8 @@
     "deploy:backend": "bash scripts/deploy-backend.sh",
     "deploy:all": "npm run deploy:web && npm run deploy:admin && npm run deploy:backend",
     "backup": "bash scripts/backup.sh",
-    "repair:locales": "node scripts/repair-es-locales.mjs"
+    "repair:locales": "node scripts/repair-es-locales.mjs",
+    "migrate:images-s3": "node scripts/migrate-images-to-s3.mjs --include-http",
+    "migrate:images-s3:render": "bash scripts/run-s3-migration-on-render.sh"
   }
 }

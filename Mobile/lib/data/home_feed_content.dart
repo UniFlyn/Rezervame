@@ -1,5 +1,9 @@
 import '../models/venue_listing.dart';
+import 's3_assets.dart';
+
 /// Home feed rows hydrated from `/mobile/venues`, `/public/categories`, and events (only active businesses).
+
+String? _defaultCategoryImageUrl(String key) => S3Assets.defaultCategoryUrl(key);
 
 /// Hero carousel CTA target.
 enum HomePromoBannerCta {
@@ -206,6 +210,9 @@ void hydrateHomeFeedFromVenues(
         } else {
           fallbackUnsplash = rawImg.replaceFirst(RegExp(r'^photo-'), '');
         }
+      }
+      if (networkUrl == null && key.isNotEmpty) {
+        networkUrl = _defaultCategoryImageUrl(key);
       }
       return HomeBrowseCategoryItem(
         titleKey: key.isNotEmpty ? key : 'hairService',

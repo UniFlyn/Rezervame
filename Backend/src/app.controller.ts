@@ -62,6 +62,8 @@ import {
   createSupportTicket,
   mapSupportTicketRow,
 } from './support/support-ticket.util';
+import { S3StorageService } from './storage/s3-storage.service';
+import { defaultCategoryImageUrl } from './s3-defaults';
 
 const BUSINESS_BYPASS_PASSWORD =
   process.env.NODE_ENV !== 'production' ? process.env.BUSINESS_BYPASS_PASSWORD || 'password' : '';
@@ -313,6 +315,13 @@ function listSmallInlineImageUrl(url: any, maxLen = 180_000): string | null {
   if (!s || !s.startsWith("data:")) return null;
   if (s.length > maxLen) return null;
   return s;
+}
+
+/** Default category tile images when Admin/DB has no http(s) URL (S3 bucket). */
+function publicCategoryImageUrl(key: string, stored: unknown): string | null {
+  const fromDb = listImageUrl(stored);
+  if (fromDb) return fromDb;
+  return defaultCategoryImageUrl(key);
 }
 
 /** First HTTP gallery image for list cards — never embed base64 in list/search payloads. */
@@ -711,6 +720,34 @@ function mapBusinessPatch(body: UpdateBusinessPanelDto): Record<string, unknown>
   return data;
 }
 
+async function mapBusinessPatchWithS3(
+  body: UpdateBusinessPanelDto,
+  s3: S3StorageService,
+): Promise<Record<string, unknown>> {
+  const data = mapBusinessPatch(body);
+  if (body.logo !== undefined) {
+    data.logoUrl = body.logo?.trim()
+      ? await s3.persistImageUrl(body.logo.trim(), 'venues/logos')
+      : null;
+  }
+  if (body.banner !== undefined) {
+    data.bannerUrl = body.banner?.trim()
+      ? await s3.persistImageUrl(body.banner.trim(), 'venues/banners')
+      : null;
+  }
+  if (body.images !== undefined) {
+    const list = Array.isArray(body.images) ? body.images : [];
+    const out: string[] = [];
+    for (const img of list.slice(0, 16)) {
+      if (typeof img !== 'string') continue;
+      const url = await s3.persistImageUrl(img.trim(), 'venues/gallery');
+      if (url) out.push(url);
+    }
+    data.images = out;
+  }
+  return data;
+}
+
 /** Maps seeded [Service.category] text to Mobile/Web category keys. */
 function categoryKeyFromServiceCategory(category: string): string {
   const c = category.toLowerCase();
@@ -749,7 +786,16 @@ function businessMatchesCategoryFilter(
 
 @Controller('api')
 export class AppController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Storage: S3StorageService,
+  ) {}
+
+  /** Upload data-URL images to S3 when configured; pass through https URLs. */
+  private async storeImage(value: string | null | undefined, folder: string): Promise<string | null> {
+    if (value == null || !String(value).trim()) return null;
+    return this.s3Storage.persistImageUrl(String(value).trim(), folder);
+  }
 
   @Get('admin/config')
   async getAdminConfig(@Headers('authorization') authorization?: string) {
@@ -765,6 +811,9 @@ export class AppController {
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     const data = pickSystemConfigPatch(body);
+    if (data.homeHeroImageUrl !== undefined) {
+      data.homeHeroImageUrl = await this.storeImage(String(data.homeHeroImageUrl || ''), 'site/hero');
+    }
     if (Object.keys(data).length === 0) {
       return loadSystemConfigSafe(this.prisma);
     }
@@ -1188,7 +1237,9 @@ export class AppController {
         ...(body.name !== undefined ? { name: body.name.trim() } : {}),
         ...(body.phone !== undefined ? { phone: body.phone.trim() } : {}),
         ...(body.email !== undefined ? { email: body.email.trim().toLowerCase() } : {}),
-        ...(body.avatar !== undefined ? { avatar: body.avatar } : {}),
+        ...(body.avatar !== undefined
+          ? { avatar: await this.storeImage(body.avatar, 'avatars') }
+          : {}),
         ...(body.gender !== undefined ? { gender: body.gender.trim() || null } : {}),
       }
     });
@@ -1512,6 +1563,7 @@ export class AppController {
   @Post('admin/events')
   async createAdminEvent(@Body() body: any, @Headers('authorization') auth?: string) {
     await requireUser(this.prisma, auth, [Role.ADMIN]);
+    const imageKey = body.imageKey != null ? await this.storeImage(String(body.imageKey), 'events') : null;
     return this.prisma.event.create({
       data: {
         title: body.title,
@@ -1519,7 +1571,7 @@ export class AppController {
         startAt: new Date(body.startAt),
         location: body.location,
         price: Number(body.price),
-        imageKey: body.imageKey,
+        imageKey,
         websiteUrl: normalizeEventWebsiteUrl(body.websiteUrl),
         active: body.active !== undefined ? body.active : true,
       },
@@ -1533,13 +1585,15 @@ export class AppController {
     @Headers('authorization') auth?: string,
   ) {
     await requireUser(this.prisma, auth, [Role.ADMIN]);
+    const imageKey =
+      body.imageKey !== undefined ? await this.storeImage(String(body.imageKey), 'events') : undefined;
     return this.prisma.event.update({
       where: { id },
       data: {
         title: body.title,
         body: body.body,
         location: body.location,
-        imageKey: body.imageKey,
+        ...(imageKey !== undefined ? { imageKey } : {}),
         active: body.active,
         websiteUrl:
           body.websiteUrl !== undefined
@@ -2943,12 +2997,13 @@ export class AppController {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     const key = (body.key || '').trim();
     if (!key) throw new BadRequestException('key is required');
+    const imageUrl = await this.storeImage(body.imageUrl, 'categories');
     return this.prisma.category.upsert({
       where: { key },
       update: {
         labelEn: body.labelEn?.trim() || key,
         labelEs: body.labelEs?.trim() || key,
-        imageUrl: (body.imageUrl || '').trim() || null,
+        imageUrl,
         active: body.active ?? true,
         sortOrder: body.sortOrder ?? 0,
       },
@@ -2956,7 +3011,7 @@ export class AppController {
         key,
         labelEn: body.labelEn?.trim() || key,
         labelEs: body.labelEs?.trim() || key,
-        imageUrl: (body.imageUrl || '').trim() || null,
+        imageUrl,
         active: body.active ?? true,
         sortOrder: body.sortOrder ?? 0,
       },
@@ -2980,12 +3035,14 @@ export class AppController {
     @Body() body: { labelEn?: string; labelEs?: string; imageUrl?: string; active?: boolean; sortOrder?: number },
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const imageUrl =
+      body.imageUrl !== undefined ? await this.storeImage(body.imageUrl, 'categories') : undefined;
     return this.prisma.category.update({
       where: { id },
       data: {
         ...(body.labelEn !== undefined ? { labelEn: body.labelEn.trim() } : {}),
         ...(body.labelEs !== undefined ? { labelEs: body.labelEs.trim() } : {}),
-        ...(body.imageUrl !== undefined ? { imageUrl: String(body.imageUrl || '').trim() || null } : {}),
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
         ...(body.active !== undefined ? { active: body.active } : {}),
         ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
       },
@@ -3016,6 +3073,7 @@ export class AppController {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     const key = (body.key || '').trim();
     if (!key) throw new BadRequestException('key is required');
+    const imageUrl = await this.storeImage(body.imageUrl, 'amenities');
     return this.prisma.amenity.upsert({
       where: { key },
       update: {
@@ -3023,7 +3081,7 @@ export class AppController {
         labelEs: body.labelEs?.trim() || key,
         descriptionEn: (body.descriptionEn || '').trim() || null,
         descriptionEs: (body.descriptionEs || '').trim() || null,
-        imageUrl: (body.imageUrl || '').trim() || null,
+        imageUrl,
         active: body.active ?? true,
         sortOrder: body.sortOrder ?? 0,
       },
@@ -3033,7 +3091,7 @@ export class AppController {
         labelEs: body.labelEs?.trim() || key,
         descriptionEn: (body.descriptionEn || '').trim() || null,
         descriptionEs: (body.descriptionEs || '').trim() || null,
-        imageUrl: (body.imageUrl || '').trim() || null,
+        imageUrl,
         active: body.active ?? true,
         sortOrder: body.sortOrder ?? 0,
       },
@@ -3066,6 +3124,8 @@ export class AppController {
     },
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const imageUrl =
+      body.imageUrl !== undefined ? await this.storeImage(body.imageUrl, 'amenities') : undefined;
     return this.prisma.amenity.update({
       where: { id },
       data: {
@@ -3077,7 +3137,7 @@ export class AppController {
         ...(body.descriptionEs !== undefined
           ? { descriptionEs: String(body.descriptionEs || '').trim() || null }
           : {}),
-        ...(body.imageUrl !== undefined ? { imageUrl: String(body.imageUrl || '').trim() || null } : {}),
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
         ...(body.active !== undefined ? { active: body.active } : {}),
         ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
       },
@@ -3193,7 +3253,7 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
-    const data = mapBusinessPatch(body);
+    const data = await mapBusinessPatchWithS3(body, this.s3Storage);
     const updated = await this.prisma.business.update({ where: { id }, data });
     return mapBusiness(updated);
   }
@@ -3301,8 +3361,7 @@ export class AppController {
         );
       }
     }
-    const imageUrl =
-      typeof body.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null;
+    const imageUrl = await this.storeImage(body.imageUrl, 'venues/services');
     return this.prisma.service.create({
       data: {
         businessId: id,
@@ -3324,6 +3383,8 @@ export class AppController {
     const svc = await this.prisma.service.findUnique({ where: { id } });
     if (!svc) throw new BadRequestException('Service not found');
     await requireBusinessOwner(this.prisma, authorization, svc.businessId);
+    const imageUrl =
+      body.imageUrl !== undefined ? await this.storeImage(body.imageUrl, 'venues/services') : undefined;
     return this.prisma.service.update({
       where: { id },
       data: {
@@ -3331,9 +3392,7 @@ export class AppController {
         ...(body.price !== undefined ? { price: body.price } : {}),
         ...(body.duration !== undefined ? { duration: body.duration } : {}),
         ...(body.category !== undefined ? { category: body.category } : {}),
-        ...(body.imageUrl !== undefined
-          ? { imageUrl: body.imageUrl?.trim() ? body.imageUrl.trim() : null }
-          : {}),
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
       },
     });
   }
@@ -3568,6 +3627,7 @@ export class AppController {
         );
       }
     }
+    const staffImage = body.image !== undefined ? await this.storeImage(body.image, 'staff') : undefined;
     const created = await this.prisma.staff.create({
       data: {
         businessId: id,
@@ -3576,7 +3636,7 @@ export class AppController {
         skills: body.skills ?? [],
         serviceIds: body.serviceIds ?? [],
         availability: body.availability,
-        image: body.image ?? undefined,
+        image: staffImage ?? undefined,
         bio: body.bio ?? null,
         experienceYears: body.experienceYears ?? 0,
       },
@@ -3593,6 +3653,8 @@ export class AppController {
     const row = await this.prisma.staff.findUnique({ where: { id } });
     if (!row) throw new BadRequestException('Staff not found');
     await requireBusinessOwner(this.prisma, authorization, row.businessId);
+    const staffImage =
+      body.image !== undefined ? await this.storeImage(body.image, 'staff') : undefined;
     const updated = await this.prisma.staff.update({
       where: { id },
       data: {
@@ -3601,7 +3663,7 @@ export class AppController {
         ...(body.skills !== undefined ? { skills: body.skills } : {}),
         ...(body.serviceIds !== undefined ? { serviceIds: body.serviceIds } : {}),
         ...(body.availability !== undefined ? { availability: body.availability } : {}),
-        ...(body.image !== undefined ? { image: body.image && String(body.image).trim() ? body.image : null } : {}),
+        ...(staffImage !== undefined ? { image: staffImage } : {}),
         ...(body.bio !== undefined ? { bio: body.bio } : {}),
         ...(body.experienceYears !== undefined ? { experienceYears: body.experienceYears } : {}),
       },
@@ -4178,11 +4240,12 @@ export class AppController {
   ) {
     const { user } = await requireBusinessOwner(this.prisma, authorization, id);
     const biz = await this.prisma.business.findUnique({ where: { id } });
+    const screenshotUrl = await this.storeImage(body.screenshotUrl, 'support');
     const ticket = await createSupportTicket(this.prisma, {
       subject: body.subject || `Support from ${biz?.name ?? 'merchant'}`,
       message: body.message,
       category: body.category || 'merchant',
-      screenshotUrl: body.screenshotUrl,
+      screenshotUrl: screenshotUrl ?? undefined,
       businessId: id,
       userId: user.id,
       createdByRole: Role.BUSINESS,
@@ -4223,12 +4286,13 @@ export class AppController {
   ) {
     const { user } = await requireBusinessOwner(this.prisma, authorization, id);
     const biz = await this.prisma.business.findUnique({ where: { id } });
+    const screenshotUrl = await this.storeImage(body.screenshotUrl, 'support');
     const ticket = await createSupportTicket(this.prisma, {
       subject: body.subject,
       message: body.message,
       category: body.category || 'technical',
       priority: body.priority,
-      screenshotUrl: body.screenshotUrl,
+      screenshotUrl: screenshotUrl ?? undefined,
       businessId: id,
       userId: user.id,
       createdByRole: Role.BUSINESS,
@@ -4267,11 +4331,12 @@ export class AppController {
     });
     if (!ticket) throw new BadRequestException('Ticket not found');
     const biz = await this.prisma.business.findUnique({ where: { id } });
+    const attachmentUrl = await this.storeImage(body.screenshotUrl, 'support');
     await addSupportTicketReply(this.prisma, ticketId, {
       body: body.message,
       senderRole: Role.BUSINESS,
       senderName: biz?.owner || user.name,
-      attachmentUrl: body.screenshotUrl,
+      attachmentUrl: attachmentUrl ?? undefined,
       reopen: true,
     });
     const updated = await this.prisma.supportTicket.findUnique({
@@ -4306,11 +4371,12 @@ export class AppController {
     },
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
+    const screenshotUrl = await this.storeImage(body.screenshotUrl, 'support');
     const ticket = await createSupportTicket(this.prisma, {
       subject: body.subject,
       message: body.message,
       category: body.category || 'customer',
-      screenshotUrl: body.screenshotUrl,
+      screenshotUrl: screenshotUrl ?? undefined,
       businessId: body.businessId || null,
       userId: user.id,
       createdByRole: Role.USER,
@@ -4346,11 +4412,12 @@ export class AppController {
       where: { id: ticketId, userId: user.id },
     });
     if (!ticket) throw new BadRequestException('Ticket not found');
+    const attachmentUrl = await this.storeImage(body.screenshotUrl, 'support');
     const result = await addSupportTicketReply(this.prisma, ticketId, {
       body: body.message,
       senderRole: Role.USER,
       senderName: user.name,
-      attachmentUrl: body.screenshotUrl,
+      attachmentUrl: attachmentUrl ?? undefined,
       reopen: true,
     });
     return mapSupportTicketRow({ ...result.ticket, messages: [result.message] });
@@ -5197,7 +5264,7 @@ export class AppController {
     }
     return categories.map((c) => ({
       ...c,
-      imageUrl: listImageUrl(c.imageUrl),
+      imageUrl: publicCategoryImageUrl(c.key, c.imageUrl),
       activeBusinessCount: countByKey.get(c.key) ?? 0,
     }));
   }
@@ -5254,9 +5321,15 @@ export class AppController {
     const password = (body.password || '').trim();
     const categories = Array.isArray(body.categories) ? body.categories.filter(Boolean) : [];
     const services = Array.isArray(body.services) ? body.services : [];
-    const idDocumentImage = String(body.idDocumentImage || '').trim();
-    const licenseDocumentImage = String(body.licenseDocumentImage || '').trim();
-    const insuranceDocumentImage = String(body.insuranceDocumentImage || '').trim();
+    const idDocumentImage = await this.storeImage(String(body.idDocumentImage || '').trim(), 'documents/id');
+    const licenseDocumentImage = await this.storeImage(
+      String(body.licenseDocumentImage || '').trim(),
+      'documents/license',
+    );
+    const insuranceDocumentImage = await this.storeImage(
+      String(body.insuranceDocumentImage || '').trim(),
+      'documents/insurance',
+    );
     const inputPlanId = String(body.planId || 'basic').trim();
 
     if (!name || !taxId || !owner || !email || !phone || !address) {
@@ -5271,6 +5344,16 @@ export class AppController {
     if (!idDocumentImage || !licenseDocumentImage || !insuranceDocumentImage) {
       throw new BadRequestException('id, license, and insurance images are required');
     }
+
+    const serviceCreates = await Promise.all(
+      services.map(async (s) => ({
+        name: (s.name || '').trim() || 'Service',
+        price: Number(s.price) || 0,
+        duration: Number(s.duration) || 30,
+        category: (s.category || categories[0] || 'general').toString(),
+        imageUrl: await this.storeImage(String((s as { imageUrl?: string }).imageUrl || ''), 'venues/services'),
+      })),
+    );
 
     const existing = await this.prisma.business.findUnique({ where: { email } });
     if (existing) throw new BadRequestException('business already exists for this email');
@@ -5320,13 +5403,7 @@ export class AppController {
           plan: finalPlanName,
           planId: finalPlanId,
           services: {
-            create: services.map((s) => ({
-              name: (s.name || '').trim() || 'Service',
-              price: Number(s.price) || 0,
-              duration: Number(s.duration) || 30,
-              category: (s.category || categories[0] || 'general').toString(),
-              imageUrl: safeImageUrl(String((s as { imageUrl?: string }).imageUrl || '')),
-            })),
+            create: serviceCreates,
           },
         },
         include: { services: true },

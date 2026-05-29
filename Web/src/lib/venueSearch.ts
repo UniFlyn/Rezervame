@@ -1,4 +1,5 @@
 import { PLACEHOLDER_IMAGE_DATA_URI } from "./placeholderImage";
+import { DEFAULT_CATEGORY_IMAGES, defaultCategoryImageForKey, isS3PublicUrl } from "./s3Assets";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
 
@@ -17,6 +18,8 @@ export type ApiVenue = {
   /** Business storefront / hero banner (preferred for venue cards). */
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  /** Aggregated list/service/gallery images for fallback. */
+  portfolioImageUrls?: string[];
   locationLabel: string;
   distanceLabel: string;
   serviceName?: string;
@@ -50,6 +53,7 @@ export type SearchVenueRow = {
   imageUrl?: string | null;
   bannerUrl?: string | null;
   logoUrl?: string | null;
+  portfolioImageUrls?: string[];
   nextAvailable?: string;
   todaySlotTimings?: string;
 };
@@ -69,7 +73,21 @@ const EN_CATEGORY: Record<string, string> = {
   nailCare: "Nail care",
   beautyService: "Beauty services",
   barber: "Barbershop",
+  Massage: "Massage",
+  massage: "Massage",
 };
+
+/** Fallback tile images when API returns null (AWS S3 defaults). */
+export { DEFAULT_CATEGORY_IMAGES };
+
+export function categoryTileImageSrc(key: string, imageUrl?: string | null): string {
+  const trimmed = (imageUrl || "").trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/")) {
+    return trimmed.startsWith("/") ? `${API_BASE.replace(/\/api$/, "")}${trimmed}` : trimmed;
+  }
+  if (trimmed.startsWith("data:")) return trimmed;
+  return defaultCategoryImageForKey(key);
+}
 
 export function categoryLabelEs(key: string): string {
   return ES_CATEGORY[key] || "Servicios de belleza";
@@ -84,6 +102,7 @@ export function categoryLabelFromKey(key: string, lang: "en" | "es"): string {
 
 function isUsableImageUrl(u: string): boolean {
   const t = u.trim();
+  if (isS3PublicUrl(t)) return true;
   return t.startsWith("http") || t.startsWith("data:") || t.startsWith("/");
 }
 
@@ -160,6 +179,9 @@ export function businessBannerHeroSrc(row: SearchVenueRow): string {
   const logo = (row.logoUrl || "").trim();
   if (isUsableImageUrl(logo)) return logo;
 
+  const portfolioPick = pickPortfolioImageUrl(row.portfolioImageUrls || [], row.businessId || row.id);
+  if (portfolioPick) return portfolioPick;
+
   const raw = (row.img || "").trim().replace(/^photo-/, "");
   if (raw) return `https://images.unsplash.com/photo-${raw}?q=80&w=800&fit=crop`;
 
@@ -190,6 +212,7 @@ export function mapApiVenueToRow(v: ApiVenue, lang: "en" | "es" = "en"): SearchV
     imageUrl: v.imageUrl ?? null,
     bannerUrl: v.bannerUrl ?? null,
     logoUrl: v.logoUrl ?? null,
+    portfolioImageUrls: Array.isArray(v.portfolioImageUrls) ? v.portfolioImageUrls : [],
     nextAvailable: v.nextAvailable,
     todaySlotTimings: v.todaySlotTimings,
   };
