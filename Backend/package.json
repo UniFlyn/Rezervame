@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "npx nest build",
+    "build": "rm -f tsconfig.tsbuildinfo && npx tsc -p tsconfig.json && mkdir -p dist/config && cp src/config/s3-assets.json dist/config/",
     "start": "npx nest start",
     "start:dev": "npx nest start --watch",
     "dev:local": "bash dev-local.sh",

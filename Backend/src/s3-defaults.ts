@@ -1,4 +1,4 @@
-import s3Assets from '../../shared/s3Assets.json';
+import s3Assets from './config/s3-assets.json';
 
 export const S3_PUBLIC_BASE_URL = s3Assets.publicBaseUrl;
 export const S3_BUCKET = s3Assets.bucket;

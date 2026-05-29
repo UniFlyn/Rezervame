@@ -11,8 +11,8 @@ services:
     name: rezervame
     plan: free
     runtime: node
-    buildCommand: npm install && npm run build && test -f Backend/dist/src/main.js
-    startCommand: cd Backend && (test -f dist/src/main.js || npm run build) && node dist/src/main.js
+    buildCommand: npm install && npm run build && test -f Backend/dist/main.js
+    startCommand: cd Backend && (test -f dist/main.js || npm run build) && node dist/main.js
     envVars:
       - key: NODE_VERSION
         value: "20"
