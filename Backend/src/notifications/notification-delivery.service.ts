@@ -1,5 +1,9 @@
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma.service';
+import { isPostmarkConfigured } from '../email/postmark.config';
+import { postmarkSendRaw } from '../email/email.service';
+import type { SendTemplateEmailOptions } from '../email/interfaces/email-options.interface';
+import { postmarkSendWithTemplate } from '../email/email.service';
 
 export type EmailConfig = {
   emailEnabled: boolean;
@@ -61,17 +65,92 @@ async function logDelivery(
   }
 }
 
+/** Send via Postmark template alias (production). */
+export async function sendEmailWithTemplate(
+  prisma: PrismaService,
+  options: SendTemplateEmailOptions,
+): Promise<{ ok: boolean; skipped?: boolean; error?: string; messageId?: string }> {
+  const recipient = options.to.trim();
+  if (!recipient) return { ok: false, error: 'Missing recipient' };
+
+  if (!isPostmarkConfigured()) {
+    await logDelivery(
+      prisma,
+      'email',
+      recipient,
+      options.templateAlias,
+      JSON.stringify(options.templateModel).slice(0, 2000),
+      'skipped',
+      'Postmark not configured',
+    );
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    const result = await postmarkSendWithTemplate({ ...options, to: recipient });
+    if ('skipped' in result) {
+      return { ok: true, skipped: true };
+    }
+    await logDelivery(
+      prisma,
+      'email',
+      recipient,
+      options.templateAlias,
+      JSON.stringify(options.templateModel).slice(0, 2000),
+      'sent',
+      undefined,
+      result.MessageID,
+    );
+    return { ok: true, messageId: result.MessageID };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logDelivery(
+      prisma,
+      'email',
+      recipient,
+      options.templateAlias,
+      JSON.stringify(options.templateModel).slice(0, 2000),
+      'failed',
+      msg,
+    );
+    return { ok: false, error: msg };
+  }
+}
+
 export async function sendEmail(
   prisma: PrismaService,
   to: string,
   subject: string,
   html: string,
   text?: string,
-): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
+): Promise<{ ok: boolean; skipped?: boolean; error?: string; messageId?: string }> {
   const cfg = await loadMessagingConfig(prisma);
   const recipient = to.trim();
   if (!recipient) return { ok: false, error: 'Missing recipient' };
 
+  // Postmark (rezervame.com) — preferred when POSTMARK_API_KEY is set
+  if (isPostmarkConfigured()) {
+    try {
+      const result = await postmarkSendRaw({
+        to: recipient,
+        subject,
+        htmlBody: html,
+        textBody: text,
+      });
+      if ('skipped' in result) {
+        return { ok: true, skipped: true };
+      }
+      await logDelivery(prisma, 'email', recipient, subject, text || html, 'sent', undefined, result.MessageID);
+      return { ok: true, messageId: result.MessageID };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await logDelivery(prisma, 'email', recipient, subject, text || html, 'failed', msg);
+      console.error('[email:postmark-failed]', msg);
+      return { ok: false, error: msg };
+    }
+  }
+
+  // Legacy SMTP from Admin SystemConfig (fallback)
   if (!cfg.emailEnabled || !cfg.smtpHost || !cfg.smtpUser || !cfg.smtpPass) {
     await logDelivery(prisma, 'email', recipient, subject, text || html, 'skipped', 'Email not configured');
     console.log(`[email:skipped] To: ${recipient} | ${subject}`);
@@ -97,7 +176,7 @@ export async function sendEmail(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logDelivery(prisma, 'email', recipient, subject, text || html, 'failed', msg);
-    console.error('[email:failed]', msg);
+    console.error('[email:smtp-failed]', msg);
     return { ok: false, error: msg };
   }
 }
