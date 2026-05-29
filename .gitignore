@@ -7,11 +7,12 @@ jspm_packages/
 # Firebase local cache / deploy artifacts
 .firebase/
 
-# Build outputs
-dist/
-build/
-.next/
-out/
+# Build outputs (do not use bare `dist/` — Render excludes it from deploy after build)
+Web/.next/
+Web/out/
+Admin/.next/
+Admin/out/
+Mobile/build/
 bin/
 obj/
 
