@@ -1,0 +1,37 @@
+export declare class UpdateBusinessPanelDto {
+    name?: string;
+    description?: string;
+    location?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    category?: string;
+    categories?: string[];
+    logo?: string;
+    banner?: string;
+    images?: string[];
+    amenityKeys?: string[];
+    socialYoutube?: string;
+    socialInstagram?: string;
+    socialX?: string;
+    socialTiktok?: string;
+    workingHours?: string;
+    balance?: number;
+    notifyBookingEmail?: boolean;
+    notifyCancellationEmail?: boolean;
+    notifyDailySummary?: boolean;
+    latitude?: number;
+    longitude?: number;
+    taxPercentage?: number;
+    appointmentApprovalMode?: string;
+    cancellationAllowed?: boolean;
+    cancellationHoursBefore?: number;
+    planId?: string;
+    plan?: string;
+    listingVisible?: boolean;
+    profileSetupComplete?: boolean;
+    owner?: string;
+    taxId?: string;
+    businessType?: string;
+    categoryKeys?: string[];
+    registrationDetails?: Record<string, unknown>;
+}

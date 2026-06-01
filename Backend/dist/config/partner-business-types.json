@@ -1,0 +1,66 @@
+[
+    {
+        "id": "salon",
+        "labelEn": "Hair salon",
+        "labelEs": "Salón de belleza",
+        "primaryCategoryKey": "hairService",
+        "categoryKeys": ["hairService", "beautyService"],
+        "sortOrder": 10
+    },
+    {
+        "id": "barberia",
+        "labelEn": "Barbershop",
+        "labelEs": "Barbería",
+        "primaryCategoryKey": "barber",
+        "categoryKeys": ["barber"],
+        "sortOrder": 20
+    },
+    {
+        "id": "nails",
+        "labelEn": "Nail salon",
+        "labelEs": "Salón de uñas",
+        "primaryCategoryKey": "nailCare",
+        "categoryKeys": ["nailCare"],
+        "sortOrder": 30
+    },
+    {
+        "id": "tattoo",
+        "labelEn": "Tattoo studio",
+        "labelEs": "Estudio de tatuajes",
+        "primaryCategoryKey": "tattoo",
+        "categoryKeys": ["tattoo"],
+        "sortOrder": 40
+    },
+    {
+        "id": "spa",
+        "labelEn": "Spa & massage",
+        "labelEs": "Spa y masajes",
+        "primaryCategoryKey": "spaService",
+        "categoryKeys": ["spaService", "massage"],
+        "sortOrder": 50
+    },
+    {
+        "id": "estetica",
+        "labelEn": "Aesthetics center",
+        "labelEs": "Centro de estética",
+        "primaryCategoryKey": "estetica",
+        "categoryKeys": ["estetica"],
+        "sortOrder": 60
+    },
+    {
+        "id": "dermatologo",
+        "labelEn": "Dermatology / clinic",
+        "labelEs": "Dermatología / clínica",
+        "primaryCategoryKey": "dermatology",
+        "categoryKeys": ["dermatology"],
+        "sortOrder": 70
+    },
+    {
+        "id": "yoga",
+        "labelEn": "Yoga & fitness",
+        "labelEs": "Yoga y fitness",
+        "primaryCategoryKey": "yoga",
+        "categoryKeys": ["yoga"],
+        "sortOrder": 80
+    }
+]
