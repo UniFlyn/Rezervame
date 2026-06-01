@@ -32,10 +32,10 @@ String mapBookingItemUiStatus({
   if (st == 'completed') return 'completed';
   if (st == 'cancelled' || st == 'rejected') return 'cancelled';
   if (st == 'rescheduled') return 'rescheduled';
-  if (st == 'paid') return cash ? 'cash_at_venue' : 'paid';
+  if (st == 'paid') return 'paid';
   if (st == 'approved' || st == 'confirmed') {
     if (transactionId != null && transactionId.isNotEmpty) {
-      return cash ? 'cash_at_venue' : 'paid';
+      return 'paid';
     }
     if (cash) return 'cash_at_venue';
     return 'confirmed';

@@ -87,13 +87,16 @@ class VenueListing {
   }
 
   /// URLs to try in order for [ChainedNetworkImage].
+  /// When the featured service has no image, [portfolioImageUrls] from the API
+  /// includes sibling service images and venue gallery/banner fallbacks.
   List<String> get imageUrlChain {
+    final portfolio = portfolioImageUrls.isNotEmpty
+        ? portfolioImageUrls
+        : businessPortfolioUrls(bannerUrl: bannerUrl, logoUrl: logoUrl);
     final chain = serviceImageUrlsChain(
       serviceImageUrl: serviceImageUrl,
-      portfolioUrls: portfolioImageUrls.isNotEmpty
-          ? portfolioImageUrls
-          : businessPortfolioUrls(bannerUrl: bannerUrl, logoUrl: logoUrl),
-      seed: businessId ?? '$this.id',
+      portfolioUrls: portfolio,
+      seed: businessId ?? '$id',
     );
     if (chain.isNotEmpty) return chain;
     final unsplashId = extractUnsplashPhotoId(unsplashImgId);

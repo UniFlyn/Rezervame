@@ -4,15 +4,20 @@ import { StaticPageLayout } from "../../components/StaticPageLayout";
 import { Calendar as CalendarIcon, ExternalLink, MapPin, Ticket } from "lucide-react";
 import { fetchPublicEvents, publicEventImageSrc, type PublicEvent } from "@/lib/venueSearch";
 import { Pagination } from "@/components/ui/pagination";
+import { useI18n } from "@/components/I18nProvider";
+import { StatePanel, statePanelVariantForMessage } from "@/components/ui/StatePanel";
+import { userFacingError } from "@/lib/userFacingError";
 
 const PAGE_SIZE = 10;
 
 export default function EventsPage() {
+  const { t } = useI18n();
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     void fetchPublicEvents(page, PAGE_SIZE)
@@ -22,13 +27,13 @@ export default function EventsPage() {
         setTotal(res.total);
         setErr(null);
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         setEvents([]);
         setTotalPages(1);
         setTotal(0);
-        setErr("No se pudieron cargar los eventos.");
+        setErr(userFacingError(e, t("stateLoadFailedBody")));
       });
-  }, [page]);
+  }, [page, reloadNonce, t]);
 
   return (
     <StaticPageLayout
@@ -37,11 +42,16 @@ export default function EventsPage() {
       breadcrumb="Events"
     >
       <div className="space-y-12 mt-10">
-        {err ? <p className="text-center text-sm font-semibold text-rose-600">{err}</p> : null}
+        {err ? (
+          <StatePanel
+            variant={statePanelVariantForMessage(err)}
+            title={t("stateLoadFailedTitle")}
+            description={err}
+            actions={[{ label: t("tryAgain"), onClick: () => setReloadNonce((n) => n + 1), primary: true }]}
+          />
+        ) : null}
         {events.length === 0 && !err ? (
-          <p className="text-center text-sm font-medium text-slate-500 py-12">
-            No hay eventos publicados por ahora. Los administradores pueden añadirlos en la base de datos.
-          </p>
+          <StatePanel variant="empty" title={t("stateEmptyEvents")} />
         ) : null}
         {events.map((event) => {
           const start = new Date(event.startAt);

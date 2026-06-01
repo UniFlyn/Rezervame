@@ -19,6 +19,42 @@
   scrollbar-width: none;
 }
 
+/* Hero — featured service chips auto-scroll */
+@keyframes hero-chip-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.hero-chip-marquee-wrap {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+}
+
+.hero-chip-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: hero-chip-marquee 45s linear infinite;
+  will-change: transform;
+}
+
+.hero-chip-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-chip-marquee-track {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 :root {
   --app-header-height: 4.5rem;
   --foreground-rgb: 15, 23, 42;

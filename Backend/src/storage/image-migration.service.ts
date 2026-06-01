@@ -46,7 +46,7 @@ export class ImageMigrationService {
     const includeHttp = opts.includeHttp ?? true;
     const seedDefaults = opts.seedDefaults ?? true;
 
-    if (!this.s3.isConfigured()) {
+    if (!(await this.s3.isConfigured())) {
       throw new Error('S3 is not configured on this server');
     }
 

@@ -123,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await _loadFavorites();
       if (VenueCatalog.all.isEmpty) {
         _feedError =
-            'Could not load venues. Start the API: npm run dev:api (http://127.0.0.1:4000/api)';
+            'Could not load venues. Check your connection or try again later.';
       }
     } catch (e) {
       _feedError = e.toString().replaceAll('Exception: ', '');
@@ -586,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _sectionTitleRow(
           titleKey: 'topServicesHome',
-          subtitleKey: 'featuredServicesSub2',
+          subtitleKey: 'topServicesSub',
           onSeeAll: () {
             Navigator.push<void>(
               context,
@@ -602,7 +602,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return Wrap(
               spacing: gap,
               runSpacing: gap,
-              children: kHomeFeatured
+              children: kHomeTopServices
                   .map(
                     (f) => SizedBox(
                       width: itemWidth,

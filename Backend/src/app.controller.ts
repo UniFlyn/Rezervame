@@ -13,8 +13,23 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { Business, Role } from '@prisma/client';
+import { Business, Prisma, Role } from '@prisma/client';
 import { isBusinessPubliclyVisible, requireBusinessOwner, requireUser } from './auth.helpers';
+import {
+  businessDiscoveryWhere,
+  evaluateBusinessProfileSetup,
+  isBusinessDiscoverable,
+} from './business/business-listing.util';
+import {
+  categoryKeysAndLabelsForPartner,
+  displayCategoryLabelsForBusiness,
+  displayLabelsForCategoryKeys,
+  partnerTypeIdFromBusiness,
+} from './business/business-categories.util';
+import {
+  mergeRegistrationDetails,
+  persistRegistrationDetailsImages,
+} from './business/registration-images.util';
 import { buildAuthResponse } from './auth/auth-response.util';
 import { verifyFirebaseIdToken } from './auth/firebase-auth.util';
 import { hashPassword, maybeUpgradePasswordHash, verifyPassword } from './auth/password.util';
@@ -43,7 +58,32 @@ import { RegisterCustomerDto } from './dto/register-customer.dto';
 import { CreateFamilyMemberDto, UpdateFamilyMemberDto } from './dto/family-member.dto';
 import { allocateMerchantNumber } from './merchant-number.util';
 import { PrismaService } from './prisma.service';
-import { sendEmail, sendSms, loadMessagingConfig } from './notifications/notification-delivery.service';
+import { normalizePublicImageUrl } from './storage/normalize-image-url';
+import {
+  sendEmail,
+  sendEmailWithTemplate,
+  sendSms,
+  loadMessagingConfig,
+} from './notifications/notification-delivery.service';
+import { POSTMARK_TEMPLATE } from './email/email.constants';
+import {
+  resolvePostmarkConfig,
+  resolvePostmarkConfigFromRow,
+  resolveS3ConfigFromRow,
+  resolveStripePublishableKey,
+} from './config/system-integration.config';
+import { postmarkSendRaw } from './email/email.service';
+import {
+  generateResetCode,
+  hashResetCode,
+  isPasswordResetBypassCode,
+  resetCodeExpiresAt,
+} from './auth/password-reset.util';
+import {
+  buildAdminRegistrationSections,
+  buildPublicVenueDetails,
+  collectRegistrationPhotoUrls,
+} from './business/venue-details.util';
 import {
   notifyBusinessAccount,
   notifyCustomerUser,
@@ -64,6 +104,10 @@ import {
 } from './support/support-ticket.util';
 import { S3StorageService } from './storage/s3-storage.service';
 import { defaultCategoryImageUrl } from './s3-defaults';
+import {
+  migrateBusinessCategoryKeys,
+  PARTNER_BUSINESS_TYPES,
+} from './config/partner-business-types';
 
 const BUSINESS_BYPASS_PASSWORD =
   process.env.NODE_ENV !== 'production' ? process.env.BUSINESS_BYPASS_PASSWORD || 'password' : '';
@@ -156,14 +200,7 @@ async function ensureHardcodedPlans(prisma: any) {
 
 /** Human-facing category labels for listings (array + joined string for legacy clients). */
 function displayCategoryLabels(b: Business): string[] {
-  const raw = b.categoryLabels ?? [];
-  const trimmed = raw.map((s) => String(s).trim()).filter(Boolean);
-  if (trimmed.length > 0) return trimmed;
-  const legacy = (b.categoryLabel || '').trim();
-  if (!legacy) return [];
-  return legacy.includes(' · ')
-    ? legacy.split(' · ').map((s) => s.trim()).filter(Boolean)
-    : [legacy];
+  return displayCategoryLabelsForBusiness(b);
 }
 
 function tryParseDate(val?: string): Date | null {
@@ -287,12 +324,13 @@ function normalizeEventWebsiteUrl(raw: unknown): string | null {
 /** Web business panel shape (Prisma uses address/email/phone). */
 function safeImageUrl(url: any): string | null {
   if (typeof url !== "string") return null;
-  const s = url.trim();
+  let s = url.trim();
   if (!s) return null;
   // Inline images stored on Business rows — allow up to ~1.5MB base64 in DB/JSON responses.
   if (s.startsWith("data:") && s.length > 1_500_000) {
     return null;
   }
+  s = normalizePublicImageUrl(s) ?? s;
   return s;
 }
 
@@ -341,6 +379,37 @@ function collectServiceListImageUrls(services: { imageUrl?: string | null }[] = 
     if (u && !out.includes(u)) out.push(u);
   }
   return out;
+}
+
+/** Gallery for venue cards and detail: service images, business gallery, banner, logo. */
+function buildPortfolioImageUrls(opts: {
+  services?: { imageUrl?: string | null }[];
+  images?: unknown;
+  bannerUrl?: unknown;
+  logoUrl?: unknown;
+}): string[] {
+  const serviceListImages = collectServiceListImageUrls(opts.services || []);
+  const galleryThumb = firstListThumbnail(opts.images);
+  const bannerUrl = listImageUrl(opts.bannerUrl) ?? listSmallInlineImageUrl(opts.bannerUrl);
+  const logoUrl = listImageUrl(opts.logoUrl) ?? listSmallInlineImageUrl(opts.logoUrl);
+  const portfolioImageUrls: string[] = [];
+  for (const u of serviceListImages) {
+    if (!portfolioImageUrls.includes(u)) portfolioImageUrls.push(u);
+  }
+  if (galleryThumb && !portfolioImageUrls.includes(galleryThumb)) {
+    portfolioImageUrls.push(galleryThumb);
+  }
+  for (const img of Array.isArray(opts.images) ? opts.images : []) {
+    const u = listImageUrl(img) ?? listSmallInlineImageUrl(img);
+    if (u && !portfolioImageUrls.includes(u)) portfolioImageUrls.push(u);
+  }
+  if (bannerUrl && !portfolioImageUrls.includes(bannerUrl)) {
+    portfolioImageUrls.push(bannerUrl);
+  }
+  if (logoUrl && !portfolioImageUrls.includes(logoUrl)) {
+    portfolioImageUrls.push(logoUrl);
+  }
+  return portfolioImageUrls;
 }
 
 function sanitizeMobileBusinessLite(b: any) {
@@ -444,11 +513,17 @@ function mapBusiness(b: Business | null) {
   return {
     id: b.id,
     name: b.name,
-    logo: safeImageUrl(b.logoUrl),
-    banner: safeImageUrl(b.bannerUrl),
-    images: (Array.isArray((b as any).images) && (b as any).images.length > 0)
-      ? (b as any).images.map((img: string) => safeImageUrl(img)).filter(Boolean)
-      : [safeImageUrl(b.bannerUrl)].filter(Boolean),
+    logo: listImageUrl(b.logoUrl) ?? listSmallInlineImageUrl(b.logoUrl) ?? safeImageUrl(b.logoUrl),
+    banner: listImageUrl(b.bannerUrl) ?? listSmallInlineImageUrl(b.bannerUrl) ?? safeImageUrl(b.bannerUrl),
+    images: (() => {
+      const fromGallery = Array.isArray((b as any).images) ? (b as any).images : [];
+      const mapped = fromGallery
+        .map((img: unknown) => listImageUrl(img) ?? listSmallInlineImageUrl(img))
+        .filter(Boolean) as string[];
+      if (mapped.length > 0) return mapped;
+      const banner = listImageUrl(b.bannerUrl) ?? listSmallInlineImageUrl(b.bannerUrl);
+      return banner ? [banner] : [];
+    })(),
     description: b.description,
     category: categories.join(' · '),
     categories,
@@ -485,7 +560,30 @@ function mapBusiness(b: Business | null) {
       normalizeCancellationPolicy(b),
       'es',
     ),
+    listingVisible: Boolean(b.listingVisible),
+    profileSetupComplete: Boolean(b.profileSetupComplete),
+    setupStatus: evaluateBusinessProfileSetup(b),
+    owner: b.owner,
+    taxId: b.taxId,
+    businessType: partnerTypeIdFromBusiness(b.categoryKeys, b.registrationDetails),
+    registrationDetails: b.registrationDetails ?? null,
+    registrationSections: buildAdminRegistrationSections(b.registrationDetails),
   };
+}
+
+async function syncBusinessListingFlags(prisma: PrismaService, businessId: string) {
+  const b = await prisma.business.findUnique({ where: { id: businessId } });
+  if (!b) return null;
+  const setup = evaluateBusinessProfileSetup(b);
+  const data: Prisma.BusinessUpdateInput = {};
+  if (setup.complete !== Boolean(b.profileSetupComplete)) {
+    data.profileSetupComplete = setup.complete;
+  }
+  if (!setup.complete && b.listingVisible) {
+    data.listingVisible = false;
+  }
+  if (Object.keys(data).length === 0) return b;
+  return prisma.business.update({ where: { id: businessId }, data });
 }
 
 const SYSTEM_CONFIG_PATCH_KEYS = [
@@ -499,10 +597,24 @@ const SYSTEM_CONFIG_PATCH_KEYS = [
   'maintenanceMode',
   'databaseRetention',
   'stripeApiKey',
+  'stripePublishableKey',
   'stripeWebhookSecret',
   'googleMapsApiKey',
   'yappyEnabled',
   'yappyMerchantId',
+  'cashPayEnabled',
+  'cardPayEnabled',
+  'postmarkApiKey',
+  'postmarkFromEmail',
+  'postmarkReplyTo',
+  'postmarkMessageStream',
+  'postmarkWebhookToken',
+  's3Region',
+  's3BucketName',
+  's3PublicBaseUrl',
+  's3UploadPrefix',
+  's3AccessKeyId',
+  's3SecretAccessKey',
   'emailEnabled',
   'smsEnabled',
   'smtpHost',
@@ -559,6 +671,8 @@ const SYSTEM_CONFIG_BOOLEAN_KEYS = new Set([
   'twoFactorMandatory',
   'maintenanceMode',
   'yappyEnabled',
+  'cashPayEnabled',
+  'cardPayEnabled',
   'emailEnabled',
   'smsEnabled',
   'smtpSecure',
@@ -588,10 +702,22 @@ const SYSTEM_CONFIG_NUMBER_KEYS = new Set([
   'smtpPort',
 ]);
 
+const SYSTEM_CONFIG_SECRET_KEYS = new Set([
+  'smtpPass',
+  'twilioAuthToken',
+  'stripeApiKey',
+  'stripeWebhookSecret',
+  'postmarkApiKey',
+  'postmarkWebhookToken',
+  's3SecretAccessKey',
+  's3AccessKeyId',
+]);
+
 function pickSystemConfigPatch(body: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const key of SYSTEM_CONFIG_PATCH_KEYS) {
     if (body[key] === undefined) continue;
+    if (SYSTEM_CONFIG_SECRET_KEYS.has(key) && body[key] === '***') continue;
     if (SYSTEM_CONFIG_NUMBER_KEYS.has(key)) {
       const n = Number(body[key]);
       if (!Number.isNaN(n)) data[key] = n;
@@ -601,7 +727,6 @@ function pickSystemConfigPatch(body: Record<string, unknown>): Record<string, un
       data[key] = Boolean(body[key]);
       continue;
     }
-    if (key === 'smtpPass' && body[key] === '***') continue;
     data[key] = body[key];
   }
   return data;
@@ -609,11 +734,31 @@ function pickSystemConfigPatch(body: Record<string, unknown>): Record<string, un
 
 function maskSystemConfigSecrets(row: Record<string, unknown>): Record<string, unknown> {
   const out = { ...row };
-  if (out.smtpPass) out.smtpPass = '***';
-  if (out.twilioAuthToken) out.twilioAuthToken = '***';
-  if (out.stripeApiKey) out.stripeApiKey = '***';
-  if (out.stripeWebhookSecret) out.stripeWebhookSecret = '***';
+  for (const key of SYSTEM_CONFIG_SECRET_KEYS) {
+    if (out[key]) out[key] = '***';
+  }
   return out;
+}
+
+function enrichAdminConfig(row: Record<string, unknown>): Record<string, unknown> {
+  const masked = maskSystemConfigSecrets(row);
+  const stripeSecret =
+    (typeof row.stripeApiKey === 'string' ? row.stripeApiKey.trim() : '') ||
+    process.env.STRIPE_SECRET_KEY?.trim() ||
+    '';
+  const stripePublishable =
+    (typeof row.stripePublishableKey === 'string' ? row.stripePublishableKey.trim() : '') ||
+    process.env.STRIPE_PUBLISHABLE_KEY?.trim() ||
+    '';
+  return {
+    ...masked,
+    integrationStatus: {
+      postmark: Boolean(resolvePostmarkConfigFromRow(row)),
+      s3: Boolean(resolveS3ConfigFromRow(row)),
+      stripe: Boolean(stripeSecret && stripePublishable),
+      smtp: Boolean(row.emailEnabled && row.smtpHost),
+    },
+  };
 }
 
 async function loadSystemConfigSafe(prisma: PrismaService) {
@@ -717,7 +862,50 @@ function mapBusinessPatch(body: UpdateBusinessPanelDto): Record<string, unknown>
   }
   if (body.planId !== undefined) data.planId = body.planId;
   if (body.plan !== undefined) data.plan = body.plan;
+  if (body.owner !== undefined) data.owner = String(body.owner).trim();
+  if (body.taxId !== undefined) data.taxId = String(body.taxId).trim();
+  if (body.categoryKeys !== undefined) {
+    data.categoryKeys = migrateBusinessCategoryKeys(
+      body.categoryKeys,
+      typeof body.businessType === 'string' ? body.businessType : undefined,
+    );
+    data.categoryLabels = displayLabelsForCategoryKeys(
+      data.categoryKeys as string[],
+      body.registrationDetails,
+    );
+    data.categoryLabel =
+      (data.categoryLabels as string[]).length > 0
+        ? (data.categoryLabels as string[]).join(' · ')
+        : null;
+  }
+  if (body.businessType !== undefined && body.categoryKeys === undefined) {
+    const { categoryKeys, categoryLabels } = categoryKeysAndLabelsForPartner(
+      body.businessType,
+      undefined,
+    );
+    data.categoryKeys = categoryKeys;
+    data.categoryLabels = categoryLabels;
+    data.categoryLabel = categoryLabels.length > 0 ? categoryLabels.join(' · ') : null;
+  }
   return data;
+}
+
+function applyListingVisibilityPatch(
+  business: Business,
+  body: UpdateBusinessPanelDto,
+  data: Record<string, unknown>,
+) {
+  if (body.listingVisible === undefined) return;
+  const wantsVisible = Boolean(body.listingVisible);
+  if (wantsVisible) {
+    const setup = evaluateBusinessProfileSetup(business);
+    if (!setup.canEnableListing) {
+      throw new BadRequestException(
+        'Complete required profile setup (logo, banner, photos, hours, and map location) before going visible on the app and web.',
+      );
+    }
+  }
+  data.listingVisible = wantsVisible;
 }
 
 async function mapBusinessPatchWithS3(
@@ -751,8 +939,13 @@ async function mapBusinessPatchWithS3(
 /** Maps seeded [Service.category] text to Mobile/Web category keys. */
 function categoryKeyFromServiceCategory(category: string): string {
   const c = category.toLowerCase();
+  if (c.includes('tattoo') || c.includes('tatuaj')) return 'tattoo';
+  if (c.includes('yoga') || c.includes('pilates') || c.includes('fitness')) return 'yoga';
+  if (c.includes('dermat') || c.includes('clinic') || c.includes('clínica')) return 'dermatology';
+  if (c.includes('estetic') || c.includes('aesthetic')) return 'estetica';
   if (c.includes('nail') || c.includes('uñ')) return 'nailCare';
-  if (c.includes('spa') || c.includes('massage') || c.includes('wellness')) return 'spaService';
+  if (c.includes('massage') || c.includes('masaje')) return 'massage';
+  if (c.includes('spa') || c.includes('wellness')) return 'spaService';
   if (c.includes('barber') || c.includes('groom')) return 'barber';
   if (c.includes('beauty') || c.includes('facial') || c.includes('wax')) return 'beautyService';
   return 'hairService';
@@ -801,7 +994,7 @@ export class AppController {
   async getAdminConfig(@Headers('authorization') authorization?: string) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     const row = await loadSystemConfigSafe(this.prisma);
-    return maskSystemConfigSecrets(row as Record<string, unknown>);
+    return enrichAdminConfig(row as Record<string, unknown>);
   }
 
   @Post('admin/config')
@@ -815,24 +1008,28 @@ export class AppController {
       data.homeHeroImageUrl = await this.storeImage(String(data.homeHeroImageUrl || ''), 'site/hero');
     }
     if (Object.keys(data).length === 0) {
-      return loadSystemConfigSafe(this.prisma);
+      const row = await loadSystemConfigSafe(this.prisma);
+      return enrichAdminConfig(row as Record<string, unknown>);
     }
     try {
-      return await this.prisma.systemConfig.upsert({
+      const row = await this.prisma.systemConfig.upsert({
         where: { id: 1 },
         update: data,
         create: { ...data, id: 1 },
       });
+      return enrichAdminConfig(row as Record<string, unknown>);
     } catch {
       const patch = pickSystemConfigPatch(body);
-      delete patch.stripeApiKey;
-      delete patch.stripeWebhookSecret;
+      for (const key of SYSTEM_CONFIG_SECRET_KEYS) {
+        delete patch[key];
+      }
       delete patch.googleMapsApiKey;
-      return this.prisma.systemConfig.upsert({
+      const row = await this.prisma.systemConfig.upsert({
         where: { id: 1 },
         update: patch,
         create: { ...patch, id: 1 },
       });
+      return enrichAdminConfig(row as Record<string, unknown>);
     }
   }
 
@@ -887,6 +1084,150 @@ export class AppController {
       },
     });
     return buildAuthResponse(user);
+  }
+
+  private async findValidPasswordResetCode(email: string, code: string) {
+    const normalized = email.trim().toLowerCase();
+    const hash = hashResetCode(code.trim());
+    const now = new Date();
+    return this.prisma.passwordResetCode.findFirst({
+      where: {
+        email: normalized,
+        codeHash: hash,
+        usedAt: null,
+        expiresAt: { gt: now },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Post('auth/forgot-password')
+  async forgotPassword(@Body() body: { email?: string }) {
+    const email = (body.email || '').trim().toLowerCase();
+    if (!email) throw new BadRequestException('Email is required');
+
+    const generic = {
+      ok: true,
+      message: 'If an account exists, a verification code was sent.',
+    };
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.role !== Role.USER) {
+      return generic;
+    }
+    if ((user.status || '').toLowerCase() === 'blocked') {
+      return generic;
+    }
+
+    const code = generateResetCode();
+    const expiresAt = resetCodeExpiresAt();
+
+    await this.prisma.passwordResetCode.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    await this.prisma.passwordResetCode.create({
+      data: {
+        userId: user.id,
+        email,
+        codeHash: hashResetCode(code),
+        expiresAt,
+      },
+    });
+
+    const templateResult = await sendEmailWithTemplate(this.prisma, {
+      to: email,
+      templateAlias: POSTMARK_TEMPLATE.PASSWORD_RESET,
+      templateModel: {
+        userName: user.name,
+        verificationCode: code,
+        resetCode: code,
+        expiresIn: '15 minutes',
+      },
+    });
+
+    if (templateResult.skipped || !templateResult.ok) {
+      await postmarkSendRaw(this.prisma, {
+        to: email,
+        subject: 'Your Rezervame verification code',
+        htmlBody: `<p>Hi ${user.name},</p><p>Your verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>It expires in 15 minutes.</p>`,
+        textBody: `Your Rezervame verification code is ${code}. It expires in 15 minutes.`,
+      });
+    }
+
+    const out: Record<string, unknown> = { ...generic };
+    if (process.env.NODE_ENV !== 'production' && !(await resolvePostmarkConfig(this.prisma))) {
+      out.devCode = code;
+    }
+    return out;
+  }
+
+  private async assertPasswordResetUser(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.role !== Role.USER) {
+      throw new BadRequestException('Invalid or expired code');
+    }
+    if ((user.status || '').toLowerCase() === 'blocked') {
+      throw new BadRequestException('Invalid or expired code');
+    }
+    return user;
+  }
+
+  @Post('auth/verify-reset-code')
+  async verifyResetCode(@Body() body: { email?: string; code?: string }) {
+    const email = (body.email || '').trim().toLowerCase();
+    const code = (body.code || '').trim();
+    if (!email || !code) {
+      throw new BadRequestException('Email and code are required');
+    }
+    if (isPasswordResetBypassCode(code)) {
+      await this.assertPasswordResetUser(email);
+      return { ok: true };
+    }
+    const row = await this.findValidPasswordResetCode(email, code);
+    if (!row) throw new BadRequestException('Invalid or expired code');
+    return { ok: true };
+  }
+
+  @Post('auth/reset-password')
+  async resetPasswordWithCode(
+    @Body() body: { email?: string; code?: string; newPassword?: string },
+  ) {
+    const email = (body.email || '').trim().toLowerCase();
+    const code = (body.code || '').trim();
+    const newPassword = (body.newPassword || '').trim();
+    if (!email || !code || !newPassword) {
+      throw new BadRequestException('Email, code, and new password are required');
+    }
+    if (newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters');
+    }
+
+    if (isPasswordResetBypassCode(code)) {
+      const user = await this.assertPasswordResetUser(email);
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { password: await hashPassword(newPassword) },
+      });
+      return { ok: true, message: 'Password updated successfully' };
+    }
+
+    const row = await this.findValidPasswordResetCode(email, code);
+    if (!row) throw new BadRequestException('Invalid or expired code');
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: row.userId },
+        data: { password: await hashPassword(newPassword) },
+      }),
+      this.prisma.passwordResetCode.update({
+        where: { id: row.id },
+        data: { usedAt: new Date() },
+      }),
+    ]);
+
+    return { ok: true, message: 'Password updated successfully' };
   }
 
   @Post('auth/google')
@@ -1149,24 +1490,27 @@ export class AppController {
   @Get('public/payment-config')
   async getPaymentConfig() {
     const stripeSecret = await resolveStripeSecretKey(this.prisma);
-    const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY?.trim() || '';
+    const stripePublishableKey = await resolveStripePublishableKey(this.prisma);
     const stripeEnabled = !!stripeSecret && !!stripePublishableKey;
     const cfg = await loadSystemConfigSafe(this.prisma);
     const yappyEnabled = (cfg as { yappyEnabled?: boolean }).yappyEnabled !== false;
     const yappyMerchantId = (cfg as { yappyMerchantId?: string | null }).yappyMerchantId ?? '';
+    const cashPayEnabled = (cfg as { cashPayEnabled?: boolean }).cashPayEnabled !== false;
+    const cardPayEnabled = (cfg as { cardPayEnabled?: boolean }).cardPayEnabled !== false;
     const defaultCommission =
       (cfg as { defaultCommission?: number }).defaultCommission ?? 15;
+    const cardOn = stripeEnabled && cardPayEnabled;
     return {
-      stripeEnabled,
-      stripePublishableKey: stripeEnabled ? stripePublishableKey : '',
-      cashPayEnabled: true,
+      stripeEnabled: cardOn,
+      stripePublishableKey: cardOn ? stripePublishableKey : '',
+      cashPayEnabled,
       yappyEnabled,
       yappyMerchantId: yappyMerchantId || undefined,
       defaultCommission,
       methods: [
-        { id: 'card', label: 'Card', enabled: stripeEnabled },
+        { id: 'card', label: 'Card', enabled: cardOn },
         { id: 'yappy', label: 'Yappy', enabled: yappyEnabled },
-        { id: 'cash', label: 'Cash at venue', enabled: true },
+        { id: 'cash', label: 'Cash at venue', enabled: cashPayEnabled },
       ],
     };
   }
@@ -1673,11 +2017,142 @@ export class AppController {
           insurance_verified: b.insuranceVerified,
         },
         statusHistory: b.statusHistory,
+        registrationDetails: b.registrationDetails ?? null,
+        workingHours: b.workingHours ?? null,
       })),
       total,
       page: p,
       limit: l,
       totalPages: Math.ceil(total / l),
+    };
+  }
+
+  @Get('admin/businesses/:id')
+  async getAdminBusinessById(
+    @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const b = await this.prisma.business.findUnique({
+      where: { id },
+      include: {
+        services: { orderBy: [{ category: 'asc' }, { price: 'asc' }] },
+        staff: { orderBy: { name: 'asc' } },
+        statusHistory: { orderBy: { createdAt: 'desc' } },
+        subscriptionPlan: true,
+      },
+    });
+    if (!b) throw new NotFoundException('Business not found');
+    const reviewCount = await this.prisma.review.count({ where: { businessId: id } });
+
+    const loginUser = await this.prisma.user.findUnique({
+      where: { email: b.email },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    const amenityRows =
+      (b.amenityKeys ?? []).length > 0
+        ? await this.prisma.amenity.findMany({
+            where: { key: { in: b.amenityKeys }, active: true },
+            orderBy: [{ sortOrder: 'asc' }, { labelEn: 'asc' }],
+          })
+        : [];
+
+    const categories = displayCategoryLabels(b);
+
+    return {
+      id: b.id,
+      merchantNumber: b.merchantNumber,
+      name: b.name,
+      owner: b.owner,
+      email: b.email,
+      phone: b.phone,
+      address: b.address,
+      description: b.description,
+      taxId: b.taxId,
+      status: b.status,
+      revenue: b.revenue,
+      balance: b.balance,
+      joinedDate: b.joinedDate,
+      rejectionReason: b.rejectionReason,
+      categoryKeys: b.categoryKeys,
+      categoryLabels: categories,
+      amenityKeys: b.amenityKeys,
+      amenities: amenityRows.map((a) => ({
+        key: a.key,
+        labelEn: a.labelEn,
+        labelEs: a.labelEs,
+      })),
+      latitude: b.latitude,
+      longitude: b.longitude,
+      logoUrl: safeImageUrl(b.logoUrl),
+      bannerUrl: safeImageUrl(b.bannerUrl),
+      images: (b.images ?? []).map((img) => safeImageUrl(img)).filter(Boolean),
+      socialYoutube: b.socialYoutube,
+      socialInstagram: b.socialInstagram,
+      socialX: b.socialX,
+      socialTiktok: b.socialTiktok,
+      workingHours: b.workingHours,
+      taxPercentage: b.taxPercentage,
+      plan: b.plan,
+      planId: b.planId,
+      planName: b.subscriptionPlan?.name ?? b.plan,
+      appointmentApprovalMode: b.appointmentApprovalMode,
+      cancellationAllowed: b.cancellationAllowed,
+      cancellationHoursBefore: b.cancellationHoursBefore,
+      notifyBookingEmail: b.notifyBookingEmail,
+      notifyCancellationEmail: b.notifyCancellationEmail,
+      notifyDailySummary: b.notifyDailySummary,
+      idDocumentImage: safeImageUrl(b.idDocumentImage),
+      licenseDocumentImage: safeImageUrl(b.licenseDocumentImage),
+      insuranceDocumentImage: safeImageUrl(b.insuranceDocumentImage),
+      documents: {
+        id_verified: b.idVerified,
+        license_verified: b.licenseVerified,
+        insurance_verified: b.insuranceVerified,
+      },
+      statusHistory: b.statusHistory,
+      registrationDetails: b.registrationDetails ?? null,
+      registrationSections: buildAdminRegistrationSections(b.registrationDetails),
+      registrationPhotoUrls: collectRegistrationPhotoUrls(b.registrationDetails),
+      loginAccount: loginUser
+        ? {
+            id: loginUser.id,
+            name: loginUser.name,
+            email: loginUser.email,
+            phone: loginUser.phone,
+            role: loginUser.role,
+            status: loginUser.status,
+            createdAt: loginUser.createdAt,
+          }
+        : null,
+      services: b.services.map((s) => ({
+        id: s.id,
+        name: s.name,
+        price: s.price,
+        duration: s.duration,
+        category: s.category,
+        imageUrl: safeImageUrl(s.imageUrl),
+      })),
+      staff: b.staff.map((st) => ({
+        id: st.id,
+        name: st.name,
+        role: st.role,
+        skills: st.skills,
+        availability: st.availability,
+        image: safeImageUrl(st.image),
+        bio: st.bio,
+        experienceYears: st.experienceYears,
+      })),
+      reviewCount,
     };
   }
 
@@ -1710,6 +2185,9 @@ export class AppController {
               licenseVerified: true,
               insuranceVerified: true,
               rejectionReason: null,
+              ...((before.status || '').toLowerCase() !== 'active'
+                ? { listingVisible: false, profileSetupComplete: false }
+                : {}),
             }
           : {}),
         ...((status === 'rejected' || status === 'suspended') && reasonText
@@ -2729,14 +3207,35 @@ export class AppController {
     const cfg = await loadMessagingConfig(this.prisma);
     const to = (body.to || cfg.adminNotifyEmail || '').trim();
     if (!to) throw new BadRequestException('Provide test recipient email');
+
+    const postmarkReady = Boolean(await resolvePostmarkConfig(this.prisma));
     const result = await sendEmail(
       this.prisma,
       to,
       '[Rezervame] Test email',
-      '<p>SMTP configuration test from Rezervame Admin.</p>',
-      'SMTP configuration test from Rezervame Admin.',
+      '<p>This is a test message from <strong>Rezervame Admin</strong>.</p><p>If you received this, outbound email is working.</p>',
+      'This is a test message from Rezervame Admin. If you received this, outbound email is working.',
     );
-    return result;
+
+    if (!result.ok && !result.skipped) {
+      throw new BadRequestException(
+        result.error ||
+          'Email could not be sent. Configure Postmark under Settings → Email, or enable SMTP fallback.',
+      );
+    }
+    if (result.skipped) {
+      throw new BadRequestException(
+        'Email is not configured. Add Postmark API key (Settings → Email) or SMTP host/user/password.',
+      );
+    }
+
+    const provider = postmarkReady ? 'postmark' : 'smtp';
+    return {
+      ...result,
+      ok: true,
+      provider,
+      message: `Test email sent via ${provider} to ${to}`,
+    };
   }
 
   @Post('admin/sms/test')
@@ -3183,7 +3682,10 @@ export class AppController {
     @Query('userLng') userLng?: string,
   ) {
     console.log('[GET /business/:id] id=', id);
-    const b = await this.prisma.business.findUnique({ where: { id } });
+    const b = await this.prisma.business.findUnique({
+      where: { id },
+      include: { services: { select: { imageUrl: true } } },
+    });
     if (!b) {
       console.log('[GET /business/:id] Not found in DB:', id);
       return null;
@@ -3191,7 +3693,14 @@ export class AppController {
     const visible = await isBusinessPubliclyVisible(this.prisma, b, authorization);
     console.log('[GET /business/:id] visible=', visible, 'status=', b.status);
     if (!visible) throw new NotFoundException(`Business not visible (Status: ${b.status})`);
+    const portfolioImageUrls = buildPortfolioImageUrls({
+      services: b.services,
+      images: b.images,
+      bannerUrl: b.bannerUrl,
+      logoUrl: b.logoUrl,
+    });
     const base = mapBusiness(b);
+    if (!base) return null;
     const keys = (b.amenityKeys ?? []).filter(Boolean);
     const rows =
       keys.length > 0
@@ -3221,8 +3730,12 @@ export class AppController {
       commissionPercent = 15;
     }
 
+    const publicDetails = buildPublicVenueDetails(b);
+
     return {
       ...base,
+      images: portfolioImageUrls.length > 0 ? portfolioImageUrls : base.images,
+      portfolioImageUrls,
       rating: ratingStr,
       reviews: reviewsStr,
       distanceLabel,
@@ -3230,6 +3743,8 @@ export class AppController {
       commissionPercent,
       /** @deprecated Use commissionPercent (% of subtotal), not a flat fee. */
       serviceFee: commissionPercent,
+      venueDetailSections: publicDetails.sections,
+      registrationPhotoUrls: publicDetails.photoUrls,
       amenities: rows.map((a) => ({
         key: a.key,
         labelEn: a.labelEn,
@@ -3253,9 +3768,56 @@ export class AppController {
     @Headers('authorization') authorization?: string,
   ) {
     await requireBusinessOwner(this.prisma, authorization, id);
+    const before = await this.prisma.business.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('Business not found');
     const data = await mapBusinessPatchWithS3(body, this.s3Storage);
-    const updated = await this.prisma.business.update({ where: { id }, data });
-    return mapBusiness(updated);
+    applyListingVisibilityPatch(before, body, data);
+
+    if (body.registrationDetails !== undefined || body.businessType !== undefined) {
+      let nextRd = mergeRegistrationDetails(before.registrationDetails, body.registrationDetails);
+      if (body.businessType !== undefined) {
+        nextRd.businessType = body.businessType.trim();
+      }
+      nextRd = await persistRegistrationDetailsImages(nextRd, this.s3Storage);
+      data.registrationDetails = nextRd as Prisma.InputJsonValue;
+      if (body.businessType !== undefined && body.categoryKeys === undefined) {
+        const mapped = categoryKeysAndLabelsForPartner(body.businessType, before.categoryKeys);
+        data.categoryKeys = mapped.categoryKeys;
+        data.categoryLabels = mapped.categoryLabels;
+        data.categoryLabel =
+          mapped.categoryLabels.length > 0 ? mapped.categoryLabels.join(' · ') : null;
+      }
+    }
+
+    await this.prisma.business.update({ where: { id }, data });
+    const synced = await syncBusinessListingFlags(this.prisma, id);
+    return mapBusiness(synced ?? before);
+  }
+
+  @Patch('business/:id/listing-visibility')
+  async updateBusinessListingVisibility(
+    @Param('id') id: string,
+    @Body() body: { visible?: boolean },
+    @Headers('authorization') authorization?: string,
+  ) {
+    await requireBusinessOwner(this.prisma, authorization, id);
+    const before = await this.prisma.business.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('Business not found');
+    const wantsVisible = Boolean(body.visible);
+    if (wantsVisible) {
+      const setup = evaluateBusinessProfileSetup(before);
+      if (!setup.canEnableListing) {
+        throw new BadRequestException(
+          'Complete required profile setup before your business can appear on the app and web.',
+        );
+      }
+    }
+    await this.prisma.business.update({
+      where: { id },
+      data: { listingVisible: wantsVisible },
+    });
+    const synced = await syncBusinessListingFlags(this.prisma, id);
+    return mapBusiness(synced ?? before);
   }
 
   @Post('business/:id/upgrade')
@@ -4814,7 +5376,7 @@ export class AppController {
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
     const business = await this.prisma.business.findUnique({ where: { id: body.businessId } });
-    if (!business || business.status !== 'active') {
+    if (!business || !isBusinessDiscoverable(business)) {
       throw new BadRequestException('Business is not available for booking');
     }
 
@@ -5037,7 +5599,7 @@ export class AppController {
     const l = Math.max(1, parseInt(limit));
     const geo = parseUserGeoQuery(userLat, userLng);
 
-    const where: any = { status: 'active' };
+    const where: any = { ...businessDiscoveryWhere };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -5045,7 +5607,7 @@ export class AppController {
         { services: { some: { name: { contains: search, mode: 'insensitive' } } } },
       ];
     }
-    
+
     const categoryFilter =
       category && category !== 'all'
         ? category.split(',').map((c) => c.trim()).filter(Boolean)
@@ -5083,23 +5645,12 @@ export class AppController {
       const distance = haversineKm(geo?.lat ?? 0, geo?.lng ?? 0, b.latitude ?? 0, b.longitude ?? 0);
       const bannerUrl = listImageUrl(b.bannerUrl) ?? listSmallInlineImageUrl(b.bannerUrl);
       const logoUrl = listImageUrl(b.logoUrl) ?? listSmallInlineImageUrl(b.logoUrl);
-      const portfolioImageUrls: string[] = [];
-      for (const u of serviceListImages) {
-        if (!portfolioImageUrls.includes(u)) portfolioImageUrls.push(u);
-      }
-      if (galleryThumb && !portfolioImageUrls.includes(galleryThumb)) {
-        portfolioImageUrls.push(galleryThumb);
-      }
-      for (const img of Array.isArray(b.images) ? b.images : []) {
-        const u = listImageUrl(img) ?? listSmallInlineImageUrl(img);
-        if (u && !portfolioImageUrls.includes(u)) portfolioImageUrls.push(u);
-      }
-      if (bannerUrl && !portfolioImageUrls.includes(bannerUrl)) {
-        portfolioImageUrls.push(bannerUrl);
-      }
-      if (logoUrl && !portfolioImageUrls.includes(logoUrl)) {
-        portfolioImageUrls.push(logoUrl);
-      }
+      const portfolioImageUrls = buildPortfolioImageUrls({
+        services: b.services,
+        images: b.images,
+        bannerUrl: b.bannerUrl,
+        logoUrl: b.logoUrl,
+      });
       const cardImage =
         firstServiceImage ?? galleryThumb ?? bannerUrl ?? logoUrl ?? null;
 
@@ -5249,7 +5800,7 @@ export class AppController {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
     const activeBusinesses = await this.prisma.business.findMany({
-      where: { status: 'active' },
+      where: { ...businessDiscoveryWhere },
       select: {
         id: true,
         categoryKeys: true,
@@ -5262,11 +5813,24 @@ export class AppController {
         countByKey.set(k, (countByKey.get(k) ?? 0) + 1);
       }
     }
-    return categories.map((c) => ({
-      ...c,
-      imageUrl: publicCategoryImageUrl(c.key, c.imageUrl),
-      activeBusinessCount: countByKey.get(c.key) ?? 0,
-    }));
+    return PARTNER_BUSINESS_TYPES.map((pt) => {
+      const count = pt.categoryKeys.reduce((sum, k) => sum + (countByKey.get(k) ?? 0), 0);
+      const dbRow =
+        categories.find((c) => c.key === pt.primaryCategoryKey) ??
+        categories.find((c) => pt.categoryKeys.includes(c.key));
+      return {
+        id: pt.id,
+        partnerTypeId: pt.id,
+        key: pt.primaryCategoryKey,
+        filterParam: pt.categoryKeys.join(','),
+        labelEn: dbRow?.labelEn ?? pt.labelEn,
+        labelEs: dbRow?.labelEs ?? pt.labelEs,
+        imageUrl: publicCategoryImageUrl(pt.primaryCategoryKey, dbRow?.imageUrl),
+        active: true,
+        sortOrder: pt.sortOrder,
+        activeBusinessCount: count,
+      };
+    });
   }
 
   @Get('public/amenities')
@@ -5310,6 +5874,9 @@ export class AppController {
       insuranceDocumentImage?: string;
       password?: string;
       planId?: string;
+      latitude?: number | null;
+      longitude?: number | null;
+      registrationDetails?: Record<string, unknown>;
     },
   ) {
     const name = (body.name || '').trim();
@@ -5331,6 +5898,53 @@ export class AppController {
       'documents/insurance',
     );
     const inputPlanId = String(body.planId || 'basic').trim();
+    const registrationDetails =
+      body.registrationDetails && typeof body.registrationDetails === 'object'
+        ? body.registrationDetails
+        : null;
+    const lat =
+      body.latitude != null && Number.isFinite(Number(body.latitude))
+        ? Number(body.latitude)
+        : null;
+    const lng =
+      body.longitude != null && Number.isFinite(Number(body.longitude))
+        ? Number(body.longitude)
+        : null;
+    const rd = registrationDetails as {
+      openTime?: string;
+      closeTime?: string;
+      operatingDays?: string[];
+      exteriorPhotoUrl?: string;
+      interiorPhotoUrls?: string[];
+      portfolioPhotoUrls?: string[];
+    } | null;
+    const workingHoursFromReg = rd
+      ? [
+          Array.isArray(rd.operatingDays) && rd.operatingDays.length
+            ? `Days: ${rd.operatingDays.join(', ')}`
+            : '',
+          rd.openTime && rd.closeTime ? `Hours: ${rd.openTime}–${rd.closeTime}` : '',
+        ]
+          .filter(Boolean)
+          .join(' | ')
+      : '';
+    const galleryFromReg: string[] = [];
+    if (rd?.exteriorPhotoUrl) {
+      const ext = await this.storeImage(String(rd.exteriorPhotoUrl), 'venues/gallery');
+      if (ext) galleryFromReg.push(ext);
+    }
+    if (Array.isArray(rd?.interiorPhotoUrls)) {
+      for (const img of rd.interiorPhotoUrls.slice(0, 5)) {
+        const u = await this.storeImage(String(img || ''), 'venues/gallery');
+        if (u) galleryFromReg.push(u);
+      }
+    }
+    if (Array.isArray(rd?.portfolioPhotoUrls)) {
+      for (const img of rd.portfolioPhotoUrls.slice(0, 10)) {
+        const u = await this.storeImage(String(img || ''), 'venues/gallery');
+        if (u) galleryFromReg.push(u);
+      }
+    }
 
     if (!name || !taxId || !owner || !email || !phone || !address) {
       throw new BadRequestException('name, taxId, owner, email, phone, and address are required');
@@ -5390,7 +6004,25 @@ export class AppController {
           email,
           phone,
           address,
-          categoryKeys: categories,
+          ...(() => {
+            const businessTypeId =
+              typeof registrationDetails === 'object' && registrationDetails
+                ? String((registrationDetails as { businessType?: string }).businessType || '').trim()
+                : '';
+            const migrated = migrateBusinessCategoryKeys(categories, businessTypeId || undefined);
+            const mapped = businessTypeId
+              ? categoryKeysAndLabelsForPartner(businessTypeId, migrated)
+              : {
+                  categoryKeys: migrated,
+                  categoryLabels: displayLabelsForCategoryKeys(migrated, registrationDetails),
+                };
+            return {
+              categoryKeys: mapped.categoryKeys,
+              categoryLabels: mapped.categoryLabels,
+              categoryLabel:
+                mapped.categoryLabels.length > 0 ? mapped.categoryLabels.join(' · ') : null,
+            };
+          })(),
           description: `Categories: ${categories.join(', ')}`,
           taxId,
           status: 'pending',
@@ -5402,6 +6034,13 @@ export class AppController {
           insuranceDocumentImage,
           plan: finalPlanName,
           planId: finalPlanId,
+          latitude: lat,
+          longitude: lng,
+          workingHours: workingHoursFromReg || undefined,
+          images: galleryFromReg,
+          registrationDetails: registrationDetails
+            ? (JSON.parse(JSON.stringify(registrationDetails)) as Prisma.InputJsonValue)
+            : undefined,
           services: {
             create: serviceCreates,
           },
@@ -5436,11 +6075,22 @@ export class AppController {
       emailSubject: '[Rezervame] We received your business registration',
     });
 
+    void sendEmailWithTemplate(this.prisma, {
+      to: email,
+      templateAlias: POSTMARK_TEMPLATE.WELCOME_BUSINESS,
+      templateModel: {
+        businessName: name,
+        ownerName: owner,
+        nextSteps:
+          'Our team will review your documents within 24–48 hours. You will receive an email when your partner account is approved.',
+      },
+    }).catch(() => undefined);
+
     return {
       id: created.id,
       merchantNumber: created.merchantNumber,
       status: created.status,
-      services: created.services.length,
+      services: serviceCreates.length,
     };
   }
 
@@ -5593,7 +6243,7 @@ export class AppController {
       wax: ['nailCare'],
     };
 
-    const businessWhere: any = { status: 'active' };
+    const businessWhere: any = { ...businessDiscoveryWhere };
     const q = search?.trim();
     if (q) {
       businessWhere.OR = [

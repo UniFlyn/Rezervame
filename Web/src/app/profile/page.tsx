@@ -330,6 +330,7 @@ function ProfileContent() {
   const [paymentView, setPaymentView] = useState<"none" | "review" | "done">("none");
   const [payMethod, setPayMethod] = useState<"card" | "yappy" | "cash">("card");
   const [payingLoading, setPayingLoading] = useState(false);
+  const [isSavingFamilyMember, setIsSavingFamilyMember] = useState(false);
   const [paidInvoice, setPaidInvoice] = useState<{ id: string; refNumber: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -409,6 +410,7 @@ function ProfileContent() {
     }
     
     setIsUpdatingProfile(true);
+    setIsSavingFamilyMember(true);
     try {
       await apiPatch("/auth/user-session", payload, "USER");
       await refreshUser();
@@ -631,7 +633,7 @@ function ProfileContent() {
       taxAmount: res.taxAmount,
       taxPercentage: res.taxPercentage,
       total: res.totalPrice,
-      paymentMethod: payMethod === "card" ? "Credit Card" : "Cash",
+      paymentMethod: res.paymentMethod || (payMethod === "card" ? "Credit Card" : "Cash"),
       paymentStatus: paymentView === "done" ? "paid" : "pending",
     });
   };
@@ -830,6 +832,17 @@ function ProfileContent() {
     return ids;
   }, [invoicesList]);
 
+  const menuItems = useMemo(
+    () => [
+      { id: "bookings" as const, label: t("myReservationsMenu"), icon: <Calendar size={20} /> },
+      { id: "invoices" as const, label: t("invoicesMenu"), icon: <Download size={20} /> },
+      { id: "family" as const, label: t("familyFriends"), icon: <Users size={20} /> },
+      { id: "settings" as const, label: t("profileSettings"), icon: <UserIcon size={20} /> },
+      { id: "favorites" as const, label: t("favoritesMenu"), icon: <Heart size={20} /> },
+    ],
+    [t, language],
+  );
+
   const nextBooking = ongoingReservations[0] || null;
 
   const handleAddFamily = async (e: React.FormEvent) => {
@@ -870,6 +883,8 @@ function ProfileContent() {
         "Could not save",
         err instanceof Error ? err.message : "",
       );
+    } finally {
+      setIsSavingFamilyMember(false);
     }
   };
 
@@ -884,32 +899,17 @@ function ProfileContent() {
   if (!isLoggedIn) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-        <p className="max-w-md text-sm font-semibold text-slate-600">
-          {language === "en"
-            ? "Sign in to view your profile, bookings, and favorites."
-            : "Inicia sesión para ver tu perfil, reservas y favoritos."}
-        </p>
+        <p className="max-w-md text-sm font-semibold text-slate-600">{t("favoritesSignIn")}</p>
         <button
           type="button"
           onClick={() => setIsLoginModalOpen(true)}
           className="rounded-2xl bg-[#ff5a5f] px-8 py-3 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-[#e0484d]"
         >
-          {"Sign in"}
+          {t("authSignIn")}
         </button>
       </div>
     );
   }
-
-  const menuItems = useMemo(
-    () => [
-      { id: "bookings" as const, label: t("myReservationsMenu"), icon: <Calendar size={20} /> },
-      { id: "invoices" as const, label: t("invoicesMenu"), icon: <Download size={20} /> },
-      { id: "family" as const, label: t("familyFriends"), icon: <Users size={20} /> },
-      { id: "settings" as const, label: t("profileSettings"), icon: <UserIcon size={20} /> },
-      { id: "favorites" as const, label: t("favoritesMenu"), icon: <Heart size={20} /> },
-    ],
-    [t, language],
-  );
 
   return (
     <div className="bg-slate-50 flex h-screen overflow-hidden animate-in fade-in duration-700">
@@ -1208,7 +1208,7 @@ function ProfileContent() {
                            <div>
                               <h4 className="font-black text-slate-800 text-lg group-hover:text-[#ff5a5f] transition-colors">{member.name}</h4>
                               <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                                {member.age} años • {member.gender}
+                                {member.age} {language === "es" ? "años" : "years"} • {member.gender}
                                 {member.email ? ` • ${member.email}` : ""}
                               </p>
                            </div>
@@ -2086,8 +2086,9 @@ function ProfileContent() {
                   <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Email (optional)</label>
                   <input name="email" type="email" defaultValue={editingMember?.email ?? ""} placeholder="email@example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
                </div>
-               <button type="submit" className="w-full bg-[#ff5a5f] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5a5f]/25 hover:bg-[#e0484d] transition-all text-xs uppercase tracking-widest mt-4">
-                  {editingMember ? ("Save Changes") : ("Add Member")}
+              <button type="submit" disabled={isSavingFamilyMember} className="w-full bg-[#ff5a5f] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5a5f]/25 hover:bg-[#e0484d] transition-all text-xs uppercase tracking-widest mt-4 disabled:opacity-60 flex items-center justify-center gap-2">
+                 {isSavingFamilyMember ? <Loader2 className="animate-spin" size={16} /> : null}
+                 {isSavingFamilyMember ? "Saving..." : (editingMember ? "Save Changes" : "Add Member")}
                </button>
              </form>
           </div>

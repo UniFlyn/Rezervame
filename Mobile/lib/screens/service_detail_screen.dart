@@ -54,6 +54,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with TickerPr
   String _socialX = '';
   String _socialTiktok = '';
   List<Map<String, String>> _schedule = [];
+  List<Map<String, dynamic>> _venueDetailSections = [];
   bool _detailLoading = true;
   String? _detailError;
   String? _profileBannerUrl;
@@ -236,6 +237,21 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with TickerPr
         _longitude = prof?['longitude'] != null ? (prof?['longitude'] as num).toDouble() : null;
         _contactEmail = '${prof?['contactEmail'] ?? ''}'.trim();
         _contactPhone = '${prof?['contactPhone'] ?? ''}'.trim();
+        final regPhotos = prof?['registrationPhotoUrls'];
+        if (regPhotos is List) {
+          for (final u in regPhotos) {
+            final s = '$u'.trim();
+            if (s.isNotEmpty && !_galleryImages.contains(s)) {
+              _galleryImages.insert(0, s);
+            }
+          }
+        }
+        final vds = prof?['venueDetailSections'];
+        if (vds is List) {
+          _venueDetailSections = vds.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        } else {
+          _venueDetailSections = [];
+        }
         _socialYoutube = '${prof?['socialYoutube'] ?? ''}'.trim();
         _socialInstagram = '${prof?['socialInstagram'] ?? ''}'.trim();
         _socialX = '${prof?['socialX'] ?? ''}'.trim();
@@ -1645,6 +1661,87 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with TickerPr
     );
   }
 
+  Widget _buildVenueDetailSectionsCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.grey50),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'venueDetailsHeading'.tr().isNotEmpty && 'venueDetailsHeading'.tr() != 'venueDetailsHeading'
+                ? 'venueDetailsHeading'.tr()
+                : 'Venue details',
+            style: AppTypography.heading200.copyWith(color: AppColors.grey900),
+          ),
+          const SizedBox(height: 16),
+          ..._venueDetailSections.map((sec) {
+            final title = '${sec['title'] ?? ''}'.trim();
+            final rows = sec['rows'];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title.isNotEmpty)
+                    Text(
+                      title,
+                      style: AppTypography.body100.copyWith(
+                        color: AppColors.primary500,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  if (title.isNotEmpty) const SizedBox(height: 8),
+                  if (rows is List)
+                    ...rows.map((r) {
+                      final row = Map<String, dynamic>.from(r as Map);
+                      final label = '${row['label'] ?? ''}'.trim();
+                      final value = '${row['value'] ?? ''}'.trim();
+                      if (label.isEmpty && value.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Text(label, style: AppTypography.body100.copyWith(color: AppColors.grey500)),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                value,
+                                textAlign: TextAlign.end,
+                                style: AppTypography.body200.copyWith(
+                                  color: AppColors.grey900,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVenueExtraInfo() {
     final mapCenter = _latitude != null && _longitude != null
         ? LatLng(_latitude!, _longitude!)
@@ -1738,6 +1835,10 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with TickerPr
               ],
             ),
           ),
+          if (_venueDetailSections.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _buildVenueDetailSectionsCard(),
+          ],
           const SizedBox(height: 20),
 
           // 2. Working Hours (Schedule) Card

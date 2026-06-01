@@ -9,7 +9,7 @@ export class StorageController {
   async uploadImage(
     @Body() body: { dataUrl?: string; folder?: string },
   ): Promise<{ url: string }> {
-    if (!this.s3.isConfigured()) {
+    if (!(await this.s3.isConfigured())) {
       throw new ServiceUnavailableException(
         'S3 is not configured. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET_NAME on the server.',
       );

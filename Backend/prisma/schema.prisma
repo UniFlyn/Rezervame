@@ -33,6 +33,22 @@ model User {
   supportTickets SupportTicket[]
   webPushEnabled Boolean @default(false)
   webPushSubscriptions WebPushSubscription[]
+  passwordResetCodes PasswordResetCode[]
+}
+
+model PasswordResetCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model WebPushSubscription {
@@ -190,6 +206,12 @@ model Business {
   planId                   String?
   subscriptionPlan         SubscriptionPlan? @relation(fields: [planId], references: [id])
   supportTickets           SupportTicket[]
+  /// Extended fields from public partner registration (owner ID, bank, hours, access notes, etc.).
+  registrationDetails      Json?
+  /// Merchant toggle: when true (and setup complete), venue appears on app/web discovery.
+  listingVisible           Boolean        @default(false)
+  /// Required profile/media/location setup finished — unlocks listing toggle.
+  profileSetupComplete     Boolean        @default(false)
 }
 
 model BusinessStatusHistory {
@@ -470,10 +492,26 @@ model SystemConfig {
   maintenanceMode   Boolean  @default(false)
   databaseRetention Int      @default(90)
   stripeApiKey         String?
+  stripePublishableKey String?
   stripeWebhookSecret  String?
   googleMapsApiKey     String?
   yappyEnabled         Boolean  @default(true)
   yappyMerchantId      String?
+  cashPayEnabled       Boolean  @default(true)
+  cardPayEnabled       Boolean  @default(true)
+  /// Postmark (primary transactional email)
+  postmarkApiKey         String?
+  postmarkFromEmail      String?
+  postmarkReplyTo        String?
+  postmarkMessageStream  String?
+  postmarkWebhookToken   String?
+  /// AWS S3 media bucket (venue images, hero, etc.)
+  s3Region               String?
+  s3BucketName           String?
+  s3PublicBaseUrl        String?
+  s3UploadPrefix         String?  @default("uploads")
+  s3AccessKeyId          String?
+  s3SecretAccessKey      String?
   emailEnabled         Boolean  @default(false)
   smsEnabled           Boolean  @default(false)
   smtpHost             String?

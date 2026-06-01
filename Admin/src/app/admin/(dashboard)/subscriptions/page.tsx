@@ -348,7 +348,7 @@ export default function SubscriptionsPage() {
                     className="flex-2 bg-slate-900 text-white px-12 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 transition shadow-2xl shadow-slate-900/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                    Commit Tier
+                    Save plan
                   </button>
                </div>
             </form>

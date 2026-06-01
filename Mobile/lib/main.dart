@@ -1,5 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'data/api_config.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'data/api_repository.dart';
 import 'data/locale_preferences.dart';
@@ -13,6 +15,9 @@ Future<void> main() async {
   await initializeDateFormatting('en_US', null);
   await initializeDateFormatting('es_ES', null);
   await EasyLocalization.ensureInitialized();
+  if (kDebugMode) {
+    debugPrint('Rezervame API: ${resolveApiBaseUrl()}');
+  }
   final savedLocale = await LocalePreferences.loadSavedLocale();
   try {
     await ApiRepository().bootstrapMobileData();

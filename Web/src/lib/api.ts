@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+import { resolveApiBase } from "./apiBase";
+
+const API_BASE = resolveApiBase();
 
 /** Prevents the UI hanging indefinitely when the API is down or unreachable (browser fetch has no default timeout). */
 const DEFAULT_FETCH_TIMEOUT_MS = 60_000;

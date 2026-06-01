@@ -4,23 +4,23 @@ import { useBusinessStore } from '../../../store/businessStore';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Instagram, Twitter, Youtube, Sparkles, CheckCircle, X, ImagePlus } from 'lucide-react';
 import { fetchPublicAmenities, type PublicAmenity } from '@/lib/venueSearch';
 import { amenityLucideIcon } from '@/lib/amenityIcons';
 import { toastError, toastSuccess, toastWarning } from '@/lib/toast';
 import { PLACEHOLDER_IMAGE_DATA_URI } from '@/lib/placeholderImage';
 import { compressImageFile } from '@/lib/compressImage';
-
-const BUSINESS_CATEGORIES = [
-  'Beauty salon',
-  'Barbershop',
-  'Spa & wellness',
-  'Nails & manicure',
-  'Facial aesthetics',
-  'Massage',
-  'Other',
-];
+import { resolveApiBase } from '@/lib/apiBase';
+import { useI18n } from '@/components/I18nProvider';
+import { BusinessTypePicker } from '@/components/business/BusinessTypePicker';
+import {
+  BusinessProfileRegistrationFields,
+  mergeRegistrationExtended,
+} from '@/components/business/BusinessProfileRegistrationFields';
+import { categoryKeysForPartnerType, inferPartnerTypeId } from '@/lib/partnerBusinessTypes';
+import type { BusinessRegistrationDetails } from '@/lib/businessJoinConfig';
+import { buildBusinessProfilePatch } from '@/lib/businessProfilePatch';
 
 const optionalHttpsUrl = z
   .string()
@@ -40,8 +40,9 @@ const MAX_GALLERY_PHOTOS = 12;
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name is required'),
+  owner: z.string().min(2, 'Owner name is required'),
+  taxId: z.string().min(2, 'Tax ID is required'),
   description: z.string().min(10, 'Description at least 10 chars'),
-  categories: z.array(z.string()).min(1, 'Select at least one category'),
   location: z.string().min(5, 'Location required'),
   contactEmail: z.string().email(),
   contactPhone: z.string().min(10, 'Valid phone required'),
@@ -63,19 +64,9 @@ function TiktokGlyph({ className }: { className?: string }) {
   );
 }
 
-function parseCategoriesFromBusiness(b: {
-  categories?: string[];
-  category?: string;
-} | null): string[] {
-  if (!b) return [];
-  if (b.categories && b.categories.length > 0) return [...b.categories];
-  const c = (b.category || '').trim();
-  if (!c) return [];
-  if (c.includes(' · ')) return c.split(' · ').map((s) => s.trim()).filter(Boolean);
-  return [c];
-}
-
 export default function ProfilePage() {
+  const { t, language } = useI18n();
+  const lang = language === 'es' ? 'es' : 'en';
   const business = useBusinessStore((state) => state.business);
   const updateBusiness = useBusinessStore((state) => state.updateBusiness);
   const [success, setSuccess] = useState(false);
@@ -84,6 +75,11 @@ export default function ProfilePage() {
   const [amenityKeysDraft, setAmenityKeysDraft] = useState<string[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [galleryDraft, setGalleryDraft] = useState<string[]>([]);
+  const [businessTypeId, setBusinessTypeId] = useState('');
+  const [categoryKeysDraft, setCategoryKeysDraft] = useState<string[]>([]);
+  const [registrationExtended, setRegistrationExtended] = useState(() =>
+    mergeRegistrationExtended('', null),
+  );
   const [workingHoursDraft, setWorkingHoursDraft] = useState<Array<{ day: string; open: boolean; start: string; end: string }>>([
     { day: "Monday", open: true, start: "09:00 AM", end: "06:00 PM" },
     { day: "Tuesday", open: true, start: "09:00 AM", end: "06:00 PM" },
@@ -93,15 +89,6 @@ export default function ProfilePage() {
     { day: "Saturday", open: true, start: "10:00 AM", end: "04:00 PM" },
     { day: "Sunday", open: false, start: "09:00 AM", end: "06:00 PM" },
   ]);
-
-  const categoryOptions = useMemo(() => {
-    const list = [...BUSINESS_CATEGORIES];
-    const existing = parseCategoriesFromBusiness(business ?? null);
-    for (const label of existing) {
-      if (label && !list.includes(label)) list.unshift(label);
-    }
-    return list;
-  }, [business]);
 
   const {
     register,
@@ -115,8 +102,9 @@ export default function ProfilePage() {
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: business?.name || '',
+      owner: business?.owner || '',
+      taxId: business?.taxId || '',
       description: business?.description || '',
-      categories: parseCategoriesFromBusiness(business ?? null),
       location: business?.location || '',
       contactEmail: business?.contactEmail || '',
       contactPhone: business?.contactPhone || '',
@@ -136,10 +124,35 @@ export default function ProfilePage() {
     if (!business) return;
     const keepLogo = getValues('logo')?.trim() || '';
     const keepBanner = getValues('banner')?.trim() || '';
+    const typeId =
+      business.businessType ||
+      inferPartnerTypeId(business.categoryKeys, (business.registrationDetails as BusinessRegistrationDetails)?.businessType);
+    setBusinessTypeId(typeId);
+    setCategoryKeysDraft(
+      business.categoryKeys?.length
+        ? [...business.categoryKeys]
+        : typeId
+          ? categoryKeysForPartnerType(typeId)
+          : [],
+    );
+    setRegistrationExtended(
+      mergeRegistrationExtended(
+        typeId,
+        (business.registrationDetails as BusinessRegistrationDetails) ?? null,
+        {
+          latitude: business.latitude,
+          longitude: business.longitude,
+          contactPhone: business.contactPhone,
+          contactEmail: business.contactEmail,
+        },
+      ),
+    );
+
     reset({
       name: business.name || '',
+      owner: business.owner || '',
+      taxId: business.taxId || '',
       description: business.description || '',
-      categories: parseCategoriesFromBusiness(business),
       location: business.location || '',
       contactEmail: business.contactEmail || '',
       contactPhone: business.contactPhone || '',
@@ -209,7 +222,6 @@ export default function ProfilePage() {
   useEffect(() => {
     register('logo');
     register('banner');
-    register('categories');
   }, [register]);
 
   useEffect(() => {
@@ -228,7 +240,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     let cancelled = false;
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+    const API_BASE = resolveApiBase();
     fetch(`${API_BASE}/public/plans`, { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error("Plans failed to fetch");
@@ -276,28 +288,46 @@ export default function ProfilePage() {
   }, []);
 
   const onSubmit = async (data: ProfileFormValues) => {
+    if (!business) return;
     setErrorMessage(null);
     try {
-      const logo = (getValues('logo') || data.logo || '').trim();
-      const banner = (getValues('banner') || data.banner || '').trim();
-      await updateBusiness({
-        ...data,
-        socialYoutube: data.socialYoutube?.trim() || '',
-        socialInstagram: data.socialInstagram?.trim() || '',
-        socialX: data.socialX?.trim() || '',
-        socialTiktok: data.socialTiktok?.trim() || '',
+      const logo = (getValues('logo') || data.logo || business.logo || '').trim();
+      const banner = (getValues('banner') || data.banner || business.banner || '').trim();
+      const resolvedTypeId =
+        businessTypeId ||
+        inferPartnerTypeId(business.categoryKeys, registrationExtended.businessType) ||
+        business.businessType ||
+        '';
+      if (!resolvedTypeId) {
+        toastWarning('Business type', 'Select the same business type you chose when registering.');
+        return;
+      }
+      const workingHoursJson = JSON.stringify(
+        workingHoursDraft.map((item) => ({
+          day: item.day,
+          hours: item.open ? `${item.start} - ${item.end}` : 'Closed',
+        })),
+      );
+      const patch = buildBusinessProfilePatch({
+        business,
+        form: data,
+        businessTypeId: resolvedTypeId,
+        categoryKeys:
+          categoryKeysDraft.length > 0
+            ? categoryKeysDraft
+            : categoryKeysForPartnerType(resolvedTypeId),
+        registrationDetails: {
+          ...registrationExtended,
+          businessType: resolvedTypeId,
+        },
+        amenityKeys: amenityKeysDraft,
+        galleryImages: galleryDraft,
+        workingHoursJson,
         logo,
         banner,
-        images: galleryDraft.filter((u) => u.trim()).slice(0, MAX_GALLERY_PHOTOS),
-        categories: data.categories,
-        amenityKeys: amenityKeysDraft,
-        workingHours: JSON.stringify(
-          workingHoursDraft.map(item => ({
-            day: item.day,
-            hours: item.open ? `${item.start} - ${item.end}` : "Closed"
-          }))
-        ),
       });
+      await updateBusiness(patch);
+      setBusinessTypeId(resolvedTypeId);
       setSuccess(true);
       toastSuccess('Business profile updated');
       setTimeout(() => setSuccess(false), 3000);
@@ -311,25 +341,6 @@ export default function ProfilePage() {
 
   function toggleAmenityKey(key: string) {
     setAmenityKeysDraft((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
-  }
-
-  const selectedCategories = watch('categories') ?? [];
-
-  function toggleCategoryLabel(label: string) {
-    const cur = getValues('categories') ?? [];
-    if (cur.includes(label)) {
-      if (cur.length <= 1) {
-        toastWarning('Categories', 'Keep at least one category selected.');
-        return;
-      }
-      setValue(
-        'categories',
-        cur.filter((x) => x !== label),
-        { shouldValidate: true, shouldDirty: true },
-      );
-      return;
-    }
-    setValue('categories', [...cur, label], { shouldValidate: true, shouldDirty: true });
   }
 
   const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2';
@@ -413,10 +424,23 @@ export default function ProfilePage() {
               })}
               className="space-y-7 md:space-y-8"
             >
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className={labelCls}>Business name</label>
+                  <input {...register('name')} className={inputCls} />
+                  {errors.name && <p className={errCls}>{errors.name.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className={labelCls}>Tax ID</label>
+                  <input {...register('taxId')} className={inputCls} />
+                  {errors.taxId && <p className={errCls}>{errors.taxId.message}</p>}
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <label className={labelCls}>Business name</label>
-                <input {...register('name')} className={inputCls} />
-                {errors.name && <p className={errCls}>{errors.name.message}</p>}
+                <label className={labelCls}>Owner / manager</label>
+                <input {...register('owner')} className={inputCls} />
+                {errors.owner && <p className={errCls}>{errors.owner.message}</p>}
               </div>
 
               <div className="space-y-2">
@@ -425,35 +449,32 @@ export default function ProfilePage() {
                 {errors.description && <p className={errCls}>{errors.description.message}</p>}
               </div>
 
-              <div className="grid grid-cols-1 gap-6 sm:gap-7 md:grid-cols-2 md:gap-x-8 md:gap-y-0">
-                <div className="space-y-2 md:col-span-1">
-                  <label className={labelCls}>Categories</label>
-                  <p className="mb-2 text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400">
-                    Select all that apply.
+              <div className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6">
+                <label className={labelCls}>{t('joinBusinessTypeLabel')}</label>
+                <p className="mb-4 text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400">
+                  {t('joinBusinessTypeSub')}
+                </p>
+                {!businessTypeId ? (
+                  <p className="mb-3 text-xs font-bold text-amber-700">
+                    No business type detected from registration — pick the type you selected when joining.
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {categoryOptions.map((c) => {
-                      const on = selectedCategories.includes(c);
-                      return (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => toggleCategoryLabel(c)}
-                          className={`rounded-xl border-2 px-3 py-2 text-left text-[11px] font-black uppercase tracking-wide transition-colors ${
-                            on ? 'border-primary bg-primary/10 text-primary' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                          }`}
-                        >
-                          {c}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {errors.categories && <p className={errCls}>{errors.categories.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <label className={labelCls}>Location</label>
-                  <input {...register('location')} className={inputCls} />
-                </div>
+                ) : null}
+                <BusinessTypePicker
+                  compact
+                  lang={lang}
+                  selectedId={businessTypeId}
+                  t={t}
+                  onSelect={(id, categoryKeys) => {
+                    setBusinessTypeId(id);
+                    setCategoryKeysDraft(categoryKeys);
+                    setRegistrationExtended((prev) => ({ ...prev, businessType: id }));
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className={labelCls}>Street address</label>
+                <input {...register('location')} className={inputCls} />
               </div>
 
               <div className="grid grid-cols-1 gap-6 sm:gap-7 md:grid-cols-2 md:gap-x-8 md:gap-y-0">
@@ -653,6 +674,12 @@ export default function ProfilePage() {
               {(errors.logo || errors.banner) && (
                 <p className={errCls}>{errors.logo?.message || errors.banner?.message}</p>
               )}
+
+              <BusinessProfileRegistrationFields
+                lang={lang}
+                extended={registrationExtended}
+                setExtended={setRegistrationExtended}
+              />
 
               <div className="border-t border-slate-100 pt-8">
                 <button

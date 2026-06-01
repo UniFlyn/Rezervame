@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { readPostmarkConfig } from './postmark.config';
+import { resolvePostmarkConfig } from '../config/system-integration.config';
 
 type PostmarkWebhookPayload = {
   RecordType?: string;
@@ -31,7 +31,7 @@ export class EmailWebhookController {
     @Body() payload: PostmarkWebhookPayload,
     @Headers('x-postmark-webhook-token') webhookToken?: string,
   ) {
-    const cfg = readPostmarkConfig();
+    const cfg = await resolvePostmarkConfig(this.prisma);
     if (cfg?.webhookToken) {
       if (webhookToken !== cfg.webhookToken) {
         throw new UnauthorizedException('Invalid Postmark webhook token');

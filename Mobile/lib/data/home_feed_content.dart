@@ -134,6 +134,9 @@ List<HomeBrowseCategoryItem> kHomeBrowseCategories = [];
 
 List<HomeFeaturedItem> kHomeFeatured = [];
 
+/// Most-reviewed services — excludes businesses already shown in [kHomeFeatured].
+List<HomeFeaturedItem> kHomeTopServices = [];
+
 /// Horizontal “nearby” strip — first venues from the same catalog as legacy `home.dart`.
 List<HomeTopVenueItem> kHomeNearbyStrip = [];
 
@@ -190,12 +193,52 @@ void hydrateHomeFeedFromVenues(
   List<HomeBeauticianItem> beauticians = const [],
   List<Map<String, dynamic>> categoryRows = const [],
 }) {
-  final sorted = List<VenueListing>.from(venues)
+  HomeFeaturedItem mapVenueToFeaturedItem(VenueListing v) {
+    final svcName = v.primaryServiceName?.trim();
+    final chain = v.imageUrlChain;
+    return HomeFeaturedItem(
+      serviceTitleKey: 'featCut',
+      displayServiceName: (svcName != null && svcName.isNotEmpty) ? svcName : null,
+      salonName: v.name,
+      price: v.price,
+      rating: v.rating,
+      reviewCount: int.tryParse(v.reviews) ?? 0,
+      durationMinutes: v.serviceDurationMinutes ?? 45,
+      unsplashId: v.unsplashImgId ?? '',
+      venueId: v.id,
+      businessId: v.businessId,
+      networkImageUrl: chain.isNotEmpty ? chain.first : null,
+      imageUrls: chain,
+    );
+  }
+
+  final byRating = List<VenueListing>.from(venues)
     ..sort((a, b) {
+      final ra = double.tryParse(a.rating) ?? 0;
+      final rb = double.tryParse(b.rating) ?? 0;
+      if (rb != ra) return rb.compareTo(ra);
+      final revA = int.tryParse(a.reviews) ?? 0;
+      final revB = int.tryParse(b.reviews) ?? 0;
+      return revB.compareTo(revA);
+    });
+
+  final featuredVenues = byRating.take(5).toList();
+  final featuredBizIds = featuredVenues
+      .map((v) => v.businessId)
+      .where((id) => id != null && id.isNotEmpty)
+      .toSet();
+
+  final byReviews = List<VenueListing>.from(venues)
+    ..sort((a, b) {
+      final revA = int.tryParse(a.reviews) ?? 0;
+      final revB = int.tryParse(b.reviews) ?? 0;
+      if (revB != revA) return revB.compareTo(revA);
       final ra = double.tryParse(a.rating) ?? 0;
       final rb = double.tryParse(b.rating) ?? 0;
       return rb.compareTo(ra);
     });
+
+  final sorted = byRating;
 
   if (categoryRows.isNotEmpty) {
     kHomeBrowseCategories = categoryRows.map((c) {
@@ -249,27 +292,38 @@ void hydrateHomeFeedFromVenues(
     );
   }).toList();
 
-  kHomeFeatured = sorted.take(4).map((v) {
-    final svcName = v.primaryServiceName?.trim();
-    final chain = v.imageUrlChain;
-    return HomeFeaturedItem(
-      serviceTitleKey: 'featCut',
-      displayServiceName: (svcName != null && svcName.isNotEmpty) ? svcName : null,
-      salonName: v.name,
-      price: v.price,
-      rating: v.rating,
-      reviewCount: int.tryParse(v.reviews) ?? 0,
-      durationMinutes: v.serviceDurationMinutes ?? 45,
-      unsplashId: v.unsplashImgId ?? '',
-      venueId: v.id,
-      businessId: v.businessId,
-      networkImageUrl: chain.isNotEmpty ? chain.first : null,
-      imageUrls: chain,
-    );
-  }).toList();
+  kHomeFeatured = featuredVenues.take(5).map(mapVenueToFeaturedItem).toList();
+
+  kHomeTopServices = byReviews
+      .where((v) {
+        final bid = v.businessId ?? '';
+        return bid.isEmpty || !featuredBizIds.contains(bid);
+      })
+      .take(6)
+      .map(mapVenueToFeaturedItem)
+      .toList();
 
   kHomeBeauticians = beauticians;
-  kHomeTopVenues = List<HomeTopVenueItem>.from(kHomeNearbyStrip);
+  kHomeTopVenues = byReviews
+      .where((v) {
+        final bid = v.businessId ?? '';
+        return bid.isEmpty || !featuredBizIds.contains(bid);
+      })
+      .take(6)
+      .map((v) {
+        return HomeTopVenueItem(
+          id: v.id,
+          businessId: v.businessId,
+          name: v.name,
+          rating: v.rating,
+          reviewCount: int.tryParse(v.reviews) ?? 0,
+          price: v.price,
+          unsplashId: v.unsplashImgId ?? '',
+          tagKeys: const ['tagCut'],
+          imageUrls: v.imageUrlChain,
+        );
+      })
+      .toList();
 }
 
 /// Hero carousel + upcoming strip from [Event] rows (Postgres).

@@ -1,10 +1,13 @@
 import { Type } from 'class-transformer';
 import {
+  Allow,
   IsArray,
   IsBoolean,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
+  MaxLength,
 } from 'class-validator';
 
 /** Maps to Prisma Business via mapBusinessPatch in app.controller. */
@@ -41,16 +44,19 @@ export class UpdateBusinessPanelDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2_000_000)
   logo?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2_000_000)
   banner?: string;
 
   /** Portfolio / venue gallery photos (shown on public venue page). */
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(2_000_000, { each: true })
   images?: string[];
 
   /** Amenity keys from [Amenity.key] — replaces full list when sent. */
@@ -134,4 +140,37 @@ export class UpdateBusinessPanelDto {
   @IsOptional()
   @IsString()
   plan?: string;
+
+  /** Show venue on app/web discovery (requires profile setup complete and active status). */
+  @IsOptional()
+  @IsBoolean()
+  listingVisible?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  profileSetupComplete?: boolean;
+
+  @IsOptional()
+  @IsString()
+  owner?: string;
+
+  @IsOptional()
+  @IsString()
+  taxId?: string;
+
+  /** Partner type id from registration (`salon`, `barberia`, …). */
+  @IsOptional()
+  @IsString()
+  businessType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categoryKeys?: string[];
+
+  /** Partial merge into stored registration JSON. */
+  @IsOptional()
+  @IsObject()
+  @Allow()
+  registrationDetails?: Record<string, unknown>;
 }

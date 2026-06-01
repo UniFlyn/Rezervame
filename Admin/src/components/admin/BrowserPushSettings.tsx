@@ -84,10 +84,9 @@ export function BrowserPushSettings({ compact = false }: { compact?: boolean }) 
   if (!serverConfig?.configured) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-        <p className="font-semibold">Server VAPID keys are not configured.</p>
+        <p className="font-semibold">Push notifications are not configured on the server.</p>
         <p className="mt-1 text-amber-800">
-          Add VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT to Backend/.env, then restart the API
-          (npm run start:dev).
+          Add the VAPID public key, private key, and contact email on the API host, then restart the backend service.
         </p>
       </div>
     );

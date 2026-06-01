@@ -2,12 +2,16 @@ import 'dart:ui';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import 'login_screen.dart';
 
 class NewPasswordScreen extends StatefulWidget {
-  const NewPasswordScreen({super.key});
+  const NewPasswordScreen({super.key, required this.email, required this.code});
+
+  final String email;
+  final String code;
 
   @override
   State<NewPasswordScreen> createState() => _NewPasswordScreenState();
@@ -16,14 +20,46 @@ class NewPasswordScreen extends StatefulWidget {
 class _NewPasswordScreenState extends State<NewPasswordScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
+  final _api = ApiRepository();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _loading = false;
 
   @override
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitPassword() async {
+    final pass = _passwordController.text;
+    final confirm = _confirmPasswordController.text;
+    if (pass.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+    if (pass != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await _api.resetPasswordWithCode(widget.email, widget.code, pass);
+      if (!mounted) return;
+      _showPasswordSuccessDialog();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   void _showPasswordSuccessDialog() {
@@ -236,14 +272,20 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _showPasswordSuccessDialog,
+                  onPressed: _loading ? null : _submitPassword,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary500,
                     foregroundColor: AppColors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: Text('Create New Password', style: AppTypography.buttonLarge),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white),
+                        )
+                      : Text('Create New Password', style: AppTypography.buttonLarge),
                 ),
               ),
             ),

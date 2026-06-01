@@ -5,6 +5,8 @@ import Link from "next/link";
 import { apiGet } from "@/lib/api";
 import { toastError, toastWarning } from "@/lib/toast";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
+import { StatePanel, statePanelVariantForMessage } from "@/components/ui/StatePanel";
+import { userFacingError } from "@/lib/userFacingError";
 
 type ServiceRow = { id: string; name: string; duration: number; price: number; category: string };
 
@@ -50,8 +52,8 @@ export default function BusinessClient({ params }: { params: { id: string } }) {
             : PLACEHOLDER_IMAGE_DATA_URI,
         );
         setServices(Array.isArray(svc) ? svc : []);
-      } catch {
-        const msg = "No se pudo cargar el negocio.";
+      } catch (e: unknown) {
+        const msg = userFacingError(e, "Unable to load this business right now.");
         setLoadError(msg);
         toastError("Load failed", msg);
       }
@@ -70,7 +72,20 @@ export default function BusinessClient({ params }: { params: { id: string } }) {
       </div>
 
       {loadError ? (
-        <div className="p-8 text-center text-rose-600 font-semibold">{loadError}</div>
+        <div className="p-6 sm:p-8">
+          <StatePanel
+            variant={statePanelVariantForMessage(loadError)}
+            title="Couldn't load business"
+            description={loadError}
+            actions={[
+              {
+                label: "Try again",
+                onClick: () => window.location.reload(),
+                primary: true,
+              },
+            ]}
+          />
+        </div>
       ) : null}
 
       <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">

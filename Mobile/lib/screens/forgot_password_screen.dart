@@ -1,11 +1,14 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import 'verification_code_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  const ForgotPasswordScreen({super.key, this.initialEmail});
+
+  final String? initialEmail;
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -13,11 +16,58 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
+  final _api = ApiRepository();
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialEmail?.trim();
+    if (initial != null && initial.isNotEmpty) {
+      _emailController.text = initial;
+    }
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendCode() async {
+    final email = _emailController.text.trim().toLowerCase();
+    if (email.isEmpty || !email.contains('@')) {
+      _showError('Enter a valid email address.');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final result = await _api.requestPasswordReset(email);
+      if (!mounted) return;
+      final devCode = result['devCode']?.toString();
+      if (devCode != null && devCode.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Dev code: $devCode')),
+        );
+      }
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => VerificationCodeScreen(email: email),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
   }
 
   @override
@@ -60,6 +110,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
                       style: AppTypography.body300.copyWith(color: AppColors.grey900),
                       decoration: InputDecoration(
                         filled: true,
@@ -91,19 +142,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push<void>(
-                      context,
-                      MaterialPageRoute<void>(builder: (context) => const VerificationCodeScreen()),
-                    );
-                  },
+                  onPressed: _loading ? null : _sendCode,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary500,
                     foregroundColor: AppColors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: Text('Send OTP', style: AppTypography.buttonLarge),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white),
+                        )
+                      : Text('Send OTP', style: AppTypography.buttonLarge),
                 ),
               ),
             ),

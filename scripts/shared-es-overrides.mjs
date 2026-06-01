@@ -1,0 +1,158 @@
+/**
+ * Curated en → es strings for locale repair (no external API).
+ * Used when MyMemory quota errors were saved into es.json.
+ */
+export const EN_TO_ES = {
+  "You already have services selected at another salon or spa. To add services here, your previous selection will be cleared.":
+    "Ya tienes servicios seleccionados en otro salón o spa. Para agregar servicios aquí, se borrará tu selección anterior.",
+  "Replace selection": "Reemplazar selección",
+  "Keep my current selection": "Mantener mi selección actual",
+  "Choose your category": "Elige tu categoría",
+  "Discover the perfect service for you": "Descubre el servicio perfecto para ti",
+  Explore: "Explorar",
+  "No categories to explore.": "No hay categorías para explorar.",
+  "Open map": "Abrir mapa",
+  Information: "Información",
+  Hours: "Horario",
+  "Check availability when booking.": "Consulta la disponibilidad al reservar.",
+  "No contact details provided.": "No se proporcionaron datos de contacto.",
+  "Location not available": "Ubicación no disponible",
+  Added: "Añadido",
+  "Loading venue…": "Cargando establecimiento…",
+  "Venue not available": "Establecimiento no disponible",
+  "This listing may be offline, under review, or the link is invalid. Only published businesses appear in search.":
+    "Este listado puede estar fuera de línea, en revisión o el enlace no es válido. Solo los negocios publicados aparecen en la búsqueda.",
+  "Could not load venue": "No se pudo cargar el establecimiento",
+  "Check that the API is running (e.g. http://localhost:4000), or try again. Details may appear above this message.":
+    "Comprueba que la API esté en ejecución (p. ej. http://localhost:4000) o inténtalo de nuevo. Los detalles pueden aparecer arriba de este mensaje.",
+  "Our professional team": "Nuestro equipo profesional",
+  Continue: "Continuar",
+  "No professional assigned": "Sin profesional asignado",
+  "Add another service": "Añadir otro servicio",
+  "Pay at the venue unless the business says otherwise.":
+    "Paga en el establecimiento salvo que el negocio indique lo contrario.",
+  "Sending…": "Enviando…",
+  "Confirm booking": "Confirmar reserva",
+  Back: "Atrás",
+  "Add Family Member": "Añadir familiar",
+  "Back to summary": "Volver al resumen",
+  "No staff are tagged for this service — showing everyone.":
+    "Ningún miembro del equipo está asignado a este servicio; se muestra a todos.",
+  Experience: "Experiencia",
+  "If you cancel now, any unsaved changes to your selection will be lost.":
+    "Si cancelas ahora, se perderán los cambios no guardados de tu selección.",
+  "Continue booking": "Continuar reserva",
+  "Yes, discard booking": "Sí, descartar reserva",
+  "Log in or sign up": "Iniciar sesión o registrarse",
+  "Checking…": "Comprobando…",
+  "Create account": "Crear cuenta",
+  Address: "Dirección",
+  "Street, neighborhood, or pick-up point": "Calle, barrio o punto de recogida",
+  Gender: "Género",
+  Age: "Edad",
+  "Phone (optional)": "Teléfono (opcional)",
+  "Use a different email": "Usar otro correo",
+  "Could not create account": "No se pudo crear la cuenta",
+  "Check your details and try again.": "Revisa tus datos e inténtalo de nuevo.",
+  "Email (optional)": "Correo (opcional)",
+  "Who is this booking for?": "¿Para quién es esta reserva?",
+  Me: "Yo",
+  Popular: "Popular",
+  "No venues match the current filters.": "Ningún establecimiento coincide con los filtros actuales.",
+  "Finding venues for you…": "Buscando establecimientos para ti…",
+  "Categories will appear here soon.": "Las categorías aparecerán aquí pronto.",
+  "Checkout Preview": "Vista previa del pago",
+  "Total to Pay": "Total a pagar",
+  "Payment Method": "Método de pago",
+  "Any Staff": "Cualquier profesional",
+  "Pay Online": "Pagar en línea",
+  "Pay at Venue": "Pagar en el establecimiento",
+  "Credit / Debit Card": "Tarjeta de crédito o débito",
+  "Cash on visit": "Efectivo en la visita",
+  "Card Details": "Datos de la tarjeta",
+  "Check out": "Mira",
+  at: "en",
+  "Link copied": "Enlace copiado",
+  "The venue link has been copied to your clipboard.":
+    "El enlace del establecimiento se copió al portapapeles.",
+  "Added to favorites": "Añadido a favoritos",
+  "This venue has been saved to your profile.":
+    "Este establecimiento se guardó en tu perfil.",
+  "Removed from favorites": "Eliminado de favoritos",
+  "This venue is no longer in your favorites.":
+    "Este establecimiento ya no está en tus favoritos.",
+  "Action failed": "Acción fallida",
+  "Could not update your favorites. Please try again.":
+    "No se pudieron actualizar tus favoritos. Inténtalo de nuevo.",
+  "Barber's Response": "Respuesta del barbero",
+  Facial: "Facial",
+  Spa: "Spa",
+  "4.0+": "4.0+",
+  "4.5+": "4.5+",
+  "4.8+": "4.8+",
+  "5.0 only": "Solo 5.0",
+  Subtotal: "Subtotal",
+  "1. Explore": "1. Explorar",
+  "2. Book": "2. Reservar",
+  "3. Enjoy": "3. Disfrutar",
+  "Ticket ID": "ID del ticket",
+  "Personal reasons": "Motivos personales",
+  "1. Acceptance of Terms": "1. Aceptación de los términos",
+  "2. Use of the Platform": "2. Uso de la plataforma",
+  "3. Cancellation Policy": "3. Política de cancelación",
+  "4. Limitation of Liability": "4. Limitación de responsabilidad",
+  "1. Information We Collect": "1. Información que recopilamos",
+  "2. How We Use Your Information": "2. Cómo usamos tu información",
+  "3. Data Security": "3. Seguridad de los datos",
+  "4. Your Rights": "4. Tus derechos",
+  Book: "Reservar",
+  $0: "$0",
+  $29: "$29",
+  "24/7 priority support": "Soporte prioritario 24/7",
+  "Master Barber": "Barbero maestro",
+  "Manicure Spa + Gel": "Manicura spa + gel",
+  Color: "Color",
+  Sauna: "Sauna",
+  Gel: "Gel",
+  Peeling: "Peeling",
+  Yoga: "Yoga",
+  Microblading: "Microblading",
+  "Yes, discard": "Sí, descartar",
+  Expiry: "Vencimiento",
+  CVV: "CVV",
+  Specialist: "Especialista",
+  Pending: "Pendiente",
+  "Awaiting Payment": "Pago pendiente",
+  Completed: "Completado",
+  "No featured venues yet. Add active businesses in the admin panel.":
+    "Aún no hay establecimientos destacados. Añade negocios activos en el panel de administración.",
+  "No services to show yet.": "Aún no hay servicios para mostrar.",
+  "No businesses to show yet.": "Aún no hay negocios para mostrar.",
+  Notifications: "Notificaciones",
+  "Just now": "Justo ahora",
+  "Save Changes": "Guardar cambios",
+  "Saving...": "Guardando...",
+  "Update your personal information": "Actualiza tu información personal",
+  "Member since November 2023": "Miembro desde noviembre de 2023",
+  "Prefer not to say": "Prefiero no decirlo",
+  Male: "Hombre",
+  Female: "Mujer",
+  Other: "Otro",
+  "Protect your account with a secure password":
+    "Protege tu cuenta con una contraseña segura",
+  "Updating...": "Actualizando...",
+  "Update Password": "Actualizar contraseña",
+  "Email notifications": "Notificaciones por correo",
+};
+
+export function isBadTranslation(value) {
+  return typeof value === "string" && /MYMEMORY WARNING/i.test(value);
+}
+
+export function translateEn(value) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (EN_TO_ES[trimmed] !== undefined) return EN_TO_ES[trimmed];
+  if (EN_TO_ES[value] !== undefined) return EN_TO_ES[value];
+  return null;
+}

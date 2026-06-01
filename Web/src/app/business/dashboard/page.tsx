@@ -16,6 +16,9 @@ import {
 import clsx from 'clsx';
 import { apiGet } from '@/lib/api';
 import type { PanelDashboard } from '@/lib/business-panel-types';
+import { BusinessListingToggle } from '@/components/business/BusinessListingToggle';
+import { needsInitialBusinessSetup } from '@/lib/businessSetup';
+import Link from 'next/link';
 
 type Period = 'day' | 'week' | 'month';
 
@@ -102,8 +105,27 @@ export default function DashboardPage() {
     );
   }
 
+  const showSetupBanner = needsInitialBusinessSetup(business);
+
   return (
     <div className="space-y-8 pb-10">
+      {showSetupBanner ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-5">
+          <p className="text-sm font-black text-amber-900">Complete your business setup</p>
+          <p className="mt-1 text-sm font-medium text-amber-800">
+            Upload logo, banner, gallery photos, map pin, and hours before you can appear on the app and web.
+          </p>
+          <Link
+            href="/business/setup"
+            className="mt-4 inline-flex rounded-2xl bg-amber-900 px-6 py-3 text-xs font-black uppercase tracking-widest text-white"
+          >
+            Open setup
+          </Link>
+        </div>
+      ) : (
+        <BusinessListingToggle />
+      )}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div>
           <h2 className="text-3xl font-black tracking-tight text-gray-900">Business overview</h2>

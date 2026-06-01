@@ -6,7 +6,7 @@ export type PostmarkEnvConfig = {
   webhookToken: string | null;
 };
 
-export function readPostmarkConfig(): PostmarkEnvConfig | null {
+export function readPostmarkConfigFromEnv(): PostmarkEnvConfig | null {
   const apiKey = process.env.POSTMARK_API_KEY?.trim();
   if (!apiKey) return null;
 
@@ -17,6 +17,11 @@ export function readPostmarkConfig(): PostmarkEnvConfig | null {
     messageStream: process.env.POSTMARK_MESSAGE_STREAM?.trim() || 'outbound',
     webhookToken: process.env.POSTMARK_WEBHOOK_TOKEN?.trim() || null,
   };
+}
+
+/** Env-only (sync). Prefer `resolvePostmarkConfig(prisma)` when DB overrides are needed. */
+export function readPostmarkConfig(): PostmarkEnvConfig | null {
+  return readPostmarkConfigFromEnv();
 }
 
 export function isPostmarkConfigured(): boolean {

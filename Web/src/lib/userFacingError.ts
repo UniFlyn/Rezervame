@@ -1,16 +1,32 @@
+const NETWORK_FALLBACK =
+  "We couldn't reach our servers. Check your internet connection and try again.";
+
 /** Strip API URLs, env paths, and dev hints from errors shown in the UI. */
 export function userFacingError(err: unknown, fallback = "Something went wrong. Please try again."): string {
+  if (typeof err === "string" && err.trim()) {
+    return sanitizeUserMessage(err.trim(), fallback);
+  }
   if (!(err instanceof Error)) return fallback;
-  let msg = err.message || fallback;
-  msg = msg.replace(/https?:\/\/[^\s]+/gi, "");
-  msg = msg.replace(/NEXT_PUBLIC_[A-Z_]+/g, "");
-  msg = msg.replace(/\.env\.local/gi, "");
-  msg = msg.replace(/port\s*4000/gi, "");
-  msg = msg.replace(/Is the API running at\s*\??/gi, "");
-  msg = msg.replace(/Check\s+\/[^\s]+/gi, "");
-  msg = msg.replace(/Failed to reach venues API/i, "Unable to load venues right now.");
-  msg = msg.replace(/Venues request timed out[^.]*/i, "This is taking longer than usual. Please try again.");
-  msg = msg.replace(/Request timed out[^.]*/i, "This is taking longer than usual. Please try again.");
-  msg = msg.replace(/\s{2,}/g, " ").trim();
-  return msg.length > 4 ? msg : fallback;
+  const raw = err.message || fallback;
+  return sanitizeUserMessage(raw, fallback);
+}
+
+function sanitizeUserMessage(msg: string, fallback: string): string {
+  let out = msg;
+  if (/^failed to fetch$/i.test(out.trim()) || /networkerror/i.test(out)) {
+    return NETWORK_FALLBACK;
+  }
+  out = out.replace(/https?:\/\/[^\s]+/gi, "");
+  out = out.replace(/NEXT_PUBLIC_[A-Z_]+/g, "");
+  out = out.replace(/\.env\.local/gi, "");
+  out = out.replace(/port\s*4000/gi, "");
+  out = out.replace(/Is the API running at\s*\??/gi, "");
+  out = out.replace(/Check\s+\/[^\s]+/gi, "");
+  out = out.replace(/Failed to reach venues API/i, "Unable to load venues right now.");
+  out = out.replace(/Failed to fetch/i, NETWORK_FALLBACK);
+  out = out.replace(/Load failed/i, "Unable to load this content right now.");
+  out = out.replace(/Venues request timed out[^.]*/i, "This is taking longer than usual. Please try again.");
+  out = out.replace(/Request timed out[^.]*/i, "This is taking longer than usual. Please try again.");
+  out = out.replace(/\s{2,}/g, " ").trim();
+  return out.length > 4 ? out : fallback;
 }

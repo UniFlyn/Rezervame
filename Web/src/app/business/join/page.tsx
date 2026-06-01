@@ -3,18 +3,35 @@ import React, { useEffect, useMemo, useState } from "react";
 import { 
   Building2, MapPin, Phone, Mail, 
   ChevronRight, ChevronLeft, Check, 
-  Scissors, Camera, Plus, Star,
-  ShieldCheck, ArrowRight, Sparkles
+  Scissors, Camera, Plus,
+  ShieldCheck, ArrowRight
 } from "lucide-react";
 import { useI18n } from "../../../components/I18nProvider";
 import { useBusinessStore } from "../../../store/businessStore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { fetchPublicCategories, type PublicCategory } from "@/lib/venueSearch";
 import { apiPost } from "@/lib/api";
+import { resolveApiBase } from "@/lib/apiBase";
 import { compressImageFile } from "@/lib/compressImage";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
+import {
+  BankPayoutFields,
+  ExtraDocumentUpload,
+  LocationDetailFields,
+  LocationRegionFields,
+  OperationsStepFields,
+  OwnerIdentityFields,
+  type JoinExtendedState,
+} from "@/components/business/BusinessJoinExtendedFields";
+import { partnerTypeById } from "@/lib/partnerBusinessTypes";
+import { BusinessTypePicker } from "@/components/business/BusinessTypePicker";
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+const TOTAL_STEPS = 9;
+
+const fieldInput =
+  "w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white focus:ring-2 focus:ring-[#ff5a5f]/10 placeholder:text-slate-400";
+const fieldLabel = "text-[11px] font-bold text-slate-500 uppercase tracking-wide";
 type CategoryOption = { key: string; label: string; imageUrl?: string | null };
 type ServiceDraft = {
   id: string;
@@ -29,8 +46,9 @@ const DOC_IMAGE_OPTS = { maxWidth: 1400, maxHeight: 1400, maxBytes: 450_000 };
 const SERVICE_IMAGE_OPTS = { maxWidth: 800, maxHeight: 800, maxBytes: 280_000 };
 
 export default function BusinessJoinPage() {
-  const { language } = useI18n();
+  const { t, language } = useI18n();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const loginBusiness = useBusinessStore((state) => state.login);
   const [isLoginMode, setIsLoginMode] = useState(false);
   const [step, setStep] = useState<Step>(1);
@@ -59,6 +77,43 @@ export default function BusinessJoinPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>("basic");
   const [uploadingDocKey, setUploadingDocKey] = useState<string | null>(null);
   const [uploadingServiceId, setUploadingServiceId] = useState<string | null>(null);
+  const [exteriorPhoto, setExteriorPhoto] = useState("");
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [extended, setExtended] = useState<JoinExtendedState>({
+    businessType: "",
+    country: "PA",
+    state: "",
+    city: "",
+    yearsOperating: "",
+    locationAccess: "",
+    buildingName: "",
+    floor: "",
+    localNumber: "",
+    locationReferences: "",
+    specialDirections: "",
+    parking: "",
+    personType: "natural",
+    companyName: "",
+    companyType: "",
+    ownerId: "",
+    ownerPhone: "",
+    ownerEmail: "",
+    bank: "",
+    accountType: "",
+    accountNumber: "",
+    accountHolder: "",
+    offeredServices: [],
+    priceRange: "",
+    openTime: "09:00",
+    closeTime: "18:00",
+    operatingDays: ["lunes", "martes", "miercoles", "jueves", "viernes"],
+    appointments: "",
+    staffCount: "",
+    additionalInfo: "",
+    marketingOptIn: false,
+    latitude: null,
+    longitude: null,
+  });
 
   const tx = {
     successTitle: "Request Submitted!",
@@ -132,6 +187,23 @@ export default function BusinessJoinPage() {
     valStep5: "Accept terms and privacy to continue.",
   } as const;
 
+  const lang = language === "es" ? "es" : "en";
+
+  const stepMeta = useMemo(
+    () => [
+      { step: 1 as Step, title: lang === "es" ? "Negocio" : "Business", desc: lang === "es" ? "Nombre y tipo" : "Name & type" },
+      { step: 2 as Step, title: lang === "es" ? "Contacto" : "Contact", desc: lang === "es" ? "Teléfono y email" : "Phone & email" },
+      { step: 3 as Step, title: lang === "es" ? "Ubicación" : "Location", desc: lang === "es" ? "Dirección y mapa" : "Address & map" },
+      { step: 4 as Step, title: lang === "es" ? "Detalles" : "Details", desc: lang === "es" ? "Acceso y estacionamiento" : "Access & parking" },
+      { step: 5 as Step, title: lang === "es" ? "Titular" : "Owner", desc: lang === "es" ? "Identidad legal" : "Legal identity" },
+      { step: 6 as Step, title: lang === "es" ? "Cuenta" : "Account", desc: lang === "es" ? "Banco y contraseña" : "Bank & password" },
+      { step: 7 as Step, title: lang === "es" ? "Operación" : "Operations", desc: lang === "es" ? "Plan y horarios" : "Plan & hours" },
+      { step: 8 as Step, title: lang === "es" ? "Servicios" : "Services", desc: lang === "es" ? "Tu menú" : "Your menu" },
+      { step: 9 as Step, title: lang === "es" ? "Finalizar" : "Finish", desc: lang === "es" ? "Documentos y envío" : "Docs & submit" },
+    ],
+    [lang],
+  );
+
   const categoryOptions: CategoryOption[] = useMemo(
     () =>
       availableCategories.map((c) => ({
@@ -141,6 +213,13 @@ export default function BusinessJoinPage() {
       })),
     [availableCategories, language],
   );
+
+  useEffect(() => {
+    const fromUrl = partnerTypeById(searchParams.get("type"));
+    if (!fromUrl) return;
+    setExtended((d) => ({ ...d, businessType: fromUrl.id }));
+    setSelectedCategories(fromUrl.categoryKeys);
+  }, [searchParams]);
 
   useEffect(() => {
     void fetchPublicCategories()
@@ -155,7 +234,7 @@ export default function BusinessJoinPage() {
         );
       });
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+    const API_BASE = resolveApiBase();
     fetch(`${API_BASE}/public/plans`, { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error("Plans failed to fetch");
@@ -219,59 +298,117 @@ export default function BusinessJoinPage() {
   };
 
   const nextStep = () => {
+    const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(businessEmail.trim());
+    const passValid = password.length >= 6 && password === confirmPassword;
+    const hasValidService = services.some(
+      (s) =>
+        s.name.trim() &&
+        Number(s.duration) > 0 &&
+        Number.isFinite(Number(s.price)) &&
+        Number(s.price) >= 0,
+    );
+
     if (step === 1) {
-      if (
-        !businessName.trim() ||
-        !taxId.trim() ||
-        selectedCategories.length === 0 ||
-        !idDocumentImage ||
-        !licenseDocumentImage ||
-        !insuranceDocumentImage
-      ) {
-        setStepError(tx.valStep1);
-        toastWarning("Validation", tx.valStep1);
+      if (!businessName.trim() || !extended.businessType || selectedCategories.length === 0) {
+        const err =
+          lang === "es"
+            ? "Indica el nombre del negocio y elige un tipo."
+            : "Enter your business name and choose a type.";
+        setStepError(err);
+        toastWarning("Validation", err);
         return;
       }
     }
     if (step === 2) {
-      const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(businessEmail.trim());
-      const passValid = password.length >= 6 && password === confirmPassword;
-      if (!ownerName.trim() || !businessPhone.trim() || !validEmail || !passValid) {
+      if (!businessPhone.trim() || !validEmail) {
+        setStepError(tx.valStep2);
+        toastWarning("Validation", tx.valStep2);
+        return;
+      }
+    }
+    if (step === 3) {
+      if (
+        !address.trim() ||
+        !extended.country ||
+        !extended.state.trim() ||
+        !extended.city.trim()
+      ) {
+        setStepError(tx.valStep3);
+        toastWarning("Validation", tx.valStep3);
+        return;
+      }
+    }
+    if (step === 4) {
+      if (!extended.yearsOperating || !extended.locationAccess) {
+        const err =
+          lang === "es" ? "Indica años en operación y acceso al local." : "Select years operating and location access.";
+        setStepError(err);
+        toastWarning("Validation", err);
+        return;
+      }
+    }
+    if (step === 5) {
+      if (
+        !taxId.trim() ||
+        !ownerName.trim() ||
+        !extended.ownerId.trim() ||
+        (extended.personType === "juridica" && !extended.companyName.trim())
+      ) {
+        setStepError(tx.valStep2);
+        toastWarning("Validation", tx.valStep2);
+        return;
+      }
+    }
+    if (step === 6) {
+      if (
+        !extended.bank ||
+        !extended.accountType ||
+        !extended.accountNumber.trim() ||
+        !extended.accountHolder.trim() ||
+        !passValid
+      ) {
         const err = !passValid ? tx.valStep2Password : tx.valStep2;
         setStepError(err);
         toastWarning("Validation", err);
         return;
       }
     }
-    if (step === 3 && !address.trim()) {
-      setStepError(tx.valStep3);
-      toastWarning("Validation", tx.valStep3);
-      return;
+    if (step === 7) {
+      if (
+        !extended.openTime ||
+        !extended.closeTime ||
+        extended.operatingDays.length === 0 ||
+        !extended.appointments
+      ) {
+        const err =
+          lang === "es" ? "Completa horarios y tipo de citas." : "Complete hours and appointment type.";
+        setStepError(err);
+        toastWarning("Validation", err);
+        return;
+      }
     }
-    if (step === 4) {
-      const hasValid = services.some(
-        (s) =>
-          s.name.trim() &&
-          Number(s.duration) > 0 &&
-          Number.isFinite(Number(s.price)) &&
-          Number(s.price) >= 0,
-      );
-      if (!hasValid) {
+    if (step === 8) {
+      if (!hasValidService && extended.offeredServices.length === 0) {
         setStepError(tx.valStep4);
         toastWarning("Validation", tx.valStep4);
         return;
       }
     }
     setStepError("");
-    setStep((prev) => (prev + 1) as Step);
+    setStep((prev) => Math.min(prev + 1, TOTAL_STEPS) as Step);
   };
-  const prevStep = () => setStep((prev) => (prev - 1) as Step);
+  const prevStep = () => setStep((prev) => Math.max(1, prev - 1) as Step);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!acceptedTerms) {
       setStepError(tx.valStep5);
       toastWarning("Validation", tx.valStep5);
+      return;
+    }
+    if (!idDocumentImage || !licenseDocumentImage || !insuranceDocumentImage) {
+      setStepError(tx.valStep1);
+      toastWarning("Validation", tx.valStep1);
       return;
     }
     setStepError("");
@@ -291,6 +428,15 @@ export default function BusinessJoinPage() {
         insuranceDocumentImage,
         password,
         planId: selectedPlanId,
+        latitude: extended.latitude,
+        longitude: extended.longitude,
+        registrationDetails: {
+          ...extended,
+          ownerPhone: extended.ownerPhone || businessPhone,
+          ownerEmail: extended.ownerEmail || businessEmail,
+          marketingOptIn,
+          exteriorPhotoUrl: exteriorPhoto || undefined,
+        },
         services: services
           .filter((s) => s.name.trim() && Number(s.duration) > 0)
           .map((s) => ({
@@ -362,12 +508,6 @@ export default function BusinessJoinPage() {
     }
   }
 
-  const toggleCategory = (key: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  };
-
   const pickLocation = () => {
     if (!navigator.geolocation) {
       const msg = "Geolocation is not supported in this browser.";
@@ -378,10 +518,11 @@ export default function BusinessJoinPage() {
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const lat = position.coords.latitude.toFixed(6);
-        const lng = position.coords.longitude.toFixed(6);
-        setAddress((prev) => prev || `${lat}, ${lng}`);
-        setLocationMessage(`${lat}, ${lng}`);
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setExtended((d) => ({ ...d, latitude: lat, longitude: lng }));
+        setAddress((prev) => prev || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        setLocationMessage(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         setIsLocating(false);
       },
       () => {
@@ -454,665 +595,365 @@ export default function BusinessJoinPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/30 py-12 px-6 lg:p-20 flex items-center justify-center relative overflow-hidden animate-in fade-in duration-700">
-      {/* Abstract Background Shapes */}
-      <div className="absolute top-0 right-0 w-1/3 h-1/2 bg-gradient-to-br from-[#ff5a5f]/5 to-transparent rounded-full blur-3xl -mr-20 -mt-20"></div>
-      <div className="absolute bottom-0 left-0 w-1/4 h-1/3 bg-gradient-to-tr from-slate-200/50 to-transparent rounded-full blur-3xl -ml-20 -mb-20"></div>
-
-      <div className="max-w-[1200px] mx-auto flex flex-col lg:flex-row gap-12 lg:gap-20 relative z-10 w-full items-stretch">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 py-8 px-4 sm:px-6 lg:py-10">
+      <div className="absolute top-0 right-0 w-72 h-72 bg-[#ff5a5f]/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="max-w-6xl mx-auto relative">
         
         {isLoginMode ? (
-          <div className="w-full flex items-center justify-center animate-in zoom-in-95 duration-500">
-            <div className="bg-white w-full max-w-md rounded-[48px] p-10 lg:p-14 border border-slate-200 shadow-2xl shadow-slate-200/60 relative">
-              <div className="text-center mb-10">
-                <span className="bg-[#ff5a5f] text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-6 inline-block shadow-lg shadow-[#ff5a5f]/20">Business Login</span>
-                <h1 className="text-4xl font-black text-slate-900 mt-2 uppercase tracking-tight leading-tight">
-                  Welcome Back
-                </h1>
-                <p className="text-slate-400 font-bold mt-4">Manage your appointments<br/>and customers.</p>
+          <div className="w-full flex items-center justify-center py-8">
+            <div className="bg-white w-full max-w-md rounded-3xl p-8 border border-slate-200 shadow-xl relative">
+              <div className="text-center mb-8">
+                <span className="bg-[#ff5a5f] text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-4 inline-block">Business Login</span>
+                <h1 className="text-3xl font-bold text-slate-900">Welcome back</h1>
+                <p className="text-slate-500 text-sm mt-2">Manage your appointments and customers.</p>
               </div>
 
-              <form onSubmit={handleLoginSubmit} className="space-y-6">
-                <div className="space-y-3">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-2">Email address</label>
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div className="space-y-2">
+                   <label className={fieldLabel}>Email address</label>
                    <div className="relative">
-                     <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                     <input name="email" type="email" placeholder="admin@business.com" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
+                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={18} />
+                     <input name="email" type="email" placeholder="admin@business.com" className={`${fieldInput} pl-11`} required />
                    </div>
                 </div>
-                <div className="space-y-3">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-2">Password</label>
+                <div className="space-y-2">
+                   <label className={fieldLabel}>Password</label>
                    <div className="relative">
-                     <ShieldCheck className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                     <input name="password" type="password" placeholder="••••••••" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[28px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
+                     <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={18} />
+                     <input name="password" type="password" placeholder="••••••••" className={`${fieldInput} pl-11`} required />
                    </div>
                 </div>
-                <button type="submit" className="w-full bg-slate-900 text-white px-12 py-5 rounded-[28px] font-black text-sm uppercase tracking-widest hover:bg-[#ff5a5f] transition-all transform hover:-translate-y-1 shadow-2xl flex items-center justify-center gap-3 mt-4">
+                <button type="submit" className="w-full bg-slate-900 text-white px-6 py-3.5 rounded-2xl font-bold text-sm hover:bg-[#ff5a5f] transition-colors mt-2">
                    Login to panel
                 </button>
               </form>
-              <div className="mt-10 text-center border-t border-slate-50 pt-8">
-                 <button onClick={() => setIsLoginMode(false)} className="text-xs font-black text-slate-400 uppercase tracking-widest hover:text-[#ff5a5f] transition-colors">
-                   Don't have an account? <span className="text-[#ff5a5f] underline underline-offset-4 ml-1">Register Now</span>
+              <div className="mt-8 text-center border-t border-slate-100 pt-6">
+                 <button onClick={() => setIsLoginMode(false)} className="text-xs font-semibold text-slate-500 hover:text-[#ff5a5f]">
+                   Don&apos;t have an account? <span className="text-[#ff5a5f] underline ml-1">Register now</span>
                  </button>
               </div>
             </div>
           </div>
         ) : (
-          <>
-            {/* Sidebar / Progress */}
-            <aside className="w-full lg:w-[400px] shrink-0 flex flex-col justify-center">
-               <div className="mb-12">
-                 <span className="bg-[#ff5a5f] text-white text-[10px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full mb-6 inline-block shadow-lg shadow-[#ff5a5f]/20">Business Portal</span>
-                 <h1 className="text-4xl lg:text-5xl font-black text-slate-900 mt-2 uppercase tracking-tight leading-tight">
+          <div className="grid lg:grid-cols-[260px_1fr] gap-8 lg:gap-10 items-start">
+            {/* Sidebar */}
+            <aside className="lg:sticky lg:top-8 space-y-6">
+               <div>
+                 <span className="bg-[#ff5a5f] text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full inline-block">Business Portal</span>
+                 <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mt-4 leading-tight">
                    {tx.heroTitle} <span className="text-[#ff5a5f]">REZERVAME</span>
                  </h1>
-                 <p className="text-slate-400 font-bold text-lg mt-8 leading-relaxed mb-10 max-w-md">
-                   {tx.heroSub}
-                 </p>
-                 <button onClick={() => setIsLoginMode(true)} className="flex items-center gap-2 text-[#ff5a5f] font-black text-xs uppercase tracking-widest hover:text-slate-900 transition-colors group">
-                   {tx.alreadyHave} <span className="underline underline-offset-4 ml-1 group-hover:no-underline font-black">{tx.login}</span>
-                   <ChevronRight size={14} strokeWidth={3} />
+                 <p className="text-slate-500 text-sm mt-3 leading-relaxed">{tx.heroSub}</p>
+                 <button onClick={() => setIsLoginMode(true)} className="mt-4 text-xs font-semibold text-[#ff5a5f] hover:text-slate-900 transition-colors">
+                   {tx.alreadyHave} {tx.login} →
                  </button>
                </div>
 
-               <div className="bg-white rounded-[40px] p-8 lg:p-10 border border-slate-200 shadow-xl shadow-slate-200/40 relative">
-                  <div className="space-y-4">
-                     {[
-                       { step: 1, title: "Identification", desc: "Name and category" },
-                       { step: 2, title: "Contact", desc: "Owner and communication" },
-                       { step: 3, title: "Location", desc: "Business address" },
-                       { step: 4, title: "Services", desc: "Your specialties" },
-                       { step: 5, title: "Finalize", desc: "Review and submit" }
-                     ].map((s) => (
-                       <div key={s.step} className={`flex items-center gap-5 p-4 rounded-[24px] transition-all duration-500 ${step === s.step ? 'bg-[#ff5a5f] text-white shadow-xl shadow-[#ff5a5f]/20 scale-[1.02]' : step > s.step ? 'bg-green-50 border border-green-100' : 'opacity-40'}`}>
-                          <div className={`w-10 h-10 rounded-[14px] flex items-center justify-center font-black text-sm shrink-0 shadow-sm ${step === s.step ? 'bg-white text-[#ff5a5f]' : step > s.step ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                             {step > s.step ? <Check size={16} strokeWidth={3} /> : s.step}
+               <div className="hidden lg:block bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+                  <div className="space-y-1">
+                     {stepMeta.map((s) => (
+                       <div key={s.step} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${step === s.step ? "bg-[#ff5a5f] text-white" : step > s.step ? "bg-emerald-50 text-emerald-800" : "text-slate-400"}`}>
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${step === s.step ? "bg-white text-[#ff5a5f]" : step > s.step ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
+                             {step > s.step ? <Check size={14} strokeWidth={3} /> : s.step}
                           </div>
-                          <div>
-                             <h4 className="font-black text-[11px] uppercase tracking-widest">{s.title}</h4>
-                             <p className={`text-[9px] font-bold mt-0.5 uppercase tracking-tighter opacity-70 ${step === s.step ? 'text-white' : 'text-slate-400'}`}>{s.desc}</p>
+                          <div className="min-w-0">
+                             <h4 className="font-bold text-xs truncate">{s.title}</h4>
+                             <p className={`text-[10px] truncate ${step === s.step ? "text-white/80" : "text-slate-400"}`}>{s.desc}</p>
                           </div>
                        </div>
                      ))}
                   </div>
                </div>
 
-               <div className="mt-12 flex items-center gap-6 p-8 bg-slate-900 rounded-[32px] text-white shadow-2xl shadow-slate-900/20">
-                  <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
-                     <ShieldCheck className="text-white" size={24} />
-                  </div>
+               <div className="hidden lg:flex items-center gap-3 p-4 bg-slate-900 rounded-2xl text-white">
+                  <ShieldCheck className="shrink-0" size={20} />
                   <div>
-                     <p className="text-[10px] font-black uppercase tracking-widest opacity-60">{tx.supportTag}</p>
-                     <p className="text-sm font-bold mt-1">{tx.supportDesc}</p>
+                     <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">{tx.supportTag}</p>
+                     <p className="text-xs font-medium mt-0.5">{tx.supportDesc}</p>
                   </div>
                </div>
             </aside>
 
-            {/* Form Content Area */}
-            <div className="flex-1 flex flex-col justify-center animate-in slide-in-from-right-10 duration-700">
-               <div className="bg-white rounded-[56px] p-10 lg:p-16 border border-slate-200 shadow-2xl shadow-slate-200/50 min-h-[650px] flex flex-col relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#ff5a5f]/5 rounded-bl-[100px]"></div>
-                  
-                  <form onSubmit={handleSubmit} className="flex-1 flex flex-col relative z-10">
-                    
-                    {/* STEP 1: Identification */}
+            {/* Form */}
+            <div className="min-w-0">
+               <div className="mb-4 lg:hidden">
+                 <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
+                   <span>{stepMeta[step - 1]?.title}</span>
+                   <span>{step} / {TOTAL_STEPS}</span>
+                 </div>
+                 <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                   <div className="h-full bg-[#ff5a5f] rounded-full transition-all duration-300" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} />
+                 </div>
+               </div>
+
+               <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 flex flex-col max-h-[min(780px,calc(100vh-5rem))] overflow-hidden">
+                  <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-6 sm:px-8 sm:py-7">
                     {step === 1 && (
-                      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
-                         <div className="mb-12">
-                            <h2 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tight">{tx.step1Title}</h2>
-                            <p className="text-slate-400 font-bold text-lg">{tx.step1Sub}</p>
-                         </div>
-                         
-                         <div className="space-y-12">
-                            <div className="space-y-4">
-                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.businessName}</label>
-                               <div className="relative group">
-                                 <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                                 <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} type="text" placeholder={tx.businessNamePh} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white focus:shadow-xl focus:shadow-[#ff5a5f]/5 placeholder:text-slate-300" required />
-                               </div>
-                            </div>
-                            <div className="space-y-4">
-                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.taxIdLabel}</label>
-                               <div className="relative group">
-                                 <ShieldCheck className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                                 <input value={taxId} onChange={(e) => setTaxId(e.target.value)} type="text" placeholder={tx.taxIdPh} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white focus:shadow-xl focus:shadow-[#ff5a5f]/5 placeholder:text-slate-300" required />
-                               </div>
-                            </div>
-
-                            <div className="space-y-6">
-                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.mainCategory}</label>
-                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                  {categoryOptions.map((cat) => {
-                                    const active = selectedCategories.includes(cat.key);
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={cat.key}
-                                        onClick={() => toggleCategory(cat.key)}
-                                        className={`p-6 rounded-[28px] border-2 transition-all text-[11px] font-black uppercase tracking-[0.15em] text-center ${
-                                          active
-                                            ? "border-[#ff5a5f] bg-[#ff5a5f] text-white shadow-xl shadow-[#ff5a5f]/20"
-                                            : "border-slate-100 bg-slate-50/50 text-slate-500 hover:bg-white hover:border-[#ff5a5f] hover:text-[#ff5a5f] hover:shadow-xl hover:shadow-[#ff5a5f]/5"
-                                        }`}
-                                      >
-                                        {cat.imageUrl ? (
-                                          <img
-                                            src={cat.imageUrl}
-                                            alt={cat.label}
-                                            className="mx-auto mb-2 h-10 w-10 rounded-full object-cover border border-white/30"
-                                          />
-                                        ) : null}
-                                        {cat.label}
-                                      </button>
-                                    );
-                                  })}
-                               </div>
-                            </div>
-
-                            <div className="space-y-4">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">
-                                {tx.docsLabel}
-                              </label>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {[
-                                  {
-                                    key: "id",
-                                    title: tx.idDoc,
-                                    value: idDocumentImage,
-                                    setter: setIdDocumentImage,
-                                  },
-                                  {
-                                    key: "license",
-                                    title: tx.licenseDoc,
-                                    value: licenseDocumentImage,
-                                    setter: setLicenseDocumentImage,
-                                  },
-                                  {
-                                    key: "insurance",
-                                    title: tx.insuranceDoc,
-                                    value: insuranceDocumentImage,
-                                    setter: setInsuranceDocumentImage,
-                                  },
-                                ].map((doc) => (
-                                  <div
-                                    key={doc.key}
-                                    className="rounded-3xl border-2 border-slate-100 bg-slate-50 p-4"
-                                  >
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-3">
-                                      {doc.title}
-                                    </p>
-                                    {doc.value ? (
-                                      <img
-                                        src={doc.value}
-                                        alt={doc.title}
-                                        className="w-full h-28 rounded-2xl object-cover border border-slate-200 mb-3"
-                                      />
-                                    ) : (
-                                      <div className="w-full h-28 rounded-2xl border border-dashed border-slate-200 mb-3 flex items-center justify-center text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                        {tx.uploadFile}
-                                      </div>
-                                    )}
-                                    <input
-                                      id={`doc-${doc.key}`}
-                                      type="file"
-                                      accept="image/jpeg,image/png,image/webp,image/*"
-                                      className="hidden"
-                                      disabled={uploadingDocKey === doc.key}
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        const inputEl = e.currentTarget;
-                                        if (!file) {
-                                          doc.setter("");
-                                          return;
-                                        }
-                                        void handleDocImageUpload(file, doc.setter, doc.key, inputEl);
-                                      }}
-                                    />
-                                    <button
-                                      type="button"
-                                      disabled={uploadingDocKey === doc.key}
-                                      onClick={() =>
-                                        (
-                                          document.getElementById(`doc-${doc.key}`) as
-                                            | HTMLInputElement
-                                            | null
-                                        )?.click()
-                                      }
-                                      className="w-full rounded-2xl bg-white border border-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-slate-600 hover:border-[#ff5a5f] hover:text-[#ff5a5f] disabled:opacity-50"
-                                    >
-                                      {uploadingDocKey === doc.key
-                                        ? tx.uploading
-                                        : doc.value
-                                          ? tx.uploadOk
-                                          : tx.uploadFile}
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                         </div>
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{tx.step1Title}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{tx.step1Sub}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className={fieldLabel}>{tx.businessName}</label>
+                          <div className="relative">
+                            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={18} />
+                            <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} type="text" placeholder={tx.businessNamePh} className={`${fieldInput} pl-11`} required />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className={fieldLabel}>{t("joinBusinessTypeLabel")}</label>
+                          <p className="text-xs text-slate-500">{t("joinBusinessTypeSub")}</p>
+                          <BusinessTypePicker
+                            compact
+                            lang={lang}
+                            selectedId={extended.businessType}
+                            t={t}
+                            onSelect={(id, categoryKeys) => {
+                              setExtended((d) => ({ ...d, businessType: id }));
+                              setSelectedCategories(categoryKeys);
+                            }}
+                          />
+                        </div>
                       </div>
                     )}
 
-                    {/* STEP 2: Contact */}
                     {step === 2 && (
-                      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
-                         <div className="mb-12">
-                            <h2 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tight">{tx.step2Title}</h2>
-                            <p className="text-slate-400 font-bold text-lg">{tx.step2Sub}</p>
-                         </div>
-                         
-                         <div className="space-y-12">
-                            <div className="space-y-4">
-                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.ownerLabel}</label>
-                               <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} type="text" placeholder={tx.ownerPh} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white focus:shadow-xl focus:shadow-[#ff5a5f]/5" required />
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{tx.step2Title}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{tx.step2Sub}</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className={fieldLabel}>{tx.phoneLabel}</label>
+                            <div className="relative">
+                              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={18} />
+                              <input value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} type="tel" placeholder={tx.phonePh} className={`${fieldInput} pl-11`} required />
                             </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                               <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.phoneLabel}</label>
-                                  <div className="relative">
-                                    <Phone className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                                    <input value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} type="tel" placeholder={tx.phonePh} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
-                                  </div>
-                               </div>
-                               <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.emailLabel}</label>
-                                  <div className="relative">
-                                    <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                                    <input value={businessEmail} onChange={(e) => setBusinessEmail(e.target.value)} type="email" placeholder={tx.emailPh} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
-                                  </div>
-                               </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className={fieldLabel}>{tx.emailLabel}</label>
+                            <div className="relative">
+                              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={18} />
+                              <input value={businessEmail} onChange={(e) => setBusinessEmail(e.target.value)} type="email" placeholder={tx.emailPh} className={`${fieldInput} pl-11`} required />
                             </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                               <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.passwordLabel}</label>
-                                  <div className="relative">
-                                    <ShieldCheck className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                                    <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
-                                  </div>
-                               </div>
-                               <div className="space-y-4">
-                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.confirmPasswordLabel}</label>
-                                  <div className="relative">
-                                    <ShieldCheck className="absolute left-6 top-1/2 -translate-y-1/2 text-[#ff5a5f]" size={20} />
-                                    <input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} type="password" placeholder="••••••••" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white" required />
-                                  </div>
-                               </div>
-                            </div>
-
-                            {/* SUBSCRIPTION TIER PICKER */}
-                            <div className="space-y-6 pt-6 border-t border-slate-100">
-                               <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-gradient-to-tr from-[#ff5a5f] to-amber-500 rounded-lg flex items-center justify-center text-white shadow-md shadow-[#ff5a5f]/20">
-                                     <Sparkles size={16} />
-                                  </div>
-                                  <div>
-                                     <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 italic">
-                                        {"Select Your Subscription Plan"}
-                                     </h3>
-                                     <p className="text-xs font-bold text-slate-400">
-                                        {"Start free or choose advanced capabilities"}
-                                     </p>
-                                  </div>
-                               </div>
-
-                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                                  {plans.map((p) => {
-                                     const isSelected = selectedPlanId === p.id;
-                                     return (
-                                        <div
-                                           key={p.id}
-                                           onClick={() => setSelectedPlanId(p.id)}
-                                           className={`relative rounded-[2.5rem] border-2 p-8 flex flex-col justify-between transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl ${
-                                              isSelected
-                                                 ? "border-[#ff5a5f] bg-[#ff5a5f]/5 shadow-[#ff5a5f]/5"
-                                                 : "border-slate-100 bg-white hover:border-slate-300"
-                                           }`}
-                                        >
-                                           {isSelected && (
-                                              <div className="absolute top-6 right-6 w-8 h-8 bg-[#ff5a5f] rounded-full flex items-center justify-center text-white shadow-lg animate-in zoom-in duration-300">
-                                                 <Check size={16} strokeWidth={3} />
-                                              </div>
-                                           )}
-                                           
-                                           <div className="space-y-4">
-                                              <div>
-                                                 <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
-                                                    isSelected ? "bg-[#ff5a5f] text-white" : "bg-slate-100 text-slate-500"
-                                                 }`}>
-                                                    {p.name}
-                                                 </span>
-                                              </div>
-
-                                              <div className="flex items-baseline gap-1">
-                                                 <span className="text-3xl font-black tracking-tighter text-slate-900">
-                                                    ${p.price.toFixed(2)}
-                                                 </span>
-                                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    / {p.billingCycle === "yearly" ? ("year") : ("month")}
-                                                 </span>
-                                              </div>
-
-                                              <ul className="space-y-3 pt-2">
-                                                 {(p.features || []).map((f: string, idx: number) => (
-                                                    <li key={idx} className="flex items-start gap-2 text-xs font-bold text-slate-600 italic">
-                                                       <Check className="text-emerald-500 shrink-0 mt-0.5" size={12} strokeWidth={3} />
-                                                       <span>{f}</span>
-                                                    </li>
-                                                 ))}
-                                              </ul>
-                                           </div>
-                                        </div>
-                                     );
-                                  })}
-                               </div>
-                            </div>
-                         </div>
+                          </div>
+                        </div>
                       </div>
                     )}
 
-                    {/* STEP 3: Location */}
                     {step === 3 && (
-                      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
-                         <div className="mb-12">
-                            <h2 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tight">{tx.step3Title}</h2>
-                            <p className="text-slate-400 font-bold text-lg">{tx.step3Sub}</p>
-                         </div>
-                         
-                         <div className="space-y-10">
-                            <div className="space-y-4">
-                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{tx.addressLabel}</label>
-                               <div className="relative">
-                                  <MapPin className="absolute left-6 top-7 text-[#ff5a5f]" size={20} />
-                                  <textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder={tx.addressPh} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[32px] p-6 pl-16 font-bold text-slate-800 h-32 focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all resize-none" required></textarea>
-                               </div>
-                               {addressSuggestions.length > 0 ? (
-                                 <div className="rounded-2xl border border-slate-200 bg-white p-2 space-y-1">
-                                   {addressSuggestions.map((s) => (
-                                     <button
-                                       key={s}
-                                       type="button"
-                                       onClick={() => {
-                                         setAddress(s);
-                                         setAddressSuggestions([]);
-                                       }}
-                                       className="w-full text-left text-xs font-bold text-slate-600 px-3 py-2 rounded-xl hover:bg-slate-50"
-                                     >
-                                       {s}
-                                     </button>
-                                   ))}
-                                 </div>
-                               ) : null}
-                            </div>
-
-                            <div className="h-64 bg-slate-100 rounded-[40px] overflow-hidden border-4 border-slate-50 shadow-inner relative flex items-center justify-center group outline outline-8 outline-slate-100/50">
-                               {address ? (
-                                 <iframe
-                                   title="business-map"
-                                   src={`https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`}
-                                   className="absolute inset-0 w-full h-full border-0"
-                                 />
-                               ) : (
-                                 <div className="absolute inset-0 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-300 opacity-90" aria-hidden />
-                               )}
-                               <button type="button" onClick={pickLocation} className="relative bg-white/95 backdrop-blur-md px-10 py-6 rounded-[32px] shadow-2xl border border-white flex flex-col items-center gap-4 group-hover:scale-105 transition-all cursor-pointer">
-                                  <div className="w-14 h-14 bg-[#ff5a5f] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-[#ff5a5f]/20">
-                                     <MapPin size={28} />
-                                  </div>
-                                  <span className="text-[11px] font-black text-slate-900 uppercase tracking-[0.15em]">{isLocating ? tx.locating : tx.locateMap}</span>
-                               </button>
-                            </div>
-                            {locationMessage ? (
-                              <p className="text-xs font-bold text-slate-500">{locationMessage}</p>
-                            ) : null}
-                         </div>
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{tx.step3Title}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{tx.step3Sub}</p>
+                        </div>
+                        <LocationRegionFields lang={lang} details={extended} setDetails={setExtended} />
+                        <div className="space-y-2">
+                          <label className={fieldLabel}>{tx.addressLabel}</label>
+                          <div className="relative">
+                            <MapPin className="absolute left-4 top-4 text-[#ff5a5f]" size={18} />
+                            <textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder={tx.addressPh} className={`${fieldInput} pl-11 min-h-[88px] resize-none pt-3.5`} required />
+                          </div>
+                        </div>
+                        <div className="h-36 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 relative flex items-center justify-center">
+                          {address ? (
+                            <iframe title="business-map" src={`https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`} className="absolute inset-0 w-full h-full border-0" />
+                          ) : null}
+                          <button type="button" onClick={pickLocation} className="relative bg-white/95 backdrop-blur px-4 py-2.5 rounded-xl shadow border border-white flex items-center gap-2 text-xs font-semibold text-slate-800">
+                            <MapPin size={16} className="text-[#ff5a5f]" />
+                            {isLocating ? tx.locating : tx.locateMap}
+                          </button>
+                        </div>
+                        {locationMessage ? <p className="text-xs text-slate-500">{locationMessage}</p> : null}
                       </div>
                     )}
 
-                    {/* STEP 4: Services */}
                     {step === 4 && (
-                      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
-                         <div className="mb-12">
-                            <h2 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tight">{tx.step4Title}</h2>
-                            <p className="text-slate-400 font-bold text-lg">{tx.step4Sub}</p>
-                         </div>
-                         
-                         <div className="space-y-6">
-                            <button type="button" onClick={addService} className="w-full bg-slate-50 border-4 border-dashed border-slate-200 rounded-[40px] p-12 flex flex-col items-center justify-center group hover:border-[#ff5a5f] hover:bg-[#ff5a5f]/5 transition-all cursor-pointer">
-                               <div className="w-20 h-20 bg-white rounded-[24px] flex items-center justify-center text-[#ff5a5f] shadow-xl group-hover:bg-[#ff5a5f] group-hover:text-white transition-all transform group-hover:rotate-12 duration-500">
-                                  <Plus size={40} strokeWidth={3} />
-                               </div>
-                               <p className="mt-8 text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">{tx.createService}</p>
-                            </button>
-
-                            {services.map((svc) => (
-                              <div key={svc.id} className="bg-white border-2 border-slate-50 rounded-[32px] p-6 flex justify-between items-center group hover:border-slate-100 transition-all shadow-sm">
-                                <div className="flex items-center gap-6 w-full">
-                                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-[#ff5a5f] shadow-inner overflow-hidden">
-                                    {svc.imagePreviewUrl ? (
-                                      <img src={svc.imagePreviewUrl} alt={svc.name || "service"} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <Scissors size={28} />
-                                    )}
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 w-full">
-                                    <div>
-                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">{tx.serviceNameLabel}</p>
-                                      <input
-                                        value={svc.name}
-                                        onChange={(e) => updateService(svc.id, { name: e.target.value })}
-                                        placeholder={tx.sampleService}
-                                        className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-bold w-full"
-                                      />
-                                    </div>
-                                    <div>
-                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">
-                                        {"Category"}
-                                      </p>
-                                      <select
-                                        value={svc.category}
-                                        onChange={(e) => updateService(svc.id, { category: e.target.value })}
-                                        className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-bold w-full min-h-[42px]"
-                                      >
-                                        {(selectedCategories.length ? selectedCategories : ["hairService"]).map((key) => (
-                                          <option key={key} value={key}>
-                                            {categoryOptions.find((c) => c.key === key)?.label ?? key}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">{tx.serviceDurationLabel}</p>
-                                      <input
-                                        type="number"
-                                        value={svc.duration}
-                                        onChange={(e) => updateService(svc.id, { duration: e.target.value })}
-                                        placeholder="30"
-                                        className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-bold w-full"
-                                      />
-                                    </div>
-                                    <div>
-                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">{tx.servicePriceLabel}</p>
-                                      <input
-                                        type="number"
-                                        value={svc.price}
-                                        onChange={(e) => updateService(svc.id, { price: e.target.value })}
-                                        placeholder="25"
-                                        className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-bold w-full"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex gap-4 ml-4">
-                                  <input
-                                    id={`service-image-${svc.id}`}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp,image/*"
-                                    className="hidden"
-                                    disabled={uploadingServiceId === svc.id}
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      const inputEl = e.currentTarget;
-                                      if (!file) {
-                                        updateService(svc.id, { imagePreviewUrl: "" });
-                                        return;
-                                      }
-                                      void handleServiceImageUpload(svc.id, file, inputEl);
-                                    }}
-                                  />
-                                  <button
-                                    type="button"
-                                    disabled={uploadingServiceId === svc.id}
-                                    onClick={() => {
-                                      const input = document.getElementById(`service-image-${svc.id}`) as HTMLInputElement | null;
-                                      input?.click();
-                                    }}
-                                    className="p-4 text-slate-300 hover:text-slate-900 bg-slate-50 rounded-2xl transition-all disabled:opacity-40"
-                                    title={tx.serviceImageLabel}
-                                  >
-                                    <Camera size={18} />
-                                  </button>
-                                  <button type="button" onClick={() => removeService(svc.id)} className="p-4 text-slate-300 hover:text-red-500 bg-slate-50 rounded-2xl transition-all">✕</button>
-                                </div>
-                              </div>
-                            ))}
-                            {services.some((s) => s.imagePreviewUrl) ? (
-                              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2">{tx.serviceImageLabel}</p>
-                                <div className="flex flex-wrap gap-3">
-                                  {services
-                                    .filter((s) => s.imagePreviewUrl)
-                                    .map((s) => (
-                                      <img key={s.id} src={s.imagePreviewUrl} alt={s.name || tx.sampleService} className="h-16 w-16 rounded-lg object-cover border border-slate-200" />
-                                    ))}
-                                </div>
-                              </div>
-                            ) : null}
-                            {services.length === 0 ? (
-                              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs font-bold text-slate-500">
-                                No services added yet. Click "{tx.createService}" to add one.
-                              </div>
-                            ) : null}
-                         </div>
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{lang === "es" ? "Detalles del local" : "Venue details"}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{lang === "es" ? "Acceso, estacionamiento y referencias" : "Access, parking, and landmarks"}</p>
+                        </div>
+                        <LocationDetailFields lang={lang} details={extended} setDetails={setExtended} />
                       </div>
                     )}
 
-                    {/* STEP 5: Final Review */}
                     {step === 5 && (
-                      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
-                         <div className="mb-12">
-                            <h2 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tight">{tx.step5Title}</h2>
-                            <p className="text-slate-400 font-bold text-lg">{tx.step5Sub}</p>
-                         </div>
-                         
-                         <div className="bg-slate-50/50 border border-slate-100 rounded-[48px] p-10 lg:p-14 space-y-10 shadow-inner">
-                            <div className="flex justify-between items-start pb-10 border-b border-white">
-                               <div>
-                                  <h4 className="text-3xl font-black text-slate-900">{businessName || "REZERVAME Studio"}</h4>
-                                  <p className="text-xs font-black text-[#ff5a5f] uppercase tracking-[0.2em] mt-2">{tx.bizType}</p>
-                               </div>
-                               <button type="button" onClick={() => setStep(1)} className="text-[9px] font-black text-slate-400 hover:text-white hover:bg-slate-900 uppercase tracking-[0.2em] border-2 border-slate-200 px-6 py-3 rounded-2xl transition-all">Editar</button>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">
-                               <div>
-                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{tx.ownerReview}</p>
-                                  <p className="text-lg font-bold text-slate-800">{ownerName || "—"}</p>
-                               </div>
-                               <div>
-                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{tx.contactReview}</p>
-                                  <p className="text-lg font-bold text-slate-800">{businessPhone || "—"}</p>
-                               </div>
-                               <div>
-                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{tx.taxIdLabel}</p>
-                                 <p className="text-lg font-bold text-slate-800">{taxId || "—"}</p>
-                               </div>
-                               <div>
-                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-                                     {"Subscription Plan"}
-                                  </p>
-                                  <p className="text-lg font-black text-[#ff5a5f] uppercase tracking-wide">
-                                     {plans.find((p) => p.id === selectedPlanId)?.name || "Basic"}
-                                  </p>
-                               </div>
-                            </div>
-
-                            <div>
-                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{tx.addressReview}</p>
-                               <p className="text-lg font-bold text-slate-800 leading-relaxed">{address || "—"}</p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2">
-                              {selectedCategories.map((key) => {
-                                const label = categoryOptions.find((c) => c.key === key)?.label || key;
-                                return (
-                                  <span key={key} className="px-3 py-1 rounded-full bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                    {label}
-                                  </span>
-                                );
-                              })}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {[
-                                { title: tx.idDoc, value: idDocumentImage },
-                                { title: tx.licenseDoc, value: licenseDocumentImage },
-                                { title: tx.insuranceDoc, value: insuranceDocumentImage },
-                              ].map((doc) => (
-                                <div key={doc.title} className="rounded-2xl border border-slate-200 bg-white p-3">
-                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-2">
-                                    {doc.title}
-                                  </p>
-                                  {doc.value ? (
-                                    <img src={doc.value} alt={doc.title} className="w-full h-24 object-cover rounded-xl" />
-                                  ) : (
-                                    <p className="text-xs font-bold text-slate-400">—</p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-
-                            <label className="flex items-start gap-5 cursor-pointer pt-6 group">
-                               <input checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} type="checkbox" required className="w-7 h-7 rounded-lg border-2 border-slate-200 text-[#ff5a5f] focus:ring-[#ff5a5f] mt-1 shrink-0" />
-                               <span className="text-sm font-bold text-slate-500 leading-relaxed group-hover:text-slate-800 transition-colors">
-                                 {tx.termsPrefix} <a href="/terms" className="text-slate-900 underline underline-offset-4 font-black">{tx.terms}</a> {tx.and} <a href="/privacy" className="text-slate-900 underline underline-offset-4 font-black">{tx.privacy}</a> REZERVAME.
-                               </span>
-                            </label>
-                         </div>
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{tx.ownerLabel}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{lang === "es" ? "Datos del titular y RUC" : "Owner identity and tax ID"}</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className={fieldLabel}>{tx.taxIdLabel}</label>
+                            <input value={taxId} onChange={(e) => setTaxId(e.target.value)} type="text" placeholder={tx.taxIdPh} className={fieldInput} required />
+                          </div>
+                          <div className="space-y-2">
+                            <label className={fieldLabel}>{tx.ownerLabel}</label>
+                            <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} type="text" placeholder={tx.ownerPh} className={fieldInput} required />
+                          </div>
+                        </div>
+                        <OwnerIdentityFields lang={lang} details={extended} setDetails={setExtended} />
                       </div>
                     )}
 
-                    {/* NAVIGATION BUTTONS */}
-                    <div className="flex justify-between items-center mt-12 pt-12 border-t border-slate-50">
-                      {step > 1 ? (
-                        <button type="button" onClick={prevStep} className="flex items-center gap-3 text-slate-400 font-black text-[11px] uppercase tracking-[0.2em] hover:text-slate-900 transition-all group">
-                          <ChevronLeft className="group-hover:-translate-x-1 transition-transform" size={20} strokeWidth={3} /> {tx.previous}
-                        </button>
-                      ) : (
-                        <div />
-                      )}
+                    {step === 6 && (
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{lang === "es" ? "Cuenta y seguridad" : "Account & security"}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{lang === "es" ? "Banco para pagos y contraseña de acceso" : "Payout bank and login password"}</p>
+                        </div>
+                        <BankPayoutFields lang={lang} details={extended} setDetails={setExtended} />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className={fieldLabel}>{tx.passwordLabel}</label>
+                            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" className={fieldInput} required />
+                          </div>
+                          <div className="space-y-2">
+                            <label className={fieldLabel}>{tx.confirmPasswordLabel}</label>
+                            <input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} type="password" placeholder="••••••••" className={fieldInput} required />
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                      {step < 5 ? (
-                        <button type="button" onClick={nextStep} className="bg-slate-900 text-white px-14 py-6 rounded-[32px] font-black text-[11px] uppercase tracking-[0.2em] hover:bg-[#ff5a5f] transition-all transform hover:-translate-y-1 shadow-2xl flex items-center gap-3">
-                          {tx.continue} <ChevronRight size={20} strokeWidth={3} />
+                    {step === 7 && (
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{lang === "es" ? "Plan y horarios" : "Plan & hours"}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{lang === "es" ? "Elige tu plan y cuándo atiendes" : "Choose your plan and operating hours"}</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {plans.map((p) => {
+                            const isSelected = selectedPlanId === p.id;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => setSelectedPlanId(p.id)}
+                                className={`rounded-2xl border p-4 text-left transition-all ${isSelected ? "border-[#ff5a5f] bg-[#ff5a5f]/5 ring-2 ring-[#ff5a5f]/15" : "border-slate-200 hover:border-slate-300"}`}
+                              >
+                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${isSelected ? "bg-[#ff5a5f] text-white" : "bg-slate-100 text-slate-500"}`}>{p.name}</span>
+                                <p className="text-xl font-bold text-slate-900 mt-2">${p.price.toFixed(2)}<span className="text-xs text-slate-400 font-normal">/mo</span></p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <OperationsStepFields lang={lang} details={extended} setDetails={setExtended} />
+                      </div>
+                    )}
+
+                    {step === 8 && (
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{tx.step4Title}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{tx.step4Sub}</p>
+                        </div>
+                        <button type="button" onClick={addService} className="w-full border-2 border-dashed border-slate-200 rounded-2xl py-6 flex flex-col items-center gap-2 hover:border-[#ff5a5f] hover:bg-[#ff5a5f]/5 transition-colors">
+                          <Plus size={24} className="text-[#ff5a5f]" />
+                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{tx.createService}</span>
+                        </button>
+                        {services.map((svc) => (
+                          <div key={svc.id} className="rounded-2xl border border-slate-200 p-4 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-[#ff5a5f]">
+                                {svc.imagePreviewUrl ? <img src={svc.imagePreviewUrl} alt="" className="w-full h-full object-cover" /> : <Scissors size={20} />}
+                              </div>
+                              <input value={svc.name} onChange={(e) => updateService(svc.id, { name: e.target.value })} placeholder={tx.sampleService} className={`${fieldInput} flex-1`} />
+                              <button type="button" onClick={() => removeService(svc.id)} className="text-slate-400 hover:text-red-500 px-2">✕</button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <input type="number" value={svc.duration} onChange={(e) => updateService(svc.id, { duration: e.target.value })} placeholder="30 min" className={fieldInput} />
+                              <input type="number" value={svc.price} onChange={(e) => updateService(svc.id, { price: e.target.value })} placeholder="$25" className={fieldInput} />
+                              <select value={svc.category} onChange={(e) => updateService(svc.id, { category: e.target.value })} className={fieldInput}>
+                                {(selectedCategories.length ? selectedCategories : ["hairService"]).map((key) => (
+                                  <option key={key} value={key}>{categoryOptions.find((c) => c.key === key)?.label ?? key}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <input id={`service-image-${svc.id}`} type="file" accept="image/*" className="hidden" disabled={uploadingServiceId === svc.id} onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleServiceImageUpload(svc.id, file, e.currentTarget); }} />
+                            <button type="button" disabled={uploadingServiceId === svc.id} onClick={() => document.getElementById(`service-image-${svc.id}`)?.click()} className="text-xs font-semibold text-[#ff5a5f] flex items-center gap-1">
+                              <Camera size={14} /> {tx.serviceImageLabel}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {step === 9 && (
+                      <div className="space-y-5">
+                        <div>
+                          <h2 className="text-2xl font-bold text-slate-900">{tx.step5Title}</h2>
+                          <p className="text-sm text-slate-500 mt-1">{tx.step5Sub}</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {[
+                            { key: "id", title: tx.idDoc, value: idDocumentImage, setter: setIdDocumentImage },
+                            { key: "license", title: tx.licenseDoc, value: licenseDocumentImage, setter: setLicenseDocumentImage },
+                            { key: "insurance", title: tx.insuranceDoc, value: insuranceDocumentImage, setter: setInsuranceDocumentImage },
+                          ].map((doc) => (
+                            <ExtraDocumentUpload key={doc.key} title={doc.title} value={doc.value} uploading={uploadingDocKey === doc.key} uploadLabel={tx.uploadFile} okLabel={tx.uploadOk} onPick={(file, inputEl) => void handleDocImageUpload(file, doc.setter, doc.key, inputEl)} />
+                          ))}
+                          <ExtraDocumentUpload title={lang === "es" ? "Foto exterior" : "Exterior photo"} hint={lang === "es" ? "Opcional" : "Optional"} value={exteriorPhoto} uploading={uploadingDocKey === "exterior"} uploadLabel={tx.uploadFile} okLabel={tx.uploadOk} onPick={(file, inputEl) => void handleDocImageUpload(file, setExteriorPhoto, "exterior", inputEl)} />
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-5 space-y-4">
+                          <div className="flex justify-between items-start gap-3">
+                            <div>
+                              <h4 className="text-lg font-bold text-slate-900">{businessName || "—"}</h4>
+                              <p className="text-xs font-semibold text-[#ff5a5f] mt-1">
+                                {extended.businessType ? t(`${partnerTypeById(extended.businessType)?.labelKey ?? "partnersTypeSalon"}Title`) : tx.bizType}
+                              </p>
+                            </div>
+                            <button type="button" onClick={() => setStep(1)} className="text-xs font-semibold text-slate-500 hover:text-slate-900">{lang === "es" ? "Editar" : "Edit"}</button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div><p className="text-xs text-slate-400">{tx.ownerReview}</p><p className="font-semibold">{ownerName || "—"}</p></div>
+                            <div><p className="text-xs text-slate-400">{tx.contactReview}</p><p className="font-semibold">{businessPhone || "—"}</p></div>
+                            <div><p className="text-xs text-slate-400">{tx.addressReview}</p><p className="font-semibold line-clamp-2">{address || "—"}</p></div>
+                            <div><p className="text-xs text-slate-400">Plan</p><p className="font-semibold text-[#ff5a5f]">{plans.find((p) => p.id === selectedPlanId)?.name || "Basic"}</p></div>
+                          </div>
+                        </div>
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} type="checkbox" className="mt-1 rounded border-slate-300 text-[#ff5a5f] focus:ring-[#ff5a5f]" />
+                          <span className="text-sm text-slate-600">{lang === "es" ? "Quiero recibir consejos y promociones para socios (opcional)." : "Send me partner tips and promotions (optional)."}</span>
+                        </label>
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} type="checkbox" required className="mt-1 rounded border-slate-300 text-[#ff5a5f] focus:ring-[#ff5a5f]" />
+                          <span className="text-sm text-slate-600">
+                            {tx.termsPrefix} <a href="/terms" className="text-slate-900 underline font-semibold">{tx.terms}</a> {tx.and} <a href="/privacy" className="text-slate-900 underline font-semibold">{tx.privacy}</a>.
+                          </span>
+                        </label>
+                      </div>
+                    )}
+                    </div>
+
+                    <div className="shrink-0 flex justify-between items-center gap-4 px-5 py-4 sm:px-8 border-t border-slate-100 bg-white">
+                      {step > 1 ? (
+                        <button type="button" onClick={prevStep} className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900">
+                          <ChevronLeft size={18} /> {tx.previous}
+                        </button>
+                      ) : <div />}
+
+                      {step < TOTAL_STEPS ? (
+                        <button type="button" onClick={nextStep} className="bg-slate-900 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-[#ff5a5f] transition-colors flex items-center gap-2">
+                          {tx.continue} <ChevronRight size={18} />
                         </button>
                       ) : (
-                        <button type="submit" disabled={isSubmitting} className="bg-[#ff5a5f] text-white px-14 py-6 rounded-[32px] font-black text-[11px] uppercase tracking-[0.2em] hover:bg-[#e0484d] transition-all transform hover:-translate-y-1 shadow-2xl shadow-[#ff5a5f]/40 flex items-center gap-3 animate-pulse disabled:opacity-60">
-                          {isSubmitting ? "Submitting..." : tx.submit} <ArrowRight size={20} strokeWidth={3} />
+                        <button type="submit" disabled={isSubmitting} className="bg-[#ff5a5f] text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-[#e0484d] transition-colors flex items-center gap-2 disabled:opacity-60">
+                          {isSubmitting ? "Submitting..." : tx.submit} <ArrowRight size={18} />
                         </button>
                       )}
                     </div>
-                    {stepError ? (
-                      <p className="mt-4 text-sm font-bold text-rose-600">{stepError}</p>
-                    ) : null}
+                    {stepError ? <p className="px-8 pb-4 text-sm font-semibold text-rose-600">{stepError}</p> : null}
 
                   </form>
                </div>
             </div>
-          </>
+          </div>
         )}
 
       </div>

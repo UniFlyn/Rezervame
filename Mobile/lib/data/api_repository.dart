@@ -82,11 +82,11 @@ class ApiRepository {
       return 'Request timed out. Pull to refresh.';
     }
     if (e is SocketException || e is HttpException) {
-      return 'Cannot reach the server at $_baseUrl. Start the API on port 4000, then pull to refresh.';
+      return 'Cannot reach the server at $_baseUrl. Check your connection and try again.';
     }
     final msg = e.toString().replaceAll('Exception: ', '').trim();
     if (msg.contains('Connection refused') || msg.contains('Failed host lookup')) {
-      return 'Cannot reach the server at $_baseUrl. Start the API on port 4000, then pull to refresh.';
+      return 'Cannot reach the server at $_baseUrl. Check your connection and try again.';
     }
     return msg.isNotEmpty ? msg : fallback;
   }
@@ -163,6 +163,45 @@ class ApiRepository {
     if (user == null || token == null || user['role'] != 'USER') return false;
     await AuthSession.setToken(token);
     return true;
+  }
+
+  /// Request a 6-digit password reset code (Postmark email). Returns devCode in non-production when email is off.
+  Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/auth/forgot-password'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({'email': email.trim().toLowerCase()}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Could not send verification code');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> verifyPasswordResetCode(String email, String code) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/auth/verify-reset-code'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({'email': email.trim().toLowerCase(), 'code': code.trim()}),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Invalid or expired code');
+    }
+  }
+
+  Future<void> resetPasswordWithCode(String email, String code, String newPassword) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/auth/reset-password'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim().toLowerCase(),
+        'code': code.trim(),
+        'newPassword': newPassword,
+      }),
+    );
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiError(res, 'Could not reset password');
+    }
   }
 
   Future<void> logout() async {

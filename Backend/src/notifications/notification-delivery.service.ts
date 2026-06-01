@@ -1,6 +1,6 @@
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma.service';
-import { isPostmarkConfigured } from '../email/postmark.config';
+import { resolvePostmarkConfig } from '../config/system-integration.config';
 import { postmarkSendRaw } from '../email/email.service';
 import type { SendTemplateEmailOptions } from '../email/interfaces/email-options.interface';
 import { postmarkSendWithTemplate } from '../email/email.service';
@@ -73,7 +73,7 @@ export async function sendEmailWithTemplate(
   const recipient = options.to.trim();
   if (!recipient) return { ok: false, error: 'Missing recipient' };
 
-  if (!isPostmarkConfigured()) {
+  if (!(await resolvePostmarkConfig(prisma))) {
     await logDelivery(
       prisma,
       'email',
@@ -87,7 +87,7 @@ export async function sendEmailWithTemplate(
   }
 
   try {
-    const result = await postmarkSendWithTemplate({ ...options, to: recipient });
+    const result = await postmarkSendWithTemplate(prisma, { ...options, to: recipient });
     if ('skipped' in result) {
       return { ok: true, skipped: true };
     }
@@ -128,10 +128,10 @@ export async function sendEmail(
   const recipient = to.trim();
   if (!recipient) return { ok: false, error: 'Missing recipient' };
 
-  // Postmark (rezervame.com) — preferred when POSTMARK_API_KEY is set
-  if (isPostmarkConfigured()) {
+  // Postmark (rezervame.com) — preferred when configured (env or Admin settings)
+  if (await resolvePostmarkConfig(prisma)) {
     try {
-      const result = await postmarkSendRaw({
+      const result = await postmarkSendRaw(prisma, {
         to: recipient,
         subject,
         htmlBody: html,

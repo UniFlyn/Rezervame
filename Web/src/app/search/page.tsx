@@ -1,12 +1,13 @@
 "use client";
 import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useI18n } from "../../components/I18nProvider";
-import { Search, Map as MapIcon, List, LayoutGrid, Star, Heart, Filter, ChevronDown, Check, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { Search, Map as MapIcon, List, LayoutGrid, Star, Heart, Filter, FilterX, ChevronDown, Check, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   fetchPublicVenues,
   fetchPublicCategories,
   mapApiVenueToRow,
+  categoryFilterParamFromSelection,
   businessListingImageSrc,
   type ApiVenue,
   type SearchVenueRow,
@@ -20,8 +21,10 @@ import en from "../../../../shared/locales/en.json";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
 import { AppLoader } from "@/components/ui/AppLoader";
 import { Pagination } from "@/components/ui/pagination";
+import { PARTNER_BUSINESS_TYPES } from "@/lib/partnerBusinessTypes";
 import { userFacingError } from "@/lib/userFacingError";
 import { goToVenue } from "@/lib/goToVenue";
+import { StatePanel, statePanelVariantForMessage } from "@/components/ui/StatePanel";
 
 function SearchContent() {
   const { t, language } = useI18n();
@@ -79,10 +82,12 @@ function SearchContent() {
   const [apiVenues, setApiVenues] = useState<ApiVenue[]>([]);
   const [venuesLoading, setVenuesLoading] = useState(true);
   const [venuesError, setVenuesError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = viewMode === "list" ? 10 : 15;
   const categoryKeyFromQuery = searchParams.get("categoryKey");
+  const legacyCategoryNameFromQuery = searchParams.get("category");
   const searchQuery = searchParams.get("q") || "";
   const venues = useMemo(
     () => apiVenues.map((v) => mapApiVenueToRow(v, language)),
@@ -97,9 +102,10 @@ function SearchContent() {
       // Map frontend selectedCategories to category keys if they are labels
       // But for now, let's assume they are keys or labels that match.
       // Actually, it's better to pass them as they are or as keys.
-      const categoryParam = selectedCategories.length > 0 
-        ? selectedCategories.join(',') 
-        : (categoryKeyFromQuery || "");
+      const categoryParam =
+        selectedCategories.length > 0
+          ? categoryFilterParamFromSelection(selectedCategories)
+          : categoryKeyFromQuery || legacyCategoryNameFromQuery || "";
 
       const filters = {
         page: currentPage,
@@ -120,7 +126,10 @@ function SearchContent() {
         })
         .catch((e: unknown) => {
           if (cancelled) return;
-          setVenuesError(userFacingError(e, "Unable to load venues right now."));
+          setApiVenues([]);
+          setTotalItems(0);
+          setTotalPages(1);
+          setVenuesError(userFacingError(e, t("stateLoadFailedBody")));
         })
         .finally(() => {
           if (!cancelled) setVenuesLoading(false);
@@ -146,7 +155,7 @@ function SearchContent() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage, itemsPerPage, sortBy, categoryKeyFromQuery, searchQuery, selectedCategories, selectedRatings]);
+  }, [currentPage, itemsPerPage, sortBy, categoryKeyFromQuery, legacyCategoryNameFromQuery, searchQuery, selectedCategories, selectedRatings, reloadNonce, t]);
 
   const [categories, setCategories] = useState<PublicCategory[]>([]);
 
@@ -154,14 +163,40 @@ function SearchContent() {
     void fetchPublicCategories().then(setCategories).catch(() => setCategories([]));
   }, []);
 
+  /** Service Type filter — 8 partner business types only (not raw legacy Category rows). */
+  const partnerFilterOptions = useMemo(() => {
+    const countByKey = new Map<string, number>();
+    for (const c of categories) {
+      countByKey.set(c.key, c.activeBusinessCount ?? 0);
+    }
+    return PARTNER_BUSINESS_TYPES.map((type) => {
+      const filterParam = type.categoryKeys.join(",");
+      const count = type.categoryKeys.reduce((sum, k) => sum + (countByKey.get(k) ?? 0), 0);
+      return {
+        id: type.id,
+        filterParam,
+        label: t(`${type.labelKey}Title`),
+        count,
+      };
+    });
+  }, [categories, t]);
+
   const activeVenue = useMemo(
     () => venues.find((v) => v.businessId === activeMarkerId),
     [venues, activeMarkerId],
   );
-  const legacyCategoryNameFromQuery = searchParams.get("category");
   /** Page title: honor `categoryKey` (e.g. from home tiles), not a stray default to hair. */
   const searchResultsTitle = useMemo(() => {
-    if (legacyCategoryNameFromQuery) return legacyCategoryNameFromQuery;
+    if (legacyCategoryNameFromQuery) {
+      const partnerMatch = PARTNER_BUSINESS_TYPES.find(
+        (p) => p.categoryKeys.join(",") === legacyCategoryNameFromQuery,
+      );
+      if (partnerMatch) return t(`${partnerMatch.labelKey}Title`);
+      const firstKey = legacyCategoryNameFromQuery.split(",")[0]?.trim();
+      const cat = categories.find((c) => c.key === firstKey);
+      if (cat) return language === "es" ? cat.labelEs || cat.labelEn : cat.labelEn;
+      return legacyCategoryNameFromQuery;
+    }
     if (categoryKeyFromQuery) {
         const cat = categories.find(c => c.key === categoryKeyFromQuery);
         if (cat) return cat.labelEn;
@@ -220,6 +255,51 @@ function SearchContent() {
     setSelectedCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   };
 
+  const hasActiveFilters =
+    selectedCategories.length > 0 ||
+    selectedRatings.length > 0 ||
+    Boolean(categoryKeyFromQuery) ||
+    Boolean(searchQuery.trim());
+
+  const clearAllFilters = () => {
+    setSelectedCategories([]);
+    setSelectedRatings([]);
+    setCurrentPage(1);
+    setVenuesError(null);
+    router.push("/search");
+  };
+
+  const retryVenuesLoad = () => {
+    setVenuesError(null);
+    setReloadNonce((n) => n + 1);
+  };
+
+  const resultsStatePanel =
+    venuesError ? (
+      <StatePanel
+        variant={statePanelVariantForMessage(venuesError)}
+        title={t("searchErrorTitle")}
+        description={venuesError}
+        actions={[
+          { label: t("tryAgain"), onClick: retryVenuesLoad, primary: true },
+          ...(hasActiveFilters
+            ? [{ label: t("clearFilters"), onClick: clearAllFilters, icon: FilterX }]
+            : []),
+        ]}
+      />
+    ) : paginatedResults.length === 0 ? (
+      <StatePanel
+        variant="empty"
+        title={t("noVenuesMatch")}
+        description={t("searchEmptyHint")}
+        actions={
+          hasActiveFilters
+            ? [{ label: t("clearFilters"), onClick: clearAllFilters, primary: true, icon: FilterX }]
+            : undefined
+        }
+      />
+    ) : null;
+
   if (venuesLoading) {
     return <AppLoader label={t("loadingVenues")} variant="page" />;
   }
@@ -234,25 +314,26 @@ function SearchContent() {
                 <span className="w-2 h-2 bg-[#ff5a5f] rounded-full"></span>
                 {t('filterService')}
               </h4>
-              <div className="space-y-5">
-                 {categories.map(c => (
-                    <label key={c.key} className="flex items-center gap-4 cursor-pointer group">
+              <div className="space-y-4">
+                 {partnerFilterOptions.map((c) => {
+                    const isSel = selectedCategories.includes(c.filterParam);
+                    return (
+                    <label key={c.id} className="flex items-center gap-4 cursor-pointer group">
                       <div 
                         onClick={() => {
-                          const isSel = selectedCategories.includes(c.key);
-                          if (isSel) setSelectedCategories(prev => prev.filter(x => x !== c.key));
-                          else setSelectedCategories(prev => [...prev, c.key]);
+                          if (isSel) setSelectedCategories(prev => prev.filter(x => x !== c.filterParam));
+                          else setSelectedCategories(prev => [...prev, c.filterParam]);
                           setCurrentPage(1);
                         }}
-                        className={`w-6 h-6 border-2 rounded-lg flex items-center justify-center transition-all duration-300 ${selectedCategories.includes(c.key) ? 'bg-[#ff5a5f] border-[#ff5a5f] shadow-lg shadow-[#ff5a5f]/30' : 'border-slate-200 group-hover:border-[#ff5a5f]'}`}
+                        className={`w-6 h-6 border-2 rounded-lg flex items-center justify-center transition-all duration-300 ${isSel ? 'bg-[#ff5a5f] border-[#ff5a5f] shadow-lg shadow-[#ff5a5f]/30' : 'border-slate-200 group-hover:border-[#ff5a5f]'}`}
                       >
-                        {selectedCategories.includes(c.key) && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
+                        {isSel && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
                       </div>
-                      <span className={`text-sm font-bold transition-all duration-300 ${selectedCategories.includes(c.key) ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>
-                        {c.labelEn}
+                      <span className={`text-sm font-bold transition-all duration-300 ${isSel ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>
+                        {c.label}
                       </span>
                     </label>
-                 ))}
+                 );})}
               </div>
            </div>
 
@@ -309,14 +390,9 @@ function SearchContent() {
               </div>
 
               {/* LIST VIEW */}
-              {viewMode === "list" && (filteredAndSortedResults.length === 0 || venuesError) && (
-                <div className="rounded-[32px] border border-slate-100 bg-white px-8 py-16 text-center">
-                  <p className="text-sm font-bold text-slate-700">{venuesError || t('noVenuesMatch')}</p>
-                  <p className="mt-2 text-xs text-slate-400">Try clearing category or rating filters, or change the URL category key.</p>
-                </div>
-              )}
+              {viewMode === "list" && resultsStatePanel}
 
-              {viewMode === "list" && (
+              {viewMode === "list" && paginatedResults.length > 0 && !venuesError && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {paginatedResults.map((res) => (
                         <div
@@ -400,13 +476,9 @@ function SearchContent() {
               )}
 
               {/* GRID VIEW */}
-              {viewMode === "grid" && (filteredAndSortedResults.length === 0 || venuesError) && (
-                <div className="rounded-[40px] border border-slate-100 bg-white px-8 py-16 text-center col-span-full">
-                  <p className="text-sm font-bold text-slate-700">{venuesError || t('noVenuesMatch')}</p>
-                </div>
-              )}
+              {viewMode === "grid" && resultsStatePanel}
 
-              {viewMode === "grid" && (
+              {viewMode === "grid" && paginatedResults.length > 0 && !venuesError && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 animate-in fade-in zoom-in-95 duration-700">
                     {paginatedResults.map((res) => (
                         <div

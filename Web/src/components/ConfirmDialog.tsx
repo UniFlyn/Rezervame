@@ -9,7 +9,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "danger" | "warning" | "info";
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -23,6 +23,10 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const [confirming, setConfirming] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) setConfirming(false);
+  }, [open]);
   if (!open) return null;
 
   const iconBg =
@@ -86,15 +90,24 @@ export function ConfirmDialog({
           <div className="flex gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 py-3.5 px-6 rounded-2xl border-2 border-slate-100 bg-slate-50 text-slate-600 font-black text-xs uppercase tracking-widest hover:bg-slate-100 hover:border-slate-200 transition-all"
+              disabled={confirming}
+              className="flex-1 py-3.5 px-6 rounded-2xl border-2 border-slate-100 bg-slate-50 text-slate-600 font-black text-xs uppercase tracking-widest hover:bg-slate-100 hover:border-slate-200 transition-all disabled:opacity-60"
             >
               {cancelLabel}
             </button>
             <button
-              onClick={onConfirm}
-              className={`flex-1 py-3.5 px-6 rounded-2xl text-white font-black text-xs uppercase tracking-widest shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 ${confirmBg}`}
+              onClick={async () => {
+                setConfirming(true);
+                try {
+                  await onConfirm();
+                } finally {
+                  setConfirming(false);
+                }
+              }}
+              disabled={confirming}
+              className={`flex-1 py-3.5 px-6 rounded-2xl text-white font-black text-xs uppercase tracking-widest shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 ${confirmBg}`}
             >
-              {confirmLabel}
+              {confirming ? "Working..." : confirmLabel}
             </button>
           </div>
         </div>

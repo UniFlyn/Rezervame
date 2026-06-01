@@ -10,6 +10,9 @@ const enPath = process.argv[2] || path.join(process.cwd(), "Mobile/assets/transl
 const esPath = process.argv[3] || path.join(path.dirname(enPath), "es.json");
 
 const en = JSON.parse(fs.readFileSync(enPath, "utf8"));
+const existingEs = fs.existsSync(esPath)
+  ? JSON.parse(fs.readFileSync(esPath, "utf8"))
+  : {};
 const cache = new Map();
 
 const SKIP_PATTERN =
@@ -26,6 +29,10 @@ function shouldSkip(value) {
   return false;
 }
 
+function isBadApiTranslation(text) {
+  return /MYMEMORY WARNING|USAGE LIMITS|TRANSLATED\.NET\/DOC\/USAGELIMITS/i.test(text);
+}
+
 async function translateText(text) {
   const key = text.trim();
   if (cache.has(key)) return cache.get(key);
@@ -35,6 +42,9 @@ async function translateText(text) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   const out = data?.responseData?.translatedText?.trim() || key;
+  if (isBadApiTranslation(out)) {
+    throw new Error("MyMemory quota exceeded — use scripts/repair-es-locales.mjs instead");
+  }
   cache.set(key, out);
   await new Promise((r) => setTimeout(r, 350));
   return out;
@@ -59,7 +69,10 @@ async function main() {
         process.stdout.write(`\r[${i}/${keys.length}] ${k.slice(0, 40)}`);
       } catch (e) {
         console.warn(`\nSkip ${k}: ${e.message}`);
-        es[k] = v;
+        // Keep existing es.json value when re-running; never write API errors to file.
+        const prev = existingEs[k];
+        es[k] =
+          typeof prev === "string" && !isBadApiTranslation(prev) ? prev : v;
       }
     }
   }

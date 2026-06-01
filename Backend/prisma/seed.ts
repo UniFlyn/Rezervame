@@ -418,6 +418,46 @@ async function main() {
       active: true,
       imageUrl: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?q=80&w=600&fit=crop',
     },
+    {
+      key: 'massage',
+      labelEn: 'Massage',
+      labelEs: 'Masaje',
+      sortOrder: 55,
+      active: true,
+      imageUrl: 'https://rezervame-assets-abs.s3.ap-southeast-2.amazonaws.com/uploads/defaults/categories/massage.jpg',
+    },
+    {
+      key: 'tattoo',
+      labelEn: 'Tattoo studio',
+      labelEs: 'Estudio de tatuajes',
+      sortOrder: 60,
+      active: true,
+      imageUrl: 'https://images.unsplash.com/photo-1560707303-4e980ce876ad?q=80&w=600&fit=crop',
+    },
+    {
+      key: 'yoga',
+      labelEn: 'Yoga & fitness',
+      labelEs: 'Yoga y fitness',
+      sortOrder: 65,
+      active: true,
+      imageUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=600&fit=crop',
+    },
+    {
+      key: 'estetica',
+      labelEn: 'Aesthetics center',
+      labelEs: 'Centro de estética',
+      sortOrder: 45,
+      active: true,
+      imageUrl: 'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?q=80&w=600&fit=crop',
+    },
+    {
+      key: 'dermatology',
+      labelEn: 'Dermatology / clinic',
+      labelEs: 'Dermatología / clínica',
+      sortOrder: 47,
+      active: true,
+      imageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=600&fit=crop',
+    },
   ];
   for (const c of categorySeed) {
     await prisma.category.upsert({

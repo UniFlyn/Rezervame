@@ -33,6 +33,12 @@ export interface Business {
   notifyDailySummary?: boolean;
   /** Business onboarding / moderation status from API (`Business.status`). */
   status?: string;
+  owner?: string;
+  taxId?: string;
+  /** Partner type id (`salon`, `barberia`, …) — matches registration picker. */
+  businessType?: string;
+  registrationDetails?: Record<string, unknown> | null;
+  registrationSections?: { title: string; rows: { label: string; value: string }[] }[];
   taxPercentage?: number;
   /** `manual` = approve each booking; `automatic` = instant confirmation */
   appointmentApprovalMode?: 'manual' | 'automatic';
@@ -42,11 +48,31 @@ export interface Business {
   cancellationPolicyMessageEs?: string;
   planId?: string;
   plan?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Merchant toggle — show on app/web when setup is complete. */
+  listingVisible?: boolean;
+  profileSetupComplete?: boolean;
+  setupStatus?: {
+    complete: boolean;
+    missing: Array<
+      'logo' | 'banner' | 'description' | 'location' | 'mapPin' | 'workingHours' | 'gallery'
+    >;
+    canEnableListing: boolean;
+  };
 }
+
+type BusinessPatch = Partial<Business> & {
+  businessType?: string;
+  categoryKeys?: string[];
+  registrationDetails?: Record<string, unknown>;
+  owner?: string;
+  taxId?: string;
+};
 
 interface BusinessState {
   business: Business | null;
-  updateBusiness: (data: Partial<Business>) => Promise<void>;
+  updateBusiness: (data: BusinessPatch) => Promise<void>;
   deductBalance: (amount: number) => Promise<void>;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
@@ -60,15 +86,18 @@ export const useBusinessStore = create<BusinessState>()((set, get) => ({
   updateBusiness: async (data) => {
     const current = get().business;
     if (!current) return;
-    const updated = await apiPatch<Business>(`/business/${current.id}`, data, 'BUSINESS');
-    set({
-      business: {
-        ...updated,
-        logo: updated.logo || data.logo || current.logo,
-        banner: updated.banner || data.banner || current.banner,
-        images: updated.images ?? data.images ?? current.images,
-      },
-    });
+    await apiPatch<Business>(`/business/${current.id}`, data, 'BUSINESS');
+    const fresh = await apiGet<Business>(`/business/${current.id}`, 'BUSINESS');
+    if (fresh) {
+      set({
+        business: {
+          ...fresh,
+          logo: fresh.logo || (typeof data.logo === 'string' ? data.logo : current.logo),
+          banner: fresh.banner || (typeof data.banner === 'string' ? data.banner : current.banner),
+          images: fresh.images ?? (Array.isArray(data.images) ? (data.images as string[]) : current.images),
+        },
+      });
+    }
   },
   deductBalance: async (amount) => {
     const current = get().business;

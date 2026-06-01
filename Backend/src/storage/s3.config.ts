@@ -7,7 +7,7 @@ export type S3Config = {
   secretAccessKey: string;
 };
 
-export function readS3Config(): S3Config | null {
+export function readS3ConfigFromEnv(): S3Config | null {
   const bucket = process.env.S3_BUCKET_NAME?.trim();
   const region = process.env.AWS_REGION?.trim() || 'us-east-1';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID?.trim();
@@ -28,6 +28,11 @@ export function readS3Config(): S3Config | null {
   };
 }
 
+/** Env-only (sync). Prefer `resolveS3Config(prisma)` when DB overrides are needed. */
+export function readS3Config(): S3Config | null {
+  return readS3ConfigFromEnv();
+}
+
 export function isS3Configured(): boolean {
-  return readS3Config() !== null;
+  return readS3ConfigFromEnv() !== null;
 }

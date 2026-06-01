@@ -20,18 +20,22 @@ import {
 } from "lucide-react";
 import { BookingModal, type BookingModalVenueData } from "../../../components/BookingModal";
 import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from "@/lib/cancellationPolicy";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { resolveVenueBusinessId } from "@/lib/resolveVenueBusinessId";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { amenityLucideIcon } from "@/lib/amenityIcons";
 import { AppLoader } from "@/components/ui/AppLoader";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { fetchPublicCategories, serviceCardImageSrc, type PublicCategory } from "@/lib/venueSearch";
+import { normalizePublicImageUrl } from "@/lib/s3Assets";
 import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
+import { userFacingError } from "@/lib/userFacingError";
 import { useAuth } from "@/components/AuthProvider";
 import { formatAvailabilityDisplay, formatStaffStatValue, parseAvailability } from "@/lib/staffAvailability";
 import { getNextAvailableSlotLabel } from "@/lib/bookingSlots";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
+import { VenueDetailSections, type VenueDetailSection } from "@/components/venue/VenueDetailSections";
 
 type VenueService = { id: string; name: string; description: string; time: string; price: number; image?: string | null; tag: string };
 type VenueTeam = {
@@ -73,6 +77,7 @@ export type VenueState = {
   cancellationAllowed?: boolean;
   cancellationHoursBefore?: number;
   cancellationPolicyMessage?: string;
+  venueDetailSections?: VenueDetailSection[];
 };
 
 function memberOffersService(member: VenueTeam, serviceId: string): boolean {
@@ -92,13 +97,14 @@ function buildGalleryImages(
   const skip = new Set([banner, logo].filter(Boolean));
   const out: string[] = [];
   const push = (u?: string) => {
-    const s = (u || '').trim();
+    const s = normalizePublicImageUrl(u || "");
     if (!s || skip.has(s) || out.includes(s)) return;
     out.push(s);
   };
   if (Array.isArray(rawImages)) rawImages.forEach((img) => push(img));
   if (out.length === 0) {
     if (banner) out.push(banner);
+    else if (logo) out.push(logo);
     else out.push(PLACEHOLDER_IMAGE_DATA_URI);
   }
   return out;
@@ -129,20 +135,40 @@ function emptyVenue(venueId: string): VenueState {
   };
 }
 
+function shouldRetryVenueLoad(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const text = msg.toLowerCase();
+  return (
+    text.includes("502") ||
+    text.includes("503") ||
+    text.includes("bad gateway") ||
+    text.includes("invalid json") ||
+    text.includes("timing out") ||
+    text.includes("longer than usual")
+  );
+}
+
+async function withRetries<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!shouldRetryVenueLoad(err) || i === attempts - 1) throw err;
+      await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Failed to load venue");
+}
+
 export default function VenueDetailsPage({ businessId }: { businessId: string }) {
   const { t, language } = useI18n();
   const router = useRouter();
+  const pathname = usePathname();
+  const venueId = resolveVenueBusinessId(pathname, businessId);
   const { isLoggedIn, setIsLoginModalOpen, setPendingAfterLogin } = useAuth();
-  const [venueId, setVenueId] = useState(businessId);
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const parts = window.location.pathname.split('/');
-      if (parts.length >= 3 && parts[1] === 'venue' && parts[2] !== 'default') {
-        setVenueId(parts[2]);
-      }
-    }
-  }, []);
-  const [venueData, setVenueData] = useState<VenueState>(() => emptyVenue(venueId));
+  const [venueData, setVenueData] = useState<VenueState>(() => emptyVenue(venueId || businessId));
   const [reviewRows, setReviewRows] = useState<
     Array<{
       id: string;
@@ -278,12 +304,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
       setVenueLoading(true);
       const base = emptyVenue(venueId);
       try {
-        if (venueId === 'default') {
-          setVenueData(emptyVenue(venueId));
+        if (!venueId) {
+          setVenueData(emptyVenue(""));
           setVenueLoading(false);
+          toastWarning(t("venueUnavailableTitle"), t("venueUnavailableBody"));
           return;
         }
-        const business = await apiGet<Record<string, unknown> | null>(`/business/${venueId}`);
+        const business = await withRetries(
+          () => apiGet<Record<string, unknown> | null>(`/business/${venueId}`),
+          3,
+        );
         if (!business) {
           if (!cancelled) {
             setVenueData(base);
@@ -293,9 +323,9 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           return;
         }
         const [services, staff, reviews, favorites, bestsellers, promotions] = await Promise.all([
-          apiGet<unknown[]>(`/business/${venueId}/services`).catch(() => [] as unknown[]),
-          apiGet<unknown[]>(`/business/${venueId}/staff`).catch(() => [] as unknown[]),
-          apiGet<unknown[]>(`/business/${venueId}/reviews`).catch(() => [] as unknown[]),
+          withRetries(() => apiGet<unknown[]>(`/business/${venueId}/services`), 2).catch(() => [] as unknown[]),
+          withRetries(() => apiGet<unknown[]>(`/business/${venueId}/staff`), 2).catch(() => [] as unknown[]),
+          withRetries(() => apiGet<unknown[]>(`/business/${venueId}/reviews`), 2).catch(() => [] as unknown[]),
           isLoggedIn
             ? apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>(
                 `/mobile/favorites?limit=100`,
@@ -346,12 +376,36 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         };
         const contactPhone = String((business as { contactPhone?: string }).contactPhone ?? "");
         const contactEmail = String((business as { contactEmail?: string }).contactEmail ?? "");
-        const logoUrl = String((business as { logo?: string }).logo ?? b.logo ?? "").trim();
-        const bannerUrl = String((business as { banner?: string }).banner ?? b.banner ?? "").trim();
-        const rawGallery = Array.isArray((business as { images?: string[] }).images)
-          ? (business as { images: string[] }).images
+        const logoUrl = normalizePublicImageUrl(
+          String((business as { logo?: string }).logo ?? b.logo ?? ""),
+        );
+        const bannerUrl = normalizePublicImageUrl(
+          String((business as { banner?: string }).banner ?? b.banner ?? ""),
+        );
+        const portfolioFromApi = Array.isArray(
+          (business as { portfolioImageUrls?: string[] }).portfolioImageUrls,
+        )
+          ? (business as { portfolioImageUrls: string[] }).portfolioImageUrls
           : [];
-        const imgs = buildGalleryImages(rawGallery, bannerUrl, logoUrl);
+        const regPhotos = Array.isArray((business as { registrationPhotoUrls?: string[] }).registrationPhotoUrls)
+          ? (business as { registrationPhotoUrls: string[] }).registrationPhotoUrls.map((u) =>
+              normalizePublicImageUrl(u),
+            )
+          : [];
+        const rawGallery =
+          portfolioFromApi.length > 0
+            ? portfolioFromApi
+            : Array.isArray((business as { images?: string[] }).images)
+              ? (business as { images: string[] }).images
+              : [];
+        const imgs = buildGalleryImages(
+          [...regPhotos.filter(Boolean), ...rawGallery],
+          bannerUrl,
+          logoUrl,
+        );
+        const venueDetailSections = Array.isArray((business as { venueDetailSections?: VenueDetailSection[] }).venueDetailSections)
+          ? (business as { venueDetailSections: VenueDetailSection[] }).venueDetailSections
+          : [];
 
         let amenities: VenueAmenity[] = [];
         if (Array.isArray(b.amenities) && b.amenities.length > 0) {
@@ -534,6 +588,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           cancellationAllowed: (business as { cancellationAllowed?: boolean }).cancellationAllowed !== false,
           cancellationHoursBefore:
             Number((business as { cancellationHoursBefore?: number }).cancellationHoursBefore ?? 24) || 24,
+          venueDetailSections,
           cancellationPolicyMessage:
             language === "es"
               ? (business as { cancellationPolicyMessageEs?: string }).cancellationPolicyMessageEs
@@ -544,13 +599,14 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                 ),
         });
       } catch (err: unknown) {
-        if (!cancelled) {
-          setVenueData(base);
+          if (!cancelled) {
+            setVenueData((prev) =>
+              prev.id === venueId && prev.name !== "—" ? prev : base,
+            );
           setReviewRows([]);
-          const detail = err instanceof Error ? err.message : "";
           toastError(
             t("venueLoadFailedTitle"),
-            detail.trim() ? detail : t("venueLoadFailedBody"),
+            userFacingError(err, t("venueLoadFailedBody")),
           );
         }
       } finally {
@@ -797,7 +853,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               {portfolioImages.length > 0 && (
                 <section className="mb-12">
                   <div className="relative mb-3 overflow-hidden rounded-2xl">
-                    <img src={portfolioImages[0]} alt="" className="h-56 w-full object-cover md:h-72" />
+                    <img
+                      src={portfolioImages[0]}
+                      alt=""
+                      className="h-56 w-full object-cover md:h-72"
+                      onError={(e) => {
+                        const el = e.currentTarget;
+                        if (el.src.startsWith("data:")) return;
+                        el.src = PLACEHOLDER_IMAGE_DATA_URI;
+                      }}
+                    />
                     {VENUE_DATA.logoUrl ? (
                       <div className="absolute bottom-4 left-4 flex h-14 w-14 items-center justify-center rounded-xl border-2 border-white bg-white p-1 shadow-lg sm:h-16 sm:w-16">
                         <img
@@ -823,7 +888,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                         onClick={() => setPortfolioLightbox(i + 1)}
                         className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-100"
                       >
-                        <img src={src} alt="" className="h-full w-full object-cover" />
+                        <img
+                          src={src}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            if (el.src.startsWith("data:")) return;
+                            el.src = PLACEHOLDER_IMAGE_DATA_URI;
+                          }}
+                        />
                       </button>
                     ))}
                   </div>
@@ -1002,7 +1076,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                         onClick={() => setPortfolioLightbox(i)}
                         className="aspect-[4/3] overflow-hidden rounded-xl border border-slate-100"
                       >
-                        <img src={src} alt="" className="h-full w-full object-cover transition hover:scale-105" />
+                        <img
+                          src={src}
+                          alt=""
+                          className="h-full w-full object-cover transition hover:scale-105"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            if (el.src.startsWith("data:")) return;
+                            el.src = PLACEHOLDER_IMAGE_DATA_URI;
+                          }}
+                        />
                       </button>
                     ))}
                   </div>
@@ -1203,6 +1286,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                        {t("venueInfoHeading")}
                    </h3>
                    
+                   <VenueDetailSections sections={VENUE_DATA.venueDetailSections ?? []} />
                    <div className="space-y-5">
                        <div>
                            <p className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-wide mb-2">{t("venueHoursHeading")}</p>

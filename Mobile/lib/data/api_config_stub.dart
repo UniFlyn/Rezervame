@@ -1,2 +1,2 @@
-/// Web / non-IO platforms: no dart:io.
-String apiBaseUrlForDevice() => 'http://localhost:4000/api';
+/// Flutter web target — same live API as iOS/Android.
+String apiBaseUrlForDevice() => 'https://rezervame.onrender.com/api';

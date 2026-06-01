@@ -15,7 +15,7 @@ List<CategoryChipOption> buildCategoryChipOptions(
 }) {
   final chips = <CategoryChipOption>[CategoryChipOption(key: null, label: allLabel)];
   for (final row in apiRows) {
-    final key = '${row['key'] ?? ''}'.trim();
+    final key = '${row['filterParam'] ?? row['key'] ?? ''}'.trim();
     if (key.isEmpty) continue;
     final label = isEnglish
         ? '${row['labelEn'] ?? row['label'] ?? key}'.trim()
@@ -37,14 +37,21 @@ Map<String, String> categoryPlaceholderUrls(List<Map<String, dynamic>> apiRows) 
 }
 
 bool venueMatchesCategoryKey(Map<String, dynamic> venue, String categoryKey) {
-  final needle = categoryKey.trim().toLowerCase();
-  if (needle.isEmpty) return true;
+  final raw = categoryKey.trim();
+  if (raw.isEmpty) return true;
+  final needles = raw.split(',').map((s) => s.trim().toLowerCase()).where((s) => s.isNotEmpty);
   final keys = venue['categoryKeys'];
   if (keys is List) {
     for (final k in keys) {
-      if ('$k'.toLowerCase() == needle) return true;
+      final lk = '$k'.toLowerCase();
+      for (final needle in needles) {
+        if (lk == needle) return true;
+      }
     }
   }
   final primary = '${venue['category'] ?? venue['categoryKey'] ?? ''}'.toLowerCase();
-  return primary == needle;
+  for (final needle in needles) {
+    if (primary == needle) return true;
+  }
+  return false;
 }

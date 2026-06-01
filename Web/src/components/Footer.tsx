@@ -73,7 +73,18 @@ export const Footer = () => {
   const appStoreUrl = footer?.appStoreUrl;
   const playStoreUrl = footer?.playStoreUrl;
   const clientLinks = footer?.clientLinks ?? [];
-  const businessLinks = footer?.businessLinks ?? [];
+  const businessLinks = (() => {
+    const fromApi = footer?.businessLinks ?? [];
+    const defaults = [
+      { labelKey: "footerPartners", url: "/partners", external: false },
+      { labelKey: "footerJoin", url: "/business/join", external: false },
+      { labelKey: "footerApp", url: "/business/login", external: false },
+      { labelKey: "footerPrices", url: "/pricing", external: false },
+    ];
+    if (fromApi.length === 0) return defaults;
+    if (fromApi.some((l) => l.url === "/partners")) return fromApi;
+    return [defaults[0], ...fromApi];
+  })();
   const legalLinks = footer?.legalLinks ?? [];
 
   return (

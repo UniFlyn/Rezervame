@@ -29,6 +29,31 @@ Do **not** use `npm run build --prefix Backend` alone — that skips `Backend/no
 
 Required env: `DATABASE_URL`, `JWT_SECRET`, `SESSION_SECRET`, `NODE_ENV=production`.
 
+**Email (Postmark):** `POSTMARK_API_KEY`, `POSTMARK_FROM_EMAIL=noreply@rezervame.com`, `POSTMARK_REPLY_TO=soporte@rezervame.com`, `POSTMARK_MESSAGE_STREAM=outbound`. When set, all `sendEmail()` calls use Postmark instead of Admin SMTP. See `Backend/docs/POSTMARK-INTEGRATION-GUIDE.md`.
+
+**Booking reminders:** set `CRON_SECRET`, then schedule `POST https://rezervame.onrender.com/api/cron/booking-reminders` with header `Authorization: Bearer <CRON_SECRET>` (hourly). Requires Postmark templates `booking-reminder-24h` and `booking-reminder-1h`.
+
+**Postmark webhooks:** `POST https://rezervame.onrender.com/webhooks/postmark` — optional header `X-Webhook-Token: <POSTMARK_WEBHOOK_TOKEN>`.
+
+**Neon `DATABASE_URL` (recommended on Render):** use the **pooled** connection string from the Neon dashboard and ensure it includes SSL, e.g. ends with `?sslmode=require`. After rotating the Neon password, update Render env and redeploy.
+
+Check production from your machine:
+
+```bash
+node scripts/check-production-api.mjs
+```
+
+Healthy response: `"postgres": "ok"`. If `"postgres": "error"`, the Web/Mobile apps will show “Failed to fetch” / empty data even though Render shows the service as “live”.
+
+### Backend keeps “disconnecting” — usual causes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| First request slow (30–60s), then works | **Render free tier** spins down after ~15 min idle | Upgrade plan or wait for cold start; not a code bug |
+| Every request fails / 500 / empty app | **PostgreSQL not connected** (`postgres: error` in health) | Fix `DATABASE_URL` on Render; resume Neon project; redeploy |
+| Works then stops | Neon **suspended** (free) or wrong password | Neon console → resume DB → copy new connection string → Render env |
+| Build OK, API 500 on data routes | Migrations not applied | Render build must run `npx prisma migrate deploy` (root `npm run build` does this) |
+
 ### Frontend (Firebase)
 - **Web Build**: Next.js Static Export (`out/`)
 - **Admin Build**: Next.js Static Export (`out/`)

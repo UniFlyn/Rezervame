@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { 
   CheckCircle2,
   AlertCircle,
-  MapPin,
   X,
   Loader2
 } from "lucide-react";
@@ -13,6 +12,7 @@ import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 import { formatCurrency, formatDate, formatMerchantNumericId, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
 import TablePagination from "@/components/admin/TablePagination";
+import { BusinessRecordDetail } from "@/components/admin/BusinessRecordDetail";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -47,6 +47,7 @@ export default function BusinessesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedBusiness, setSelectedBusiness] = useState<any | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<any | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [suspendTarget, setSuspendTarget] = useState<any | null>(null);
@@ -97,6 +98,21 @@ export default function BusinessesPage() {
 
   async function refreshBusinesses() {
     void loadBusinesses();
+  }
+
+  async function openBusinessRecord(business: { id: string }) {
+    setSelectedBusiness(business);
+    setDetailLoading(true);
+    try {
+      const full = await apiGet<any>(`/admin/businesses/${business.id}`);
+      setSelectedBusiness(full);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load business details";
+      toastError("Could not load record", msg);
+      setSelectedBusiness(null);
+    } finally {
+      setDetailLoading(false);
+    }
   }
 
   async function approveBusiness(id: string) {
@@ -366,7 +382,7 @@ export default function BusinessesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSelectedBusiness(business)}
+                        onClick={() => void openBusinessRecord(business)}
                         className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
                       >
                         View Record
@@ -396,67 +412,20 @@ export default function BusinessesPage() {
         </>
       ) : null}
 
-      {selectedBusiness && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Business Record</h2>
-                <p className="text-xs text-slate-500">
-                  Merchant ID:{" "}
-                  <span className="font-mono tabular-nums text-slate-800">{formatMerchantNumericId(selectedBusiness.merchantNumber)}</span>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedBusiness(null)}
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="grid gap-6 p-6 md:grid-cols-2">
-              <div className="space-y-3 rounded-xl border border-slate-200 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Business Profile</p>
-                <p className="text-lg font-semibold text-slate-900">{selectedBusiness.name}</p>
-                <p className="text-sm text-slate-700">{selectedBusiness.description}</p>
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <MapPin className="h-4 w-4 text-slate-400" />
-                  <span>{selectedBusiness.address}</span>
-                </div>
-                <p className="text-sm text-slate-700">Owner: {selectedBusiness.owner}</p>
-                <p className="text-sm text-slate-700">Phone: {selectedBusiness.phone}</p>
-                <p className="text-sm text-slate-700">Email: {selectedBusiness.email}</p>
-                <div className="pt-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Categories</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedBusiness.categoryKeys || []).length > 0 ? (
-                      (selectedBusiness.categoryKeys || []).map((key: string) => (
-                        <span
-                          key={key}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600"
-                        >
-                          {key}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-slate-400">No categories</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3 rounded-xl border border-slate-200 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verification</p>
-                <p className="text-sm text-slate-700">Tax ID: {selectedBusiness.taxId}</p>
-                <p className="text-sm text-slate-700">Joined: {formatDate(selectedBusiness.joinedDate)}</p>
-                <p className="text-sm text-slate-700">Revenue: {formatCurrency(selectedBusiness.revenue)}</p>
-                <div className="space-y-2 pt-2">
+      {selectedBusiness ? (
+        <BusinessRecordDetail
+          business={detailLoading ? null : selectedBusiness}
+          loading={detailLoading}
+          onClose={() => setSelectedBusiness(null)}
+        >
+            <div className="space-y-6">
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Verification</p>
+                <div className="space-y-2 mb-4">
                   {[
-                    { key: "ID verified", ok: selectedBusiness.documents.id_verified },
-                    { key: "License verified", ok: selectedBusiness.documents.license_verified },
-                    { key: "Insurance verified", ok: selectedBusiness.documents.insurance_verified },
+                    { key: "ID verified", ok: selectedBusiness.documents?.id_verified },
+                    { key: "License verified", ok: selectedBusiness.documents?.license_verified },
+                    { key: "Insurance verified", ok: selectedBusiness.documents?.insurance_verified },
                   ].map((doc) => (
                     <div key={doc.key} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
                       <span className="text-sm text-slate-700">{doc.key}</span>
@@ -469,7 +438,7 @@ export default function BusinessesPage() {
                   ))}
                 </div>
                 {selectedBusiness.rejectionReason ? (
-                  <div className="rounded-lg border border-rose-100 bg-rose-50 p-3">
+                  <div className="rounded-lg border border-rose-100 bg-rose-50 p-3 mb-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 mb-1">
                       {selectedBusiness.status === "suspended" ? "Suspension reason" : "Rejection reason"}
                     </p>
@@ -477,9 +446,6 @@ export default function BusinessesPage() {
                   </div>
                 ) : null}
               </div>
-            </div>
-
-            <div className="px-6 pb-6">
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Uploaded Documents</p>
                 <div className="grid gap-4 md:grid-cols-3">
@@ -570,8 +536,6 @@ export default function BusinessesPage() {
                   })}
                 </div>
               </div>
-            </div>
-            <div className="px-6 pb-6">
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Status History</p>
                 <div className="space-y-3">
@@ -596,19 +560,8 @@ export default function BusinessesPage() {
                 </div>
               </div>
             </div>
-
-            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-              <button
-                type="button"
-                onClick={() => setSelectedBusiness(null)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        </BusinessRecordDetail>
+      ) : null}
 
       {zoomDocument ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4">

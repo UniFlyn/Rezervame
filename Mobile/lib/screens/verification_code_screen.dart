@@ -1,29 +1,38 @@
 import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/password_reset_constants.dart';
 import 'new_password_screen.dart';
 
 class VerificationCodeScreen extends StatefulWidget {
-  const VerificationCodeScreen({super.key});
+  const VerificationCodeScreen({super.key, required this.email});
+
+  final String email;
 
   @override
   State<VerificationCodeScreen> createState() => _VerificationCodeScreenState();
 }
 
 class _VerificationCodeScreenState extends State<VerificationCodeScreen> {
-  final List<String> _digits = ['', '', '', ''];
+  final List<String> _digits = List.filled(passwordResetCodeLength, '');
   int _activeIndex = 0;
   int _secondsLeft = 56;
   Timer? _timer;
+  bool _verifying = false;
+  final _api = ApiRepository();
 
   @override
   void initState() {
     super.initState();
     _startTimer();
   }
+
+  String get _code => _digits.join();
 
   void _startTimer() {
     _timer?.cancel();
@@ -44,7 +53,39 @@ class _VerificationCodeScreenState extends State<VerificationCodeScreen> {
     super.dispose();
   }
 
+  Future<void> _submitCode() async {
+    if (_code.length < passwordResetCodeLength || _verifying) return;
+    setState(() => _verifying = true);
+    try {
+      await _api.verifyPasswordResetCode(widget.email, _code);
+      if (!mounted) return;
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => NewPasswordScreen(email: widget.email, code: _code),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      setState(() {
+        for (var i = 0; i < passwordResetCodeLength; i++) {
+          _digits[i] = '';
+        }
+        _activeIndex = 0;
+      });
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
+  }
+
   void _onKeyTap(String key) {
+    if (_verifying) return;
     if (key == 'back') {
       if (_digits[_activeIndex].isNotEmpty) {
         setState(() => _digits[_activeIndex] = '');
@@ -59,29 +100,35 @@ class _VerificationCodeScreenState extends State<VerificationCodeScreen> {
     if (key.length == 1 && RegExp(r'[0-9]').hasMatch(key)) {
       setState(() {
         _digits[_activeIndex] = key;
-        if (_activeIndex < 3) _activeIndex++;
+        if (_activeIndex < passwordResetCodeLength - 1) _activeIndex++;
       });
       if (_digits.every((d) => d.isNotEmpty)) {
-        Future<void>.delayed(const Duration(milliseconds: 200), () {
-          if (!mounted) return;
-          Navigator.push<void>(
-            context,
-            MaterialPageRoute<void>(builder: (context) => const NewPasswordScreen()),
-          );
-        });
+        Future<void>.delayed(const Duration(milliseconds: 200), _submitCode);
       }
     }
   }
 
-  void _resend() {
-    setState(() {
-      _secondsLeft = 56;
-      for (var i = 0; i < 4; i++) {
-        _digits[i] = '';
-      }
-      _activeIndex = 0;
-    });
-    _startTimer();
+  Future<void> _resend() async {
+    try {
+      await _api.requestPasswordReset(widget.email);
+      if (!mounted) return;
+      setState(() {
+        _secondsLeft = 56;
+        for (var i = 0; i < passwordResetCodeLength; i++) {
+          _digits[i] = '';
+        }
+        _activeIndex = 0;
+      });
+      _startTimer();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verification code sent')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
   }
 
   @override
@@ -116,18 +163,34 @@ class _VerificationCodeScreenState extends State<VerificationCodeScreen> {
                       'authVerificationBody'.tr(),
                       style: AppTypography.screenSubtitle.copyWith(color: AppColors.grey500, height: 1.5),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.email,
+                      style: AppTypography.body200.copyWith(color: AppColors.primary500, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 32),
                     Row(
                       children: List.generate(
-                        4,
+                        passwordResetCodeLength,
                         (index) => Expanded(
                           child: Padding(
-                            padding: EdgeInsets.only(right: index < 3 ? 12 : 0),
+                            padding: EdgeInsets.only(right: index < passwordResetCodeLength - 1 ? 8 : 0),
                             child: _buildOtpCell(index),
                           ),
                         ),
                       ),
                     ),
+                    if (kDebugMode) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Developer bypass: $passwordResetDevBypass',
+                        style: AppTypography.body100.copyWith(color: AppColors.grey400),
+                      ),
+                    ],
+                    if (_verifying) ...[
+                      const SizedBox(height: 24),
+                      const Center(child: CircularProgressIndicator(color: AppColors.primary500)),
+                    ],
                     const SizedBox(height: 28),
                     if (_secondsLeft > 0)
                       RichText(

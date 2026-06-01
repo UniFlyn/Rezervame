@@ -141,7 +141,7 @@ export const Header = () => {
           className="relative z-[120] flex shrink-0 items-center"
           aria-label="Rezervame home"
           onClick={(e) => {
-            if (!pathname.startsWith("/venue/")) return;
+            if (pathname === "/") return;
             e.preventDefault();
             window.location.href = "/";
           }}

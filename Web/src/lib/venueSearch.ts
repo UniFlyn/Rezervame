@@ -1,7 +1,14 @@
 import { PLACEHOLDER_IMAGE_DATA_URI } from "./placeholderImage";
-import { DEFAULT_CATEGORY_IMAGES, defaultCategoryImageForKey, isS3PublicUrl } from "./s3Assets";
+import {
+  DEFAULT_CATEGORY_IMAGES,
+  defaultCategoryImageForKey,
+  isS3PublicUrl,
+  normalizePublicImageUrl,
+} from "./s3Assets";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+import { resolveApiBase } from "./apiBase";
+
+const API_BASE = resolveApiBase();
 
 export type ApiVenue = {
   id: number;
@@ -64,6 +71,10 @@ const ES_CATEGORY: Record<string, string> = {
   nailCare: "Cuidado de las Uñas",
   beautyService: "Servicios de Belleza",
   barber: "Barbershop",
+  tattoo: "Estudio de tatuajes",
+  yoga: "Yoga y fitness",
+  estetica: "Centro de estética",
+  dermatology: "Dermatología / clínica",
 };
 
 /** English labels for `categoryKey` from the API (must stay in sync with home/search UI). */
@@ -73,6 +84,10 @@ const EN_CATEGORY: Record<string, string> = {
   nailCare: "Nail care",
   beautyService: "Beauty services",
   barber: "Barbershop",
+  tattoo: "Tattoo studio",
+  yoga: "Yoga & fitness",
+  estetica: "Aesthetics center",
+  dermatology: "Dermatology / clinic",
   Massage: "Massage",
   massage: "Massage",
 };
@@ -101,7 +116,8 @@ export function categoryLabelFromKey(key: string, lang: "en" | "es"): string {
 }
 
 function isUsableImageUrl(u: string): boolean {
-  const t = u.trim();
+  const t = normalizePublicImageUrl(u);
+  if (!t) return false;
   if (isS3PublicUrl(t)) return true;
   return t.startsWith("http") || t.startsWith("data:") || t.startsWith("/");
 }
@@ -130,12 +146,12 @@ export function serviceCardImageSrc(
   portfolioImages: string[],
   serviceId: string,
 ): string {
-  const svc = (serviceImageUrl || "").trim();
+  const svc = normalizePublicImageUrl(serviceImageUrl || "");
   if (isUsableImageUrl(svc)) return svc;
   const pick = pickPortfolioImageUrl(portfolioImages, serviceId);
   if (pick) return pick;
   const first = portfolioImages.find((u) => isUsableImageUrl(u));
-  if (first) return first.trim();
+  if (first) return normalizePublicImageUrl(first);
   return PLACEHOLDER_IMAGE_DATA_URI;
 }
 
@@ -297,7 +313,27 @@ export type PublicCategory = {
   sortOrder: number;
   /** Active businesses offering this category (API-enriched). */
   activeBusinessCount?: number;
+  /** Comma-separated keys sent to search/venues `category` param (partner business type). */
+  filterParam?: string;
+  /** Partner business type id (`salon`, `tattoo`, …). */
+  partnerTypeId?: string;
 };
+
+/** Expand selected filter values (may be comma-separated) into unique category keys. */
+export function expandCategoryFilterParams(selected: string[]): string[] {
+  const keys = new Set<string>();
+  for (const sel of selected) {
+    for (const part of sel.split(',')) {
+      const k = part.trim();
+      if (k) keys.add(k);
+    }
+  }
+  return Array.from(keys);
+}
+
+export function categoryFilterParamFromSelection(selected: string[]): string {
+  return expandCategoryFilterParams(selected).join(',');
+}
 
 export async function fetchPublicCategories(): Promise<PublicCategory[]> {
   const res = await fetch(`${API_BASE}/public/categories`, { cache: "no-store" });

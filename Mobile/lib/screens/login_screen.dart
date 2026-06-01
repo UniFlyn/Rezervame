@@ -1,9 +1,11 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import 'main_screen.dart';
+import 'forgot_password_screen.dart';
 
 enum _AuthStep { email, password, signup }
 
@@ -193,6 +195,30 @@ class _LoginScreenState extends State<LoginScreen> {
                   isPassword: true,
                   isPasswordVisible: _isPasswordVisible,
                   onVisibilityToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                ),
+              ],
+              if (_step == _AuthStep.password) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            Navigator.push<void>(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (context) => ForgotPasswordScreen(
+                                  initialEmail: _emailController.text.trim(),
+                                ),
+                              ),
+                            );
+                          },
+                    child: Text(
+                      'forgotPass'.tr(),
+                      style: AppTypography.heading200.copyWith(color: AppColors.primary500),
+                    ),
+                  ),
                 ),
               ],
               const SizedBox(height: 32),

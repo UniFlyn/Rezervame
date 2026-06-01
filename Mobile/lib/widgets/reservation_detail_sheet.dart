@@ -127,10 +127,8 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
 
   double get _subtotal => (_res['subtotal'] as num?)?.toDouble() ?? 0;
   double get _taxAmount => (_res['taxAmount'] as num?)?.toDouble() ?? 0;
-  double get _commissionAmount => (_res['commissionAmount'] as num?)?.toDouble() ?? 0;
-  double get _commissionPercentValue => (_res['commissionPercent'] as num?)?.toDouble() ?? _commissionPercent;
   double get _taxPercentValue => (_res['taxPercentage'] as num?)?.toDouble() ?? 0;
-  double get _total => (_res['totalPrice'] as num?)?.toDouble() ?? _subtotal + _taxAmount + _commissionAmount;
+  double get _total => (_res['totalPrice'] as num?)?.toDouble() ?? _subtotal + _taxAmount;
 
   bool get _canCancelAll {
     if (_res['canCancelAny'] == true) return true;
@@ -624,15 +622,6 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           ),
           const SizedBox(height: 16),
           _summaryRow(_isEn ? 'Services' : 'Servicios', '\$${_subtotal.toStringAsFixed(2)}'),
-          if (_commissionAmount > 0) ...[
-            const SizedBox(height: 8),
-            _summaryRow(
-              _isEn
-                  ? 'Service fee (${_commissionPercentValue.toStringAsFixed(0)}%)'
-                  : 'Tarifa de servicio (${_commissionPercentValue.toStringAsFixed(0)}%)',
-              '\$${_commissionAmount.toStringAsFixed(2)}',
-            ),
-          ],
           const SizedBox(height: 8),
           _summaryRow(
             _taxPercentValue > 0

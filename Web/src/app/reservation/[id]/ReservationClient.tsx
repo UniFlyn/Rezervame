@@ -283,7 +283,7 @@ export default function ReservationClient() {
       if (usedStripe) return;
       await apiPost("/mobile/bookings/pay-group", {
         bookingIds,
-        paymentMethod: "Cash Payment",
+        paymentMethod: "Card Payment",
       }, "USER");
       setPaymentView("done");
       toastSuccess("Payment successful");

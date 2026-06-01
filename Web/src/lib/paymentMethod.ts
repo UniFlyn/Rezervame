@@ -35,9 +35,9 @@ export function mapBookingItemUiStatus(item: {
   if (st === 'completed') return 'completed';
   if (st === 'cancelled' || st === 'rejected') return 'cancelled';
   if (st === 'rescheduled') return 'rescheduled';
-  if (st === 'paid') return cash ? 'cash_at_venue' : 'paid';
+  if (st === 'paid') return 'paid';
   if (st === 'approved' || st === 'confirmed') {
-    if (item?.transactionId) return cash ? 'cash_at_venue' : 'paid';
+    if (item?.transactionId) return 'paid';
     if (cash) return 'cash_at_venue';
     return 'confirmed';
   }

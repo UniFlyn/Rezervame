@@ -276,7 +276,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-8", loading && "opacity-60")}>
+      <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-8", loading ? "opacity-60" : "")}>
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-8">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -359,7 +359,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className={cn("bg-white p-6 rounded-2xl border border-slate-200 shadow-sm", loading && "opacity-60")}>
+      <div className={cn("bg-white p-6 rounded-2xl border border-slate-200 shadow-sm", loading ? "opacity-60" : "")}>
         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-purple-600" />
           Recent Platform Activity

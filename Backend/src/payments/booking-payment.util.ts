@@ -44,7 +44,8 @@ export function calculateBookingSettlement(
   const commissionAmount = Number((grossSubtotal * (pct / 100)).toFixed(2));
   /** Net service amount credited to the business withdrawable balance (tax is pass-through). */
   const businessCredit = Number((grossSubtotal - commissionAmount).toFixed(2));
-  const customerTotal = Number((grossSubtotal + totalTax + commissionAmount).toFixed(2));
+  // Customers pay service + tax; platform commission is deducted from business payout.
+  const customerTotal = Number((grossSubtotal + totalTax).toFixed(2));
   return { grossSubtotal, totalTax, commissionAmount, businessCredit, customerTotal };
 }
 

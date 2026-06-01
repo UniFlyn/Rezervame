@@ -14,11 +14,19 @@ import {
   Lock,
   ChevronRight,
   Loader2,
-  Share2
+  Share2,
+  Mail,
+  CreditCard,
+  Cloud,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiGet, apiPost } from "@/lib/api";
 import { toastError, toastSuccess } from "@/lib/toast";
+import {
+  SettingsCheckbox,
+  SettingsInput,
+  StatusPill,
+} from "@/components/admin/IntegrationSettingsFields";
 
 type FooterLinkItem = {
   label: string;
@@ -108,9 +116,30 @@ export default function SettingsPage() {
     maintenanceMode: false,
     databaseRetention: 90,
     stripeApiKey: "",
+    stripePublishableKey: "",
+    stripeWebhookSecret: "",
     googleMapsApiKey: "",
     yappyEnabled: true,
     yappyMerchantId: "",
+    cashPayEnabled: true,
+    cardPayEnabled: true,
+    postmarkApiKey: "",
+    postmarkFromEmail: "",
+    postmarkReplyTo: "",
+    postmarkMessageStream: "outbound",
+    postmarkWebhookToken: "",
+    s3Region: "us-east-1",
+    s3BucketName: "",
+    s3PublicBaseUrl: "",
+    s3UploadPrefix: "uploads",
+    s3AccessKeyId: "",
+    s3SecretAccessKey: "",
+    integrationStatus: {
+      postmark: false,
+      s3: false,
+      stripe: false,
+      smtp: false,
+    },
     emailEnabled: false,
     smsEnabled: false,
     smtpHost: "",
@@ -168,7 +197,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && ["general", "security", "notifications", "platform", "footer"].includes(tab)) {
+    if (
+      tab &&
+      ["general", "security", "email", "payments", "aws", "notifications", "platform", "footer"].includes(tab)
+    ) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -216,12 +248,22 @@ export default function SettingsPage() {
     }
   }
 
+  const integration = settings.integrationStatus ?? {
+    postmark: false,
+    s3: false,
+    stripe: false,
+    smtp: false,
+  };
+
   const tabs = [
-    { id: 'general', name: 'General', icon: Settings },
-    { id: 'security', name: 'Security', icon: Lock },
-    { id: 'notifications', name: 'Email & SMS', icon: Bell },
-    { id: 'platform', name: 'Platform', icon: Database },
-    { id: 'footer', name: 'Footer & Apps', icon: Share2 },
+    { id: "general", name: "General", icon: Settings },
+    { id: "security", name: "Security", icon: Lock },
+    { id: "email", name: "Email", icon: Mail },
+    { id: "payments", name: "Payments", icon: CreditCard },
+    { id: "aws", name: "AWS S3", icon: Cloud },
+    { id: "notifications", name: "SMS & alerts", icon: Bell },
+    { id: "platform", name: "Platform", icon: Database },
+    { id: "footer", name: "Footer & Apps", icon: Share2 },
   ];
 
   if (isLoading) {
@@ -238,7 +280,9 @@ export default function SettingsPage() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Settings</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage platform defaults, security, notifications, and footer links.</p>
+          <p className="text-slate-500 text-sm mt-1">
+            Email (Postmark), payment gateways, AWS media bucket, security, and site content.
+          </p>
         </div>
         {isSaving && (
           <div className="flex items-center gap-2 text-blue-600 animate-pulse">
@@ -421,41 +465,138 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {activeTab === 'notifications' && (
+            {activeTab === "email" && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <p className="text-sm text-slate-500">
-                  Email and SMS settings for booking confirmations, receipts, and support alerts.
+                  Postmark is used for password reset, booking emails, and templates. SMTP is a fallback when Postmark is not configured.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
-                    <input type="checkbox" checked={settings.emailEnabled} onChange={(e) => setSettings({ ...settings, emailEnabled: e.target.checked })} className="h-5 w-5 accent-blue-600" />
-                    Enable outbound email
-                  </label>
-                  <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
-                    <input type="checkbox" checked={settings.smsEnabled} onChange={(e) => setSettings({ ...settings, smsEnabled: e.target.checked })} className="h-5 w-5 accent-blue-600" />
-                    Enable SMS (Twilio)
-                  </label>
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill ok={integration.postmark} label="Postmark" />
+                  <StatusPill ok={integration.smtp} label="SMTP fallback" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <input placeholder="SMTP host" value={settings.smtpHost || ""} onChange={(e) => setSettings({ ...settings, smtpHost: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
-                  <input type="number" placeholder="SMTP port" value={settings.smtpPort} onChange={(e) => setSettings({ ...settings, smtpPort: Number(e.target.value) })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
-                  <input placeholder="SMTP user" value={settings.smtpUser || ""} onChange={(e) => setSettings({ ...settings, smtpUser: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
-                  <input type="password" placeholder="SMTP password" value={settings.smtpPass || ""} onChange={(e) => setSettings({ ...settings, smtpPass: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
-                  <input placeholder="From address" value={settings.emailFrom || ""} onChange={(e) => setSettings({ ...settings, emailFrom: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
-                  <input placeholder="Admin notify email" value={settings.adminNotifyEmail || ""} onChange={(e) => setSettings({ ...settings, adminNotifyEmail: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
-                  <input placeholder="Twilio Account SID" value={settings.twilioAccountSid || ""} onChange={(e) => setSettings({ ...settings, twilioAccountSid: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold md:col-span-2" />
-                  <input type="password" placeholder="Twilio Auth Token" value={settings.twilioAuthToken || ""} onChange={(e) => setSettings({ ...settings, twilioAuthToken: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
-                  <input placeholder="Twilio from number (+1...)" value={settings.twilioFromNumber || ""} onChange={(e) => setSettings({ ...settings, twilioFromNumber: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                <div className="rounded-3xl border border-slate-100 bg-slate-50/60 p-6 space-y-4">
+                  <h3 className="text-sm font-black text-slate-900">Postmark (recommended)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SettingsInput label="API key" type="password" mono value={settings.postmarkApiKey || ""} placeholder="Server API token" onChange={(v) => setSettings({ ...settings, postmarkApiKey: v })} />
+                    <SettingsInput label="From email" value={settings.postmarkFromEmail || ""} placeholder="noreply@rezervame.com" onChange={(v) => setSettings({ ...settings, postmarkFromEmail: v })} />
+                    <SettingsInput label="Reply-to" value={settings.postmarkReplyTo || ""} placeholder="soporte@rezervame.com" onChange={(v) => setSettings({ ...settings, postmarkReplyTo: v })} />
+                    <SettingsInput label="Message stream" value={settings.postmarkMessageStream || ""} placeholder="outbound" onChange={(v) => setSettings({ ...settings, postmarkMessageStream: v })} />
+                    <SettingsInput label="Webhook token" type="password" mono value={settings.postmarkWebhookToken || ""} placeholder="Optional — Postmark webhook auth" onChange={(v) => setSettings({ ...settings, postmarkWebhookToken: v })} hint="Set the same token in Postmark → Webhooks." />
+                  </div>
+                </div>
+                <div className="rounded-3xl border border-slate-100 p-6 space-y-4">
+                  <h3 className="text-sm font-black text-slate-900">SMTP fallback</h3>
+                  <SettingsCheckbox label="Enable SMTP when Postmark is unavailable" checked={!!settings.emailEnabled} onChange={(v) => setSettings({ ...settings, emailEnabled: v })} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SettingsInput label="SMTP host" value={settings.smtpHost || ""} onChange={(v) => setSettings({ ...settings, smtpHost: v })} />
+                    <SettingsInput label="SMTP port" type="number" value={settings.smtpPort} onChange={(v) => setSettings({ ...settings, smtpPort: Number(v) || 587 })} />
+                    <SettingsInput label="SMTP user" value={settings.smtpUser || ""} onChange={(v) => setSettings({ ...settings, smtpUser: v })} />
+                    <SettingsInput label="SMTP password" type="password" value={settings.smtpPass || ""} onChange={(v) => setSettings({ ...settings, smtpPass: v })} />
+                    <SettingsInput label="From address" value={settings.emailFrom || ""} onChange={(v) => setSettings({ ...settings, emailFrom: v })} />
+                    <SettingsInput label="Admin notify email" value={settings.adminNotifyEmail || ""} onChange={(v) => setSettings({ ...settings, adminNotifyEmail: v })} />
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-6">
                   <input placeholder="Test email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm" />
-                  <button type="button" onClick={async () => { try { await apiPost("/admin/email/test", { to: testEmail }); toastSuccess("Test email sent", "Check the inbox for the recipient you entered."); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold uppercase text-white">Test email</button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await apiPost<{ message?: string; provider?: string }>(
+                          "/admin/email/test",
+                          { to: testEmail },
+                        );
+                        toastSuccess(
+                          "Test email sent",
+                          res?.message || `Sent via ${res?.provider || "email"}. Check the inbox.`,
+                        );
+                      } catch (e) {
+                        toastError("Test failed", String(e));
+                      }
+                    }}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold uppercase text-white"
+                  >
+                    Test email
+                  </button>
+                </div>
+                <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save email settings
+                </button>
+              </div>
+            )}
+
+            {activeTab === "payments" && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <p className="text-sm text-slate-500">
+                  Stripe (cards), Yappy, and pay-at-venue options shown on Web and Mobile checkout.
+                </p>
+                <StatusPill ok={integration.stripe} label="Stripe (card)" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <SettingsCheckbox label="Enable card payments (Stripe)" checked={!!settings.cardPayEnabled} onChange={(v) => setSettings({ ...settings, cardPayEnabled: v })} />
+                  <SettingsCheckbox label="Enable Yappy" checked={!!settings.yappyEnabled} onChange={(v) => setSettings({ ...settings, yappyEnabled: v })} />
+                  <SettingsCheckbox label="Enable cash at venue" checked={!!settings.cashPayEnabled} onChange={(v) => setSettings({ ...settings, cashPayEnabled: v })} />
+                </div>
+                <div className="rounded-3xl border border-slate-100 bg-slate-50/60 p-6 space-y-4">
+                  <h3 className="text-sm font-black text-slate-900">Stripe</h3>
+                  <SettingsInput label="Secret key" type="password" mono value={settings.stripeApiKey || ""} placeholder="sk_live_... or sk_test_..." onChange={(v) => setSettings({ ...settings, stripeApiKey: v })} />
+                  <SettingsInput label="Publishable key" mono value={settings.stripePublishableKey || ""} placeholder="pk_live_... or pk_test_..." onChange={(v) => setSettings({ ...settings, stripePublishableKey: v })} />
+                  <SettingsInput label="Webhook signing secret" type="password" mono value={settings.stripeWebhookSecret || ""} placeholder="whsec_..." onChange={(v) => setSettings({ ...settings, stripeWebhookSecret: v })} />
+                </div>
+                <div className="rounded-3xl border border-slate-100 p-6 space-y-4">
+                  <h3 className="text-sm font-black text-slate-900">Yappy</h3>
+                  <SettingsInput label="Merchant ID" value={settings.yappyMerchantId || ""} onChange={(v) => setSettings({ ...settings, yappyMerchantId: v })} />
+                </div>
+                <div className="rounded-3xl border border-slate-100 p-6 space-y-4">
+                  <h3 className="text-sm font-black text-slate-900">Maps (checkout / search)</h3>
+                  <SettingsInput label="Google Maps API key" type="password" mono value={settings.googleMapsApiKey || ""} onChange={(v) => setSettings({ ...settings, googleMapsApiKey: v })} />
+                </div>
+                <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save payment settings
+                </button>
+              </div>
+            )}
+
+            {activeTab === "aws" && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <p className="text-sm text-slate-500">
+                  AWS S3 stores venue logos, banners, gallery images, and hero assets. Environment variables on Render override these when set.
+                </p>
+                <StatusPill ok={integration.s3} label="S3 uploads" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <SettingsInput label="AWS region" value={settings.s3Region || ""} placeholder="us-east-1" onChange={(v) => setSettings({ ...settings, s3Region: v })} />
+                  <SettingsInput label="Bucket name" value={settings.s3BucketName || ""} onChange={(v) => setSettings({ ...settings, s3BucketName: v })} />
+                  <SettingsInput label="Public base URL (CDN optional)" value={settings.s3PublicBaseUrl || ""} placeholder="https://bucket.s3.region.amazonaws.com" onChange={(v) => setSettings({ ...settings, s3PublicBaseUrl: v })} hint="Leave empty to use default S3 URL for the bucket." />
+                  <SettingsInput label="Upload prefix" value={settings.s3UploadPrefix || ""} placeholder="uploads" onChange={(v) => setSettings({ ...settings, s3UploadPrefix: v })} />
+                  <SettingsInput label="Access key ID" type="password" mono value={settings.s3AccessKeyId || ""} onChange={(v) => setSettings({ ...settings, s3AccessKeyId: v })} />
+                  <SettingsInput label="Secret access key" type="password" mono value={settings.s3SecretAccessKey || ""} onChange={(v) => setSettings({ ...settings, s3SecretAccessKey: v })} />
+                </div>
+                <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save AWS settings
+                </button>
+              </div>
+            )}
+
+            {activeTab === 'notifications' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <p className="text-sm text-slate-500">
+                  SMS (Twilio) and ticket alert preferences. Email is configured under the Email tab.
+                </p>
+                <SettingsCheckbox label="Enable SMS (Twilio)" checked={!!settings.smsEnabled} onChange={(v) => setSettings({ ...settings, smsEnabled: v })} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <input placeholder="Twilio Account SID" value={settings.twilioAccountSid || ""} onChange={(e) => setSettings({ ...settings, twilioAccountSid: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input type="password" placeholder="Twilio Auth Token" value={settings.twilioAuthToken || ""} onChange={(e) => setSettings({ ...settings, twilioAuthToken: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold" />
+                  <input placeholder="Twilio from number (+1...)" value={settings.twilioFromNumber || ""} onChange={(e) => setSettings({ ...settings, twilioFromNumber: e.target.value })} className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold md:col-span-2" />
+                </div>
+                <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-6">
                   <input placeholder="Test phone +507..." value={testPhone} onChange={(e) => setTestPhone(e.target.value)} className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm" />
                   <button type="button" onClick={async () => { try { await apiPost("/admin/sms/test", { to: testPhone }); toastSuccess("Test SMS sent"); } catch (e) { toastError("Test failed", String(e)); } }} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-bold uppercase text-white">Test SMS</button>
                 </div>
                 <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save email & SMS
+                  Save SMS settings
                 </button>
               </div>
             )}
@@ -673,44 +814,6 @@ export default function SettingsPage() {
                         placeholder="/search?categoryKey=hairService (or https://...)"
                         className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
                       />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                     Payments & maps
-                  </label>
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
-                      <input type="checkbox" checked={!!settings.yappyEnabled} onChange={(e) => setSettings({ ...settings, yappyEnabled: e.target.checked })} className="h-5 w-5 accent-blue-600" />
-                      Enable Yappy payments
-                    </label>
-                    <input
-                      placeholder="Yappy merchant ID (optional)"
-                      value={settings.yappyMerchantId || ""}
-                      onChange={(e) => setSettings({ ...settings, yappyMerchantId: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold"
-                    />
-                    <div className="relative group">
-                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase">Stripe</span>
-                       <input 
-                        type="password" 
-                        value={settings.stripeApiKey || ""}
-                        onChange={(e) => setSettings({...settings, stripeApiKey: e.target.value})}
-                        placeholder="sk_test_••••••••••••••••••••"
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-20 pr-5 py-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
-                       />
-                    </div>
-                    <div className="relative group">
-                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase">G-Maps</span>
-                       <input 
-                        type="password" 
-                        value={settings.googleMapsApiKey || ""}
-                        onChange={(e) => setSettings({...settings, googleMapsApiKey: e.target.value})}
-                        placeholder="AIzaSy••••••••••••••••••••"
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-20 pr-5 py-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
-                       />
                     </div>
                   </div>
                 </div>

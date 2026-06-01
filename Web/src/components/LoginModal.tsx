@@ -18,12 +18,14 @@ export const LoginModal = () => {
   const [step, setStep] = useState<Step>("EMAIL");
   const [email, setEmail] = useState("");
   const [checking, setChecking] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
 
   useEffect(() => {
     if (isLoginModalOpen) {
       setStep("EMAIL");
       setEmail("");
       setChecking(false);
+      setAuthSubmitting(false);
     }
   }, [isLoginModalOpen]);
 
@@ -157,6 +159,7 @@ export const LoginModal = () => {
                   e.preventDefault();
                   const formData = new FormData(e.currentTarget);
                   const password = formData.get("password") as string;
+                  setAuthSubmitting(true);
                   try {
                     await login(email, password);
                     await finishSuccess();
@@ -165,6 +168,8 @@ export const LoginModal = () => {
                       t("authLoginFailedTitle"),
                       err instanceof Error ? err.message : t("authLoginFailedBody"),
                     );
+                  } finally {
+                    setAuthSubmitting(false);
                   }
                 }}
               >
@@ -200,9 +205,10 @@ export const LoginModal = () => {
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-[#ff5a5f] text-white font-extrabold py-3.5 rounded-full hover:bg-[#e0484d] transition shadow-sm mt-2"
+                  disabled={authSubmitting}
+                  className="w-full bg-[#ff5a5f] text-white font-extrabold py-3.5 rounded-full hover:bg-[#e0484d] transition shadow-sm mt-2 disabled:opacity-60"
                 >
-                  {t("btnSignIn")}
+                  {authSubmitting ? (t("authChecking") || "Signing in...") : t("btnSignIn")}
                 </button>
               </form>
             )}
@@ -224,6 +230,7 @@ export const LoginModal = () => {
                     toastError(t("authRegisterFailedTitle"), t("authRegisterFailedBody"));
                     return;
                   }
+                  setAuthSubmitting(true);
                   try {
                     await register({
                       email,
@@ -240,6 +247,8 @@ export const LoginModal = () => {
                       t("authRegisterFailedTitle"),
                       err instanceof Error ? err.message : t("authRegisterFailedBody"),
                     );
+                  } finally {
+                    setAuthSubmitting(false);
                   }
                 }}
               >
@@ -318,9 +327,10 @@ export const LoginModal = () => {
 
                 <button
                   type="submit"
-                  className="w-full bg-[#ff5a5f] text-white font-black py-3.5 rounded-2xl hover:bg-[#e0484d] transition-all shadow-xl shadow-[#ff5a5f]/20 mt-5 text-[11px] uppercase tracking-widest"
+                  disabled={authSubmitting}
+                  className="w-full bg-[#ff5a5f] text-white font-black py-3.5 rounded-2xl hover:bg-[#e0484d] transition-all shadow-xl shadow-[#ff5a5f]/20 mt-5 text-[11px] uppercase tracking-widest disabled:opacity-60"
                 >
-                  {t("authCreateAccount")}
+                  {authSubmitting ? (t("authChecking") || "Creating...") : t("authCreateAccount")}
                 </button>
                 <p className="text-[10px] text-slate-400 font-bold leading-relaxed pt-3 text-center">{t("termsAgree")}</p>
               </form>

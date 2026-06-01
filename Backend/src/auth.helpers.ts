@@ -1,6 +1,7 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Role, User } from '@prisma/client';
 import { userIdFromLegacyToken, verifySessionToken } from './auth/session.util';
+import { isBusinessDiscoverable } from './business/business-listing.util';
 import { PrismaService } from './prisma.service';
 
 export function extractBearerToken(authorization?: string): string | null {
@@ -54,17 +55,39 @@ export async function requireBusinessOwner(
   return { user, businessId };
 }
 
-/** Public discovery shows only [active] businesses; owners and admins may still load panel/storefront data. */
-export async function isBusinessPubliclyVisible(
-  prisma: PrismaService,
+function isBusinessPanelPrivileged(
+  user: User | null,
   business: { status?: string | null; email: string },
-  authorization?: string,
-): Promise<boolean> {
-  const status = (business.status || '').toLowerCase().trim();
-  if (status === 'active') return true;
-  const user = await getUserFromAuth(prisma, authorization);
+): boolean {
   if (!user) return false;
   if (user.role === Role.ADMIN) return true;
   if (user.role === Role.BUSINESS && business.email === user.email) return true;
   return false;
+}
+
+/** Public storefront / discovery; owners and admins may preview before going live. */
+export async function isBusinessPubliclyVisible(
+  prisma: PrismaService,
+  business: {
+    status?: string | null;
+    email: string;
+    listingVisible?: boolean | null;
+    profileSetupComplete?: boolean | null;
+  },
+  authorization?: string,
+): Promise<boolean> {
+  const user = await getUserFromAuth(prisma, authorization);
+  if (isBusinessPanelPrivileged(user, business)) {
+    const status = (business.status || '').toLowerCase().trim();
+    if (status === 'active') return true;
+    if (user?.role === Role.ADMIN) return true;
+    if (user?.role === Role.BUSINESS && status === 'pending') return true;
+    return false;
+  }
+
+  return isBusinessDiscoverable({
+    status: business.status ?? '',
+    listingVisible: Boolean(business.listingVisible),
+    profileSetupComplete: Boolean(business.profileSetupComplete),
+  });
 }

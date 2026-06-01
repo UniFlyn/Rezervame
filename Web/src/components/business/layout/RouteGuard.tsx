@@ -11,10 +11,12 @@ import { useTransactionsStore } from '../../../store/transactionsStore';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { PageLoader } from '@/components/ui/AppLoader';
+import { needsInitialBusinessSetup } from '@/lib/businessSetup';
 
 /** Route segments served by the salon/business dashboard (merchant auth). Everything else under `/business/[segment]` is a public storefront or booking UI. */
 const MERCHANT_PANEL_SEGMENTS = new Set([
   'dashboard',
+  'setup',
   'join',
   'login',
   'appointments',
@@ -39,6 +41,10 @@ function isMerchantPanelPath(pathname: string): boolean {
 
 function isMerchantPublicEntry(pathname: string): boolean {
   return pathname === '/business/join' || pathname === '/business/login';
+}
+
+function isSetupPath(pathname: string): boolean {
+  return pathname === '/business/setup' || pathname.startsWith('/business/setup/');
 }
 
 export function RouteGuard({ children }: { children: React.ReactNode }) {
@@ -94,6 +100,14 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
       router.replace('/business/dashboard');
     }
   }, [mounted, businessSessionReady, merchantPanel, merchantPublic, business, router]);
+
+  /** First login after approval: required setup before using the panel. */
+  useEffect(() => {
+    if (!mounted || !businessSessionReady || !business?.id || merchantPublic) return;
+    if (!needsInitialBusinessSetup(business)) return;
+    if (isSetupPath(pathname)) return;
+    router.replace('/business/setup');
+  }, [mounted, businessSessionReady, business, merchantPublic, pathname, router]);
 
   /** Hydrate panel stores once the merchant session exists. Use `business?.id` — not `business` — so a fresh object from `hydrateBusiness()` does not retrigger this effect (that caused infinite refetch + profile form resets). */
   useEffect(() => {

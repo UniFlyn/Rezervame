@@ -1,31 +1,36 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as postmark from 'postmark';
-import { readPostmarkConfig } from './postmark.config';
+import { resolvePostmarkConfig } from '../config/system-integration.config';
 import type { SendRawEmailOptions, SendTemplateEmailOptions } from './interfaces/email-options.interface';
+import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private client: postmark.ServerClient | null = null;
+  private clientKey: string | null = null;
 
-  private getClient(): postmark.ServerClient | null {
-    const cfg = readPostmarkConfig();
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async getClient(): Promise<postmark.ServerClient | null> {
+    const cfg = await resolvePostmarkConfig(this.prisma);
     if (!cfg) return null;
-    if (!this.client) {
+    if (!this.client || this.clientKey !== cfg.apiKey) {
       this.client = new postmark.ServerClient(cfg.apiKey);
+      this.clientKey = cfg.apiKey;
     }
     return this.client;
   }
 
-  isConfigured(): boolean {
-    return this.getClient() !== null;
+  async isConfigured(): Promise<boolean> {
+    return (await resolvePostmarkConfig(this.prisma)) !== null;
   }
 
   async sendWithTemplate(
     options: SendTemplateEmailOptions,
   ): Promise<postmark.Models.MessageSendingResponse | { skipped: true }> {
-    const cfg = readPostmarkConfig();
-    const client = this.getClient();
+    const cfg = await resolvePostmarkConfig(this.prisma);
+    const client = await this.getClient();
     const to = options.to.trim();
     if (!cfg || !client || !to) {
       return { skipped: true };
@@ -53,8 +58,8 @@ export class EmailService {
   async sendRaw(
     options: SendRawEmailOptions,
   ): Promise<postmark.Models.MessageSendingResponse | { skipped: true }> {
-    const cfg = readPostmarkConfig();
-    const client = this.getClient();
+    const cfg = await resolvePostmarkConfig(this.prisma);
+    const client = await this.getClient();
     const to = options.to.trim();
     if (!cfg || !client || !to) {
       return { skipped: true };
@@ -81,13 +86,15 @@ export class EmailService {
 
 /** Functional helper for modules that are not DI-based (notification-delivery). */
 export async function postmarkSendRaw(
+  prisma: PrismaService,
   options: SendRawEmailOptions,
 ): Promise<postmark.Models.MessageSendingResponse | { skipped: true }> {
-  return new EmailService().sendRaw(options);
+  return new EmailService(prisma).sendRaw(options);
 }
 
 export async function postmarkSendWithTemplate(
+  prisma: PrismaService,
   options: SendTemplateEmailOptions,
 ): Promise<postmark.Models.MessageSendingResponse | { skipped: true }> {
-  return new EmailService().sendWithTemplate(options);
+  return new EmailService(prisma).sendWithTemplate(options);
 }

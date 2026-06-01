@@ -159,26 +159,40 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     final query = _searchController.text.trim();
     final categoryKey = _activeCategoryKey;
 
-    final res = await _api.searchVenues(
-      page: nextPage,
-      search: query,
-      category: categoryKey,
-      sortBy: _sortBy,
-      minRating: _appliedMinRating,
-    );
+    try {
+      final res = await _api.searchVenues(
+        page: nextPage,
+        search: query,
+        category: categoryKey,
+        sortBy: _sortBy,
+        minRating: _appliedMinRating,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      final List<VenueListing> venues = res['data'] as List<VenueListing>;
-      final List<Map<String, dynamic>> mapped = venues.map((v) => v.toSearchMap()).toList();
-      _currentPage = nextPage;
-      _sourceResults = mapped;
-      _total = (res['total'] as int?) ?? mapped.length;
-      _totalPages = res['totalPages'] ?? 1;
-      _catalogLoading = false;
-    });
-    _applyFilter();
+      final venues = res['data'];
+      final List<Map<String, dynamic>> mapped = venues is List<VenueListing>
+          ? venues.map((v) => v.toSearchMap()).toList()
+          : <Map<String, dynamic>>[];
+
+      setState(() {
+        _currentPage = nextPage;
+        _sourceResults = mapped;
+        _total = (res['total'] as int?) ?? mapped.length;
+        _totalPages = res['totalPages'] ?? 1;
+        _catalogLoading = false;
+      });
+      _applyFilter();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _sourceResults = [];
+        _filteredResults = [];
+        _total = 0;
+        _totalPages = 1;
+        _catalogLoading = false;
+      });
+    }
   }
 
   void _goToPage(int page) {

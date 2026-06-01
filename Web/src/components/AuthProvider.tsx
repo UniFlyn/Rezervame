@@ -127,20 +127,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [loadUserFromApi]);
 
   const login = async (email: string, password: string) => {
-    const result = await apiPostOptional<{ token: string; user: { name: string; email: string; role: string } }>(
-      "/auth/login",
-      { email: email.trim().toLowerCase(), password },
-    );
-    if (!result) {
-      throw new Error("Invalid email or password.");
+    try {
+      const result = await apiPostOptional<{ token: string; user: { name: string; email: string; role: string } }>(
+        "/auth/login",
+        { email: email.trim().toLowerCase(), password },
+      );
+      if (!result || result.user.role !== "USER") {
+        throw new Error("Invalid email or password.");
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("rezervame_token", result.token);
+      }
+      await loadUserFromApi();
+    } catch (err) {
+      throw new Error(userFacingError(err, "Invalid email or password."));
     }
-    if (result.user.role !== "USER") {
-      throw new Error("Invalid email or password.");
-    }
-    if (typeof window !== "undefined") {
-      localStorage.setItem("rezervame_token", result.token);
-    }
-    await loadUserFromApi();
   };
 
   const loginWithGoogle = async () => {

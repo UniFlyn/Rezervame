@@ -36,7 +36,7 @@ export class BookingReminderService {
    * Requires migration `reminderSent24h` / `reminderSent1h` on Booking.
    */
   async processDueReminders(): Promise<{ sent24h: number; sent1h: number; skipped: boolean }> {
-    if (!this.emailService.isConfigured()) {
+    if (!(await this.emailService.isConfigured())) {
       return { sent24h: 0, sent1h: 0, skipped: true };
     }
 
