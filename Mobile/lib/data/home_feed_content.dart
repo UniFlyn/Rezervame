@@ -67,6 +67,8 @@ class HomeFeaturedItem {
     this.displayServiceName,
     this.networkImageUrl,
     this.imageUrls = const [],
+    this.isDiscoveryPlaceholder = false,
+    this.searchCategoryKey,
   });
 
   final String serviceTitleKey;
@@ -84,6 +86,9 @@ class HomeFeaturedItem {
   final String? networkImageUrl;
   /// Resolved URL chain for [ChainedNetworkImage].
   final List<String> imageUrls;
+  /// Opens [SearchResultsScreen] with [searchCategoryKey] instead of venue detail.
+  final bool isDiscoveryPlaceholder;
+  final String? searchCategoryKey;
 }
 
 class HomeBeauticianItem {
@@ -188,10 +193,91 @@ class HomeUpcomingEventItem {
   }
 }
 
+const _kFeaturedTarget = 5;
+const _kTopServicesTarget = 6;
+
+const _discoveryPlaceholderCategories = <
+    ({String key, String titleKey, String descKey})>[
+  (key: 'hairService', titleKey: 'partnersTypeSalonTitle', descKey: 'partnersTypeSalonDesc'),
+  (key: 'barber', titleKey: 'partnersTypeBarberTitle', descKey: 'partnersTypeBarberDesc'),
+  (key: 'nailCare', titleKey: 'partnersTypeNailsTitle', descKey: 'partnersTypeNailsDesc'),
+  (key: 'tattoo', titleKey: 'partnersTypeTattooTitle', descKey: 'partnersTypeTattooDesc'),
+  (key: 'spaService', titleKey: 'partnersTypeSpaTitle', descKey: 'partnersTypeSpaDesc'),
+  (key: 'estetica', titleKey: 'partnersTypeEsteticaTitle', descKey: 'partnersTypeEsteticaDesc'),
+  (key: 'dermatology', titleKey: 'partnersTypeDermTitle', descKey: 'partnersTypeDermDesc'),
+  (key: 'yoga', titleKey: 'partnersTypeYogaTitle', descKey: 'partnersTypeYogaDesc'),
+];
+
+int _homeFeedSeedHash(String seed) {
+  var h = 2166136261;
+  for (var i = 0; i < seed.length; i++) {
+    h = (h ^ seed.codeUnitAt(i)) * 16777619;
+  }
+  return h;
+}
+
+List<T> _shuffledHomeFeed<T>(List<T> items, String seed) {
+  final arr = List<T>.from(items);
+  var h = _homeFeedSeedHash(seed);
+  for (var i = arr.length - 1; i > 0; i--) {
+    h = (h ^ (h >> 13)) * 1274126177;
+    final j = (h & 0x7fffffff) % (i + 1);
+    final tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+List<HomeFeaturedItem> _discoveryPlaceholderItems(String seed) {
+  final rows = _shuffledHomeFeed(_discoveryPlaceholderCategories, seed);
+  return List<HomeFeaturedItem>.generate(rows.length, (index) {
+    final row = rows[index];
+    final img = _defaultCategoryImageUrl(row.key) ?? '';
+    final rating = (4.4 + (index % 6) * 0.1).toStringAsFixed(1);
+    final reviews = 12 + ((index * 17) % 88);
+    final price = '\$${(18 + ((index * 11) % 72)).toStringAsFixed(2)}';
+    return HomeFeaturedItem(
+      serviceTitleKey: row.titleKey,
+      displayServiceName: null,
+      salonName: row.descKey,
+      price: price,
+      rating: rating,
+      reviewCount: reviews,
+      durationMinutes: 45,
+      unsplashId: '',
+      venueId: -(index + 1),
+      businessId: 'discovery:${row.key}',
+      networkImageUrl: img.isNotEmpty ? img : null,
+      imageUrls: img.isNotEmpty ? [img] : const [],
+      isDiscoveryPlaceholder: true,
+      searchCategoryKey: row.key,
+    );
+  });
+}
+
+List<HomeFeaturedItem> _fillHomeFeaturedItems(
+  List<HomeFeaturedItem> primary,
+  List<HomeFeaturedItem> pool,
+  int target,
+) {
+  final out = List<HomeFeaturedItem>.from(primary);
+  final ids = out.map((e) => e.businessId ?? '').where((id) => id.isNotEmpty).toSet();
+  for (final item in pool) {
+    if (out.length >= target) break;
+    final bid = item.businessId ?? '';
+    if (bid.isNotEmpty && ids.contains(bid)) continue;
+    if (bid.isNotEmpty) ids.add(bid);
+    out.add(item);
+  }
+  return out.take(target).toList();
+}
+
 void hydrateHomeFeedFromVenues(
   List<VenueListing> venues, {
   List<HomeBeauticianItem> beauticians = const [],
   List<Map<String, dynamic>> categoryRows = const [],
+  String feedSeed = 'home',
 }) {
   HomeFeaturedItem mapVenueToFeaturedItem(VenueListing v) {
     final svcName = v.primaryServiceName?.trim();
@@ -222,11 +308,7 @@ void hydrateHomeFeedFromVenues(
       return revB.compareTo(revA);
     });
 
-  final featuredVenues = byRating.take(5).toList();
-  final featuredBizIds = featuredVenues
-      .map((v) => v.businessId)
-      .where((id) => id != null && id.isNotEmpty)
-      .toSet();
+  final placeholders = _discoveryPlaceholderItems('$feedSeed-ph');
 
   final byReviews = List<VenueListing>.from(venues)
     ..sort((a, b) {
@@ -292,22 +374,99 @@ void hydrateHomeFeedFromVenues(
     );
   }).toList();
 
-  kHomeFeatured = featuredVenues.take(5).map(mapVenueToFeaturedItem).toList();
+  if (venues.isEmpty) {
+    kHomeFeatured = _fillHomeFeaturedItems([], placeholders, _kFeaturedTarget);
+    kHomeTopServices = _fillHomeFeaturedItems(
+      [],
+      _shuffledHomeFeed(placeholders, '$feedSeed-top-ph'),
+      _kTopServicesTarget,
+    );
+  } else {
+    final unique = <String, VenueListing>{};
+    for (final v in venues) {
+      final bid = (v.businessId ?? '').trim();
+      final key = bid.isNotEmpty ? bid : 'id:${v.id}';
+      unique.putIfAbsent(key, () => v);
+    }
+    final uniqueVenues = unique.values.toList();
+    final randomPool = _shuffledHomeFeed(uniqueVenues, feedSeed);
 
-  kHomeTopServices = byReviews
-      .where((v) {
-        final bid = v.businessId ?? '';
-        return bid.isEmpty || !featuredBizIds.contains(bid);
-      })
-      .take(6)
-      .map(mapVenueToFeaturedItem)
-      .toList();
+    var featuredItems = _fillHomeFeaturedItems(
+      byRating.take(_kFeaturedTarget).map(mapVenueToFeaturedItem).toList(),
+      randomPool.map(mapVenueToFeaturedItem).toList(),
+      _kFeaturedTarget,
+    );
+    final featuredBizIds = featuredItems
+        .map((e) => e.businessId)
+        .where((id) => id != null && id.isNotEmpty)
+        .toSet();
+
+    var topItems = _fillHomeFeaturedItems(
+      byReviews
+          .where((v) {
+            final bid = v.businessId ?? '';
+            return bid.isEmpty || !featuredBizIds.contains(bid);
+          })
+          .take(_kTopServicesTarget)
+          .map(mapVenueToFeaturedItem)
+          .toList(),
+      _shuffledHomeFeed(
+        uniqueVenues
+            .where((v) {
+              final bid = v.businessId ?? '';
+              return bid.isEmpty || !featuredBizIds.contains(bid);
+            })
+            .toList(),
+        '$feedSeed-top',
+      )
+          .map(mapVenueToFeaturedItem)
+          .toList(),
+      _kTopServicesTarget,
+    );
+
+    if (topItems.length < _kTopServicesTarget) {
+      topItems = _fillHomeFeaturedItems(
+        topItems,
+        _shuffledHomeFeed(byReviews.map(mapVenueToFeaturedItem).toList(), '$feedSeed-top-fb'),
+        _kTopServicesTarget,
+      );
+    }
+
+    if (featuredItems.length < _kFeaturedTarget) {
+      featuredItems = _fillHomeFeaturedItems(
+        featuredItems,
+        _shuffledHomeFeed(
+          [...byRating.map(mapVenueToFeaturedItem), ...placeholders],
+          '$feedSeed-feat-fb',
+        ),
+        _kFeaturedTarget,
+      );
+    }
+
+    if (topItems.length < _kTopServicesTarget) {
+      topItems = _fillHomeFeaturedItems(
+        topItems,
+        _shuffledHomeFeed(
+          [...byReviews.map(mapVenueToFeaturedItem), ...placeholders],
+          '$feedSeed-top-ph-fill',
+        ),
+        _kTopServicesTarget,
+      );
+    }
+
+    kHomeFeatured = featuredItems;
+    kHomeTopServices = topItems;
+  }
 
   kHomeBeauticians = beauticians;
+  final topVenueExcludeIds = kHomeFeatured
+      .map((e) => e.businessId)
+      .where((id) => id != null && id.isNotEmpty)
+      .toSet();
   kHomeTopVenues = byReviews
       .where((v) {
         final bid = v.businessId ?? '';
-        return bid.isEmpty || !featuredBizIds.contains(bid);
+        return bid.isEmpty || !topVenueExcludeIds.contains(bid);
       })
       .take(6)
       .map((v) {

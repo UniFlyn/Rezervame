@@ -2,6 +2,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { apiGet, apiPost, apiPostOptional } from "@/lib/api";
 import { userFacingError } from "@/lib/userFacingError";
+import {
+  clearSessionExpiry,
+  fetchSecurityPolicy,
+  isSessionExpired,
+  passwordLengthMessage,
+  passwordTooShort,
+  storeSessionExpiry,
+} from "@/lib/securityPolicy";
 
 interface User {
   id?: string;
@@ -78,6 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     pendingAfterLoginRef.current = null;
     if (typeof window !== "undefined") {
       localStorage.removeItem("rezervame_token");
+      clearSessionExpiry("USER");
     }
     setIsLoggedIn(false);
     setUser(null);
@@ -88,6 +97,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setIsLoggedIn(false);
       setIsHydrated(true);
+      return false;
+    }
+    if (isSessionExpired("USER")) {
+      clearUserSession();
       return false;
     }
     try {
@@ -126,17 +139,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void loadUserFromApi();
   }, [loadUserFromApi]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !isLoggedIn) return;
+    const id = window.setInterval(() => {
+      if (isSessionExpired("USER")) clearUserSession();
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [isLoggedIn, clearUserSession]);
+
   const login = async (email: string, password: string) => {
     try {
-      const result = await apiPostOptional<{ token: string; user: { name: string; email: string; role: string } }>(
-        "/auth/login",
-        { email: email.trim().toLowerCase(), password },
-      );
+      const policy = await fetchSecurityPolicy();
+      if (passwordTooShort(password, policy.minPasswordLength)) {
+        throw new Error(passwordLengthMessage(policy.minPasswordLength));
+      }
+      const result = await apiPostOptional<{
+        token: string;
+        user: { name: string; email: string; role: string };
+        sessionExpiresAt?: string;
+      }>("/auth/login", { email: email.trim().toLowerCase(), password });
       if (!result || result.user.role !== "USER") {
         throw new Error("Invalid email or password.");
       }
       if (typeof window !== "undefined") {
         localStorage.setItem("rezervame_token", result.token);
+        storeSessionExpiry("USER", result.sessionExpiresAt);
       }
       await loadUserFromApi();
     } catch (err) {
@@ -147,32 +174,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loginWithGoogle = async () => {
     const { signInWithGooglePopup } = await import("@/lib/firebase-auth");
     const idToken = await signInWithGooglePopup();
-    const result = await apiPost<{ token: string; user: { name: string; email: string; role: string } }>(
-      "/auth/google",
-      { idToken },
-    );
+    const result = await apiPost<{
+      token: string;
+      user: { name: string; email: string; role: string };
+      sessionExpiresAt?: string;
+    }>("/auth/google", { idToken });
     if (result.user.role !== "USER") {
       throw new Error("This Google account cannot sign in as a customer");
     }
     if (typeof window !== "undefined") {
       localStorage.setItem("rezervame_token", result.token);
+      storeSessionExpiry("USER", result.sessionExpiresAt);
     }
     await loadUserFromApi();
   };
 
   const register = async (payload: RegisterCustomerPayload) => {
-    const result = await apiPost<{ token: string; user: { name: string; email: string; role: string } }>(
-      "/auth/register",
-      {
-        ...payload,
-        email: payload.email.trim().toLowerCase(),
-      },
-    );
+    const policy = await fetchSecurityPolicy();
+    if (passwordTooShort(payload.password, policy.minPasswordLength)) {
+      throw new Error(passwordLengthMessage(policy.minPasswordLength));
+    }
+    const result = await apiPost<{
+      token: string;
+      user: { name: string; email: string; role: string };
+      sessionExpiresAt?: string;
+    }>("/auth/register", {
+      ...payload,
+      email: payload.email.trim().toLowerCase(),
+    });
     if (result.user.role !== "USER") {
       throw new Error("Registration failed");
     }
     if (typeof window !== "undefined") {
       localStorage.setItem("rezervame_token", result.token);
+      storeSessionExpiry("USER", result.sessionExpiresAt);
     }
     await loadUserFromApi();
   };

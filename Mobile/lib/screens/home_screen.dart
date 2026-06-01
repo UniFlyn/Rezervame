@@ -625,7 +625,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => _openVenueDetail(f.venueId, f.salonName, f.unsplashId, f.price, f.rating, '${f.reviewCount}'),
+        onTap: () {
+          if (f.isDiscoveryPlaceholder) {
+            final key = f.searchCategoryKey;
+            Navigator.push<void>(
+              context,
+              MaterialPageRoute<void>(
+                builder: (context) => SearchResultsScreen(
+                  categoryKey: key,
+                  showBackButton: true,
+                ),
+              ),
+            );
+            return;
+          }
+          _openVenueDetail(f.venueId, f.salonName, f.unsplashId, f.price, f.rating, '${f.reviewCount}');
+        },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(

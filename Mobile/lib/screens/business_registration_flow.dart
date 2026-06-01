@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/security_policy.dart';
 
 class _ServiceDraft {
   _ServiceDraft();
@@ -118,7 +119,10 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
         if (_emailCtrl.text.trim().isEmpty || _phoneCtrl.text.trim().isEmpty) {
           return _setError('Email and phone are required.');
         }
-        if (_passwordCtrl.text.trim().length < 6) return _setError('Password must be at least 6 characters.');
+        final policy = await fetchSecurityPolicy();
+        if (passwordTooShort(_passwordCtrl.text, policy.minPasswordLength)) {
+          return _setError(passwordLengthMessage(policy.minPasswordLength));
+        }
         return true;
       case 2:
         if (_addressCtrl.text.trim().isEmpty) return _setError('Business address is required.');

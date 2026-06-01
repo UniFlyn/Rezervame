@@ -26,6 +26,11 @@ import {
   type BookingConfirmationPayload,
 } from "@/lib/bookingConfirmation";
 import { BookingConfirmationView } from "@/components/BookingConfirmationView";
+import {
+  normalizePublicPaymentConfig,
+  pickDefaultPaymentMethod,
+  type CheckoutPaymentId,
+} from "@/lib/paymentConfig";
 
 type VenueServiceRow = {
   id: string;
@@ -237,13 +242,13 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   /** map from cartIndex to memberId (`null` for user, string for family member) */
   const [serviceMemberMap, setServiceMemberMap] = useState<Record<number, string | null>>({});
   const [paymentMethod, setPaymentMethod] = useState<"ONLINE" | "VENUE">("ONLINE");
-  const [checkoutPayTab, setCheckoutPayTab] = useState<"card" | "yappy" | "cash">("card");
+  const [checkoutPayTab, setCheckoutPayTab] = useState<"wompi" | "yappy" | "pay_at_venue">("pay_at_venue");
   const [payMethods, setPayMethods] = useState<
-    { id: "card" | "yappy" | "cash"; label: string; enabled: boolean }[]
+    { id: "wompi" | "yappy" | "pay_at_venue"; label: string; enabled: boolean }[]
   >([
-    { id: "card", label: "Card", enabled: false },
-    { id: "yappy", label: "Yappy", enabled: true },
-    { id: "cash", label: "Cash", enabled: true },
+    { id: "wompi", label: "Card", enabled: false },
+    { id: "yappy", label: "Yappy", enabled: false },
+    { id: "pay_at_venue", label: "Pay by visit", enabled: true },
   ]);
   const [timePeriod, setTimePeriod] = useState<"all" | "morning" | "afternoon" | "evening">("all");
   const [serviceSearch, setServiceSearch] = useState("");
@@ -292,18 +297,18 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       setServiceMemberMap(initialMembers);
       setPaymentMethod("ONLINE");
       setIsPaid(false);
-      void apiGet<{ methods?: { id: string; label: string; enabled: boolean }[] }>("/public/payment-config")
-        .then((cfg) => {
-          if (cfg.methods?.length) {
+      void apiGet<Record<string, unknown>>("/public/payment-config")
+        .then((raw) => {
+          const cfg = normalizePublicPaymentConfig(raw);
+          if (cfg.methods.length > 0) {
             setPayMethods(
               cfg.methods.map((m) => ({
-                id: m.id as "card" | "yappy" | "cash",
+                id: m.id,
                 label: m.label,
-                enabled: m.enabled,
+                enabled: m.enabled && m.configured,
               })),
             );
-            const first = cfg.methods.find((m) => m.enabled);
-            if (first) setCheckoutPayTab(first.id as "card" | "yappy" | "cash");
+            setCheckoutPayTab(pickDefaultPaymentMethod(cfg.methods) as CheckoutPaymentId);
           }
         })
         .catch(() => {});
@@ -461,11 +466,11 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           ? crypto.randomUUID()
           : `grp_${Date.now()}`;
       const preferredPayment =
-        checkoutPayTab === "card"
-          ? "Card Payment"
+        checkoutPayTab === "wompi"
+          ? "Wompi"
           : checkoutPayTab === "yappy"
             ? "Yappy"
-            : "Cash Payment";
+            : "Pay by visit";
       const bookingIds: string[] = [];
       let cursor = new Date(start);
       for (const svc of selectedServices) {
@@ -500,7 +505,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         cursor = new Date(cursor.getTime() + mins * 60_000);
       }
 
-      const isCashCheckout = checkoutPayTab === "cash";
+      const isCashCheckout = checkoutPayTab === "pay_at_venue";
       const iso = start.toISOString();
       const serviceSummary = selectedServices.map((s) => s.name).join(", ");
       const staffNames = new Set<string>();
@@ -535,29 +540,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         cash: isCashCheckout,
         paid: autoApproval && !isCashCheckout,
       };
-
-      if (autoApproval && bookingIds.length > 0 && !isCashCheckout) {
-        const cardEnabled = payMethods.find((m) => m.id === "card")?.enabled;
-        if (checkoutPayTab === "card" && cardEnabled) {
-          const checkout = await apiPost<{ url: string }>(
-            "/mobile/bookings/pay-group/stripe-checkout",
-            { bookingIds },
-            "USER",
-          );
-          if (checkout?.url) {
-            saveBookingConfirmation(confirmationPayload);
-            onBookingSuccess?.();
-            onClose();
-            window.location.href = checkout.url;
-            return;
-          }
-        }
-        await apiPost(
-          "/mobile/bookings/pay-group",
-          { bookingIds, paymentMethod: preferredPayment },
-          "USER",
-        );
-      }
 
       saveBookingConfirmation(confirmationPayload);
       onBookingSuccess?.();
@@ -1199,9 +1181,14 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           You will pay via Yappy after the business confirms your booking.
         </p>
       ) : null}
-      {!autoApproval && checkoutPayTab === "cash" ? (
+      {!autoApproval && checkoutPayTab === "pay_at_venue" ? (
         <p className="mb-4 text-center text-[10px] font-bold text-slate-500">
-          Payment at the venue is collected after the business approves your booking.
+          Pay when you visit. The venue confirms payment after your appointment.
+        </p>
+      ) : null}
+      {autoApproval && checkoutPayTab === "wompi" ? (
+        <p className="mb-4 text-center text-[10px] font-bold text-amber-700">
+          Card payment will be available here soon.
         </p>
       ) : null}
 

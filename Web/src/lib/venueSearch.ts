@@ -63,6 +63,10 @@ export type SearchVenueRow = {
   portfolioImageUrls?: string[];
   nextAvailable?: string;
   todaySlotTimings?: string;
+  /** Synthetic home row — navigates to category search, not `/venue/:id`. */
+  isDiscoveryPlaceholder?: boolean;
+  /** i18n key prefix (e.g. `partnersTypeSalon` → `partnersTypeSalonTitle`). */
+  placeholderLabelKey?: string;
 };
 
 const ES_CATEGORY: Record<string, string> = {

@@ -1,4 +1,3 @@
-import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma.service';
 import { resolvePostmarkConfig } from '../config/system-integration.config';
 import { postmarkSendRaw } from '../email/email.service';
@@ -124,59 +123,39 @@ export async function sendEmail(
   html: string,
   text?: string,
 ): Promise<{ ok: boolean; skipped?: boolean; error?: string; messageId?: string }> {
-  const cfg = await loadMessagingConfig(prisma);
   const recipient = to.trim();
   if (!recipient) return { ok: false, error: 'Missing recipient' };
 
-  // Postmark (rezervame.com) — preferred when configured (env or Admin settings)
-  if (await resolvePostmarkConfig(prisma)) {
-    try {
-      const result = await postmarkSendRaw(prisma, {
-        to: recipient,
-        subject,
-        htmlBody: html,
-        textBody: text,
-      });
-      if ('skipped' in result) {
-        return { ok: true, skipped: true };
-      }
-      await logDelivery(prisma, 'email', recipient, subject, text || html, 'sent', undefined, result.MessageID);
-      return { ok: true, messageId: result.MessageID };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await logDelivery(prisma, 'email', recipient, subject, text || html, 'failed', msg);
-      console.error('[email:postmark-failed]', msg);
-      return { ok: false, error: msg };
-    }
-  }
-
-  // Legacy SMTP from Admin SystemConfig (fallback)
-  if (!cfg.emailEnabled || !cfg.smtpHost || !cfg.smtpUser || !cfg.smtpPass) {
-    await logDelivery(prisma, 'email', recipient, subject, text || html, 'skipped', 'Email not configured');
+  if (!(await resolvePostmarkConfig(prisma))) {
+    await logDelivery(
+      prisma,
+      'email',
+      recipient,
+      subject,
+      text || html,
+      'skipped',
+      'Postmark not configured',
+    );
     console.log(`[email:skipped] To: ${recipient} | ${subject}`);
     return { ok: true, skipped: true };
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: cfg.smtpHost,
-      port: cfg.smtpPort,
-      secure: cfg.smtpSecure,
-      auth: { user: cfg.smtpUser, pass: cfg.smtpPass },
-    });
-    await transporter.sendMail({
-      from: cfg.emailFrom || cfg.smtpUser,
+    const result = await postmarkSendRaw(prisma, {
       to: recipient,
       subject,
-      text: text || html.replace(/<[^>]+>/g, ' '),
-      html,
+      htmlBody: html,
+      textBody: text,
     });
-    await logDelivery(prisma, 'email', recipient, subject, text || html, 'sent');
-    return { ok: true };
+    if ('skipped' in result) {
+      return { ok: true, skipped: true };
+    }
+    await logDelivery(prisma, 'email', recipient, subject, text || html, 'sent', undefined, result.MessageID);
+    return { ok: true, messageId: result.MessageID };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logDelivery(prisma, 'email', recipient, subject, text || html, 'failed', msg);
-    console.error('[email:smtp-failed]', msg);
+    console.error('[email:postmark-failed]', msg);
     return { ok: false, error: msg };
   }
 }

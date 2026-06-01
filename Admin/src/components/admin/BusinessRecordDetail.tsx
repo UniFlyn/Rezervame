@@ -2,7 +2,7 @@
 
 import React from "react";
 import { MapPin, X, Loader2 } from "lucide-react";
-import { formatCurrency, formatDate, formatMerchantNumericId, cn } from "@/lib/utils";
+import { formatCurrency, formatDate, formatMerchantNumericId, parseWorkingHours, cn } from "@/lib/utils";
 
 type DetailSection = { title: string; rows: { label: string; value: string }[] };
 
@@ -39,6 +39,8 @@ export function BusinessRecordDetail({
   children?: React.ReactNode;
 }) {
   if (!business && !loading) return null;
+
+  const hours = parseWorkingHours(business?.workingHours);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
@@ -90,6 +92,14 @@ export function BusinessRecordDetail({
                 <p className="text-sm text-slate-700">Email: {business.email}</p>
                 <p className="text-sm text-slate-700">Tax ID: {business.taxId}</p>
                 <p className="text-sm text-slate-700">Status: {business.status}</p>
+                <p className="text-sm text-slate-700">
+                  App / web listing:{" "}
+                  {business.status === "active" && business.listingVisible
+                    ? "Public (merchant opted in)"
+                    : business.status === "pending"
+                      ? "Owner preview only (awaiting approval)"
+                      : "Hidden"}
+                </p>
                 <p className="text-sm text-slate-700">Plan: {business.planName || business.plan || "—"}</p>
                 <div className="flex flex-wrap gap-2 pt-1">
                   {(business.categoryLabels || business.categoryKeys || []).map((key: string) => (
@@ -139,10 +149,18 @@ export function BusinessRecordDetail({
                 <p className="text-sm text-slate-700">
                   Cancellation: {business.cancellationAllowed ? `Yes (${business.cancellationHoursBefore}h before)` : "No"}
                 </p>
-                {business.workingHours ? (
-                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                    <span className="font-semibold">Hours (stored):</span> {business.workingHours}
-                  </p>
+                {hours.length > 0 ? (
+                  <div className="pt-1">
+                    <p className="text-[10px] font-bold uppercase text-slate-400 mb-2">Operating hours</p>
+                    <ul className="space-y-1">
+                      {hours.map((row) => (
+                        <li key={row.day} className="flex justify-between gap-4 text-sm text-slate-700">
+                          <span className="font-medium text-slate-800">{row.day}</span>
+                          <span className="text-slate-600 tabular-nums">{row.hours}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
                 {(business.socialInstagram || business.socialYoutube || business.socialX || business.socialTiktok) && (
                   <div className="text-sm text-slate-700 space-y-1 pt-2">

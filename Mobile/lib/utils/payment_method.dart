@@ -3,7 +3,10 @@
 bool isCashPaymentMethod(String? method) {
   if (method == null || method.trim().isEmpty) return false;
   final s = method.toLowerCase().trim();
-  return s.contains('cash') || s.contains('at venue');
+  return s.contains('cash') ||
+      s.contains('at venue') ||
+      s.contains('pay by visit') ||
+      s.contains('pay at venue');
 }
 
 String resolveBookingPaymentMethod({
@@ -47,11 +50,14 @@ String apiPaymentMethodForCheckoutTab(String tab) {
   switch (tab) {
     case 'yappy':
       return 'Yappy';
-    case 'cash':
-      return 'Cash Payment';
+    case 'wompi':
     case 'card':
+      return 'Wompi';
+    case 'pay_at_venue':
+    case 'cash':
+      return 'Pay by visit';
     default:
-      return 'Card Payment';
+      return 'Pay by visit';
   }
 }
 
@@ -68,13 +74,5 @@ String aggregateGroupUiStatus(List<String> itemStatuses) {
 }
 
 String apiPaymentMethodForPayTab(String tab) {
-  switch (tab) {
-    case 'yappy':
-      return 'Yappy';
-    case 'cash':
-      return 'Cash Payment';
-    case 'card':
-    default:
-      return 'Card Payment';
-  }
+  return apiPaymentMethodForCheckoutTab(tab);
 }

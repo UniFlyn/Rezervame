@@ -198,7 +198,7 @@ export default function NotificationsPage() {
     setReplying(true);
     try {
       await apiPost(`/admin/support-tickets/${detail.id}/reply`, { message: reply.trim() });
-      toastSuccess("Reply sent", "Merchant will be notified by email/SMS when configured.");
+      toastSuccess("Reply sent", "The merchant will be notified.");
       setReply("");
       try {
         await openTicket(detail.id);

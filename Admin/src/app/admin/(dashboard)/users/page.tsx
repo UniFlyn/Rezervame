@@ -189,24 +189,6 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">User Directory</h1>
           <p className="text-slate-500 text-sm mt-1">Manage and monitor customer accounts and access.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled
-            className="bg-slate-100 text-slate-400 px-4 py-2 rounded-xl font-bold text-sm cursor-not-allowed"
-            title="Coming soon"
-          >
-            Export CSV
-          </button>
-          <button
-            type="button"
-            disabled
-            className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl font-bold text-sm cursor-not-allowed"
-            title="Coming soon"
-          >
-            Notify All
-          </button>
-        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

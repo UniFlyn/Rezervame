@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/security_policy.dart';
 import 'main_screen.dart';
+import 'maintenance_screen.dart';
 import 'forgot_password_screen.dart';
 
 enum _AuthStep { email, password, signup }
@@ -26,6 +28,26 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
   bool _loading = false;
   final _api = ApiRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _redirectIfMaintenance());
+  }
+
+  Future<void> _redirectIfMaintenance() async {
+    final status = await _api.fetchSiteStatus();
+    if (!mounted) return;
+    if (status['maintenanceMode'] == true) {
+      final name = '${status['platformBranding'] ?? 'Rezervame'}';
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => MaintenanceScreen(platformName: name),
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -85,8 +107,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _showError('Please enter your name.');
       return;
     }
-    if (_passwordController.text.length < 6) {
-      _showError('Password must be at least 6 characters.');
+    final policy = await fetchSecurityPolicy();
+    if (passwordTooShort(_passwordController.text, policy.minPasswordLength)) {
+      _showError(passwordLengthMessage(policy.minPasswordLength));
       return;
     }
     setState(() => _loading = true);

@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 import { apiGet, apiPatch, apiPostOptional } from '@/lib/api';
+import {
+  clearSessionExpiry,
+  fetchSecurityPolicy,
+  isSessionExpired,
+  passwordLengthMessage,
+  passwordTooShort,
+  storeSessionExpiry,
+} from '@/lib/securityPolicy';
 
 export interface Business {
   id: string;
@@ -110,13 +118,19 @@ export const useBusinessStore = create<BusinessState>()((set, get) => ({
     set({ business: updated });
   },
   login: async (email, password) => {
-    const auth = await apiPostOptional<{ token: string; user: { email: string; role: string } }>(
-      '/auth/login',
-      { email, password },
-    );
+    const policy = await fetchSecurityPolicy();
+    if (passwordTooShort(password, policy.minPasswordLength)) {
+      throw new Error(passwordLengthMessage(policy.minPasswordLength));
+    }
+    const auth = await apiPostOptional<{
+      token: string;
+      user: { email: string; role: string };
+      sessionExpiresAt?: string;
+    }>('/auth/login', { email, password });
     if (!auth || auth.user.role !== 'BUSINESS') return false;
     if (typeof window !== 'undefined') {
       localStorage.setItem('business_token', auth.token);
+      storeSessionExpiry('BUSINESS', auth.sessionExpiresAt);
     }
     try {
       const session = await apiGet<Business | null>('/auth/business-session', 'BUSINESS');
@@ -134,12 +148,17 @@ export const useBusinessStore = create<BusinessState>()((set, get) => ({
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('business_token');
+      clearSessionExpiry('BUSINESS');
     }
     set({ business: null });
   },
   bootstrapBusinessSession: async () => {
     if (typeof window === 'undefined') {
       set({ business: null });
+      return false;
+    }
+    if (isSessionExpired('BUSINESS')) {
+      get().logout();
       return false;
     }
     if (!localStorage.getItem('business_token')) {

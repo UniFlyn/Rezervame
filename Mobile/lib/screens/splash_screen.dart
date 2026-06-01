@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/api_repository.dart';
 import '../data/auth_session.dart';
 import '../utils/app_colors.dart';
+import 'maintenance_screen.dart';
 import 'onboarding_screen.dart';
 import 'main_screen.dart';
 
@@ -30,10 +31,18 @@ class _SplashScreenState extends State<SplashScreen> {
       debugPrint('$st');
     }
 
+    final siteStatus = await ApiRepository().fetchSiteStatus();
+    final maintenanceOn = siteStatus['maintenanceMode'] == true;
+    final platformName = '${siteStatus['platformBranding'] ?? 'Rezervame'}';
+
     final token = await AuthSession.getToken();
     if (!mounted) return;
 
     var hasValidSession = token != null && token.isNotEmpty;
+    if (hasValidSession && await AuthSession.isSessionExpired()) {
+      await AuthSession.setToken(null);
+      hasValidSession = false;
+    }
     if (hasValidSession) {
       final profile = await ApiRepository().fetchUserSession();
       if (!mounted) return;
@@ -44,6 +53,16 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     if (!mounted) return;
+
+    if (maintenanceOn && !hasValidSession) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => MaintenanceScreen(platformName: platformName),
+        ),
+      );
+      return;
+    }
 
     if (hasValidSession) {
       Navigator.pushReplacement(

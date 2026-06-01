@@ -84,6 +84,31 @@ export class S3StorageService {
     return url;
   }
 
+  /** Upload JSON at a stable key (e.g. platform/site-status.json) for public visitor flags. */
+  async uploadJsonAtFixedKey(
+    payload: Record<string, unknown>,
+    keyUnderPrefix: string,
+  ): Promise<string | null> {
+    const pair = await this.getClientPair();
+    if (!pair) return null;
+    const { cfg, client } = pair;
+    const safeKey = keyUnderPrefix.replace(/^\/+/, '').replace(/[^a-zA-Z0-9/_.-]/g, '');
+    const key = `${cfg.uploadPrefix}/${safeKey}`;
+    const body = Buffer.from(JSON.stringify(payload), 'utf8');
+    await client.send(
+      new PutObjectCommand({
+        Bucket: cfg.bucket,
+        Key: key,
+        Body: body,
+        ContentType: 'application/json',
+        CacheControl: 'public, max-age=60',
+      }),
+    );
+    const url = `${cfg.publicBaseUrl}/${key}`;
+    this.logger.log(`Published public JSON s3://${cfg.bucket}/${key}`);
+    return url;
+  }
+
   /** Parse data:image/...;base64,... and upload to S3. */
   async uploadDataUrl(dataUrl: string, folder = 'images'): Promise<string> {
     const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl.trim());

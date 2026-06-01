@@ -116,8 +116,8 @@ export function BrowserPushSettings({
     return (
       <p className="text-xs font-bold text-amber-600">
         {language === "en"
-          ? "Push is not configured on the server (admin must set VAPID keys)."
-          : "Push no está configurado en el servidor (el admin debe configurar las claves VAPID)."}
+          ? "Push notifications are not available yet."
+          : "Las notificaciones push no están disponibles todavía."}
       </p>
     );
   }

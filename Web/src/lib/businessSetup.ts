@@ -43,7 +43,7 @@ export function resolveSetupStatus(business: Business | null | undefined): Busin
   const gallery = business?.images ?? [];
   if (gallery.filter((u) => String(u || '').trim()).length < 1) missing.push('gallery');
   const status = (business?.status || '').toLowerCase();
-  const complete = Boolean(business?.profileSetupComplete) || missing.length === 0;
+  const complete = business?.setupStatus?.complete ?? missing.length === 0;
   return {
     complete,
     missing,

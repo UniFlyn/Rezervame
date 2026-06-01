@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import '../data/api_repository.dart';
+import '../utils/security_policy.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import 'login_screen.dart';
@@ -35,9 +36,11 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
   Future<void> _submitPassword() async {
     final pass = _passwordController.text;
     final confirm = _confirmPasswordController.text;
-    if (pass.length < 6) {
+    final policy = await fetchSecurityPolicy();
+    if (passwordTooShort(pass, policy.minPasswordLength)) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters')),
+        SnackBar(content: Text(passwordLengthMessage(policy.minPasswordLength))),
       );
       return;
     }

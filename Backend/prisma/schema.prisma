@@ -495,9 +495,19 @@ model SystemConfig {
   stripePublishableKey String?
   stripeWebhookSecret  String?
   googleMapsApiKey     String?
+  /// Wompi Panama (Banistmo) — Visa, Mastercard, Clave
+  wompiEnabled         Boolean  @default(true)
+  wompiPublicKey       String?
+  wompiPrivateKey      String?
+  wompiEnv             String?  @default("sandbox")
+  wompiWebhookSecret   String?
+  /// Yappy (Banco General) — mobile wallet
   yappyEnabled         Boolean  @default(true)
   yappyMerchantId      String?
+  yappySecretToken     String?
+  /// Pay by visit (cash at venue)
   cashPayEnabled       Boolean  @default(true)
+  /// @deprecated use wompiEnabled — kept for backward compatibility
   cardPayEnabled       Boolean  @default(true)
   /// Postmark (primary transactional email)
   postmarkApiKey         String?

@@ -8,6 +8,7 @@ import { Footer } from "../components/Footer";
 import { LoginModal } from "../components/LoginModal";
 import { AppToaster } from "../components/AppToaster";
 import { WebPushManager } from "../components/WebPushManager";
+import { MaintenanceGate } from "../components/MaintenanceGate";
 import { PageHeaderMetaProvider } from "../contexts/PageHeaderMetaContext";
 
 export const metadata: Metadata = {
@@ -26,16 +27,18 @@ export default function RootLayout({
         <AuthProvider>
           <I18nProvider>
             <PageHeaderMetaProvider>
-            <div className="flex min-h-screen flex-col">
-              <Header />
-              <main className="min-h-0 w-full flex-1">
-                {children}
-              </main>
-              <Footer />
-              <LoginModal />
-              <AppToaster />
-              <WebPushManager />
-            </div>
+            <MaintenanceGate>
+              <div className="flex min-h-screen flex-col">
+                <Header />
+                <main className="min-h-0 w-full flex-1">
+                  {children}
+                </main>
+                <Footer />
+                <LoginModal />
+                <AppToaster />
+                <WebPushManager />
+              </div>
+            </MaintenanceGate>
             </PageHeaderMetaProvider>
           </I18nProvider>
         </AuthProvider>

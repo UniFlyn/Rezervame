@@ -7,6 +7,7 @@ import '../data/api_repository.dart';
 import '../models/app_notification.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/security_policy.dart';
 import '../utils/avatar_image_util.dart';
 import '../widgets/language_picker_sheet.dart';
 import 'customer_service_screen.dart';
@@ -99,6 +100,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (newPassword != confirmPassword) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('New passwords do not match'), behavior: SnackBarBehavior.floating),
+              );
+              return;
+            }
+
+            final policy = await fetchSecurityPolicy();
+            if (passwordTooShort(newPassword, policy.minPasswordLength)) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(passwordLengthMessage(policy.minPasswordLength)),
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
               return;
             }

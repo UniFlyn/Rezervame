@@ -6,6 +6,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import '../utils/booking_utils.dart';
 import '../utils/cancellation_policy.dart';
+import '../utils/payment_config.dart';
 import '../utils/payment_method.dart';
 import 'chained_network_image.dart';
 import 'reservation_status_badge.dart';
@@ -50,13 +51,12 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   bool _loading = true;
   bool _busy = false;
   _PaymentView _paymentView = _PaymentView.none;
-  String _payMethod = 'card';
-  bool _stripeEnabled = false;
+  String _payMethod = 'pay_at_venue';
   double _commissionPercent = 15;
   List<Map<String, dynamic>> _payMethods = [
-    {'id': 'card', 'label': 'Card', 'enabled': true},
-    {'id': 'yappy', 'label': 'Yappy', 'enabled': true},
-    {'id': 'cash', 'label': 'Cash', 'enabled': true},
+    {'id': 'wompi', 'label': 'Card', 'enabled': false},
+    {'id': 'yappy', 'label': 'Yappy', 'enabled': false},
+    {'id': 'pay_at_venue', 'label': 'Pay by visit', 'enabled': true},
   ];
 
   bool get _isEn => Localizations.localeOf(context).languageCode.startsWith('en');
@@ -71,17 +71,19 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
 
   Future<void> _loadPaymentConfig() async {
     try {
-      final cfg = await _api.fetchPaymentConfig();
+      final raw = await _api.fetchPaymentConfig();
       if (!mounted) return;
+      final cfg = normalizePaymentConfig(raw);
       final methods = (cfg['methods'] as List<dynamic>?)
               ?.whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
           _payMethods;
+      final selectable = selectablePaymentMethods(methods);
       setState(() {
-        _payMethods = methods;
-        _stripeEnabled = cfg['stripeEnabled'] == true;
+        _payMethods = selectable.isNotEmpty ? selectable : methods;
         _commissionPercent = (cfg['defaultCommission'] as num?)?.toDouble() ?? 15;
+        _payMethod = pickDefaultPaymentMethodId(methods);
       });
     } catch (_) {}
   }
@@ -89,7 +91,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   bool _methodEnabled(String id) {
     final m = _payMethods.where((x) => '${x['id']}' == id).toList();
     if (m.isEmpty) return true;
-    return m.first['enabled'] != false;
+    return isPaymentMethodSelectable(m.first);
   }
 
   Future<void> _loadGroup() async {
@@ -256,31 +258,26 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
     }
     setState(() => _busy = true);
     try {
-      final cardEnabled = _methodEnabled('card');
-      if (_payMethod == 'card' && cardEnabled && _stripeEnabled) {
-        final url = await _api.payBookingGroupStripeCheckout(bookingIds: payableIds);
-        if (url != null) {
-          final uri = Uri.parse(url);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-            return;
-          }
-        }
-      }
-
       final method = apiPaymentMethodForPayTab(_payMethod);
-      if (_payMethod != 'cash') {
-        await _api.payBookingGroup(
-          bookingIds: payableIds,
-          paymentMethod: method,
-          businessId: '${_res['businessId'] ?? ''}',
-        );
+      if (_payMethod != 'cash' && _payMethod != 'pay_at_venue') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                _isEn
+                    ? 'Online payment is not available yet. Please try again later.'
+                    : 'El pago en línea no está disponible todavía. Inténtalo más tarde.',
+              ),
+            ),
+          );
+        }
+        return;
       }
 
       setState(() => _paymentView = _PaymentView.done);
       await _loadGroup();
       widget.onChanged?.call();
-      if (mounted && _payMethod == 'cash') {
+      if (mounted && (_payMethod == 'cash' || _payMethod == 'pay_at_venue')) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(

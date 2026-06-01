@@ -25,7 +25,13 @@ import { HomeEventsSection } from "@/components/HomeEventsSection";
 import { fetchSiteHeroConfig, type SiteHeroConfig } from "@/lib/siteHero";
 import { StatePanel, statePanelVariantForMessage } from "@/components/ui/StatePanel";
 import { userFacingError } from "@/lib/userFacingError";
-import { sliceByAvailability, splitHomeFeaturedAndTopServices } from "@/lib/homeFeedSections";
+import {
+  isDiscoveryPlaceholderBusinessId,
+  pickHomeSectionDisplay,
+  searchCategoryForDiscoveryPlaceholder,
+  sliceByAvailability,
+  splitHomeFeaturedAndTopServices,
+} from "@/lib/homeFeedSections";
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -81,12 +87,38 @@ export default function Home() {
     });
   }, [categories, t]);
 
+  const openHomeVenue = (
+    businessId: string,
+    opts?: { categoryKey?: string; isDiscoveryPlaceholder?: boolean },
+  ) => {
+    if (opts?.isDiscoveryPlaceholder || isDiscoveryPlaceholderBusinessId(businessId)) {
+      const cat =
+        searchCategoryForDiscoveryPlaceholder(businessId) || opts?.categoryKey || "";
+      router.push(cat ? `/search?category=${encodeURIComponent(cat)}` : "/search");
+      return;
+    }
+    goToVenue(businessId);
+  };
+
   const { featuredVenueCards, topServiceMenuCards } = useMemo(() => {
-    const { featured, topServices } = splitHomeFeaturedAndTopServices(venues);
+    const daySeed = new Date().toISOString().slice(0, 10);
+    const { featured, topServices } = splitHomeFeaturedAndTopServices(venues, daySeed);
+    const labelForVenue = (v: (typeof venues)[number]) => {
+      if (v.placeholderLabelKey) return t(`${v.placeholderLabelKey}Title`);
+      return (v.serviceName && v.serviceName.trim()) || v.name;
+    };
+    const salonForVenue = (v: (typeof venues)[number]) => {
+      if (v.isDiscoveryPlaceholder && v.placeholderLabelKey) {
+        return t(`${v.placeholderLabelKey}Desc`);
+      }
+      return v.name;
+    };
     const toFeaturedCard = (v: (typeof venues)[number]) => ({
       businessId: v.businessId,
-      serviceName: (v.serviceName && v.serviceName.trim()) || v.name,
-      salonName: v.name,
+      categoryKey: v.categoryKey,
+      isDiscoveryPlaceholder: Boolean(v.isDiscoveryPlaceholder),
+      serviceName: labelForVenue(v),
+      salonName: salonForVenue(v),
       price: v.price,
       rating: v.rating,
       durationMin: v.serviceDurationMinutes || 0,
@@ -95,8 +127,10 @@ export default function Home() {
     });
     const toTopCard = (v: (typeof venues)[number]) => ({
       businessId: v.businessId,
-      serviceName: (v.serviceName && v.serviceName.trim()) || v.name,
-      salonName: v.name,
+      categoryKey: v.categoryKey,
+      isDiscoveryPlaceholder: Boolean(v.isDiscoveryPlaceholder),
+      serviceName: labelForVenue(v),
+      salonName: salonForVenue(v),
       price: v.price,
       rating: v.rating,
       durationMin: v.serviceDurationMinutes || 0,
@@ -105,9 +139,9 @@ export default function Home() {
     });
     return {
       featuredVenueCards: featured.map(toFeaturedCard),
-      topServiceMenuCards: sliceByAvailability(topServices.map(toTopCard), [2, 4, 6]),
+      topServiceMenuCards: pickHomeSectionDisplay(topServices.map(toTopCard), 6),
     };
-  }, [venues]);
+  }, [venues, t]);
 
   const dynamicBestBusinesses = useMemo(() => {
     const seen = new Set<string>();
@@ -315,13 +349,21 @@ export default function Home() {
                 {featuredVenueCards.map((serv, i) => (
                   <div
                     key={`${serv.businessId}-${i}`}
-                    onClick={() => goToVenue(serv.businessId)}
+                    onClick={() =>
+                      openHomeVenue(serv.businessId, {
+                        categoryKey: serv.categoryKey,
+                        isDiscoveryPlaceholder: serv.isDiscoveryPlaceholder,
+                      })
+                    }
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        goToVenue(serv.businessId);
+                        openHomeVenue(serv.businessId, {
+                          categoryKey: serv.categoryKey,
+                          isDiscoveryPlaceholder: serv.isDiscoveryPlaceholder,
+                        });
                       }
                     }}
                     className="group cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-[#ff5a5f]/20"
@@ -390,11 +432,19 @@ export default function Home() {
                     <div
                       role="button"
                       tabIndex={0}
-                      onClick={() => goToVenue(row.businessId)}
+                      onClick={() =>
+                        openHomeVenue(row.businessId, {
+                          categoryKey: row.categoryKey,
+                          isDiscoveryPlaceholder: row.isDiscoveryPlaceholder,
+                        })
+                      }
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          goToVenue(row.businessId);
+                          openHomeVenue(row.businessId, {
+                            categoryKey: row.categoryKey,
+                            isDiscoveryPlaceholder: row.isDiscoveryPlaceholder,
+                          });
                         }
                       }}
                       className="group flex cursor-pointer gap-4 rounded-2xl border border-slate-100/90 bg-white p-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] ring-1 ring-slate-100/80 transition hover:border-[#ff5a5f]/20 hover:bg-gradient-to-r hover:from-white hover:to-rose-50/40 hover:shadow-lg md:gap-6 md:p-4"

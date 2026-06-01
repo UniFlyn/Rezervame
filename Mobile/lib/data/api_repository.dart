@@ -115,8 +115,46 @@ class ApiRepository {
     final user = data['user'] as Map<String, dynamic>?;
     final token = data['token'] as String?;
     if (user == null || token == null || user['role'] != 'USER') return false;
-    await AuthSession.setToken(token);
+    await AuthSession.setToken(
+      token,
+      sessionExpiresAt: data['sessionExpiresAt'] as String?,
+    );
     return true;
+  }
+
+  /// Admin login — may return [twoFactorRequired] without a token.
+  Future<Map<String, dynamic>> loginAdmin(String email, String password) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/auth/login'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({'email': email.trim().toLowerCase(), 'password': password}),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      if (data is Map && data['message'] != null) {
+        throw Exception('${data['message']}');
+      }
+      throw Exception('Sign-in failed');
+    }
+    if (data is! Map) throw Exception('Sign-in failed');
+    return Map<String, dynamic>.from(data as Map);
+  }
+
+  Future<Map<String, dynamic>> verifyAdminTwoFactor(String email, String code) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/auth/admin-verify-2fa'),
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: jsonEncode({'email': email.trim().toLowerCase(), 'code': code.trim()}),
+    );
+    final data = jsonDecode(res.body);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      if (data is Map && data['message'] != null) {
+        throw Exception('${data['message']}');
+      }
+      throw Exception('Invalid verification code');
+    }
+    if (data is! Map) throw Exception('Invalid verification code');
+    return Map<String, dynamic>.from(data as Map);
   }
 
   Future<bool> checkEmailExists(String email) async {
@@ -161,7 +199,10 @@ class ApiRepository {
     final user = data['user'] as Map<String, dynamic>?;
     final token = data['token'] as String?;
     if (user == null || token == null || user['role'] != 'USER') return false;
-    await AuthSession.setToken(token);
+    await AuthSession.setToken(
+      token,
+      sessionExpiresAt: data['sessionExpiresAt'] as String?,
+    );
     return true;
   }
 
@@ -1063,6 +1104,82 @@ class ApiRepository {
     return true;
   }
 
+  Future<Map<String, dynamic>> fetchSecurityPolicy() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/public/security-policy'),
+        headers: await _headers(auth: false),
+      );
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return {
+          'minPasswordLength': 8,
+          'sessionTimeoutMinutes': 60,
+          'adminTwoFactorRequired': true,
+        };
+      }
+      final body = jsonDecode(res.body);
+      if (body is Map<String, dynamic>) return body;
+      if (body is Map) return Map<String, dynamic>.from(body);
+      return {
+        'minPasswordLength': 8,
+        'sessionTimeoutMinutes': 60,
+        'adminTwoFactorRequired': true,
+      };
+    } catch (_) {
+      return {
+        'minPasswordLength': 8,
+        'sessionTimeoutMinutes': 60,
+        'adminTwoFactorRequired': true,
+      };
+    }
+  }
+
+  static const _remoteSiteStatusUrl =
+      'https://rezervame-assets-abs.s3.ap-southeast-2.amazonaws.com/uploads/platform/site-status.json';
+
+  Future<Map<String, dynamic>> _fetchRemoteSiteStatus() async {
+    try {
+      final remote = await http.get(Uri.parse(_remoteSiteStatusUrl));
+      if (remote.statusCode < 200 || remote.statusCode >= 300) {
+        return {'maintenanceMode': false, 'platformBranding': 'Rezervame'};
+      }
+      final body = jsonDecode(remote.body);
+      if (body is Map<String, dynamic>) return body;
+      if (body is Map) return Map<String, dynamic>.from(body);
+    } catch (_) {
+      //
+    }
+    return {'maintenanceMode': false, 'platformBranding': 'Rezervame'};
+  }
+
+  Future<Map<String, dynamic>> fetchSiteStatus() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/public/site/status'),
+        headers: await _headers(auth: false),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final body = jsonDecode(res.body);
+        if (body is Map<String, dynamic>) return body;
+        if (body is Map) return Map<String, dynamic>.from(body);
+      }
+    } catch (_) {
+      // fall through
+    }
+    try {
+      final pay = await fetchPaymentConfig();
+      if (pay.containsKey('maintenanceMode')) {
+        return {
+          'maintenanceMode': pay['maintenanceMode'] == true,
+          'platformBranding': pay['platformBranding'] ?? 'Rezervame',
+        };
+      }
+    } catch (_) {
+      // fall through
+    }
+    return _fetchRemoteSiteStatus();
+  }
+
   Future<Map<String, dynamic>> fetchPaymentConfig() async {
     final res = await http.get(
       Uri.parse('$_baseUrl/public/payment-config'),
@@ -1070,12 +1187,12 @@ class ApiRepository {
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
       return {
-        'stripeEnabled': false,
+        'wompiEnabled': false,
         'defaultCommission': 15,
         'methods': [
-          {'id': 'card', 'label': 'Card', 'enabled': true},
-          {'id': 'yappy', 'label': 'Yappy', 'enabled': true},
-          {'id': 'cash', 'label': 'Cash', 'enabled': true},
+          {'id': 'wompi', 'label': 'Card', 'enabled': false},
+          {'id': 'yappy', 'label': 'Yappy', 'enabled': false},
+          {'id': 'pay_at_venue', 'label': 'Pay by visit', 'enabled': true},
         ],
       };
     }

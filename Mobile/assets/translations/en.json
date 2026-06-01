@@ -181,6 +181,8 @@
   "bookAgain": "Book Again",
   "logout": "Log Out",
   "version": "Version",
+  "maintenanceTitle": "We'll be back soon",
+  "maintenanceBody": "{platform} is undergoing scheduled maintenance. Please check again shortly.",
   "currPass": "Current Password",
   "newPass": "New Password",
   "confPass": "Confirm New Password",

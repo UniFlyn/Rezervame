@@ -181,6 +181,8 @@
   "bookAgain": "Reservar",
   "logout": "Cerrar sesión",
   "version": "Versión",
+  "maintenanceTitle": "Volveremos pronto",
+  "maintenanceBody": "{platform} está en mantenimiento programado. Por favor, inténtalo de nuevo más tarde.",
   "currPass": "Contraseña actual",
   "newPass": "Nueva contraseña",
   "confPass": "Confirme nueva contraseña",

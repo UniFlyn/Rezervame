@@ -46,7 +46,8 @@ export function BusinessListingToggle() {
           </h3>
           <p className="mt-2 text-sm font-medium text-slate-500">
             When visible, customers can find and book you on the website and mobile app. When hidden, your
-            storefront stays off discovery lists.
+            storefront stays off discovery lists. Pending businesses are only visible to you until platform
+            approval.
           </p>
           {!isActive ? (
             <p className="mt-3 text-xs font-bold text-amber-700">

@@ -10,10 +10,25 @@ export type SessionPayload = {
   email: string;
 };
 
-export function signSessionToken(payload: SessionPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
-  });
+/** Session length from Admin → Security (minutes), unless JWT_EXPIRES_IN env overrides in production. */
+export function signSessionToken(
+  payload: SessionPayload,
+  sessionTimeoutMinutes?: number,
+): string {
+  const envOverride = process.env.JWT_EXPIRES_IN?.trim();
+  let expiresIn: jwt.SignOptions['expiresIn'];
+  if (envOverride) {
+    expiresIn = envOverride as jwt.SignOptions['expiresIn'];
+  } else if (
+    sessionTimeoutMinutes != null &&
+    Number.isFinite(sessionTimeoutMinutes) &&
+    sessionTimeoutMinutes > 0
+  ) {
+    expiresIn = `${Math.round(sessionTimeoutMinutes)}m` as jwt.SignOptions['expiresIn'];
+  } else {
+    expiresIn = JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'];
+  }
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
 
 export function verifySessionToken(token: string): SessionPayload | null {

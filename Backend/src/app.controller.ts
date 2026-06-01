@@ -14,7 +14,12 @@ import {
   Query,
 } from '@nestjs/common';
 import { Business, Prisma, Role } from '@prisma/client';
-import { isBusinessPubliclyVisible, requireBusinessOwner, requireUser } from './auth.helpers';
+import {
+  canAccessBusinessMerchantSession,
+  isBusinessPubliclyVisible,
+  requireBusinessOwner,
+  requireUser,
+} from './auth.helpers';
 import {
   businessDiscoveryWhere,
   evaluateBusinessProfileSetup,
@@ -31,6 +36,11 @@ import {
   persistRegistrationDetailsImages,
 } from './business/registration-images.util';
 import { buildAuthResponse } from './auth/auth-response.util';
+import {
+  assertPasswordMeetsPolicy,
+  loadSecurityPolicy,
+  maskEmailForDisplay,
+} from './config/security-policy.util';
 import { verifyFirebaseIdToken } from './auth/firebase-auth.util';
 import { hashPassword, maybeUpgradePasswordHash, verifyPassword } from './auth/password.util';
 import {
@@ -40,8 +50,10 @@ import {
   loadDefaultCommissionPercent,
   dedupeTransactionsByBookingGroup,
 } from './payments/booking-payment.util';
-import { createStripeCheckoutForBookings } from './payments/stripe-checkout.util';
-import { resolveStripeSecretKey } from './payments/stripe.util';
+import { publishPublicSiteStatus } from './config/public-site-status.util';
+import { buildPublicPaymentConfig } from './payments/payment-config.util';
+import { isWompiConfigured } from './payments/wompi/wompi.config';
+import { isYappyConfigured } from './payments/yappy/yappy.config';
 import { cancelBookingsForCustomer, enrichBookingCancellationFields } from './bookings/cancel-bookings.util';
 import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from './bookings/cancellation-policy.util';
 import { randomBytes } from 'crypto';
@@ -67,10 +79,10 @@ import {
 } from './notifications/notification-delivery.service';
 import { POSTMARK_TEMPLATE } from './email/email.constants';
 import {
+  adminConfigWithEnvFallbacks,
   resolvePostmarkConfig,
   resolvePostmarkConfigFromRow,
   resolveS3ConfigFromRow,
-  resolveStripePublishableKey,
 } from './config/system-integration.config';
 import { postmarkSendRaw } from './email/email.service';
 import {
@@ -478,7 +490,12 @@ function sanitizeMobileBooking(b: any) {
 function isCashPaymentMethod(method: string | null | undefined): boolean {
   if (!method) return false;
   const s = method.toLowerCase().trim();
-  return s.includes('cash') || s.includes('at venue');
+  return (
+    s.includes('cash') ||
+    s.includes('at venue') ||
+    s.includes('pay by visit') ||
+    s.includes('pay at venue')
+  );
 }
 
 function normalizeAppointmentApprovalMode(raw: string | null | undefined): 'manual' | 'automatic' {
@@ -596,12 +613,15 @@ const SYSTEM_CONFIG_PATCH_KEYS = [
   'sessionTimeout',
   'maintenanceMode',
   'databaseRetention',
-  'stripeApiKey',
-  'stripePublishableKey',
-  'stripeWebhookSecret',
   'googleMapsApiKey',
+  'wompiEnabled',
+  'wompiPublicKey',
+  'wompiPrivateKey',
+  'wompiEnv',
+  'wompiWebhookSecret',
   'yappyEnabled',
   'yappyMerchantId',
+  'yappySecretToken',
   'cashPayEnabled',
   'cardPayEnabled',
   'postmarkApiKey',
@@ -670,6 +690,7 @@ const SYSTEM_CONFIG_PATCH_KEYS = [
 const SYSTEM_CONFIG_BOOLEAN_KEYS = new Set([
   'twoFactorMandatory',
   'maintenanceMode',
+  'wompiEnabled',
   'yappyEnabled',
   'cashPayEnabled',
   'cardPayEnabled',
@@ -705,8 +726,9 @@ const SYSTEM_CONFIG_NUMBER_KEYS = new Set([
 const SYSTEM_CONFIG_SECRET_KEYS = new Set([
   'smtpPass',
   'twilioAuthToken',
-  'stripeApiKey',
-  'stripeWebhookSecret',
+  'wompiPrivateKey',
+  'wompiWebhookSecret',
+  'yappySecretToken',
   'postmarkApiKey',
   'postmarkWebhookToken',
   's3SecretAccessKey',
@@ -720,7 +742,15 @@ function pickSystemConfigPatch(body: Record<string, unknown>): Record<string, un
     if (SYSTEM_CONFIG_SECRET_KEYS.has(key) && body[key] === '***') continue;
     if (SYSTEM_CONFIG_NUMBER_KEYS.has(key)) {
       const n = Number(body[key]);
-      if (!Number.isNaN(n)) data[key] = n;
+      if (!Number.isNaN(n)) {
+        if (key === 'minPasswordLength') {
+          data[key] = Math.min(128, Math.max(4, Math.round(n)));
+        } else if (key === 'sessionTimeout') {
+          data[key] = Math.min(10_080, Math.max(5, Math.round(n)));
+        } else {
+          data[key] = n;
+        }
+      }
       continue;
     }
     if (SYSTEM_CONFIG_BOOLEAN_KEYS.has(key)) {
@@ -741,22 +771,15 @@ function maskSystemConfigSecrets(row: Record<string, unknown>): Record<string, u
 }
 
 function enrichAdminConfig(row: Record<string, unknown>): Record<string, unknown> {
-  const masked = maskSystemConfigSecrets(row);
-  const stripeSecret =
-    (typeof row.stripeApiKey === 'string' ? row.stripeApiKey.trim() : '') ||
-    process.env.STRIPE_SECRET_KEY?.trim() ||
-    '';
-  const stripePublishable =
-    (typeof row.stripePublishableKey === 'string' ? row.stripePublishableKey.trim() : '') ||
-    process.env.STRIPE_PUBLISHABLE_KEY?.trim() ||
-    '';
+  const merged = adminConfigWithEnvFallbacks(row);
+  const masked = maskSystemConfigSecrets(merged);
   return {
     ...masked,
     integrationStatus: {
-      postmark: Boolean(resolvePostmarkConfigFromRow(row)),
-      s3: Boolean(resolveS3ConfigFromRow(row)),
-      stripe: Boolean(stripeSecret && stripePublishable),
-      smtp: Boolean(row.emailEnabled && row.smtpHost),
+      postmark: Boolean(resolvePostmarkConfigFromRow(merged)),
+      s3: Boolean(resolveS3ConfigFromRow(merged)),
+      wompi: isWompiConfigured(merged as Record<string, unknown>),
+      yappy: isYappyConfigured(merged as Record<string, unknown>),
     },
   };
 }
@@ -1017,7 +1040,9 @@ export class AppController {
         update: data,
         create: { ...data, id: 1 },
       });
-      return enrichAdminConfig(row as Record<string, unknown>);
+      const enriched = enrichAdminConfig(row as Record<string, unknown>);
+      void publishPublicSiteStatus(this.prisma, this.s3Storage, enriched).catch(() => undefined);
+      return enriched;
     } catch {
       const patch = pickSystemConfigPatch(body);
       for (const key of SYSTEM_CONFIG_SECRET_KEYS) {
@@ -1029,8 +1054,29 @@ export class AppController {
         update: patch,
         create: { ...patch, id: 1 },
       });
-      return enrichAdminConfig(row as Record<string, unknown>);
+      const enriched = enrichAdminConfig(row as Record<string, unknown>);
+      void publishPublicSiteStatus(this.prisma, this.s3Storage, enriched).catch(() => undefined);
+      return enriched;
     }
+  }
+
+  @Post('admin/publish-site-status')
+  async publishSiteStatus(@Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const row = await loadSystemConfigSafe(this.prisma);
+    const url = await publishPublicSiteStatus(
+      this.prisma,
+      this.s3Storage,
+      row as Record<string, unknown>,
+    );
+    const status = {
+      maintenanceMode: (row as { maintenanceMode?: boolean }).maintenanceMode === true,
+      platformBranding:
+        typeof (row as { platformBranding?: string }).platformBranding === 'string'
+          ? (row as { platformBranding: string }).platformBranding
+          : 'Rezervame',
+    };
+    return { ok: true, url, ...status };
   }
 
 
@@ -1056,7 +1102,66 @@ export class AppController {
     if (upgraded) {
       await this.prisma.user.update({ where: { id: user.id }, data: { password: upgraded } });
     }
-    return buildAuthResponse(user);
+    const policy = await loadSecurityPolicy(this.prisma);
+    if (user.role === Role.ADMIN && policy.adminTwoFactorRequired) {
+      const code = generateResetCode();
+      const expiresAt = resetCodeExpiresAt();
+      await this.prisma.passwordResetCode.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      await this.prisma.passwordResetCode.create({
+        data: {
+          userId: user.id,
+          email: user.email.toLowerCase(),
+          codeHash: hashResetCode(code),
+          expiresAt,
+        },
+      });
+      void sendEmail(
+        this.prisma,
+        user.email,
+        '[Rezervame Admin] Sign-in verification code',
+        `<p>Your admin sign-in code is <strong>${code}</strong>. It expires in 15 minutes.</p>`,
+        `Your admin sign-in code is ${code}. It expires in 15 minutes.`,
+      );
+      return {
+        twoFactorRequired: true,
+        email: maskEmailForDisplay(user.email),
+        message: 'Enter the verification code sent to your email.',
+      };
+    }
+    return buildAuthResponse(this.prisma, user);
+  }
+
+  @Post('auth/admin-verify-2fa')
+  async adminVerifyTwoFactor(@Body() body: { email?: string; code?: string }) {
+    const email = (body.email || '').trim().toLowerCase();
+    const code = (body.code || '').trim();
+    if (!email || !code) {
+      throw new BadRequestException('Email and verification code are required');
+    }
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.role !== Role.ADMIN) {
+      throw new BadRequestException('Invalid verification code');
+    }
+    if ((user.status || '').toLowerCase() === 'blocked') {
+      throw new BadRequestException('Your account has been suspended. Contact support.');
+    }
+    const policy = await loadSecurityPolicy(this.prisma);
+    if (!policy.adminTwoFactorRequired) {
+      return buildAuthResponse(this.prisma, user);
+    }
+    if (isPasswordResetBypassCode(code)) {
+      return buildAuthResponse(this.prisma, user);
+    }
+    const row = await this.findValidPasswordResetCode(email, code);
+    if (!row) throw new BadRequestException('Invalid or expired verification code');
+    await this.prisma.passwordResetCode.update({
+      where: { id: row.id },
+      data: { usedAt: new Date() },
+    });
+    return buildAuthResponse(this.prisma, user);
   }
 
   @Post('auth/check-email')
@@ -1071,6 +1176,8 @@ export class AppController {
     const email = body.email.trim().toLowerCase();
     const taken = await this.prisma.user.findUnique({ where: { email } });
     if (taken) throw new BadRequestException('Email already registered');
+    const policy = await loadSecurityPolicy(this.prisma);
+    assertPasswordMeetsPolicy(body.password, policy);
     const user = await this.prisma.user.create({
       data: {
         email,
@@ -1083,7 +1190,7 @@ export class AppController {
         age: body.age ?? null,
       },
     });
-    return buildAuthResponse(user);
+    return buildAuthResponse(this.prisma, user);
   }
 
   private async findValidPasswordResetCode(email: string, code: string) {
@@ -1200,9 +1307,8 @@ export class AppController {
     if (!email || !code || !newPassword) {
       throw new BadRequestException('Email, code, and new password are required');
     }
-    if (newPassword.length < 6) {
-      throw new BadRequestException('Password must be at least 6 characters');
-    }
+    const policy = await loadSecurityPolicy(this.prisma);
+    assertPasswordMeetsPolicy(newPassword, policy);
 
     if (isPasswordResetBypassCode(code)) {
       const user = await this.assertPasswordResetUser(email);
@@ -1256,7 +1362,17 @@ export class AppController {
     if ((user.status || '').toLowerCase() === 'blocked') {
       throw new BadRequestException('Your account has been suspended. Contact support.');
     }
-    return buildAuthResponse(user);
+    return buildAuthResponse(this.prisma, user);
+  }
+
+  @Get('public/security-policy')
+  async getPublicSecurityPolicy() {
+    const policy = await loadSecurityPolicy(this.prisma);
+    return {
+      minPasswordLength: policy.minPasswordLength,
+      sessionTimeoutMinutes: policy.sessionTimeoutMinutes,
+      adminTwoFactorRequired: policy.adminTwoFactorRequired,
+    };
   }
 
   @Get('public/push/vapid-public-key')
@@ -1467,6 +1583,20 @@ export class AppController {
     };
   }
 
+  @Get('public/site/status')
+  async getPublicSiteStatus() {
+    const cfg = await loadSystemConfigSafe(this.prisma);
+    const row = cfg as Record<string, unknown>;
+    const branding =
+      typeof row.platformBranding === 'string' && row.platformBranding.trim()
+        ? row.platformBranding.trim()
+        : 'Rezervame';
+    return {
+      maintenanceMode: row.maintenanceMode === true,
+      platformBranding: branding,
+    };
+  }
+
   @Get('public/site/hero')
   async getPublicSiteHero() {
     const cfg = await loadSystemConfigSafe(this.prisma);
@@ -1489,30 +1619,7 @@ export class AppController {
 
   @Get('public/payment-config')
   async getPaymentConfig() {
-    const stripeSecret = await resolveStripeSecretKey(this.prisma);
-    const stripePublishableKey = await resolveStripePublishableKey(this.prisma);
-    const stripeEnabled = !!stripeSecret && !!stripePublishableKey;
-    const cfg = await loadSystemConfigSafe(this.prisma);
-    const yappyEnabled = (cfg as { yappyEnabled?: boolean }).yappyEnabled !== false;
-    const yappyMerchantId = (cfg as { yappyMerchantId?: string | null }).yappyMerchantId ?? '';
-    const cashPayEnabled = (cfg as { cashPayEnabled?: boolean }).cashPayEnabled !== false;
-    const cardPayEnabled = (cfg as { cardPayEnabled?: boolean }).cardPayEnabled !== false;
-    const defaultCommission =
-      (cfg as { defaultCommission?: number }).defaultCommission ?? 15;
-    const cardOn = stripeEnabled && cardPayEnabled;
-    return {
-      stripeEnabled: cardOn,
-      stripePublishableKey: cardOn ? stripePublishableKey : '',
-      cashPayEnabled,
-      yappyEnabled,
-      yappyMerchantId: yappyMerchantId || undefined,
-      defaultCommission,
-      methods: [
-        { id: 'card', label: 'Card', enabled: cardOn },
-        { id: 'yappy', label: 'Yappy', enabled: yappyEnabled },
-        { id: 'cash', label: 'Cash at venue', enabled: cashPayEnabled },
-      ],
-    };
+    return buildPublicPaymentConfig(this.prisma);
   }
 
   @Get('public/customer-service/faqs')
@@ -1537,8 +1644,9 @@ export class AppController {
     const user = await requireUser(this.prisma, authorization, [Role.BUSINESS]);
     const b = await this.prisma.business.findUnique({ where: { email: user.email } });
     if (!b) return null;
-    if (!(await isBusinessPubliclyVisible(this.prisma, b, authorization))) return null;
-    return mapBusiness(b);
+    if (!(await canAccessBusinessMerchantSession(this.prisma, b, authorization))) return null;
+    const synced = await syncBusinessListingFlags(this.prisma, b.id);
+    return mapBusiness(synced ?? b);
   }
 
   /** Current customer profile for web/mobile clients holding a USER session token. */
@@ -1616,6 +1724,9 @@ export class AppController {
     if (!currentOk) {
       throw new BadRequestException('Incorrect current password');
     }
+
+    const policy = await loadSecurityPolicy(this.prisma);
+    assertPasswordMeetsPolicy(body.newPassword, policy);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -2005,6 +2116,8 @@ export class AppController {
         phone: b.phone,
         categoryKeys: b.categoryKeys,
         status: b.status,
+        listingVisible: Boolean(b.listingVisible),
+        profileSetupComplete: Boolean(b.profileSetupComplete),
         revenue: b.balance, // Using balance as a proxy or if there's a totalRevenue field
         joinedDate: b.joinedDate,
         rejectionReason: b.rejectionReason,
@@ -2079,6 +2192,8 @@ export class AppController {
       description: b.description,
       taxId: b.taxId,
       status: b.status,
+      listingVisible: Boolean(b.listingVisible),
+      profileSetupComplete: Boolean(b.profileSetupComplete),
       revenue: b.revenue,
       balance: b.balance,
       joinedDate: b.joinedDate,
@@ -2189,7 +2304,7 @@ export class AppController {
                 ? { listingVisible: false, profileSetupComplete: false }
                 : {}),
             }
-          : {}),
+          : { listingVisible: false }),
         ...((status === 'rejected' || status === 'suspended') && reasonText
           ? {
               rejectionReason: reasonText,
@@ -3208,7 +3323,6 @@ export class AppController {
     const to = (body.to || cfg.adminNotifyEmail || '').trim();
     if (!to) throw new BadRequestException('Provide test recipient email');
 
-    const postmarkReady = Boolean(await resolvePostmarkConfig(this.prisma));
     const result = await sendEmail(
       this.prisma,
       to,
@@ -3219,22 +3333,20 @@ export class AppController {
 
     if (!result.ok && !result.skipped) {
       throw new BadRequestException(
-        result.error ||
-          'Email could not be sent. Configure Postmark under Settings → Email, or enable SMTP fallback.',
+        result.error || 'Email could not be sent. Check Postmark API key and sender addresses.',
       );
     }
     if (result.skipped) {
       throw new BadRequestException(
-        'Email is not configured. Add Postmark API key (Settings → Email) or SMTP host/user/password.',
+        'Postmark is not configured. Add the Server API token under Settings → Email, or set POSTMARK_API_KEY on the API server.',
       );
     }
 
-    const provider = postmarkReady ? 'postmark' : 'smtp';
     return {
       ...result,
       ok: true,
-      provider,
-      message: `Test email sent via ${provider} to ${to}`,
+      provider: 'postmark',
+      message: `Test email sent via Postmark to ${to}`,
     };
   }
 
@@ -5298,7 +5410,7 @@ export class AppController {
     return finalizeBookingGroupPayment(this.prisma, user, [id], method);
   }
 
-  /** Pay for a GROUP of bookings (cash / in-person). Card payments use stripe-checkout. */
+  /** Pay for a GROUP of bookings (pay-by-visit / in-person). Wompi/Yappy use provider checkout when wired. */
   @Post('mobile/bookings/pay-group')
   async payMobileBookingGroup(
     @Headers('authorization') authorization?: string,
@@ -5306,27 +5418,21 @@ export class AppController {
   ) {
     const user = await requireUser(this.prisma, authorization, [Role.USER]);
     const method = (body.paymentMethod || 'Cash Payment').trim();
-    if (method === 'Card Payment' || method === 'Stripe' || method === 'Online') {
-      const stripeKey = await resolveStripeSecretKey(this.prisma);
-      if (stripeKey) {
-        throw new BadRequestException(
-          'Card payments must use POST /mobile/bookings/pay-group/stripe-checkout',
-        );
-      }
+    const digital = ['Card Payment', 'Stripe', 'Online', 'Wompi', 'Yappy'];
+    if (digital.includes(method)) {
+      throw new BadRequestException(
+        'Online card and Yappy payments are completed via Wompi/Yappy checkout when configured. Pay-by-visit uses this endpoint with paymentMethod "Pay by visit".',
+      );
     }
     return finalizeBookingGroupPayment(this.prisma, user, body.bookingIds, method);
   }
 
+  /** @deprecated Stripe removed for Panama — use Wompi when checkout is enabled */
   @Post('mobile/bookings/pay-group/stripe-checkout')
-  async payMobileBookingGroupStripe(
-    @Headers('authorization') authorization?: string,
-    @Body() body: { bookingIds: string[] } = { bookingIds: [] },
-  ) {
-    const user = await requireUser(this.prisma, authorization, [Role.USER]);
-    if (!Array.isArray(body.bookingIds) || body.bookingIds.length === 0) {
-      throw new BadRequestException('bookingIds must be a non-empty array');
-    }
-    return createStripeCheckoutForBookings(this.prisma, user, body.bookingIds);
+  async payMobileBookingGroupStripe() {
+    throw new BadRequestException(
+      'Stripe is not used. Configure Wompi Panama under Admin → Settings → Payment gateways.',
+    );
   }
 
   @Post('mobile/bookings/:id/complete')
@@ -5886,6 +5992,10 @@ export class AppController {
     const phone = (body.phone || '').trim();
     const address = (body.address || '').trim();
     const password = (body.password || '').trim();
+    if (password) {
+      const policy = await loadSecurityPolicy(this.prisma);
+      assertPasswordMeetsPolicy(password, policy);
+    }
     const categories = Array.isArray(body.categories) ? body.categories.filter(Boolean) : [];
     const services = Array.isArray(body.services) ? body.services : [];
     const idDocumentImage = await this.storeImage(String(body.idDocumentImage || '').trim(), 'documents/id');
@@ -6041,6 +6151,8 @@ export class AppController {
           registrationDetails: registrationDetails
             ? (JSON.parse(JSON.stringify(registrationDetails)) as Prisma.InputJsonValue)
             : undefined,
+          listingVisible: false,
+          profileSetupComplete: false,
           services: {
             create: serviceCreates,
           },

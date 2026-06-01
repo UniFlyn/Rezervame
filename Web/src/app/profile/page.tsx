@@ -37,6 +37,11 @@ import {
   type ReservationUiStatus,
 } from "@/lib/reservationStatus";
 import {
+  normalizePublicPaymentConfig,
+  pickDefaultPaymentMethod,
+  selectablePaymentMethods,
+} from "@/lib/paymentConfig";
+import {
   canCustomerCancelBooking,
   policyMessageForBooking,
   normalizeCancellationPolicy,
@@ -328,7 +333,7 @@ function ProfileContent() {
 
   // Payment flow state
   const [paymentView, setPaymentView] = useState<"none" | "review" | "done">("none");
-  const [payMethod, setPayMethod] = useState<"card" | "yappy" | "cash">("card");
+  const [payMethod, setPayMethod] = useState<"wompi" | "yappy" | "pay_at_venue">("pay_at_venue");
   const [payingLoading, setPayingLoading] = useState(false);
   const [isSavingFamilyMember, setIsSavingFamilyMember] = useState(false);
   const [paidInvoice, setPaidInvoice] = useState<{ id: string; refNumber: string } | null>(null);
@@ -338,28 +343,23 @@ function ProfileContent() {
   const [recentlyPaidGroupId, setRecentlyPaidGroupId] = useState<string | null>(null);
   const [defaultCommission, setDefaultCommission] = useState(15);
   const [paymentMethods, setPaymentMethods] = useState<
-    { id: string; label: string; enabled: boolean }[]
+    { id: string; label: string; enabled: boolean; configured?: boolean }[]
   >([
-    { id: "card", label: "Card", enabled: false },
-    { id: "yappy", label: "Yappy", enabled: true },
-    { id: "cash", label: "Cash", enabled: true },
+    { id: "wompi", label: "Card", enabled: false, configured: false },
+    { id: "yappy", label: "Yappy", enabled: false, configured: false },
+    { id: "pay_at_venue", label: "Pay by visit", enabled: true, configured: true },
   ]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
-    void apiGet<{
-      stripeEnabled?: boolean;
-      defaultCommission?: number;
-      methods?: { id: string; label: string; enabled: boolean }[];
-    }>("/public/payment-config")
-      .then((cfg) => {
-        if (typeof cfg.defaultCommission === "number") {
-          setDefaultCommission(cfg.defaultCommission);
-        }
-        if (cfg.methods?.length) {
-          setPaymentMethods(cfg.methods);
-          const first = cfg.methods.find((m) => m.enabled);
-          if (first) setPayMethod(first.id as "card" | "yappy" | "cash");
+    void apiGet<Record<string, unknown>>("/public/payment-config")
+      .then((raw) => {
+        const cfg = normalizePublicPaymentConfig(raw);
+        setDefaultCommission(cfg.defaultCommission);
+        const selectable = selectablePaymentMethods(cfg.methods);
+        if (selectable.length > 0) {
+          setPaymentMethods(selectable);
+          setPayMethod(pickDefaultPaymentMethod(cfg.methods));
         }
       })
       .catch(() => {});
@@ -431,6 +431,15 @@ function ProfileContent() {
     
     if (newPassword !== confirmPassword) {
       toastWarning("Passwords do not match.");
+      return;
+    }
+
+    const { fetchSecurityPolicy, passwordLengthMessage, passwordTooShort } = await import(
+      "@/lib/securityPolicy"
+    );
+    const policy = await fetchSecurityPolicy();
+    if (passwordTooShort(String(newPassword), policy.minPasswordLength)) {
+      toastWarning("Password too short", passwordLengthMessage(policy.minPasswordLength));
       return;
     }
     
@@ -521,35 +530,23 @@ function ProfileContent() {
         return;
       }
 
-      const cardEnabled = paymentMethods.find((m) => m.id === "card")?.enabled;
-      if (payMethod === "card" && cardEnabled) {
-        const checkout = await apiPost<{ url: string }>(
-          "/mobile/bookings/pay-group/stripe-checkout",
-          { bookingIds: payableIds },
-          "USER",
-        );
-        if (checkout?.url) {
-          window.location.href = checkout.url;
-          return;
-        }
-      }
-
       const method =
-        payMethod === "card"
-          ? "Card Payment"
+        payMethod === "wompi"
+          ? "Wompi"
           : payMethod === "yappy"
             ? "Yappy"
-            : "Cash Payment";
+            : "Pay by visit";
 
-      if (payMethod !== "cash") {
-        await apiPost("/mobile/bookings/pay-group", {
-          bookingIds: payableIds,
-          paymentMethod: method,
-          businessId: res.businessId,
-        }, "USER");
+      if (payMethod !== "pay_at_venue") {
+        toastWarning(
+          "Card & Yappy",
+          "Online payment is not available yet. Choose pay by visit or try again later.",
+        );
+        setPayingLoading(false);
+        return;
       }
 
-      const paidUiStatus = payMethod === "cash" ? "cash_at_venue" : "paid";
+      const paidUiStatus = "cash_at_venue";
       setRecentlyPaidGroupId(res.id);
       setPaidInvoice({ id: res.id, refNumber: res.refNumber });
       setSelectedRes({
@@ -563,9 +560,9 @@ function ProfileContent() {
       setPaymentView("done");
       setRefreshTrigger((prev) => prev + 1);
       toastSuccess(
-        payMethod === "cash" ? "Booking confirmed" : "Payment Successful!",
-        payMethod === "cash"
-          ? `Please bring $${res.totalPrice.toFixed(2)} in cash to your appointment.`
+        payMethod === "pay_at_venue" ? "Booking confirmed" : "Payment Successful!",
+        payMethod === "pay_at_venue"
+          ? `Please bring $${res.totalPrice.toFixed(2)} when you visit for your appointment.`
           : "Invoice added to your history.",
       );
     } catch (err) {
@@ -633,7 +630,7 @@ function ProfileContent() {
       taxAmount: res.taxAmount,
       taxPercentage: res.taxPercentage,
       total: res.totalPrice,
-      paymentMethod: res.paymentMethod || (payMethod === "card" ? "Credit Card" : "Cash"),
+      paymentMethod: res.paymentMethod || (payMethod === "wompi" ? "Wompi" : payMethod === "yappy" ? "Yappy" : "Pay by visit"),
       paymentStatus: paymentView === "done" ? "paid" : "pending",
     });
   };
@@ -1907,12 +1904,18 @@ function ProfileContent() {
                                   key={m.id}
                                   type="button"
                                   disabled={!m.enabled}
-                                  onClick={() => setPayMethod(m.id as "card" | "yappy" | "cash")}
+                                  onClick={() => setPayMethod(m.id as "wompi" | "yappy" | "pay_at_venue")}
                                   className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                                     payMethod === m.id ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"
                                   }`}
                                 >
-                                  {m.id === "card" ? <CreditCard className="text-[#ff5a5f]" size={22} /> : m.id === "yappy" ? <Shield className="text-[#ff5a5f]" size={22} /> : <Banknote className="text-[#ff5a5f]" size={22} />}
+                                  {m.id === "wompi" || m.id === "card" ? (
+                                    <CreditCard className="text-[#ff5a5f]" size={22} />
+                                  ) : m.id === "yappy" ? (
+                                    <Shield className="text-[#ff5a5f]" size={22} />
+                                  ) : (
+                                    <Banknote className="text-[#ff5a5f]" size={22} />
+                                  )}
                                   <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
                                     {m.label}
                                   </span>

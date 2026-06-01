@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiGet, apiPost } from "@/lib/api";
+import { publishVisitorSiteStatus } from "@/lib/publishSiteStatus";
 import { toastError, toastSuccess } from "@/lib/toast";
 import {
   SettingsCheckbox,
@@ -115,40 +116,36 @@ export default function SettingsPage() {
     sessionTimeout: 60,
     maintenanceMode: false,
     databaseRetention: 90,
-    stripeApiKey: "",
-    stripePublishableKey: "",
-    stripeWebhookSecret: "",
     googleMapsApiKey: "",
+    wompiEnabled: true,
+    wompiPublicKey: "",
+    wompiPrivateKey: "",
+    wompiEnv: "sandbox",
+    wompiWebhookSecret: "",
     yappyEnabled: true,
     yappyMerchantId: "",
+    yappySecretToken: "",
     cashPayEnabled: true,
     cardPayEnabled: true,
     postmarkApiKey: "",
-    postmarkFromEmail: "",
-    postmarkReplyTo: "",
+    postmarkFromEmail: "noreply@rezervame.com",
+    postmarkReplyTo: "soporte@rezervame.com",
     postmarkMessageStream: "outbound",
     postmarkWebhookToken: "",
-    s3Region: "us-east-1",
-    s3BucketName: "",
-    s3PublicBaseUrl: "",
+    s3Region: "ap-southeast-2",
+    s3BucketName: "rezervame-assets-abs",
+    s3PublicBaseUrl: "https://rezervame-assets-abs.s3.ap-southeast-2.amazonaws.com",
     s3UploadPrefix: "uploads",
     s3AccessKeyId: "",
     s3SecretAccessKey: "",
     integrationStatus: {
       postmark: false,
       s3: false,
-      stripe: false,
-      smtp: false,
+      wompi: false,
+      yappy: false,
     },
-    emailEnabled: false,
-    smsEnabled: false,
-    smtpHost: "",
-    smtpPort: 587,
-    smtpSecure: false,
-    smtpUser: "",
-    smtpPass: "",
-    emailFrom: "",
     adminNotifyEmail: "",
+    smsEnabled: false,
     twilioAccountSid: "",
     twilioAuthToken: "",
     twilioFromNumber: "",
@@ -182,13 +179,6 @@ export default function SettingsPage() {
     showFooterPricing: true,
     footerBizSupportUrl: "/business/support",
     showFooterBizSupport: true,
-    homeHeroEnabled: true,
-    homeHeroTitle: "",
-    homeHeroSubtitle: "",
-    homeHeroDealText: "",
-    homeHeroImageUrl: "",
-    homeHeroCtaText: "",
-    homeHeroCtaUrl: "",
     updatedAt: "",
     updatedBy: "System Admin"
   });
@@ -218,12 +208,132 @@ export default function SettingsPage() {
           ...prev,
           ...data,
           approvalMode: normalizeApprovalMode(data.approvalMode),
+          wompiEnabled: data.wompiEnabled ?? data.cardPayEnabled ?? prev.wompiEnabled,
+          wompiPublicKey: data.wompiPublicKey ?? prev.wompiPublicKey,
+          wompiPrivateKey: data.wompiPrivateKey ?? prev.wompiPrivateKey,
+          wompiEnv: data.wompiEnv ?? prev.wompiEnv,
+          wompiWebhookSecret: data.wompiWebhookSecret ?? prev.wompiWebhookSecret,
+          yappyEnabled: data.yappyEnabled ?? prev.yappyEnabled,
+          yappyMerchantId: data.yappyMerchantId ?? prev.yappyMerchantId,
+          yappySecretToken: data.yappySecretToken ?? prev.yappySecretToken,
+          cashPayEnabled: data.cashPayEnabled ?? prev.cashPayEnabled,
         }));
       }
     } catch (err) {
       toastError("Failed to load settings", String(err));
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleSaveAwsSettings() {
+    try {
+      setIsSaving(true);
+      const payload = {
+        ...settings,
+        approvalMode: normalizeApprovalMode(settings.approvalMode),
+        s3Region: settings.s3Region?.trim() || "ap-southeast-2",
+        s3BucketName: settings.s3BucketName?.trim() || "rezervame-assets-abs",
+        s3PublicBaseUrl:
+          settings.s3PublicBaseUrl?.trim() ||
+          "https://rezervame-assets-abs.s3.ap-southeast-2.amazonaws.com",
+        s3UploadPrefix: settings.s3UploadPrefix?.trim() || "uploads",
+        ...(settings.s3AccessKeyId === "***" ? {} : { s3AccessKeyId: settings.s3AccessKeyId }),
+        ...(settings.s3SecretAccessKey === "***" ? {} : { s3SecretAccessKey: settings.s3SecretAccessKey }),
+      };
+      const updated = await apiPost<any>("/admin/config", payload);
+      setSettings((prev) => ({
+        ...prev,
+        ...updated,
+        approvalMode: normalizeApprovalMode(updated.approvalMode),
+      }));
+      toastSuccess("Media storage saved", "Your changes were applied.");
+    } catch (err) {
+      toastError("Failed to save settings", String(err));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSaveEmailSettings() {
+    try {
+      setIsSaving(true);
+      const payload = {
+        ...settings,
+        approvalMode: normalizeApprovalMode(settings.approvalMode),
+        emailEnabled: false,
+        smtpHost: "",
+        smtpPort: 587,
+        smtpSecure: false,
+        smtpUser: "",
+        smtpPass: "",
+        emailFrom: "",
+        postmarkFromEmail: settings.postmarkFromEmail?.trim() || "noreply@rezervame.com",
+        postmarkReplyTo: settings.postmarkReplyTo?.trim() || "soporte@rezervame.com",
+        postmarkMessageStream: settings.postmarkMessageStream?.trim() || "outbound",
+      };
+      const updated = await apiPost<any>("/admin/config", payload);
+      setSettings((prev) => ({
+        ...prev,
+        ...updated,
+        approvalMode: normalizeApprovalMode(updated.approvalMode),
+      }));
+      toastSuccess("Email settings saved", "Your changes were applied.");
+    } catch (err) {
+      toastError("Failed to save settings", String(err));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSavePaymentSettings() {
+    try {
+      setIsSaving(true);
+      const payload = {
+        ...settings,
+        approvalMode: normalizeApprovalMode(settings.approvalMode),
+        wompiEnv: settings.wompiEnv?.trim() || "sandbox",
+        ...(settings.wompiPrivateKey === "***" ? {} : { wompiPrivateKey: settings.wompiPrivateKey }),
+        ...(settings.wompiWebhookSecret === "***" ? {} : { wompiWebhookSecret: settings.wompiWebhookSecret }),
+        ...(settings.yappySecretToken === "***" ? {} : { yappySecretToken: settings.yappySecretToken }),
+        stripeApiKey: "",
+        stripePublishableKey: "",
+        stripeWebhookSecret: "",
+      };
+      const updated = await apiPost<any>("/admin/config", payload);
+      setSettings((prev) => ({
+        ...prev,
+        ...updated,
+        approvalMode: normalizeApprovalMode(updated.approvalMode),
+      }));
+      toastSuccess("Payment settings saved", "Your changes were applied.");
+    } catch (err) {
+      toastError("Failed to save settings", String(err));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSaveSecuritySettings() {
+    try {
+      setIsSaving(true);
+      const payload = {
+        ...settings,
+        approvalMode: normalizeApprovalMode(settings.approvalMode),
+        minPasswordLength: Math.min(128, Math.max(4, Number(settings.minPasswordLength) || 8)),
+        sessionTimeout: Math.min(10_080, Math.max(5, Number(settings.sessionTimeout) || 60)),
+      };
+      const updated = await apiPost<any>("/admin/config", payload);
+      setSettings((prev) => ({
+        ...prev,
+        ...updated,
+        approvalMode: normalizeApprovalMode(updated.approvalMode),
+      }));
+      toastSuccess("Security settings saved", "Password rules, sessions, and admin verification are updated.");
+    } catch (err) {
+      toastError("Failed to save settings", String(err));
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -240,6 +350,10 @@ export default function SettingsPage() {
         ...updated,
         approvalMode: normalizeApprovalMode(updated.approvalMode),
       }));
+      await publishVisitorSiteStatus({
+        maintenanceMode: updated.maintenanceMode,
+        platformBranding: updated.platformBranding,
+      });
       toastSuccess("Settings saved", "Your changes were applied.");
     } catch (err) {
       toastError("Failed to save settings", String(err));
@@ -251,8 +365,8 @@ export default function SettingsPage() {
   const integration = settings.integrationStatus ?? {
     postmark: false,
     s3: false,
-    stripe: false,
-    smtp: false,
+    wompi: false,
+    yappy: false,
   };
 
   const tabs = [
@@ -260,7 +374,7 @@ export default function SettingsPage() {
     { id: "security", name: "Security", icon: Lock },
     { id: "email", name: "Email", icon: Mail },
     { id: "payments", name: "Payments", icon: CreditCard },
-    { id: "aws", name: "AWS S3", icon: Cloud },
+    { id: "aws", name: "Media storage", icon: Cloud },
     { id: "notifications", name: "SMS & alerts", icon: Bell },
     { id: "platform", name: "Platform", icon: Database },
     { id: "footer", name: "Footer & Apps", icon: Share2 },
@@ -281,7 +395,7 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Settings</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Email (Postmark), payment gateways, AWS media bucket, security, and site content.
+            Email, payments, media storage, security, and site content.
           </p>
         </div>
         {isSaving && (
@@ -431,6 +545,9 @@ export default function SettingsPage() {
                      onChange={(e) => setSettings({...settings, minPasswordLength: Number(e.target.value)})}
                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                     />
+                    <p className="text-[11px] font-medium text-slate-500">
+                      Used when customers, businesses, and admins create or reset passwords.
+                    </p>
                   </div>
                 </div>
 
@@ -446,15 +563,18 @@ export default function SettingsPage() {
                      onChange={(e) => setSettings({...settings, sessionTimeout: Number(e.target.value)})}
                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                     />
+                    <p className="text-[11px] font-medium text-slate-500">
+                      Signed-in users are logged out after this many minutes of inactivity.
+                    </p>
                   </div>
                 </div>
 
                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
                    <div className="text-xs font-medium text-slate-500">
-                     Two-factor authentication: {settings.twoFactorMandatory ? "Required" : "Optional"}
+                     Admin 2FA: {settings.twoFactorMandatory ? "On" : "Off"} · Min password: {settings.minPasswordLength} · Session: {settings.sessionTimeout} min
                    </div>
                    <button 
-                    onClick={handleSave}
+                    onClick={() => void handleSaveSecuritySettings()}
                     disabled={isSaving}
                     className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition shadow-2xl shadow-blue-600/20 active:scale-95 flex items-center gap-2 disabled:opacity-50"
                    >
@@ -468,32 +588,57 @@ export default function SettingsPage() {
             {activeTab === "email" && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <p className="text-sm text-slate-500">
-                  Postmark is used for password reset, booking emails, and templates. SMTP is a fallback when Postmark is not configured.
+                  Booking confirmations, password resets, receipts, and admin alerts send from rezervame.com.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <StatusPill ok={integration.postmark} label="Postmark" />
-                  <StatusPill ok={integration.smtp} label="SMTP fallback" />
+                  <StatusPill ok={integration.postmark} label="Email" />
                 </div>
                 <div className="rounded-3xl border border-slate-100 bg-slate-50/60 p-6 space-y-4">
-                  <h3 className="text-sm font-black text-slate-900">Postmark (recommended)</h3>
+                  <h3 className="text-sm font-black text-slate-900">Email provider</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SettingsInput label="API key" type="password" mono value={settings.postmarkApiKey || ""} placeholder="Server API token" onChange={(v) => setSettings({ ...settings, postmarkApiKey: v })} />
-                    <SettingsInput label="From email" value={settings.postmarkFromEmail || ""} placeholder="noreply@rezervame.com" onChange={(v) => setSettings({ ...settings, postmarkFromEmail: v })} />
-                    <SettingsInput label="Reply-to" value={settings.postmarkReplyTo || ""} placeholder="soporte@rezervame.com" onChange={(v) => setSettings({ ...settings, postmarkReplyTo: v })} />
-                    <SettingsInput label="Message stream" value={settings.postmarkMessageStream || ""} placeholder="outbound" onChange={(v) => setSettings({ ...settings, postmarkMessageStream: v })} />
-                    <SettingsInput label="Webhook token" type="password" mono value={settings.postmarkWebhookToken || ""} placeholder="Optional — Postmark webhook auth" onChange={(v) => setSettings({ ...settings, postmarkWebhookToken: v })} hint="Set the same token in Postmark → Webhooks." />
-                  </div>
-                </div>
-                <div className="rounded-3xl border border-slate-100 p-6 space-y-4">
-                  <h3 className="text-sm font-black text-slate-900">SMTP fallback</h3>
-                  <SettingsCheckbox label="Enable SMTP when Postmark is unavailable" checked={!!settings.emailEnabled} onChange={(v) => setSettings({ ...settings, emailEnabled: v })} />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SettingsInput label="SMTP host" value={settings.smtpHost || ""} onChange={(v) => setSettings({ ...settings, smtpHost: v })} />
-                    <SettingsInput label="SMTP port" type="number" value={settings.smtpPort} onChange={(v) => setSettings({ ...settings, smtpPort: Number(v) || 587 })} />
-                    <SettingsInput label="SMTP user" value={settings.smtpUser || ""} onChange={(v) => setSettings({ ...settings, smtpUser: v })} />
-                    <SettingsInput label="SMTP password" type="password" value={settings.smtpPass || ""} onChange={(v) => setSettings({ ...settings, smtpPass: v })} />
-                    <SettingsInput label="From address" value={settings.emailFrom || ""} onChange={(v) => setSettings({ ...settings, emailFrom: v })} />
-                    <SettingsInput label="Admin notify email" value={settings.adminNotifyEmail || ""} onChange={(v) => setSettings({ ...settings, adminNotifyEmail: v })} />
+                    <SettingsInput
+                      label="Server API token"
+                      type="password"
+                      mono
+                      value={settings.postmarkApiKey || ""}
+                      placeholder="Enter API token"
+                      onChange={(v) => setSettings({ ...settings, postmarkApiKey: v })}
+                      hint={settings.postmarkApiKey === "***" ? "Leave blank to keep the current token." : undefined}
+                    />
+                    <SettingsInput
+                      label="From email"
+                      value={settings.postmarkFromEmail || ""}
+                      placeholder="noreply@rezervame.com"
+                      onChange={(v) => setSettings({ ...settings, postmarkFromEmail: v })}
+                    />
+                    <SettingsInput
+                      label="Reply-to"
+                      value={settings.postmarkReplyTo || ""}
+                      placeholder="soporte@rezervame.com"
+                      onChange={(v) => setSettings({ ...settings, postmarkReplyTo: v })}
+                    />
+                    <SettingsInput
+                      label="Message stream"
+                      value={settings.postmarkMessageStream || ""}
+                      placeholder="outbound"
+                      onChange={(v) => setSettings({ ...settings, postmarkMessageStream: v })}
+                    />
+                    <SettingsInput
+                      label="Webhook token"
+                      type="password"
+                      mono
+                      value={settings.postmarkWebhookToken || ""}
+                      placeholder="Optional"
+                      onChange={(v) => setSettings({ ...settings, postmarkWebhookToken: v })}
+                      hint={settings.postmarkWebhookToken === "***" ? "Leave blank to keep the current value." : undefined}
+                    />
+                    <SettingsInput
+                      label="Admin notify email"
+                      value={settings.adminNotifyEmail || ""}
+                      placeholder="you@rezervame.com"
+                      onChange={(v) => setSettings({ ...settings, adminNotifyEmail: v })}
+                      hint="Receives support tickets and platform alerts."
+                    />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-6">
@@ -519,7 +664,7 @@ export default function SettingsPage() {
                     Test email
                   </button>
                 </div>
-                <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
+                <button onClick={() => void handleSaveEmailSettings()} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save email settings
                 </button>
@@ -529,31 +674,99 @@ export default function SettingsPage() {
             {activeTab === "payments" && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <p className="text-sm text-slate-500">
-                  Stripe (cards), Yappy, and pay-at-venue options shown on Web and Mobile checkout.
+                  Card payments (Wompi), Yappy wallet, and pay by visit at checkout.
                 </p>
-                <StatusPill ok={integration.stripe} label="Stripe (card)" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <SettingsCheckbox label="Enable card payments (Stripe)" checked={!!settings.cardPayEnabled} onChange={(v) => setSettings({ ...settings, cardPayEnabled: v })} />
-                  <SettingsCheckbox label="Enable Yappy" checked={!!settings.yappyEnabled} onChange={(v) => setSettings({ ...settings, yappyEnabled: v })} />
-                  <SettingsCheckbox label="Enable cash at venue" checked={!!settings.cashPayEnabled} onChange={(v) => setSettings({ ...settings, cashPayEnabled: v })} />
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill ok={integration.wompi} label="Wompi (cards)" />
+                  <StatusPill ok={integration.yappy} label="Yappy" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <SettingsCheckbox
+                    label="Enable Wompi (cards)"
+                    checked={settings.wompiEnabled !== false && settings.cardPayEnabled !== false}
+                    onChange={(v) => setSettings({ ...settings, wompiEnabled: v, cardPayEnabled: v })}
+                  />
+                  <SettingsCheckbox
+                    label="Enable Yappy"
+                    checked={!!settings.yappyEnabled}
+                    onChange={(v) => setSettings({ ...settings, yappyEnabled: v })}
+                  />
+                  <SettingsCheckbox
+                    label="Enable pay by visit"
+                    checked={!!settings.cashPayEnabled}
+                    onChange={(v) => setSettings({ ...settings, cashPayEnabled: v })}
+                  />
                 </div>
                 <div className="rounded-3xl border border-slate-100 bg-slate-50/60 p-6 space-y-4">
-                  <h3 className="text-sm font-black text-slate-900">Stripe</h3>
-                  <SettingsInput label="Secret key" type="password" mono value={settings.stripeApiKey || ""} placeholder="sk_live_... or sk_test_..." onChange={(v) => setSettings({ ...settings, stripeApiKey: v })} />
-                  <SettingsInput label="Publishable key" mono value={settings.stripePublishableKey || ""} placeholder="pk_live_... or pk_test_..." onChange={(v) => setSettings({ ...settings, stripePublishableKey: v })} />
-                  <SettingsInput label="Webhook signing secret" type="password" mono value={settings.stripeWebhookSecret || ""} placeholder="whsec_..." onChange={(v) => setSettings({ ...settings, stripeWebhookSecret: v })} />
+                  <h3 className="text-sm font-black text-slate-900">Wompi (cards)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SettingsInput
+                      label="Public key"
+                      mono
+                      value={settings.wompiPublicKey || ""}
+                      placeholder="pub_test_..."
+                      onChange={(v) => setSettings({ ...settings, wompiPublicKey: v })}
+                    />
+                    <SettingsInput
+                      label="Private key"
+                      type="password"
+                      mono
+                      value={settings.wompiPrivateKey || ""}
+                      placeholder="prv_test_..."
+                      onChange={(v) => setSettings({ ...settings, wompiPrivateKey: v })}
+                      hint={settings.wompiPrivateKey === "***" ? "Leave blank to keep the current key." : undefined}
+                    />
+                    <SettingsInput
+                      label="Environment"
+                      value={settings.wompiEnv || "sandbox"}
+                      placeholder="sandbox | production"
+                      onChange={(v) => setSettings({ ...settings, wompiEnv: v })}
+                    />
+                    <SettingsInput
+                      label="Webhook secret"
+                      type="password"
+                      mono
+                      value={settings.wompiWebhookSecret || ""}
+                      onChange={(v) => setSettings({ ...settings, wompiWebhookSecret: v })}
+                      hint={settings.wompiWebhookSecret === "***" ? "Leave blank to keep the current value." : undefined}
+                    />
+                  </div>
                 </div>
                 <div className="rounded-3xl border border-slate-100 p-6 space-y-4">
                   <h3 className="text-sm font-black text-slate-900">Yappy</h3>
-                  <SettingsInput label="Merchant ID" value={settings.yappyMerchantId || ""} onChange={(v) => setSettings({ ...settings, yappyMerchantId: v })} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SettingsInput
+                      label="Merchant ID"
+                      value={settings.yappyMerchantId || ""}
+                      onChange={(v) => setSettings({ ...settings, yappyMerchantId: v })}
+                    />
+                    <SettingsInput
+                      label="Secret token"
+                      type="password"
+                      mono
+                      value={settings.yappySecretToken || ""}
+                      onChange={(v) => setSettings({ ...settings, yappySecretToken: v })}
+                      hint={settings.yappySecretToken === "***" ? "Leave blank to keep the current value." : undefined}
+                    />
+                  </div>
                 </div>
                 <div className="rounded-3xl border border-slate-100 p-6 space-y-4">
                   <h3 className="text-sm font-black text-slate-900">Maps (checkout / search)</h3>
-                  <SettingsInput label="Google Maps API key" type="password" mono value={settings.googleMapsApiKey || ""} onChange={(v) => setSettings({ ...settings, googleMapsApiKey: v })} />
+                  <SettingsInput
+                    label="Google Maps API key"
+                    type="password"
+                    mono
+                    value={settings.googleMapsApiKey || ""}
+                    onChange={(v) => setSettings({ ...settings, googleMapsApiKey: v })}
+                  />
                 </div>
-                <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
+                <button
+                  onClick={() => void handleSavePaymentSettings()}
+                  disabled={isSaving}
+                  className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50"
+                >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save payment settings
+                  Save payment gateways
                 </button>
               </div>
             )}
@@ -561,18 +774,18 @@ export default function SettingsPage() {
             {activeTab === "aws" && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <p className="text-sm text-slate-500">
-                  AWS S3 stores venue logos, banners, gallery images, and hero assets. Environment variables on Render override these when set.
+                  Store venue logos, banners, gallery photos, and site images.
                 </p>
-                <StatusPill ok={integration.s3} label="S3 uploads" />
+                <StatusPill ok={integration.s3} label="Media storage" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <SettingsInput label="AWS region" value={settings.s3Region || ""} placeholder="us-east-1" onChange={(v) => setSettings({ ...settings, s3Region: v })} />
-                  <SettingsInput label="Bucket name" value={settings.s3BucketName || ""} onChange={(v) => setSettings({ ...settings, s3BucketName: v })} />
-                  <SettingsInput label="Public base URL (CDN optional)" value={settings.s3PublicBaseUrl || ""} placeholder="https://bucket.s3.region.amazonaws.com" onChange={(v) => setSettings({ ...settings, s3PublicBaseUrl: v })} hint="Leave empty to use default S3 URL for the bucket." />
+                  <SettingsInput label="AWS region" value={settings.s3Region || ""} placeholder="ap-southeast-2" onChange={(v) => setSettings({ ...settings, s3Region: v })} />
+                  <SettingsInput label="Bucket name" value={settings.s3BucketName || ""} placeholder="rezervame-assets-abs" onChange={(v) => setSettings({ ...settings, s3BucketName: v })} />
+                  <SettingsInput label="Public URL" value={settings.s3PublicBaseUrl || ""} placeholder="https://…" onChange={(v) => setSettings({ ...settings, s3PublicBaseUrl: v })} />
                   <SettingsInput label="Upload prefix" value={settings.s3UploadPrefix || ""} placeholder="uploads" onChange={(v) => setSettings({ ...settings, s3UploadPrefix: v })} />
-                  <SettingsInput label="Access key ID" type="password" mono value={settings.s3AccessKeyId || ""} onChange={(v) => setSettings({ ...settings, s3AccessKeyId: v })} />
-                  <SettingsInput label="Secret access key" type="password" mono value={settings.s3SecretAccessKey || ""} onChange={(v) => setSettings({ ...settings, s3SecretAccessKey: v })} />
+                  <SettingsInput label="Access key ID" type="password" mono value={settings.s3AccessKeyId || ""} onChange={(v) => setSettings({ ...settings, s3AccessKeyId: v })} hint={settings.s3AccessKeyId === "***" ? "Leave blank to keep the current key." : undefined} />
+                  <SettingsInput label="Secret access key" type="password" mono value={settings.s3SecretAccessKey || ""} onChange={(v) => setSettings({ ...settings, s3SecretAccessKey: v })} hint={settings.s3SecretAccessKey === "***" ? "Leave blank to keep the current secret." : undefined} />
                 </div>
-                <button onClick={handleSave} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
+                <button onClick={() => void handleSaveAwsSettings()} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save AWS settings
                 </button>
@@ -582,7 +795,7 @@ export default function SettingsPage() {
             {activeTab === 'notifications' && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <p className="text-sm text-slate-500">
-                  SMS (Twilio) and ticket alert preferences. Email is configured under the Email tab.
+                  SMS alerts and ticket notifications.
                 </p>
                 <SettingsCheckbox label="Enable SMS (Twilio)" checked={!!settings.smsEnabled} onChange={(v) => setSettings({ ...settings, smsEnabled: v })} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -735,86 +948,6 @@ export default function SettingsPage() {
                      onChange={(e) => setSettings({...settings, databaseRetention: Number(e.target.value)})}
                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition"
                     />
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-black text-slate-900 tracking-wide">Home Master Banner</h3>
-                      <p className="text-sm font-medium text-slate-500">
-                        Controls the top banner on Web and the first promo banner on Mobile.
-                      </p>
-                    </div>
-                    <label className="flex items-center gap-3 text-sm font-bold text-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={settings.homeHeroEnabled !== false}
-                        onChange={(e) => setSettings({ ...settings, homeHeroEnabled: e.target.checked })}
-                        className="h-5 w-5 accent-rose-600"
-                      />
-                      Enabled
-                    </label>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Title</label>
-                      <input
-                        value={settings.homeHeroTitle || ""}
-                        onChange={(e) => setSettings({ ...settings, homeHeroTitle: e.target.value })}
-                        placeholder="Beauty bookings, instant"
-                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Subtitle</label>
-                      <input
-                        value={settings.homeHeroSubtitle || ""}
-                        onChange={(e) => setSettings({ ...settings, homeHeroSubtitle: e.target.value })}
-                        placeholder="Find and book with top local experts"
-                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Deal pill (optional)</label>
-                      <input
-                        value={settings.homeHeroDealText || ""}
-                        onChange={(e) => setSettings({ ...settings, homeHeroDealText: e.target.value })}
-                        placeholder="30% OFF · This week only"
-                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Banner image URL</label>
-                      <input
-                        value={settings.homeHeroImageUrl || ""}
-                        onChange={(e) => setSettings({ ...settings, homeHeroImageUrl: e.target.value })}
-                        placeholder="https://... (or /relative)"
-                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
-                      />
-                      <p className="text-[11px] font-semibold text-slate-500">
-                        Tip: use an https image URL for fastest loading.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">CTA text</label>
-                      <input
-                        value={settings.homeHeroCtaText || ""}
-                        onChange={(e) => setSettings({ ...settings, homeHeroCtaText: e.target.value })}
-                        placeholder="Book now"
-                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest">CTA URL</label>
-                      <input
-                        value={settings.homeHeroCtaUrl || ""}
-                        onChange={(e) => setSettings({ ...settings, homeHeroCtaUrl: e.target.value })}
-                        placeholder="/search?categoryKey=hairService (or https://...)"
-                        className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-900"
-                      />
-                    </div>
                   </div>
                 </div>
 

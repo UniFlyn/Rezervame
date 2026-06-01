@@ -2,11 +2,10 @@
 ALTER TABLE "Business" ADD COLUMN IF NOT EXISTS "listingVisible" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "Business" ADD COLUMN IF NOT EXISTS "profileSetupComplete" BOOLEAN NOT NULL DEFAULT false;
 
--- Existing active venues with core media + location stay discoverable.
+-- Existing active venues with core media + location may enable the visibility toggle (not auto-public).
 UPDATE "Business"
 SET
-  "profileSetupComplete" = true,
-  "listingVisible" = true
+  "profileSetupComplete" = true
 WHERE
   lower(trim("status")) = 'active'
   AND "logoUrl" IS NOT NULL

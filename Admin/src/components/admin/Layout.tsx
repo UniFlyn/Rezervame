@@ -20,6 +20,7 @@ import {
   CalendarDays,
   HelpCircle,
   Briefcase,
+  Image,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ const menuItems: MenuItem[] = [
   { name: 'Categories', icon: Tags, href: '/admin/categories' },
   { name: 'Amenities', icon: Sparkles, href: '/admin/amenities' },
   { name: 'Events', icon: CalendarDays, href: '/admin/events' },
+  { name: 'Home banner', icon: Image, href: '/admin/home-banner' },
   { name: 'Careers', icon: Briefcase, href: '/admin/jobs' },
   { name: 'Promotions', icon: Tag, href: '/admin/promotions' },
   { name: 'Transactions', icon: CreditCard, href: '/admin/transactions' },

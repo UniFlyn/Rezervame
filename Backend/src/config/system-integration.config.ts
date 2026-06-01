@@ -1,6 +1,10 @@
 import type { PrismaService } from '../prisma.service';
 import type { PostmarkEnvConfig } from '../email/postmark.config';
 import { readPostmarkConfigFromEnv } from '../email/postmark.config';
+import type { WompiConfig } from '../payments/wompi/wompi.config';
+import { readWompiConfigFromEnv } from '../payments/wompi/wompi.config';
+import type { YappyConfig } from '../payments/yappy/yappy.config';
+import { readYappyConfigFromEnv } from '../payments/yappy/yappy.config';
 import type { S3Config } from '../storage/s3.config';
 import { readS3ConfigFromEnv } from '../storage/s3.config';
 
@@ -19,6 +23,16 @@ export type SystemConfigIntegrations = {
   s3UploadPrefix?: string | null;
   s3AccessKeyId?: string | null;
   s3SecretAccessKey?: string | null;
+  wompiEnabled?: boolean | null;
+  wompiPublicKey?: string | null;
+  wompiPrivateKey?: string | null;
+  wompiEnv?: string | null;
+  wompiWebhookSecret?: string | null;
+  yappyEnabled?: boolean | null;
+  yappyMerchantId?: string | null;
+  yappySecretToken?: string | null;
+  cashPayEnabled?: boolean | null;
+  cardPayEnabled?: boolean | null;
 };
 
 export function resolvePostmarkConfigFromRow(
@@ -82,4 +96,69 @@ export async function resolveStripePublishableKey(prisma: PrismaService): Promis
   if (fromEnv) return fromEnv;
   const row = await prisma.systemConfig.findUnique({ where: { id: 1 } });
   return row?.stripePublishableKey?.trim() || '';
+}
+
+function setAdminConfigIfEmpty(
+  target: Record<string, unknown>,
+  key: string,
+  value: string | undefined | null,
+): void {
+  if (!value?.trim()) return;
+  if (String(target[key] ?? '').trim()) return;
+  target[key] = value.trim();
+}
+
+/** Fill empty SystemConfig fields from server env so Admin → AWS S3 shows live Render/local values. */
+export function adminConfigWithEnvFallbacks(
+  row: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(row || {}) };
+
+  const s3 = readS3ConfigFromEnv();
+  if (s3) {
+    setAdminConfigIfEmpty(out, 's3Region', s3.region);
+    setAdminConfigIfEmpty(out, 's3BucketName', s3.bucket);
+    setAdminConfigIfEmpty(out, 's3PublicBaseUrl', s3.publicBaseUrl);
+    setAdminConfigIfEmpty(out, 's3UploadPrefix', s3.uploadPrefix);
+    setAdminConfigIfEmpty(out, 's3AccessKeyId', s3.accessKeyId);
+    setAdminConfigIfEmpty(out, 's3SecretAccessKey', s3.secretAccessKey);
+  }
+
+  const postmark = readPostmarkConfigFromEnv();
+  if (postmark) {
+    setAdminConfigIfEmpty(out, 'postmarkApiKey', postmark.apiKey);
+    setAdminConfigIfEmpty(out, 'postmarkFromEmail', postmark.fromEmail);
+    setAdminConfigIfEmpty(out, 'postmarkReplyTo', postmark.replyTo);
+    setAdminConfigIfEmpty(out, 'postmarkMessageStream', postmark.messageStream);
+    setAdminConfigIfEmpty(out, 'postmarkWebhookToken', postmark.webhookToken ?? undefined);
+  }
+
+  const wompi = readWompiConfigFromEnv();
+  if (wompi) {
+    setAdminConfigIfEmpty(out, 'wompiPublicKey', wompi.publicKey);
+    setAdminConfigIfEmpty(out, 'wompiPrivateKey', wompi.privateKey);
+    setAdminConfigIfEmpty(out, 'wompiEnv', wompi.env);
+    setAdminConfigIfEmpty(out, 'wompiWebhookSecret', wompi.webhookSecret ?? undefined);
+  }
+
+  const yappy = readYappyConfigFromEnv();
+  if (yappy) {
+    setAdminConfigIfEmpty(out, 'yappyMerchantId', yappy.merchantId);
+    setAdminConfigIfEmpty(out, 'yappySecretToken', yappy.secretToken);
+  }
+
+  if (out.wompiEnabled === undefined || out.wompiEnabled === null) {
+    out.wompiEnabled = out.cardPayEnabled !== false;
+  }
+  if (out.yappyEnabled === undefined || out.yappyEnabled === null) {
+    out.yappyEnabled = true;
+  }
+  if (out.cashPayEnabled === undefined || out.cashPayEnabled === null) {
+    out.cashPayEnabled = true;
+  }
+  if (!String(out.wompiEnv ?? '').trim()) {
+    out.wompiEnv = 'sandbox';
+  }
+
+  return out;
 }

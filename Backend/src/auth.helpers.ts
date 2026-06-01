@@ -65,7 +65,24 @@ function isBusinessPanelPrivileged(
   return false;
 }
 
-/** Public storefront / discovery; owners and admins may preview before going live. */
+/** Merchant panel session (pending approval or active) — not the same as public listing. */
+export async function canAccessBusinessMerchantSession(
+  prisma: PrismaService,
+  business: { status?: string | null; email: string },
+  authorization?: string,
+): Promise<boolean> {
+  const user = await getUserFromAuth(prisma, authorization);
+  if (!isBusinessPanelPrivileged(user, business)) return false;
+  const status = (business.status || '').toLowerCase().trim();
+  if (user?.role === Role.ADMIN) return true;
+  return status === 'active' || status === 'pending';
+}
+
+/**
+ * Customer-facing venue page / discovery.
+ * Pending (upcoming) businesses: only the owning merchant or platform admin.
+ * Active businesses: public only when discoverable; owner may preview when hidden.
+ */
 export async function isBusinessPubliclyVisible(
   prisma: PrismaService,
   business: {
@@ -79,9 +96,11 @@ export async function isBusinessPubliclyVisible(
   const user = await getUserFromAuth(prisma, authorization);
   if (isBusinessPanelPrivileged(user, business)) {
     const status = (business.status || '').toLowerCase().trim();
-    if (status === 'active') return true;
-    if (user?.role === Role.ADMIN) return true;
-    if (user?.role === Role.BUSINESS && status === 'pending') return true;
+    if (user?.role === Role.ADMIN) return status !== 'rejected';
+    if (user?.role === Role.BUSINESS) {
+      if (status === 'pending') return true;
+      if (status === 'active') return true;
+    }
     return false;
   }
 

@@ -282,6 +282,7 @@ export default function BusinessesPage() {
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Owner</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Categories</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wide text-center">Status</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wide text-center">App / Web</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wide text-center">Revenue (LTD)</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Action</th>
               </tr>
@@ -327,6 +328,21 @@ export default function BusinessesPage() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <StatusBadge status={business.status} />
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {business.status === "active" && business.listingVisible ? (
+                      <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                        Public
+                      </span>
+                    ) : business.status === "pending" ? (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                        Owner only
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                        Hidden
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <p className="text-sm font-semibold text-slate-900">{formatCurrency(business.revenue)}</p>

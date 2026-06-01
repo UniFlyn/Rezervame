@@ -12,6 +12,7 @@ services:
     plan: free
     runtime: node
     buildCommand: npm install && npm run build && test -f Backend/dist/main.js
+    # `npm run build` runs prisma migrate deploy + Backend nest build (see package.json)
     startCommand: cd Backend && (test -f dist/main.js || npm run build) && node dist/main.js
     envVars:
       - key: NODE_VERSION
@@ -55,3 +56,17 @@ services:
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
+      - key: WOMPI_PUBLIC_KEY
+        sync: false
+      - key: WOMPI_PRIVATE_KEY
+        sync: false
+      - key: WOMPI_ENV
+        value: sandbox
+      - key: WOMPI_WEBHOOK_SECRET
+        sync: false
+      - key: YAPPY_MERCHANT_ID
+        sync: false
+      - key: YAPPY_SECRET_TOKEN
+        sync: false
+      - key: YAPPY_ENV
+        value: sandbox

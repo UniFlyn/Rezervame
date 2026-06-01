@@ -1,7 +1,27 @@
 export function isCashPaymentMethod(method?: string | null): boolean {
   if (!method || typeof method !== 'string') return false;
   const s = method.toLowerCase().trim();
-  return s.includes('cash') || s.includes('at venue');
+  return (
+    s.includes('cash') ||
+    s.includes('at venue') ||
+    s.includes('pay by visit') ||
+    s.includes('pay at venue')
+  );
+}
+
+export type CheckoutPayMethodId = 'wompi' | 'yappy' | 'pay_at_venue';
+
+export function checkoutMethodToPaymentLabel(id: CheckoutPayMethodId): string {
+  if (id === 'wompi') return 'Wompi';
+  if (id === 'yappy') return 'Yappy';
+  return 'Pay by visit';
+}
+
+/** Map legacy API method ids to checkout tab ids. */
+export function normalizeCheckoutMethodId(id: string): CheckoutPayMethodId {
+  if (id === 'wompi' || id === 'card') return 'wompi';
+  if (id === 'yappy') return 'yappy';
+  return 'pay_at_venue';
 }
 
 export function resolveBookingPaymentMethod(item: {

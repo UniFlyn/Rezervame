@@ -8,6 +8,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
 import '../utils/booking_cart.dart';
 import '../utils/booking_utils.dart';
+import '../utils/payment_config.dart';
 import '../utils/payment_method.dart';
 import '../widgets/chained_network_image.dart';
 import 'booking_confirmation_screen.dart';
@@ -70,14 +71,13 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   late List<String> _familyOptions;
   List<Map<String, dynamic>> _loadedFamilyMembers = [];
   bool _submitting = false;
-  String _checkoutPayTab = 'card';
+  String _checkoutPayTab = 'pay_at_venue';
   bool _autoApproval = false;
   List<Map<String, dynamic>> _payMethods = [
-    {'id': 'card', 'label': 'Card', 'enabled': true},
-    {'id': 'yappy', 'label': 'Yappy', 'enabled': true},
-    {'id': 'cash', 'label': 'Cash', 'enabled': true},
+    {'id': 'wompi', 'label': 'Card', 'enabled': false},
+    {'id': 'yappy', 'label': 'Yappy', 'enabled': false},
+    {'id': 'pay_at_venue', 'label': 'Pay by visit', 'enabled': true},
   ];
-  bool _stripeEnabled = false;
 
   double _taxPercentage = 0;
   double _commissionPercent = 15;
@@ -104,18 +104,22 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
 
   Future<void> _loadPaymentConfig() async {
     try {
-      final cfg = await _api.fetchPaymentConfig();
+      final raw = await _api.fetchPaymentConfig();
       if (!mounted) return;
+      final cfg = normalizePaymentConfig(raw);
       final methods = (cfg['methods'] as List<dynamic>?)
               ?.whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
           _payMethods;
+      final selectable = selectablePaymentMethods(methods);
       setState(() {
-        _payMethods = methods;
-        _stripeEnabled = cfg['stripeEnabled'] == true;
+        _payMethods = selectable.isNotEmpty ? selectable : methods;
         final dc = cfg['defaultCommission'];
         if (dc is num) _commissionPercent = dc.toDouble();
+        _checkoutPayTab = pickDefaultPaymentMethodId(
+          methods.map((m) => Map<String, dynamic>.from(m)).toList(),
+        );
       });
     } catch (_) {}
   }
@@ -142,7 +146,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   bool _methodEnabled(String id) {
     final m = _payMethods.where((x) => '${x['id']}' == id).toList();
     if (m.isEmpty) return true;
-    return m.first['enabled'] != false;
+    return isPaymentMethodSelectable(m.first);
   }
 
   String _paymentTabLabel(String id) {
@@ -423,7 +427,8 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
       var cursor = start;
       final bookingGroupId = 'grp_${DateTime.now().millisecondsSinceEpoch}';
       final preferredPayment = apiPaymentMethodForCheckoutTab(_checkoutPayTab);
-      final isCashCheckout = _checkoutPayTab == 'cash';
+      final isCashCheckout =
+          _checkoutPayTab == 'cash' || _checkoutPayTab == 'pay_at_venue';
 
       // Create bookings sequentially; stagger each service by its duration (matches Web).
       final createdIds = <String>[];
@@ -464,33 +469,6 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
 
       if (createdIds.isEmpty) {
         throw Exception('No bookings were created. Please try again.');
-      }
-
-      if (_autoApproval && !isCashCheckout) {
-        final cardEnabled = _methodEnabled('card');
-        if (_checkoutPayTab == 'card' && cardEnabled && _stripeEnabled) {
-          final url = await _api.payBookingGroupStripeCheckout(bookingIds: createdIds);
-          if (url != null) {
-            final uri = Uri.parse(url);
-            if (await canLaunchUrl(uri)) {
-              BookingCart.instance.clear();
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-              if (!mounted) return;
-              _navigateToBookingConfirmation(
-                createdIds,
-                paid: true,
-                autoApproval: true,
-                isCash: false,
-              );
-              return;
-            }
-          }
-        }
-        await _api.payBookingGroup(
-          bookingIds: createdIds,
-          paymentMethod: preferredPayment,
-          businessId: widget.businessId,
-        );
       }
 
       BookingCart.instance.clear();

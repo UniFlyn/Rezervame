@@ -11,7 +11,7 @@ import {
   MapPin, Phone, CreditCard, Banknote, Shield,
   FileText, Download, Star, Loader2, Heart, Check
 } from 'lucide-react';
-import { toastError, toastSuccess } from '@/lib/toast';
+import { toastError, toastSuccess, toastWarning } from '@/lib/toast';
 import { computeBookingTotals } from '@/lib/bookingTotals';
 import {
   aggregateGroupUiStatus,
@@ -257,36 +257,29 @@ export default function ReservationClient() {
     }
   }
 
-  async function handlePayNow() {
+  async function handlePayNow(payAtVenue = false) {
     if (!res) return;
     setPayingLoading(true);
     try {
-      const bookingIds = res.items.map((i) => i.id);
-      let usedStripe = false;
-      try {
-        const cfg = await apiGet<{ stripeEnabled?: boolean }>("/public/payment-config");
-        if (cfg.stripeEnabled) {
-          const checkout = await apiPost<{ url: string }>(
-            "/mobile/bookings/pay-group/stripe-checkout",
-            { bookingIds },
-            "USER",
-          );
-          if (checkout?.url) {
-            usedStripe = true;
-            window.location.href = checkout.url;
-            return;
-          }
-        }
-      } catch {
-        /* fall through to cash/legacy pay */
+      const bookingIds = res.items
+        .filter((i) => i.status === "confirmed" || i.status === "rescheduled")
+        .map((i) => i.id);
+      if (bookingIds.length === 0) {
+        toastWarning("Already processed", "No services awaiting payment.");
+        return;
       }
-      if (usedStripe) return;
-      await apiPost("/mobile/bookings/pay-group", {
-        bookingIds,
-        paymentMethod: "Card Payment",
-      }, "USER");
+      if (!payAtVenue) {
+        toastWarning(
+          "Card & Yappy",
+          "Online payment is not available yet. Choose pay by visit or try again later.",
+        );
+        return;
+      }
       setPaymentView("done");
-      toastSuccess("Payment successful");
+      toastSuccess(
+        "Pay by visit",
+        "Bring payment to your appointment. The venue will confirm when you arrive.",
+      );
       loadGroup();
     } catch (e) {
       toastError("Payment failed", e instanceof Error ? e.message : "Try again.");
@@ -637,13 +630,16 @@ export default function ReservationClient() {
 
                 {paymentView === "select" && (
                    <div className="mt-8 space-y-4 animate-in fade-in slide-in-from-bottom-4">
+      <p className="text-[10px] font-bold text-slate-500 text-center">
+        Online payment is not available yet. Choose pay by visit to confirm how you will pay.
+      </p>
                       <div className="p-5 border-2 border-primary bg-primary/5 rounded-2xl flex flex-col items-center gap-2">
-                         <CreditCard className="text-primary" size={24} />
-                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">{"Card Payment"}</span>
+                         <Banknote className="text-primary" size={24} />
+                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">{"Pay by visit"}</span>
                       </div>
                       
                       <button 
-                        onClick={handlePayNow}
+                        onClick={() => void handlePayNow(true)}
                         disabled={payingLoading}
                         className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                       >
@@ -698,7 +694,7 @@ export default function ReservationClient() {
                      <div className="flex gap-4">
                         <Banknote className="text-primary flex-shrink-0" size={20} />
                         <p className="text-xs font-medium text-white/80 leading-relaxed">
-                           {"Cash payment is collected at the venue when you arrive for your appointment."}
+                           {"Pay when you visit. The venue confirms payment after your appointment."}
                         </p>
                      </div>
                    )}

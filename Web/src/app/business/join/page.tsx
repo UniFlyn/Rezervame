@@ -73,6 +73,7 @@ export default function BusinessJoinPage() {
   const [insuranceDocumentImage, setInsuranceDocumentImage] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [minPasswordLength, setMinPasswordLength] = useState(8);
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("basic");
   const [uploadingDocKey, setUploadingDocKey] = useState<string | null>(null);
@@ -222,6 +223,12 @@ export default function BusinessJoinPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    void import("@/lib/securityPolicy").then(({ fetchSecurityPolicy }) =>
+      fetchSecurityPolicy().then((p) => setMinPasswordLength(p.minPasswordLength)),
+    );
+  }, []);
+
+  useEffect(() => {
     void fetchPublicCategories()
       .then((rows) => {
         setAvailableCategories(rows.filter((r) => r.active));
@@ -299,7 +306,8 @@ export default function BusinessJoinPage() {
 
   const nextStep = () => {
     const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(businessEmail.trim());
-    const passValid = password.length >= 6 && password === confirmPassword;
+    const passValid =
+      password.length >= minPasswordLength && password === confirmPassword;
     const hasValidService = services.some(
       (s) =>
         s.name.trim() &&
