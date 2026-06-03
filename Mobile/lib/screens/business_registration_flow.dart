@@ -106,7 +106,7 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
     return false;
   }
 
-  bool _validateStep() {
+  Future<bool> _validateStep() async {
     setState(() => _error = null);
     switch (_currentStep) {
       case 0:
@@ -144,14 +144,14 @@ class _BusinessRegistrationFlowState extends State<BusinessRegistrationFlow> {
     }
   }
 
-  void _next() {
-    if (!_validateStep()) return;
+  Future<void> _next() async {
+    if (!await _validateStep()) return;
     if (_currentStep < 3) {
       setState(() => _currentStep++);
       _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       return;
     }
-    _submit();
+    await _submit();
   }
 
   Future<void> _submit() async {

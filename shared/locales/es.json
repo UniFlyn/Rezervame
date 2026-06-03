@@ -81,6 +81,7 @@
   "loginFailed": "No se ha podido iniciar sesión. Comprueba tu correo electrónico y contraseña.",
   "authLoginFailedTitle": "Error al iniciar sesión",
   "authLoginFailedBody": "Por favor, comprueba tu nombre de usuario y tu contraseña y vuelve a intentarlo.",
+  "authSignIn": "Iniciar sesión",
   "authNeedAccount": "¿Eres nuevo aquí?",
   "authContactSignup": "Ponte en contacto con nosotros para crear una cuenta",
   "venueLoginToAddTitle": "Inicia sesión para añadir servicios",

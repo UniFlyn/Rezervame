@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../data/api_repository.dart';
 import '../utils/app_colors.dart';
@@ -7,7 +6,6 @@ import '../utils/app_typography.dart';
 import '../utils/booking_utils.dart';
 import '../utils/cancellation_policy.dart';
 import '../utils/payment_config.dart';
-import '../utils/payment_method.dart';
 import 'chained_network_image.dart';
 import 'reservation_status_badge.dart';
 import '../screens/invoices_screen.dart';
@@ -258,7 +256,6 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
     }
     setState(() => _busy = true);
     try {
-      final method = apiPaymentMethodForPayTab(_payMethod);
       if (_payMethod != 'cash' && _payMethod != 'pay_at_venue') {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

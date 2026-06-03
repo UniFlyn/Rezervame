@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 export type PageHeaderMeta = {
   title?: string;
@@ -17,14 +17,24 @@ const PageHeaderMetaContext = createContext<Ctx | null>(null);
 
 export function PageHeaderMetaProvider({ children }: { children: React.ReactNode }) {
   const [meta, setMetaState] = useState<PageHeaderMeta>({});
+  const setMeta = useCallback((m: PageHeaderMeta) => {
+    setMetaState((prev) =>
+      prev.title === m.title && prev.subtitle === m.subtitle ? prev : m,
+    );
+  }, []);
+  const clearMeta = useCallback(() => {
+    setMetaState((prev) =>
+      prev.title === undefined && prev.subtitle === undefined ? prev : {},
+    );
+  }, []);
 
   const value = useMemo(
     () => ({
       meta,
-      setMeta: (m: PageHeaderMeta) => setMetaState(m),
-      clearMeta: () => setMetaState({}),
+      setMeta,
+      clearMeta,
     }),
-    [meta],
+    [meta, setMeta, clearMeta],
   );
 
   return <PageHeaderMetaContext.Provider value={value}>{children}</PageHeaderMetaContext.Provider>;

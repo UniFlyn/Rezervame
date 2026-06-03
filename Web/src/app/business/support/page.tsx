@@ -4,7 +4,17 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useBusinessStore } from "../../../store/businessStore";
 import { apiGet, apiPost } from "@/lib/api";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { HelpCircle, Loader2, MessageSquare, Paperclip, Plus, Send } from "lucide-react";
+import {
+  CalendarCheck,
+  CreditCard,
+  HelpCircle,
+  Loader2,
+  MessageSquare,
+  Paperclip,
+  Plus,
+  Send,
+  Settings,
+} from "lucide-react";
 import { clsx } from "clsx";
 
 type Ticket = {
@@ -33,6 +43,27 @@ const CATEGORIES = [
   { value: "account", label: "Account & profile" },
   { value: "booking", label: "Bookings & calendar" },
   { value: "other", label: "Other" },
+];
+
+const QUICK_HELP = [
+  {
+    category: "booking",
+    title: "Bookings & calendar",
+    body: "Calendar sync, appointment status, client changes, or schedule availability.",
+    icon: CalendarCheck,
+  },
+  {
+    category: "billing",
+    title: "Billing & payouts",
+    body: "Withdrawals, commission, payment methods, balances, and account updates.",
+    icon: CreditCard,
+  },
+  {
+    category: "account",
+    title: "Account & profile",
+    body: "Business listing, profile setup, staff access, and public visibility.",
+    icon: Settings,
+  },
 ];
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -97,7 +128,12 @@ export default function BusinessSupportPage() {
     try {
       await apiPost(
         `/business/${business.id}/support/tickets`,
-        { subject: subject.trim(), message: message.trim(), category, screenshotUrl: screenshot },
+        {
+          subject: subject.trim(),
+          message: message.trim(),
+          category,
+          screenshotUrl: screenshot,
+        },
         "BUSINESS",
       );
       toastSuccess("Ticket created", "Our team will respond by email when configured.");
@@ -150,6 +186,11 @@ export default function BusinessSupportPage() {
     }
   }
 
+  function startTicket(nextCategory = "technical") {
+    setCategory(nextCategory);
+    setShowNew(true);
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -178,7 +219,17 @@ export default function BusinessSupportPage() {
           ) : tickets.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
               <MessageSquare className="mx-auto h-10 w-10 text-slate-300" />
-              <p className="mt-4 text-sm font-bold text-slate-500">No tickets yet. Create one to get help.</p>
+              <p className="mt-4 text-sm font-black text-slate-700">Your support inbox is clear.</p>
+              <p className="mx-auto mt-2 max-w-[240px] text-xs font-semibold leading-relaxed text-slate-500">
+                When you create a ticket, the conversation and admin replies will appear here.
+              </p>
+              <button
+                type="button"
+                onClick={() => startTicket()}
+                className="mt-5 inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white transition hover:bg-[#ff5a5f]"
+              >
+                Create first ticket
+              </button>
             </div>
           ) : (
             tickets.map((t) => (
@@ -188,7 +239,9 @@ export default function BusinessSupportPage() {
                 onClick={() => void openTicket(t.id)}
                 className={clsx(
                   "w-full rounded-2xl border p-4 text-left transition",
-                  selected?.id === t.id ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 bg-white hover:border-slate-200",
+                  selected?.id === t.id
+                    ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
+                    : "border-slate-100 bg-white hover:border-slate-200",
                 )}
               >
                 <p className="font-mono text-[10px] font-bold text-slate-500">{t.ticketRef}</p>
@@ -244,9 +297,42 @@ export default function BusinessSupportPage() {
               </div>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center text-center text-slate-400">
-              <HelpCircle className="h-12 w-12" />
-              <p className="mt-4 text-sm font-bold">Select a ticket or create a new one</p>
+            <div className="flex h-full flex-col justify-center gap-6">
+              <div className="mx-auto max-w-lg text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#ff5a5f]/10 text-[#ff5a5f]">
+                  <HelpCircle className="h-7 w-7" />
+                </div>
+                <h3 className="mt-5 text-xl font-black text-slate-900">How can we help?</h3>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500">
+                  Choose a common topic to start a ticket with the right category, or select an existing
+                  conversation from the left.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {QUICK_HELP.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.category}
+                      type="button"
+                      onClick={() => startTicket(item.category)}
+                      className="rounded-3xl border border-slate-100 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#ff5a5f]/30 hover:bg-white hover:shadow-xl hover:shadow-slate-200/70"
+                    >
+                      <Icon className="h-6 w-6 text-[#ff5a5f]" />
+                      <p className="mt-4 text-sm font-black text-slate-900">{item.title}</p>
+                      <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">{item.body}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">What happens next</p>
+                <div className="mt-4 grid gap-3 text-sm font-semibold text-slate-600 sm:grid-cols-3">
+                  <span>1. Submit details</span>
+                  <span>2. Admin reviews</span>
+                  <span>3. Reply by ticket or email</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -283,7 +369,13 @@ export default function BusinessSupportPage() {
                 rows={5}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
               />
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void onPickScreenshot(e.target.files?.[0] ?? null)} />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => void onPickScreenshot(e.target.files?.[0] ?? null)}
+              />
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -292,7 +384,9 @@ export default function BusinessSupportPage() {
                 <Paperclip className="h-4 w-4" />
                 {screenshot ? "Screenshot attached" : "Attach screenshot"}
               </button>
-              {screenshot ? <img src={screenshot} alt="Preview" className="max-h-32 rounded-xl border object-contain" /> : null}
+              {screenshot ? (
+                <img src={screenshot} alt="Preview" className="max-h-32 rounded-xl border object-contain" />
+              ) : null}
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setShowNew(false)} className="rounded-xl border px-4 py-2 text-sm font-bold">

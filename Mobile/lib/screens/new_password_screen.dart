@@ -45,6 +45,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
       return;
     }
     if (pass != confirm) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Passwords do not match')),
       );

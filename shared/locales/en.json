@@ -81,6 +81,7 @@
   "loginFailed": "Could not sign in. Check your email and password.",
   "authLoginFailedTitle": "Sign in failed",
   "authLoginFailedBody": "Check your email and password and try again.",
+  "authSignIn": "Sign in",
   "authNeedAccount": "New here?",
   "authContactSignup": "Contact us to create an account",
   "venueLoginToAddTitle": "Sign in to add services",

@@ -326,7 +326,7 @@ class _CustomerServiceScreenState extends State<CustomerServiceScreen> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _category,
+            initialValue: _category,
             decoration: const InputDecoration(labelText: 'Category'),
             items: _categories
                 .map((c) => DropdownMenuItem(value: c.$1, child: Text(c.$2)))

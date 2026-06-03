@@ -3,10 +3,11 @@
  * Production smoke test — run with backend up:
  *   API_BASE=http://localhost:4000 node scripts/smoke-production.mjs
  */
-const base = (process.env.API_BASE || "https://rezervame.onrender.com").replace(/\/$/, "");
+const origin = (process.env.API_BASE || "https://rezervame.onrender.com").replace(/\/$/, "");
+const apiBase = origin.endsWith("/api") ? origin : `${origin}/api`;
 
 async function req(path, opts = {}) {
-  const url = `${base}${path}`;
+  const url = `${apiBase}${path}`;
   const res = await fetch(url, {
     ...opts,
     headers: {
@@ -35,13 +36,14 @@ function assert(name, ok, detail = "") {
 }
 
 async function main() {
-  console.log(`Smoke test → ${base}\n`);
+  console.log(`Smoke test → ${apiBase}\n`);
 
-  const health = await req("/health");
+  const healthUrl = `${origin}/api/v1/health`;
+  const health = await fetch(healthUrl);
   assert("health", health.status === 200);
 
   const payCfg = await req("/public/payment-config");
-  assert("payment-config", payCfg.status === 200 && typeof payCfg.body?.stripeEnabled === "boolean");
+  assert("payment-config", payCfg.status === 200 && Array.isArray(payCfg.body?.methods));
 
   const badLogin = await req("/auth/login", {
     method: "POST",
@@ -56,7 +58,7 @@ async function main() {
   const token = goodLogin.body?.token;
   assert(
     "login returns JWT or legacy token",
-    goodLogin.status === 200 && typeof token === "string" && token.length > 10,
+    [200, 201].includes(goodLogin.status) && typeof token === "string" && token.length > 10,
   );
 
   if (token) {

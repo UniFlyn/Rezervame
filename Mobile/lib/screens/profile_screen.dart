@@ -105,6 +105,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
 
             final policy = await fetchSecurityPolicy();
+            if (!context.mounted) return;
             if (passwordTooShort(newPassword, policy.minPasswordLength)) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

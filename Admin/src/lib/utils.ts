@@ -5,15 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number) {
+export function formatCurrency(amount: unknown) {
+  const value = typeof amount === "number" ? amount : Number(amount);
+  const safeAmount = Number.isFinite(value) ? value : 0;
+
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(amount);
+  }).format(safeAmount);
 }
 
-export function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('en-US', {
+export function formatDate(dateString: unknown) {
+  const date = new Date(String(dateString ?? ""));
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

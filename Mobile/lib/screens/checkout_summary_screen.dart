@@ -1,6 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../data/api_repository.dart';
 import '../models/booking_cart_line.dart';
@@ -276,13 +275,9 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                                   child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.center,
                                     children: [
-                                      Radio<String>(
-                                        value: n,
-                                        groupValue: current,
-                                        onChanged: (v) {
-                                          if (v != null) Navigator.pop(ctx, v);
-                                        },
-                                        activeColor: AppColors.primary500,
+                                      Icon(
+                                        n == current ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                                        color: n == current ? AppColors.primary500 : AppColors.grey300,
                                       ),
                                       CircleAvatar(
                                         radius: 22,
@@ -364,27 +359,20 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                   style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900),
                 ),
               ),
-              RadioGroup<String>(
-                groupValue: current,
-                onChanged: (v) {
-                  if (v != null) Navigator.pop(ctx, v);
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: _familyOptions
-                      .map(
-                        (n) => RadioListTile<String>(
-                          value: n,
-                          groupValue: current,
-                          onChanged: (v) {
-                            if (v != null) Navigator.pop(ctx, v);
-                          },
-                          activeColor: AppColors.primary500,
-                          title: Text(n, style: AppTypography.body200.copyWith(color: AppColors.grey900)),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _familyOptions
+                    .map(
+                      (n) => ListTile(
+                        leading: Icon(
+                          n == current ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                          color: n == current ? AppColors.primary500 : AppColors.grey300,
                         ),
-                      )
-                      .toList(),
-                ),
+                        title: Text(n, style: AppTypography.body200.copyWith(color: AppColors.grey900)),
+                        onTap: () => Navigator.pop(ctx, n),
+                      ),
+                    )
+                    .toList(),
               ),
               const SizedBox(height: 16),
             ],

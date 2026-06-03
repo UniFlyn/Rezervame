@@ -137,7 +137,7 @@ class ApiRepository {
       throw Exception('Sign-in failed');
     }
     if (data is! Map) throw Exception('Sign-in failed');
-    return Map<String, dynamic>.from(data as Map);
+    return Map<String, dynamic>.from(data);
   }
 
   Future<Map<String, dynamic>> verifyAdminTwoFactor(String email, String code) async {
@@ -154,7 +154,7 @@ class ApiRepository {
       throw Exception('Invalid verification code');
     }
     if (data is! Map) throw Exception('Invalid verification code');
-    return Map<String, dynamic>.from(data as Map);
+    return Map<String, dynamic>.from(data);
   }
 
   Future<bool> checkEmailExists(String email) async {
@@ -1207,7 +1207,7 @@ class ApiRepository {
           .timeout(const Duration(seconds: 15));
       if (res.statusCode < 200 || res.statusCode >= 300) return null;
       final decoded = jsonDecode(res.body);
-      if (decoded is Map) return Map<String, dynamic>.from(decoded as Map);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
       return null;
     } catch (_) {
       return null;

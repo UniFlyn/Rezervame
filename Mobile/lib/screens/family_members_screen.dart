@@ -177,7 +177,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: gender,
+                      initialValue: gender,
                       decoration: InputDecoration(labelText: 'gender'.tr(), filled: true, fillColor: AppColors.grey25),
                       items: ['genderMale', 'genderFemale', 'genderOther']
                           .map((g) => DropdownMenuItem(value: g, child: Text(g.tr())))
@@ -290,7 +290,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: gender,
+                      initialValue: gender,
                       decoration: InputDecoration(
                         labelText: 'gender'.tr(),
                         filled: true,

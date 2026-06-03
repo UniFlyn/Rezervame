@@ -1,5 +1,3 @@
-/// Dynamic category chips from `/public/categories` (same source as home & admin).
-
 class CategoryChipOption {
   const CategoryChipOption({required this.key, required this.label});
 
