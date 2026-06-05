@@ -85,6 +85,8 @@ import {
   resolveS3ConfigFromRow,
 } from './config/system-integration.config';
 import { postmarkSendRaw } from './email/email.service';
+import { formatPostmarkError, isValidEmailAddress } from './email/postmark-errors.util';
+import { readPostmarkConfigFromEnv } from './email/postmark.config';
 import {
   generateResetCode,
   hashResetCode,
@@ -3320,8 +3322,18 @@ export class AppController {
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     const cfg = await loadMessagingConfig(this.prisma);
-    const to = (body.to || cfg.adminNotifyEmail || '').trim();
-    if (!to) throw new BadRequestException('Provide test recipient email');
+    const postmark = await resolvePostmarkConfig(this.prisma);
+    const to = (body.to || cfg.adminNotifyEmail || '').trim().toLowerCase();
+    if (!to) throw new BadRequestException('Enter a test recipient email address.');
+    if (!isValidEmailAddress(to)) {
+      throw new BadRequestException('Enter a valid email address (e.g. you@gmail.com).');
+    }
+
+    if (!postmark) {
+      throw new BadRequestException(
+        'Postmark is not configured. Add the Server API token under Settings → Email, or set POSTMARK_API_KEY on the API server.',
+      );
+    }
 
     const result = await sendEmail(
       this.prisma,
@@ -3342,11 +3354,59 @@ export class AppController {
       );
     }
 
+    const configSource = readPostmarkConfigFromEnv()?.apiKey ? 'server_env' : 'admin_settings';
+
     return {
       ...result,
       ok: true,
       provider: 'postmark',
-      message: `Test email sent via Postmark to ${to}`,
+      to,
+      from: postmark.fromEmail,
+      messageStream: postmark.messageStream,
+      configSource,
+      message: `Test email accepted by Postmark for ${to}. Check inbox and spam. Message ID: ${result.messageId || 'n/a'}`,
+    };
+  }
+
+  @Get('admin/email/recent')
+  async getAdminEmailRecent(@Headers('authorization') authorization?: string) {
+    await requireUser(this.prisma, authorization, [Role.ADMIN]);
+    const postmark = await resolvePostmarkConfig(this.prisma);
+    const configSource = readPostmarkConfigFromEnv()?.apiKey ? 'server_env' : 'admin_settings';
+    let recent: Array<{
+      id: string;
+      recipient: string;
+      subject: string | null;
+      status: string;
+      error: string | null;
+      meta: string | null;
+      createdAt: Date;
+    }> = [];
+    try {
+      recent = await this.prisma.notificationDelivery.findMany({
+        where: { channel: { in: ['email', 'email_webhook'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+        select: {
+          id: true,
+          recipient: true,
+          subject: true,
+          status: true,
+          error: true,
+          meta: true,
+          createdAt: true,
+        },
+      });
+    } catch {
+      recent = [];
+    }
+    return {
+      configured: Boolean(postmark),
+      from: postmark?.fromEmail ?? null,
+      replyTo: postmark?.replyTo ?? null,
+      messageStream: postmark?.messageStream ?? null,
+      configSource,
+      recent,
     };
   }
 

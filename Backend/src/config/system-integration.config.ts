@@ -39,16 +39,28 @@ export function resolvePostmarkConfigFromRow(
   row: SystemConfigIntegrations | null | undefined,
 ): PostmarkEnvConfig | null {
   const fromEnv = readPostmarkConfigFromEnv();
-  if (fromEnv) return fromEnv;
-  const apiKey = row?.postmarkApiKey?.trim();
+  const apiKey = fromEnv?.apiKey || row?.postmarkApiKey?.trim();
   if (!apiKey) return null;
-  const r = row!;
+
+  const r = row ?? {};
   return {
     apiKey,
-    fromEmail: r.postmarkFromEmail?.trim() || 'noreply@rezervame.com',
-    replyTo: r.postmarkReplyTo?.trim() || 'soporte@rezervame.com',
-    messageStream: r.postmarkMessageStream?.trim() || 'outbound',
-    webhookToken: r.postmarkWebhookToken?.trim() || null,
+    fromEmail:
+      r.postmarkFromEmail?.trim() ||
+      fromEnv?.fromEmail ||
+      'noreply@rezervame.com',
+    replyTo:
+      r.postmarkReplyTo?.trim() ||
+      fromEnv?.replyTo ||
+      'soporte@rezervame.com',
+    messageStream:
+      r.postmarkMessageStream?.trim() ||
+      fromEnv?.messageStream ||
+      'outbound',
+    webhookToken:
+      r.postmarkWebhookToken?.trim() ||
+      fromEnv?.webhookToken ||
+      null,
   };
 }
 

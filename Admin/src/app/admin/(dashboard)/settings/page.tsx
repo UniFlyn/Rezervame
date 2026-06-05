@@ -183,6 +183,10 @@ export default function SettingsPage() {
     updatedBy: "System Admin"
   });
   const [testEmail, setTestEmail] = useState("");
+  const [testEmailResult, setTestEmailResult] = useState<string | null>(null);
+  const [emailLog, setEmailLog] = useState<
+    Array<{ recipient: string; subject: string | null; status: string; error: string | null; createdAt: string }>
+  >([]);
   const [testPhone, setTestPhone] = useState("");
 
   useEffect(() => {
@@ -198,6 +202,27 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  async function loadEmailLog() {
+    try {
+      const data = await apiGet<{
+        recent?: Array<{
+          recipient: string;
+          subject: string | null;
+          status: string;
+          error: string | null;
+          createdAt: string;
+        }>;
+      }>("/admin/email/recent");
+      setEmailLog(Array.isArray(data.recent) ? data.recent : []);
+    } catch {
+      setEmailLog([]);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "email") void loadEmailLog();
+  }, [activeTab]);
 
   async function fetchSettings() {
     try {
@@ -271,6 +296,10 @@ export default function SettingsPage() {
         postmarkFromEmail: settings.postmarkFromEmail?.trim() || "noreply@rezervame.com",
         postmarkReplyTo: settings.postmarkReplyTo?.trim() || "soporte@rezervame.com",
         postmarkMessageStream: settings.postmarkMessageStream?.trim() || "outbound",
+        ...(settings.postmarkApiKey === "***" || !String(settings.postmarkApiKey || "").trim()
+          ? {}
+          : { postmarkApiKey: settings.postmarkApiKey }),
+        ...(settings.postmarkWebhookToken === "***" ? {} : { postmarkWebhookToken: settings.postmarkWebhookToken }),
       };
       const updated = await apiPost<any>("/admin/config", payload);
       setSettings((prev) => ({
@@ -642,20 +671,36 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-6">
-                  <input placeholder="Test email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm" />
+                  <input
+                    type="email"
+                    placeholder="you@gmail.com"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    className="flex-1 min-w-[200px] rounded-xl border px-4 py-2 text-sm"
+                  />
                   <button
                     type="button"
                     onClick={async () => {
                       try {
-                        const res = await apiPost<{ message?: string; provider?: string }>(
-                          "/admin/email/test",
-                          { to: testEmail },
-                        );
-                        toastSuccess(
-                          "Test email sent",
-                          res?.message || `Sent via ${res?.provider || "email"}. Check the inbox.`,
-                        );
+                        setTestEmailResult(null);
+                        const res = await apiPost<{
+                          message?: string;
+                          messageId?: string;
+                          from?: string;
+                          to?: string;
+                        }>("/admin/email/test", { to: testEmail.trim() });
+                        const detail = [
+                          res?.message,
+                          res?.from ? `From: ${res.from}` : "",
+                          res?.messageId ? `Postmark ID: ${res.messageId}` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
+                        setTestEmailResult(detail);
+                        toastSuccess("Test email sent", "Check inbox and spam. It can take 1–2 minutes.");
+                        void loadEmailLog();
                       } catch (e) {
+                        setTestEmailResult(null);
                         toastError("Test failed", String(e));
                       }
                     }}
@@ -664,6 +709,27 @@ export default function SettingsPage() {
                     Test email
                   </button>
                 </div>
+                {testEmailResult ? (
+                  <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                    {testEmailResult}
+                  </p>
+                ) : null}
+                {emailLog.length > 0 ? (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent email activity</p>
+                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                      {emailLog.slice(0, 8).map((row, i) => (
+                        <li key={i} className="text-xs text-slate-600 flex flex-wrap gap-x-2">
+                          <span className="font-medium text-slate-800">{row.recipient}</span>
+                          <span className={row.status === "sent" ? "text-emerald-600" : row.status === "failed" ? "text-rose-600" : "text-slate-500"}>
+                            {row.status}
+                          </span>
+                          {row.error ? <span className="text-rose-600">— {row.error}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <button onClick={() => void handleSaveEmailSettings()} disabled={isSaving} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-800 flex items-center gap-2 disabled:opacity-50">
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save email settings

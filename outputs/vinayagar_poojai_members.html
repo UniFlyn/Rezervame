@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="ta">
+<head>
+  <meta charset="utf-8" />
+  <title>Vinayagar Poojai Members List</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 900px;
+      background: #fff8e4;
+      font-family: "Tamil Sangam MN", "Tamil MN", "Noto Sans Tamil", sans-serif;
+      color: #6f1610;
+    }
+
+    @page {
+      size: 900px 1273px;
+      margin: 0;
+    }
+
+    .page {
+      position: relative;
+      width: 900px;
+      height: 1273px;
+      overflow: hidden;
+      background: #ffe1d0;
+      box-sizing: border-box;
+    }
+
+    .page + .page {
+      margin-top: 30px;
+    }
+
+    .frame {
+      position: absolute;
+      inset: 12px;
+      border: 4px solid #d91b12;
+      box-shadow:
+        inset 0 0 0 3px #ffd23b,
+        inset 0 0 0 6px #d91b12;
+      pointer-events: none;
+    }
+
+    .corner {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border: 3px solid #d91b12;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at center, #fff7bf 0 21%, #ffc82d 22% 44%, #d91b12 45% 52%, transparent 53%);
+      z-index: 2;
+    }
+
+    .corner-tl { left: 28px; top: 28px; }
+    .corner-tr { right: 28px; top: 28px; }
+    .corner-bl { left: 28px; bottom: 28px; }
+    .corner-br { right: 28px; bottom: 28px; }
+
+    .banner {
+      position: absolute;
+      left: 58px;
+      top: 34px;
+      width: 784px;
+      height: 108px;
+      border-radius: 11px;
+      background: #880000;
+      border: 4px solid #f1c13a;
+      box-sizing: border-box;
+      text-align: center;
+      color: #fff9df;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      line-height: 1.17;
+      padding: 8px 26px 10px;
+    }
+
+    .temple {
+      font-size: 25px;
+      font-weight: 700;
+      color: #fff3c4;
+      white-space: nowrap;
+    }
+
+    .place {
+      margin-top: 1px;
+      font-size: 21px;
+      font-weight: 700;
+      color: #fff3c4;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      margin-top: 5px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .page-label {
+      position: absolute;
+      right: 55px;
+      top: 156px;
+      min-width: 78px;
+      height: 24px;
+      padding: 0 8px;
+      border: 1px solid #c89f5d;
+      background: #fff7e6;
+      color: #9a0000;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 24px;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .ganesha {
+      position: absolute;
+      left: 382px;
+      top: 154px;
+      width: 136px;
+      height: 136px;
+      object-fit: cover;
+      border-radius: 50%;
+      border: 2px solid #d6a328;
+      box-shadow: 0 1px 5px rgba(103, 24, 8, 0.25);
+    }
+
+    .members {
+      position: absolute;
+      left: 44px;
+      top: 314px;
+      width: 812px;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 17px;
+      color: #6c1d15;
+      box-shadow: 0 0 0 1px #e6c283;
+    }
+
+    .members th {
+      height: 36px;
+      background: #8a0000;
+      color: #fff9df;
+      border: 1px solid #c77038;
+      font-size: 17px;
+      font-weight: 700;
+      text-align: center;
+      padding: 0 6px;
+    }
+
+    .members td {
+      height: 31px;
+      border: 1px solid #e9c98e;
+      background: #fff6df;
+      padding: 0 10px;
+      overflow: hidden;
+      white-space: nowrap;
+      vertical-align: middle;
+      box-sizing: border-box;
+    }
+
+    .members tbody tr:nth-child(even) td {
+      background: #fff0cf;
+    }
+
+    .col-serial { width: 58px; }
+    .col-family { width: 494px; }
+    .col-month { width: 172px; }
+    .col-date { width: 72px; }
+
+    .serial,
+    .date {
+      text-align: center;
+      font-weight: 700;
+      color: #b41412;
+    }
+
+    .family {
+      text-align: left;
+      font-weight: 600;
+      color: #7a2c20;
+    }
+
+    .family.long {
+      font-size: 13.8px;
+    }
+
+    .month {
+      text-align: center;
+      font-weight: 700;
+      color: var(--month-fg);
+      background: var(--month-bg) !important;
+      font-size: 14px;
+    }
+
+    .last-page-text {
+      position: absolute;
+      left: 50px;
+      right: 50px;
+      bottom: 36px;
+      height: 316px;
+      box-sizing: border-box;
+      padding: 10px 20px 12px;
+      background: #fff7de;
+      border: 2px solid #e1bd74;
+      border-radius: 8px;
+      color: #0d286f;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+    }
+
+    .info-row {
+      padding: 7px 0;
+      border-bottom: 3px dotted #c42a24;
+    }
+
+    .info-row:last-of-type {
+      border-bottom: 0;
+    }
+
+    .info-copy {
+      font-size: 16px;
+      line-height: 1.35;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .info-copy span {
+      color: #c21518;
+    }
+
+    .green .info-copy { color: #126322; }
+    .blue .info-copy { color: #10286e; }
+    .purple .info-copy { color: #8a188a; }
+
+    .thanks {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 8px;
+      height: 54px;
+      border-radius: 14px;
+      background: #950000;
+      color: #fff75d;
+      border: 2px solid #d6a328;
+      text-align: center;
+      font-size: 18px;
+      line-height: 1.25;
+      font-weight: 700;
+      padding-top: 5px;
+      box-sizing: border-box;
+    }
+
+    .thanks div {
+      color: #fff;
+      font-size: 18px;
+    }
+
+    @media print {
+      html, body {
+        width: 900px;
+        background: #ffe1d0;
+      }
+
+      .page {
+        break-after: page;
+        page-break-after: always;
+      }
+
+      .page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+
+      .page + .page {
+        margin-top: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  
+            <section class="page">
+              <div class="frame"></div>
+              <div class="corner corner-tl"></div>
+              <div class="corner corner-tr"></div>
+              <div class="corner corner-bl"></div>
+              <div class="corner corner-br"></div>
+
+              <header class="banner">
+                <div class="temple">அருள்மிகு ஸ்ரீ ஸ்வர்ண மஹா கணபதி ஆலயம்</div>
+                <div class="place">வெற்றிவேலவா நகர், இடிகரை</div>
+                <div class="subtitle">2026 – 2027 வெள்ளிக்கிழமை சிறப்பு பூஜை கட்டளையதாரர்கள் பட்டியல்</div>
+              </header>
+
+              <div class="page-label">பக்கம் 1</div>
+              <img class="ganesha" src="ganapathi_page_1.png" alt="Vinayagar" />
+
+              <table class="members">
+                <colgroup>
+                  <col class="col-serial" />
+                  <col class="col-family" />
+                  <col class="col-month" />
+                  <col class="col-date" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>எண்</th>
+                    <th>குடும்பம்</th>
+                    <th>மாதம்</th>
+                    <th>தேதி</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  
+                <tr>
+                  <td class="serial">1</td>
+                  <td class="family">திரு. பாபு - திருமதி. நந்தினி (12)</td>
+                  <td class="month" style="--month-bg: #fde8e8; --month-fg: #b91c1c;">ஜூலை 2026</td>
+                  <td class="date">3</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">2</td>
+                  <td class="family">திரு. சினோஜ் - திருமதி. ராஜேஸ்வரி (105)</td>
+                  <td class="month" style="--month-bg: #fde8e8; --month-fg: #b91c1c;">ஜூலை 2026</td>
+                  <td class="date">10</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">3</td>
+                  <td class="family">திரு. சக்திவேல் - திருமதி. பிரியா (96)</td>
+                  <td class="month" style="--month-bg: #fde8e8; --month-fg: #b91c1c;">ஜூலை 2026</td>
+                  <td class="date">17</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">4</td>
+                  <td class="family">திரு. முத்துராஜ் – திருமதி. சந்தியா (37)</td>
+                  <td class="month" style="--month-bg: #fde8e8; --month-fg: #b91c1c;">ஜூலை 2026</td>
+                  <td class="date">24</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">5</td>
+                  <td class="family">திரு. கார்த்திக் - திருமதி. ஆதிரா (ஈஷா)</td>
+                  <td class="month" style="--month-bg: #fde8e8; --month-fg: #b91c1c;">ஜூலை 2026</td>
+                  <td class="date">31</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">6</td>
+                  <td class="family">திரு. செல்லப்பாண்டியன் - திருமதி. கவிதா (102)</td>
+                  <td class="month" style="--month-bg: #dcfce7; --month-fg: #15803d;">ஆகஸ்ட் 2026</td>
+                  <td class="date">7</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">7</td>
+                  <td class="family">திரு. நடராஜ் - திருமதி. மகேஷ் (99)</td>
+                  <td class="month" style="--month-bg: #dcfce7; --month-fg: #15803d;">ஆகஸ்ட் 2026</td>
+                  <td class="date">14</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">8</td>
+                  <td class="family">திரு. உமாசங்கர் - திருமதி. நர்மதா (67)</td>
+                  <td class="month" style="--month-bg: #dcfce7; --month-fg: #15803d;">ஆகஸ்ட் 2026</td>
+                  <td class="date">21</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">9</td>
+                  <td class="family">திரு. வினோத் கண்ணன் - திருமதி. வேணி (41/1)</td>
+                  <td class="month" style="--month-bg: #dcfce7; --month-fg: #15803d;">ஆகஸ்ட் 2026</td>
+                  <td class="date">28</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">10</td>
+                  <td class="family">திரு. சரவணன் - திருமதி. சித்ரா (172)</td>
+                  <td class="month" style="--month-bg: #dbeafe; --month-fg: #1d4ed8;">செப்டம்பர் 2026</td>
+                  <td class="date">4</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">11</td>
+                  <td class="family">திரு. இளங்கோவன் - திருமதி. பத்மா (66)</td>
+                  <td class="month" style="--month-bg: #dbeafe; --month-fg: #1d4ed8;">செப்டம்பர் 2026</td>
+                  <td class="date">11</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">12</td>
+                  <td class="family">திரு. அருண் - திருமதி. டயானா (144)</td>
+                  <td class="month" style="--month-bg: #dbeafe; --month-fg: #1d4ed8;">செப்டம்பர் 2026</td>
+                  <td class="date">18</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">13</td>
+                  <td class="family">திரு. முருகேசன் - திருமதி. காஞ்சனா (101)</td>
+                  <td class="month" style="--month-bg: #dbeafe; --month-fg: #1d4ed8;">செப்டம்பர் 2026</td>
+                  <td class="date">25</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">14</td>
+                  <td class="family">திரு. சுந்தர்ராஜ் - திருமதி. சாந்தி (44)</td>
+                  <td class="month" style="--month-bg: #fef3c7; --month-fg: #b45309;">அக்டோபர் 2026</td>
+                  <td class="date">2</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">15</td>
+                  <td class="family">திரு. கார்த்திகேயன் - திருமதி. வானதி (148)</td>
+                  <td class="month" style="--month-bg: #fef3c7; --month-fg: #b45309;">அக்டோபர் 2026</td>
+                  <td class="date">9</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">16</td>
+                  <td class="family">திரு. உமாபதி (166)</td>
+                  <td class="month" style="--month-bg: #fef3c7; --month-fg: #b45309;">அக்டோபர் 2026</td>
+                  <td class="date">16</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">17</td>
+                  <td class="family">திரு. காளிதாசன் - திருமதி. உமாமகேஸ்வரி (ஈஷா)</td>
+                  <td class="month" style="--month-bg: #fef3c7; --month-fg: #b45309;">அக்டோபர் 2026</td>
+                  <td class="date">30</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">18</td>
+                  <td class="family">திரு. செல்வராஜ் - திருமதி. நவநீதா (142)</td>
+                  <td class="month" style="--month-bg: #ede9fe; --month-fg: #6d28d9;">நவம்பர் 2026</td>
+                  <td class="date">13</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">19</td>
+                  <td class="family">திரு. ஹரிநாராயணன் - திருமதி. சோமேஸ்வரி (54)</td>
+                  <td class="month" style="--month-bg: #ede9fe; --month-fg: #6d28d9;">நவம்பர் 2026</td>
+                  <td class="date">20</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">20</td>
+                  <td class="family">திரு. மனோஜ் - திருமதி. மினி (97)</td>
+                  <td class="month" style="--month-bg: #ede9fe; --month-fg: #6d28d9;">நவம்பர் 2026</td>
+                  <td class="date">27</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">21</td>
+                  <td class="family">திரு. கௌதம் - திருமதி. பார்வதி (201)</td>
+                  <td class="month" style="--month-bg: #cffafe; --month-fg: #0e7490;">டிசம்பர் 2026</td>
+                  <td class="date">4</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">22</td>
+                  <td class="family long">திரு. மீனாட்சி சுந்தரம் - திருமதி. சிவசங்கரி (42)</td>
+                  <td class="month" style="--month-bg: #cffafe; --month-fg: #0e7490;">டிசம்பர் 2026</td>
+                  <td class="date">11</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">23</td>
+                  <td class="family">திரு. ஆறுமுகம் - திருமதி. கங்கா (48)</td>
+                  <td class="month" style="--month-bg: #cffafe; --month-fg: #0e7490;">டிசம்பர் 2026</td>
+                  <td class="date">18</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">24</td>
+                  <td class="family">திரு. சுகுமாரன் - திருமதி. பங்கஜம் (104)</td>
+                  <td class="month" style="--month-bg: #cffafe; --month-fg: #0e7490;">டிசம்பர் 2026</td>
+                  <td class="date">25</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">25</td>
+                  <td class="family">திரு. பாலசுப்ரமணியம் - திருமதி. தனலட்சுமி (95)</td>
+                  <td class="month" style="--month-bg: #fce7f3; --month-fg: #be185d;">ஜனவரி 2027</td>
+                  <td class="date">1</td>
+                </tr>
+                
+                </tbody>
+              </table>
+              
+
+            </section>
+            
+            <section class="page">
+              <div class="frame"></div>
+              <div class="corner corner-tl"></div>
+              <div class="corner corner-tr"></div>
+              <div class="corner corner-bl"></div>
+              <div class="corner corner-br"></div>
+
+              <header class="banner">
+                <div class="temple">அருள்மிகு ஸ்ரீ ஸ்வர்ண மஹா கணபதி ஆலயம்</div>
+                <div class="place">வெற்றிவேலவா நகர், இடிகரை</div>
+                <div class="subtitle">2026 – 2027 வெள்ளிக்கிழமை சிறப்பு பூஜை கட்டளையதாரர்கள் பட்டியல்</div>
+              </header>
+
+              <div class="page-label">பக்கம் 2</div>
+              <img class="ganesha" src="ganapathi_page_2.png" alt="Vinayagar" />
+
+              <table class="members">
+                <colgroup>
+                  <col class="col-serial" />
+                  <col class="col-family" />
+                  <col class="col-month" />
+                  <col class="col-date" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>எண்</th>
+                    <th>குடும்பம்</th>
+                    <th>மாதம்</th>
+                    <th>தேதி</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  
+                <tr>
+                  <td class="serial">26</td>
+                  <td class="family">திரு. அஷ்வின் குமார் - திருமதி. தாரணி (65)</td>
+                  <td class="month" style="--month-bg: #fce7f3; --month-fg: #be185d;">ஜனவரி 2027</td>
+                  <td class="date">8</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">27</td>
+                  <td class="family">திரு. குணசேகரன் - திருமதி. கவிதா (ஈஷா)</td>
+                  <td class="month" style="--month-bg: #fce7f3; --month-fg: #be185d;">ஜனவரி 2027</td>
+                  <td class="date">15</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">28</td>
+                  <td class="family">திரு. ரத்தினராஜ் - திருமதி. பொன்னுத்தாய் (13)</td>
+                  <td class="month" style="--month-bg: #fce7f3; --month-fg: #be185d;">ஜனவரி 2027</td>
+                  <td class="date">22</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">29</td>
+                  <td class="family">திரு. முகுந்தன் - திருமதி. ஜோதி (175)</td>
+                  <td class="month" style="--month-bg: #fce7f3; --month-fg: #be185d;">ஜனவரி 2027</td>
+                  <td class="date">29</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">30</td>
+                  <td class="family">திரு. சுரேஷ்குமார் - திருமதி. நர்மதா (33)</td>
+                  <td class="month" style="--month-bg: #ecfccb; --month-fg: #4d7c0f;">பிப்ரவரி 2027</td>
+                  <td class="date">5</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">31</td>
+                  <td class="family">திரு. ராமசுப்பிரமணியம் - திருமதி. கற்பகம் (141)</td>
+                  <td class="month" style="--month-bg: #ecfccb; --month-fg: #4d7c0f;">பிப்ரவரி 2027</td>
+                  <td class="date">12</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">32</td>
+                  <td class="family">திரு. சேதுமாதவன் - திருமதி. ஸ்ரீதேவி (52)</td>
+                  <td class="month" style="--month-bg: #ecfccb; --month-fg: #4d7c0f;">பிப்ரவரி 2027</td>
+                  <td class="date">19</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">33</td>
+                  <td class="family">திரு. சதீஷ்குமார் (31)</td>
+                  <td class="month" style="--month-bg: #ecfccb; --month-fg: #4d7c0f;">பிப்ரவரி 2027</td>
+                  <td class="date">26</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">34</td>
+                  <td class="family">திரு. மோகன்குமார் - திருமதி. வசந்தி (154)</td>
+                  <td class="month" style="--month-bg: #fae8ff; --month-fg: #a21caf;">மார்ச் 2027</td>
+                  <td class="date">5</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">34</td>
+                  <td class="family">திரு. ஜோதிபாசு - திருமதி. அருள்செல்வகுமாரி (118)</td>
+                  <td class="month" style="--month-bg: #fae8ff; --month-fg: #a21caf;">மார்ச் 2027</td>
+                  <td class="date">12</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">36</td>
+                  <td class="family">திரு. ராஜேஷ் - திருமதி. சுமதி (78)</td>
+                  <td class="month" style="--month-bg: #fae8ff; --month-fg: #a21caf;">மார்ச் 2027</td>
+                  <td class="date">19</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">37</td>
+                  <td class="family">திரு. பிரேம்குமார் - திருமதி. கற்பகம் (41)</td>
+                  <td class="month" style="--month-bg: #fae8ff; --month-fg: #a21caf;">மார்ச் 2027</td>
+                  <td class="date">26</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">38</td>
+                  <td class="family">திரு. வினீத் - திருமதி. ஸ்ரீவித்யா (152)</td>
+                  <td class="month" style="--month-bg: #e0f2fe; --month-fg: #0369a1;">ஏப்ரல் 2027</td>
+                  <td class="date">2</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">39</td>
+                  <td class="family">திரு. சரவணன் - திருமதி. வெண்ணிலா (61)</td>
+                  <td class="month" style="--month-bg: #e0f2fe; --month-fg: #0369a1;">ஏப்ரல் 2027</td>
+                  <td class="date">9</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">40</td>
+                  <td class="family">திரு. தங்கவேல் - திருமதி. மகேஷ்வரி (202)</td>
+                  <td class="month" style="--month-bg: #e0f2fe; --month-fg: #0369a1;">ஏப்ரல் 2027</td>
+                  <td class="date">16</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">41</td>
+                  <td class="family">திரு. ஜோதிராஜ் - திருமதி. பரிமளம் (51)</td>
+                  <td class="month" style="--month-bg: #e0f2fe; --month-fg: #0369a1;">ஏப்ரல் 2027</td>
+                  <td class="date">23</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">42</td>
+                  <td class="family">திரு. மணிவாசகம் - திருமதி. பூரணி (88)</td>
+                  <td class="month" style="--month-bg: #e0f2fe; --month-fg: #0369a1;">ஏப்ரல் 2027</td>
+                  <td class="date">30</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">43</td>
+                  <td class="family">திருமதி. சுபத்ரா (40)</td>
+                  <td class="month" style="--month-bg: #ffedd5; --month-fg: #c2410c;">மே 2027</td>
+                  <td class="date">7</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">44</td>
+                  <td class="family">திரு. ஞானகுமார் - திருமதி. வைதேகி (56)</td>
+                  <td class="month" style="--month-bg: #ffedd5; --month-fg: #c2410c;">மே 2027</td>
+                  <td class="date">14</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">45</td>
+                  <td class="family">திரு. புஷ்பராஜ் - திருமதி. தங்கமணி (149)</td>
+                  <td class="month" style="--month-bg: #ffedd5; --month-fg: #c2410c;">மே 2027</td>
+                  <td class="date">21</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">46</td>
+                  <td class="family">திரு. ஆறுசாமி - திருமதி. செல்வி (217)</td>
+                  <td class="month" style="--month-bg: #ffedd5; --month-fg: #c2410c;">மே 2027</td>
+                  <td class="date">28</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">47</td>
+                  <td class="family">திரு. ராஜா (ஈஷா)</td>
+                  <td class="month" style="--month-bg: #ccfbf1; --month-fg: #0f766e;">ஜூன் 2027</td>
+                  <td class="date">4</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">48</td>
+                  <td class="family">திரு. சங்கர் - திருமதி. கோகிலா (122)</td>
+                  <td class="month" style="--month-bg: #ccfbf1; --month-fg: #0f766e;">ஜூன் 2027</td>
+                  <td class="date">11</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">49</td>
+                  <td class="family">திரு. சதீஷ் - திருமதி. லாவண்யா (27)</td>
+                  <td class="month" style="--month-bg: #ccfbf1; --month-fg: #0f766e;">ஜூன் 2027</td>
+                  <td class="date">18</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">50</td>
+                  <td class="family">திரு. பார்த்திபன் - திருமதி. வினோதா (79)</td>
+                  <td class="month" style="--month-bg: #ccfbf1; --month-fg: #0f766e;">ஜூன் 2027</td>
+                  <td class="date">25</td>
+                </tr>
+                
+                </tbody>
+              </table>
+              
+
+            </section>
+            
+            <section class="page">
+              <div class="frame"></div>
+              <div class="corner corner-tl"></div>
+              <div class="corner corner-tr"></div>
+              <div class="corner corner-bl"></div>
+              <div class="corner corner-br"></div>
+
+              <header class="banner">
+                <div class="temple">அருள்மிகு ஸ்ரீ ஸ்வர்ண மஹா கணபதி ஆலயம்</div>
+                <div class="place">வெற்றிவேலவா நகர், இடிகரை</div>
+                <div class="subtitle">2026 – 2027 வெள்ளிக்கிழமை சிறப்பு பூஜை கட்டளையதாரர்கள் பட்டியல்</div>
+              </header>
+
+              <div class="page-label">பக்கம் 3</div>
+              <img class="ganesha" src="ganapathi_page_1.png" alt="Vinayagar" />
+
+              <table class="members">
+                <colgroup>
+                  <col class="col-serial" />
+                  <col class="col-family" />
+                  <col class="col-month" />
+                  <col class="col-date" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>எண்</th>
+                    <th>குடும்பம்</th>
+                    <th>மாதம்</th>
+                    <th>தேதி</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  
+                <tr>
+                  <td class="serial">51</td>
+                  <td class="family">திரு. முனியப்பன் - திருமதி. காவேரி (165)</td>
+                  <td class="month" style="--month-bg: #f3e8ff; --month-fg: #7e22ce;">ஜூலை 2027</td>
+                  <td class="date">2</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">52</td>
+                  <td class="family">திரு. விக்னேஷ் - திருமதி. பிரியா (121)</td>
+                  <td class="month" style="--month-bg: #f3e8ff; --month-fg: #7e22ce;">ஜூலை 2027</td>
+                  <td class="date">9</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">53</td>
+                  <td class="family">திரு. ஆனந்த் - திருமதி. கவிதா (53)</td>
+                  <td class="month" style="--month-bg: #f3e8ff; --month-fg: #7e22ce;">ஜூலை 2027</td>
+                  <td class="date">16</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">54</td>
+                  <td class="family">திரு. பார்த்திபன் - திருமதி. பானு (34)</td>
+                  <td class="month" style="--month-bg: #f3e8ff; --month-fg: #7e22ce;">ஜூலை 2027</td>
+                  <td class="date">23</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">55</td>
+                  <td class="family">திரு. அபி ஆனந்த் - திருமதி. திலகா (43)</td>
+                  <td class="month" style="--month-bg: #f3e8ff; --month-fg: #7e22ce;">ஜூலை 2027</td>
+                  <td class="date">30</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">56</td>
+                  <td class="family">திருமதி. சுகந்தி (143)</td>
+                  <td class="month" style="--month-bg: #fee2e2; --month-fg: #991b1b;">ஆகஸ்ட் 2027</td>
+                  <td class="date">6</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">57</td>
+                  <td class="family">திரு. கிருஷ்ணன் - திருமதி. ராஜேஸ்வரி (158)</td>
+                  <td class="month" style="--month-bg: #fee2e2; --month-fg: #991b1b;">ஆகஸ்ட் 2027</td>
+                  <td class="date">13</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">58</td>
+                  <td class="family">திரு. ராம்பிரசாத் (160)</td>
+                  <td class="month" style="--month-bg: #fee2e2; --month-fg: #991b1b;">ஆகஸ்ட் 2027</td>
+                  <td class="date">20</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">59</td>
+                  <td class="family long">திரு. மகேந்திரன் - திருமதி. அம்பிகா (செந்தூர் ஸ்டோர்ஸ் &amp; சர்வீசஸ்)</td>
+                  <td class="month" style="--month-bg: #fee2e2; --month-fg: #991b1b;">ஆகஸ்ட் 2027</td>
+                  <td class="date">27</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">60</td>
+                  <td class="family">திரு. பாலசுப்பிரமணியன் (114)</td>
+                  <td class="month" style="--month-bg: #e7e5e4; --month-fg: #57534e;">செப்டம்பர் 2027</td>
+                  <td class="date">3</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">61</td>
+                  <td class="family">திரு. பழனிவேல் - திருமதி. செல்வலட்சுமி</td>
+                  <td class="month" style="--month-bg: #e7e5e4; --month-fg: #57534e;">செப்டம்பர் 2027</td>
+                  <td class="date">10</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">62</td>
+                  <td class="family">திரு. முத்துராசு (155)</td>
+                  <td class="month" style="--month-bg: #e7e5e4; --month-fg: #57534e;">செப்டம்பர் 2027</td>
+                  <td class="date">17</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">63</td>
+                  <td class="family">திரு. ராஜ்சுரேஷ் - திருமதி. பிருந்தா (76)</td>
+                  <td class="month" style="--month-bg: #d1fae5; --month-fg: #047857;">அக்டோபர் 2027</td>
+                  <td class="date">1</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">64</td>
+                  <td class="family">திரு. பிரகாஷ் - திருமதி. சிவசங்கரி (151)</td>
+                  <td class="month" style="--month-bg: #d1fae5; --month-fg: #047857;">அக்டோபர் 2027</td>
+                  <td class="date">8</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">65</td>
+                  <td class="family">திரு. ராஜசேகர் (110)</td>
+                  <td class="month" style="--month-bg: #d1fae5; --month-fg: #047857;">அக்டோபர் 2027</td>
+                  <td class="date">22</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">66</td>
+                  <td class="family">திரு. சந்தோஷ் - திருமதி. பூரணி (185)</td>
+                  <td class="month" style="--month-bg: #fef9c3; --month-fg: #a16207;">நவம்பர் 2027</td>
+                  <td class="date">5</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">67</td>
+                  <td class="family">திரு. ராகவேந்திரன் திருமதி. சண்முக பிரியா (74)</td>
+                  <td class="month" style="--month-bg: #fef9c3; --month-fg: #a16207;">நவம்பர் 2027</td>
+                  <td class="date">12</td>
+                </tr>
+                
+                <tr>
+                  <td class="serial">68</td>
+                  <td class="family">திரு. நந்தகுமார் - திருமதி. ஷாலினி (22)</td>
+                  <td class="month" style="--month-bg: #fef9c3; --month-fg: #a16207;">நவம்பர் 2027</td>
+                  <td class="date">19</td>
+                </tr>
+                
+                </tbody>
+              </table>
+              
+              <div class="last-page-text">
+                <div class="info-row green">
+                  <div class="info-copy">அனைவரும் தங்களால் இயன்ற பொருட்கள் மற்றும் உபயங்களுடன் இணைந்து, வெள்ளிக்கிழமை சிறப்பு பூஜையை சிறப்பாக நடத்தித் தருமாறு அன்புடன் கேட்டுக் கொள்கிறோம்.</div>
+                </div>
+                <div class="info-row blue">
+                  <div class="info-copy">மேலும், ஒவ்வொரு மாதமும் <span>1-ஆம் தேதி</span>, அந்த மாதத்திற்கான பூஜை உபயதாரர்கள் மற்றும் கட்டளையதாரர்கள் பற்றிய விவரங்கள் குழுவில் தெரிவிக்கப்படும். எனவே, தங்களது பூஜை நாளுக்கான ஏற்பாடுகளை முன்கூட்டியே திட்டமிட்டு செய்து கொள்ளலாம்.</div>
+                </div>
+                <div class="info-row purple">
+                  <div class="info-copy">இறைவன் அருளால் அனைத்து பூஜைகளும் சிறப்பாக நடைபெற அனைவரின் ஒத்துழைப்பையும் அன்புடன் வேண்டிக் கொள்கிறோம்.</div>
+                </div>
+                <div class="thanks">
+                  <div>நன்றி.</div>
+                  <strong>அருள்மிகு ஸ்ரீ ஸ்வர்ண மஹா கணபதி ஆலய நிர்வாகம்</strong>
+                </div>
+              </div>
+            
+
+            </section>
+            
+</body>
+</html>

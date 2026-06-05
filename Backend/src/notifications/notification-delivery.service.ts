@@ -1,5 +1,6 @@
 import { PrismaService } from '../prisma.service';
 import { resolvePostmarkConfig } from '../config/system-integration.config';
+import { formatPostmarkError } from '../email/postmark-errors.util';
 import { postmarkSendRaw } from '../email/email.service';
 import type { SendTemplateEmailOptions } from '../email/interfaces/email-options.interface';
 import { postmarkSendWithTemplate } from '../email/email.service';
@@ -153,7 +154,7 @@ export async function sendEmail(
     await logDelivery(prisma, 'email', recipient, subject, text || html, 'sent', undefined, result.MessageID);
     return { ok: true, messageId: result.MessageID };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = formatPostmarkError(err);
     await logDelivery(prisma, 'email', recipient, subject, text || html, 'failed', msg);
     console.error('[email:postmark-failed]', msg);
     return { ok: false, error: msg };
