@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { sendEmail } from '../notifications/notification-delivery.service';
+import { sendPlatformEmail } from '../notifications/notification-delivery.service';
 
 type PayableBooking = {
   id: string;
@@ -167,21 +167,25 @@ export async function finalizeBookingGroupPayment(
   });
 
   const biz = payableBookings[0].business;
+  const amountLabel = `$${settlement.customerTotal.toFixed(2)}`;
   if (biz?.notifyBookingEmail && biz.email) {
-    void sendEmail(
-      prisma,
-      biz.email,
-      `[Rezervame] Payment received — $${settlement.customerTotal.toFixed(2)}`,
-      `<p>A customer paid <strong>$${settlement.customerTotal.toFixed(2)}</strong> for booking(s) at ${biz.name}.</p>`,
-    );
+    void sendPlatformEmail(prisma, {
+      to: biz.email,
+      template: 'payment-received-business',
+      model: { businessName: biz.name, amount: amountLabel },
+    });
   }
   if (user.email) {
-    void sendEmail(
-      prisma,
-      user.email,
-      `[Rezervame] Payment confirmed`,
-      `<p>Your payment of <strong>$${settlement.customerTotal.toFixed(2)}</strong> was successful.</p>`,
-    );
+    void sendPlatformEmail(prisma, {
+      to: user.email,
+      template: 'payment-receipt',
+      model: {
+        userName: user.name,
+        customerName: user.name,
+        amount: amountLabel,
+        paymentMethod,
+      },
+    });
   }
 
   return {

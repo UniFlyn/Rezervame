@@ -9,7 +9,7 @@ import {
   calculateBookingSettlement,
   loadDefaultCommissionPercent,
 } from '../payments/booking-payment.util';
-import { sendEmail } from '../notifications/notification-delivery.service';
+import { sendPlatformEmail } from '../notifications/notification-delivery.service';
 
 type BookingWithBiz = Booking & { business: Business; transaction?: { id: string; status: string } | null };
 
@@ -148,22 +148,26 @@ export async function cancelBookingsForCustomer(
 
   const biz = cancellable[0].business;
   if (biz.notifyCancellationEmail && biz.email) {
-    void sendEmail(
-      prisma,
-      biz.email,
-      `[Rezervame] Booking cancelled`,
-      `<p>A customer cancelled ${cancellable.length} booking(s) at ${biz.name}.</p>`,
-    );
+    void sendPlatformEmail(prisma, {
+      to: biz.email,
+      template: 'booking-cancelled-business',
+      model: {
+        businessName: biz.name,
+        count: String(cancellable.length),
+      },
+    });
   }
 
   const userEmail = cancellable[0].user?.email;
   if (userEmail) {
-    void sendEmail(
-      prisma,
-      userEmail,
-      `[Rezervame] Your booking was cancelled`,
-      `<p>Your cancellation at ${biz.name} was processed successfully.</p>`,
-    );
+    void sendPlatformEmail(prisma, {
+      to: userEmail,
+      template: 'booking-cancelled-client',
+      model: {
+        businessName: biz.name,
+        customerName: cancellable[0].customerName || cancellable[0].user?.name,
+      },
+    });
   }
 
   return { cancelled: cancellable.length };

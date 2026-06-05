@@ -72,19 +72,16 @@ import { allocateMerchantNumber } from './merchant-number.util';
 import { PrismaService } from './prisma.service';
 import { normalizePublicImageUrl } from './storage/normalize-image-url';
 import {
-  sendEmail,
-  sendEmailWithTemplate,
+  sendPlatformEmail,
   sendSms,
   loadMessagingConfig,
 } from './notifications/notification-delivery.service';
-import { POSTMARK_TEMPLATE } from './email/email.constants';
 import {
   adminConfigWithEnvFallbacks,
   resolvePostmarkConfig,
   resolvePostmarkConfigFromRow,
   resolveS3ConfigFromRow,
 } from './config/system-integration.config';
-import { postmarkSendRaw } from './email/email.service';
 import { formatPostmarkError, isValidEmailAddress } from './email/postmark-errors.util';
 import { readPostmarkConfigFromEnv } from './email/postmark.config';
 import {
@@ -1120,13 +1117,11 @@ export class AppController {
           expiresAt,
         },
       });
-      void sendEmail(
-        this.prisma,
-        user.email,
-        '[Rezervame Admin] Sign-in verification code',
-        `<p>Your admin sign-in code is <strong>${code}</strong>. It expires in 15 minutes.</p>`,
-        `Your admin sign-in code is ${code}. It expires in 15 minutes.`,
-      );
+      void sendPlatformEmail(this.prisma, {
+        to: user.email,
+        template: 'admin-sign-in-code',
+        model: { code },
+      });
       return {
         twoFactorRequired: true,
         email: maskEmailForDisplay(user.email),
@@ -1192,6 +1187,11 @@ export class AppController {
         age: body.age ?? null,
       },
     });
+    void sendPlatformEmail(this.prisma, {
+      to: email,
+      template: 'welcome-client',
+      model: { userName: user.name, customerName: user.name },
+    }).catch(() => undefined);
     return buildAuthResponse(this.prisma, user);
   }
 
@@ -1245,25 +1245,16 @@ export class AppController {
       },
     });
 
-    const templateResult = await sendEmailWithTemplate(this.prisma, {
+    void sendPlatformEmail(this.prisma, {
       to: email,
-      templateAlias: POSTMARK_TEMPLATE.PASSWORD_RESET,
-      templateModel: {
+      template: 'password-reset',
+      model: {
         userName: user.name,
         verificationCode: code,
         resetCode: code,
         expiresIn: '15 minutes',
       },
     });
-
-    if (templateResult.skipped || !templateResult.ok) {
-      await postmarkSendRaw(this.prisma, {
-        to: email,
-        subject: 'Your Rezervame verification code',
-        htmlBody: `<p>Hi ${user.name},</p><p>Your verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>It expires in 15 minutes.</p>`,
-        textBody: `Your Rezervame verification code is ${code}. It expires in 15 minutes.`,
-      });
-    }
 
     const out: Record<string, unknown> = { ...generic };
     if (process.env.NODE_ENV !== 'production' && !(await resolvePostmarkConfig(this.prisma))) {
@@ -2356,6 +2347,14 @@ export class AppController {
           reasonText ||
           'Your REZERVAME business account is active. Log in to the business panel to manage bookings.',
         emailSubject: '[Rezervame] Business approved — you can start accepting bookings',
+        emailTemplate: 'business-approved',
+        emailModel: {
+          businessName: updated.name,
+          ownerName: updated.owner || updated.name,
+          body:
+            reasonText ||
+            'Your REZERVAME business account is active. Log in to the business panel to manage bookings.',
+        },
       });
     } else if (status === 'rejected') {
       void notifyBusinessAccount(this.prisma, updated, {
@@ -2363,6 +2362,12 @@ export class AppController {
         title: 'Business application not approved',
         body: reasonText || 'Your application was not approved at this time.',
         emailSubject: '[Rezervame] Business application update',
+        emailTemplate: 'business-rejected',
+        emailModel: {
+          businessName: updated.name,
+          ownerName: updated.owner || updated.name,
+          body: reasonText || 'Your application was not approved at this time.',
+        },
       });
     } else if (status === 'suspended') {
       void notifyBusinessAccount(this.prisma, updated, {
@@ -2370,6 +2375,12 @@ export class AppController {
         title: 'Business account suspended',
         body: reasonText || 'Your business account has been suspended. Contact support for help.',
         emailSubject: '[Rezervame] Business account suspended',
+        emailTemplate: 'business-suspended',
+        emailModel: {
+          businessName: updated.name,
+          ownerName: updated.owner || updated.name,
+          body: reasonText || 'Your business account has been suspended. Contact support for help.',
+        },
       });
     } else if (status === 'pending' && before.status !== 'pending') {
       void notifyBusinessAccount(this.prisma, updated, {
@@ -2816,21 +2827,17 @@ export class AppController {
       data: { status: next },
     });
     if (next === 'blocked' && updated.email) {
-      void sendEmail(
-        this.prisma,
-        updated.email,
-        '[Rezervame] Account suspended',
-        `<p>Hi ${updated.name},</p><p>Your Rezervame customer account has been suspended. Contact support if you believe this is a mistake.</p>`,
-        `Hi ${updated.name}, your Rezervame account has been suspended.`,
-      );
+      void sendPlatformEmail(this.prisma, {
+        to: updated.email,
+        template: 'account-suspended',
+        model: { userName: updated.name },
+      });
     } else if (next === 'active' && updated.email) {
-      void sendEmail(
-        this.prisma,
-        updated.email,
-        '[Rezervame] Account reactivated',
-        `<p>Hi ${updated.name},</p><p>Your Rezervame customer account is active again. You can sign in and book appointments.</p>`,
-        `Hi ${updated.name}, your Rezervame account is active again.`,
-      );
+      void sendPlatformEmail(this.prisma, {
+        to: updated.email,
+        template: 'account-reactivated',
+        model: { userName: updated.name },
+      });
     }
     return { ok: true, id: updated.id, status: updated.status };
   }
@@ -2852,13 +2859,16 @@ export class AppController {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/\n/g, '<br/>');
-    return sendEmail(
-      this.prisma,
-      target.email,
-      subject.startsWith('[') ? subject : `[Rezervame] ${subject}`,
-      `<p>${safe}</p>`,
-      message,
-    );
+    return sendPlatformEmail(this.prisma, {
+      to: target.email,
+      template: 'admin-user-message',
+      subject: subject.startsWith('[') ? subject : `[Rezervame] ${subject}`,
+      model: {
+        userName: target.name,
+        subject: subject.startsWith('[') ? subject : `[Rezervame] ${subject}`,
+        message: safe,
+      },
+    });
   }
 
   @Delete('admin/users/:id')
@@ -3259,12 +3269,15 @@ export class AppController {
       include: { business: true, user: true },
     });
     if (ticket.requesterEmail) {
-      void sendEmail(
-        this.prisma,
-        ticket.requesterEmail,
-        `[Rezervame] Ticket ${ticket.ticketRef} — ${status}`,
-        `<p>Your support ticket <strong>${ticket.ticketRef}</strong> is now <strong>${status}</strong>.</p>`,
-      );
+      void sendPlatformEmail(this.prisma, {
+        to: ticket.requesterEmail,
+        template: 'support-ticket-update',
+        model: {
+          ticketRef: ticket.ticketRef,
+          status,
+          message: `Your support ticket ${ticket.ticketRef} is now ${status}.`,
+        },
+      });
     }
     return mapSupportTicketRow(ticket);
   }
@@ -3335,13 +3348,11 @@ export class AppController {
       );
     }
 
-    const result = await sendEmail(
-      this.prisma,
+    const result = await sendPlatformEmail(this.prisma, {
       to,
-      '[Rezervame] Test email',
-      '<p>This is a test message from <strong>Rezervame Admin</strong>.</p><p>If you received this, outbound email is working.</p>',
-      'This is a test message from Rezervame Admin. If you received this, outbound email is working.',
-    );
+      template: 'admin-test',
+      model: {},
+    });
 
     if (!result.ok && !result.skipped) {
       throw new BadRequestException(
@@ -5642,12 +5653,34 @@ export class AppController {
       },
     });
 
+    const dateLabel = date.toLocaleDateString('es-PA', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const timeLabel = date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
+    const bookingCode = `RZV-${date.getFullYear()}-${booking.id.slice(0, 4).toUpperCase()}`;
+    const bookingModel = {
+      customerName,
+      userName: user.name,
+      businessName: business.name,
+      serviceName: service.name,
+      date: dateLabel,
+      time: timeLabel,
+      address: business.address || '',
+      paymentMethod,
+      bookingCode,
+    };
+
     void notifyCustomerUser(this.prisma, user, {
       type: autoApproved ? 'BOOKING_APPROVED' : 'BOOKING_CREATED',
       title: autoApproved ? 'Booking confirmed' : 'Booking request submitted',
       body: autoApproved
         ? `Your appointment at ${business.name} is confirmed. You can complete payment when ready.`
         : `Your appointment request at ${business.name} was submitted and is pending approval.`,
+      emailTemplate: autoApproved ? 'booking-confirmation' : 'booking-request-sent',
+      emailModel: bookingModel,
     });
 
     void notifyPlatformAdmins(this.prisma, {
@@ -5660,32 +5693,14 @@ export class AppController {
     void notifyBusinessAccount(this.prisma, business, {
       type: 'BOOKING_CREATED',
       title: autoApproved ? 'New confirmed booking' : 'New booking request',
-      body: `${customerName} — ${service.name} on ${date.toLocaleString()}.`,
+      body: `${customerName} — ${service.name} on ${dateLabel} at ${timeLabel}.`,
       emailSubject: autoApproved
         ? `[Rezervame] New confirmed booking`
         : `[Rezervame] New booking request`,
+      emailTemplate: autoApproved ? 'booking-confirmation' : 'booking-request-sent',
+      emailModel: { ...bookingModel, customerName, userName: business.owner || business.name },
+      sendEmail: business.notifyBookingEmail !== false,
     });
-
-    if (business.notifyBookingEmail && business.email) {
-      void sendEmail(
-        this.prisma,
-        business.email,
-        autoApproved ? `[Rezervame] New confirmed booking` : `[Rezervame] New booking request`,
-        autoApproved
-          ? `<p><strong>${customerName}</strong> booked <strong>${service.name}</strong> on ${date.toLocaleString()} (auto-confirmed).</p><p>Preferred payment: ${paymentMethod}</p>`
-          : `<p><strong>${customerName}</strong> requested <strong>${service.name}</strong> on ${date.toLocaleString()}.</p><p>Preferred payment: ${paymentMethod}</p>`,
-      );
-    }
-    if (user.email) {
-      void sendEmail(
-        this.prisma,
-        user.email,
-        autoApproved ? `[Rezervame] Booking confirmed` : `[Rezervame] Booking request sent`,
-        autoApproved
-          ? `<p>Your appointment at <strong>${business.name}</strong> is confirmed. You can pay from your reservations when ready.</p>`
-          : `<p>Your request at <strong>${business.name}</strong> was submitted and is pending approval.</p>`,
-      );
-    }
 
     return booking;
   }
@@ -6247,10 +6262,10 @@ export class AppController {
       emailSubject: '[Rezervame] We received your business registration',
     });
 
-    void sendEmailWithTemplate(this.prisma, {
+    void sendPlatformEmail(this.prisma, {
       to: email,
-      templateAlias: POSTMARK_TEMPLATE.WELCOME_BUSINESS,
-      templateModel: {
+      template: 'welcome-business',
+      model: {
         businessName: name,
         ownerName: owner,
         nextSteps:

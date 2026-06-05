@@ -1,6 +1,6 @@
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { loadMessagingConfig, sendEmail } from './notification-delivery.service';
+import { loadMessagingConfig, sendPlatformEmail } from './notification-delivery.service';
 import {
   notificationUrlForType,
   sendWebPushToRole,
@@ -73,20 +73,32 @@ export async function notifyPlatformAdmins(
   const to = cfg.adminNotifyEmail?.trim();
   if (!to || !cfg.notifyNewTicketEmail) return;
 
-  void sendEmail(
-    prisma,
+  void sendPlatformEmail(prisma, {
     to,
-    input.emailSubject || `[Rezervame Admin] ${input.title}`,
-    `<p>${input.body}</p><p>Review in the Rezervame Admin panel.</p>`,
-    input.body,
-  );
+    template: 'generic-notification',
+    subject: input.emailSubject || `[Rezervame Admin] ${input.title}`,
+    model: {
+      recipientName: 'Admin',
+      title: input.title,
+      body: `${input.body} Review in the Rezervame Admin panel.`,
+      ctaUrl: 'https://rezervame-admin.web.app/admin/notifications',
+      ctaLabel: 'Open Admin',
+    },
+  });
 }
 
 /** Customer (Web / mobile) — in-app + optional email. */
 export async function notifyCustomerUser(
   prisma: PrismaService,
-  user: { id: string; email?: string | null; phone?: string | null },
-  input: { type: string; title: string; body: string; emailSubject?: string },
+  user: { id: string; name?: string | null; email?: string | null; phone?: string | null },
+  input: {
+    type: string;
+    title: string;
+    body: string;
+    emailSubject?: string;
+    emailTemplate?: import('../email/render-platform-email.util').PlatformEmailTemplate;
+    emailModel?: Record<string, unknown>;
+  },
 ): Promise<void> {
   await createInAppNotification(prisma, {
     type: input.type,
@@ -97,13 +109,18 @@ export async function notifyCustomerUser(
   });
 
   if (user.email?.trim()) {
-    void sendEmail(
-      prisma,
-      user.email,
-      input.emailSubject || `[Rezervame] ${input.title}`,
-      `<p>${input.body}</p>`,
-      input.body,
-    );
+    void sendPlatformEmail(prisma, {
+      to: user.email,
+      template: input.emailTemplate || 'generic-notification',
+      subject: input.emailSubject || `[Rezervame] ${input.title}`,
+      model: {
+        recipientName: user.name || 'there',
+        userName: user.name || 'there',
+        title: input.title,
+        body: input.body,
+        ...(input.emailModel || {}),
+      },
+    });
   }
 }
 
@@ -111,7 +128,15 @@ export async function notifyCustomerUser(
 export async function notifyBusinessAccount(
   prisma: PrismaService,
   business: { email: string; owner?: string | null; name: string; phone?: string | null },
-  input: { type: string; title: string; body: string; emailSubject?: string },
+  input: {
+    type: string;
+    title: string;
+    body: string;
+    emailSubject?: string;
+    emailTemplate?: import('../email/render-platform-email.util').PlatformEmailTemplate;
+    emailModel?: Record<string, unknown>;
+    sendEmail?: boolean;
+  },
 ): Promise<void> {
   const email = business.email.trim().toLowerCase();
   const ownerUser = await prisma.user.findFirst({
@@ -127,13 +152,22 @@ export async function notifyBusinessAccount(
     userId: ownerUser?.id ?? null,
   });
 
-  void sendEmail(
-    prisma,
-    email,
-    input.emailSubject || `[Rezervame] ${input.title}`,
-    `<p>Hi ${business.owner || business.name},</p><p>${input.body}</p>`,
-    input.body,
-  );
+  if (input.sendEmail !== false) {
+    void sendPlatformEmail(prisma, {
+      to: email,
+      template: input.emailTemplate || 'generic-notification',
+      subject: input.emailSubject || `[Rezervame] ${input.title}`,
+      model: {
+        recipientName: business.owner || business.name,
+        ownerName: business.owner || business.name,
+        businessName: business.name,
+        title: input.title,
+        body: input.body,
+        subject: input.emailSubject || `[Rezervame] ${input.title}`,
+        ...(input.emailModel || {}),
+      },
+    });
+  }
 }
 
 /** Admin broadcast → all users or all businesses (existing BROADCAST type). */

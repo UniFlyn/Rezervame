@@ -1,6 +1,10 @@
 import { PrismaService } from '../prisma.service';
 import { resolvePostmarkConfig } from '../config/system-integration.config';
 import { formatPostmarkError } from '../email/postmark-errors.util';
+import {
+  renderPlatformEmail,
+  type PlatformEmailTemplate,
+} from '../email/render-platform-email.util';
 import { postmarkSendRaw } from '../email/email.service';
 import type { SendTemplateEmailOptions } from '../email/interfaces/email-options.interface';
 import { postmarkSendWithTemplate } from '../email/email.service';
@@ -117,6 +121,35 @@ export async function sendEmailWithTemplate(
   }
 }
 
+export async function sendPlatformEmail(
+  prisma: PrismaService,
+  options: {
+    to: string;
+    template: PlatformEmailTemplate;
+    model?: Record<string, unknown>;
+    subject?: string;
+  },
+): Promise<{ ok: boolean; skipped?: boolean; error?: string; messageId?: string }> {
+  const to = options.to.trim();
+  if (!to) return { ok: false, error: 'Missing recipient' };
+
+  const model = options.model ?? {};
+  const rendered = renderPlatformEmail(options.template, model);
+  const subject = options.subject?.trim() || rendered.subject;
+
+  const templateResult = await sendEmailWithTemplate(prisma, {
+    to,
+    templateAlias: rendered.postmarkAlias,
+    templateModel: model,
+  });
+
+  if (templateResult.ok && !templateResult.skipped && templateResult.messageId) {
+    return templateResult;
+  }
+
+  return sendEmail(prisma, to, subject, rendered.html, rendered.text);
+}
+
 export async function sendEmail(
   prisma: PrismaService,
   to: string,
@@ -217,12 +250,20 @@ export async function notifyAdminNewTicket(
   const summary = `New support ticket ${ticket.ticketRef}: ${ticket.subject} (${ticket.category}) from ${ticket.requesterName}`;
 
   if (cfg.notifyNewTicketEmail && adminEmail) {
-    await sendEmail(
+    await sendPlatformEmail(
       prisma,
-      adminEmail,
-      `[Rezervame] ${ticket.ticketRef} — ${ticket.subject}`,
-      `<p>${summary}</p><p>Review in Admin → Support.</p>`,
-      summary,
+      {
+        to: adminEmail,
+        template: 'generic-notification',
+        subject: `[Rezervame] ${ticket.ticketRef} — ${ticket.subject}`,
+        model: {
+          recipientName: 'Admin',
+          title: `New support ticket ${ticket.ticketRef}`,
+          body: summary,
+          ctaUrl: 'https://rezervame-admin.web.app/admin/notifications',
+          ctaLabel: 'View ticket',
+        },
+      },
     );
   }
 
@@ -239,13 +280,15 @@ export async function notifyUserTicketUpdate(
   message: string,
 ): Promise<void> {
   if (email) {
-    await sendEmail(
-      prisma,
-      email,
-      `[Rezervame] Update on ${ticketRef}`,
-      `<p>${message}</p>`,
-      message,
-    );
+    await sendPlatformEmail(prisma, {
+      to: email,
+      template: 'support-ticket-update',
+      model: {
+        ticketRef,
+        status: 'update',
+        message,
+      },
+    });
   }
   if (phone) {
     await sendSms(prisma, phone, `${ticketRef}: ${message}`.slice(0, 300));

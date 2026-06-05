@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { POSTMARK_TEMPLATE } from './email.constants';
-import { EmailService } from './email.service';
+import { sendPlatformEmail } from '../notifications/notification-delivery.service';
+import { resolvePostmarkConfig } from '../config/system-integration.config';
 
 const REMINDER_STATUSES = ['Approved', 'Paid', 'Rescheduled'];
 
@@ -26,17 +26,18 @@ function formatTime(date: Date): string {
 export class BookingReminderService {
   private readonly logger = new Logger(BookingReminderService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly emailService: EmailService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async isConfigured(): Promise<boolean> {
+    return Boolean(await resolvePostmarkConfig(this.prisma));
+  }
 
   /**
    * Send 24h and 1h reminders. Call from Render cron or future BullMQ worker.
    * Requires migration `reminderSent24h` / `reminderSent1h` on Booking.
    */
   async processDueReminders(): Promise<{ sent24h: number; sent1h: number; skipped: boolean }> {
-    if (!(await this.emailService.isConfigured())) {
+    if (!(await this.isConfigured())) {
       return { sent24h: 0, sent1h: 0, skipped: true };
     }
 
@@ -68,10 +69,10 @@ export class BookingReminderService {
       const email = b.user.email?.trim();
       if (!email) continue;
       try {
-        await this.emailService.sendWithTemplate({
+        await sendPlatformEmail(this.prisma, {
           to: email,
-          templateAlias: POSTMARK_TEMPLATE.BOOKING_REMINDER_24H,
-          templateModel: {
+          template: 'booking-reminder-24h',
+          model: {
             customerName: b.customerName || b.user.name,
             bookingCode: bookingCode(b.id, b.date),
             businessName: b.business.name,
@@ -114,10 +115,10 @@ export class BookingReminderService {
       const email = b.user.email?.trim();
       if (!email) continue;
       try {
-        await this.emailService.sendWithTemplate({
+        await sendPlatformEmail(this.prisma, {
           to: email,
-          templateAlias: POSTMARK_TEMPLATE.BOOKING_REMINDER_1H,
-          templateModel: {
+          template: 'booking-reminder-1h',
+          model: {
             customerName: b.customerName || b.user.name,
             bookingCode: bookingCode(b.id, b.date),
             businessName: b.business.name,
