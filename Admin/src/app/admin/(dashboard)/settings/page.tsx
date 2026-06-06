@@ -398,6 +398,24 @@ export default function SettingsPage() {
     yappy: false,
   };
 
+  const checkoutGatewayLabels = [
+    settings.wompiEnabled !== false && settings.cardPayEnabled !== false
+      ? "Card (Wompi)"
+      : null,
+    settings.yappyEnabled ? "Yappy" : null,
+    settings.cashPayEnabled !== false ? "Pay by visit" : null,
+  ].filter(Boolean) as string[];
+
+  const checkoutReadyLabels = [
+    integration.wompi &&
+    settings.wompiEnabled !== false &&
+    settings.cardPayEnabled !== false
+      ? "Card (Wompi)"
+      : null,
+    integration.yappy && settings.yappyEnabled ? "Yappy" : null,
+    settings.cashPayEnabled !== false ? "Pay by visit" : null,
+  ].filter(Boolean) as string[];
+
   const tabs = [
     { id: "general", name: "General", icon: Settings },
     { id: "security", name: "Security", icon: Lock },
@@ -746,6 +764,31 @@ export default function SettingsPage() {
                   <StatusPill ok={integration.wompi} label="Wompi (cards)" />
                   <StatusPill ok={integration.yappy} label="Yappy" />
                 </div>
+                <p className="text-xs text-slate-500">
+                  &quot;Not set&quot; means credentials are missing or invalid. Enabled gateways only appear in checkout after keys are saved below.
+                </p>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-2">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                      Enabled in admin
+                    </p>
+                    <p className="text-sm font-bold text-slate-800">
+                      {checkoutGatewayLabels.length > 0
+                        ? checkoutGatewayLabels.join(" · ")
+                        : "None"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                      Selectable at checkout
+                    </p>
+                    <p className="text-sm font-bold text-slate-800">
+                      {checkoutReadyLabels.length > 0
+                        ? checkoutReadyLabels.join(" · ")
+                        : "None — add gateway credentials below"}
+                    </p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <SettingsCheckbox
                     label="Enable Wompi (cards)"
@@ -771,6 +814,7 @@ export default function SettingsPage() {
                       mono
                       value={settings.wompiPublicKey || ""}
                       placeholder="pub_test_..."
+                      hint="Wompi public key (starts with pub_). Do not use an email address here."
                       onChange={(v) => setSettings({ ...settings, wompiPublicKey: v })}
                     />
                     <SettingsInput

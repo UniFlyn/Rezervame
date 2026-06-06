@@ -357,7 +357,11 @@ function ProfileContent() {
         const cfg = normalizePublicPaymentConfig(raw);
         setDefaultCommission(cfg.defaultCommission);
         const selectable = selectablePaymentMethods(cfg.methods);
-        if (selectable.length > 0) {
+        const visible = cfg.methods.filter((m) => m.enabled);
+        if (visible.length > 0) {
+          setPaymentMethods(visible);
+          setPayMethod(pickDefaultPaymentMethod(cfg.methods));
+        } else if (selectable.length > 0) {
           setPaymentMethods(selectable);
           setPayMethod(pickDefaultPaymentMethod(cfg.methods));
         }
@@ -1903,7 +1907,7 @@ function ProfileContent() {
                                 <button
                                   key={m.id}
                                   type="button"
-                                  disabled={!m.enabled}
+                                  disabled={!m.configured}
                                   onClick={() => setPayMethod(m.id as "wompi" | "yappy" | "pay_at_venue")}
                                   className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                                     payMethod === m.id ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"

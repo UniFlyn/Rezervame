@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { apiGet } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { apiGet, ApiUnauthorizedError } from "@/lib/api";
 import { PageLoader } from "@/components/admin/AppLoader";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -16,23 +15,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     async function run() {
       const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
-      const isLogin = pathname === "/admin/login";
 
       if (!token) {
-        if (!isLogin) router.replace("/admin/login");
-        if (!cancelled) setReady(true);
+        router.replace("/admin/login");
         return;
       }
 
       try {
         await apiGet<{ role: string }>("/auth/admin-session");
-        if (cancelled) return;
-        if (isLogin) router.replace("/admin/dashboard");
-        else setReady(true);
-      } catch {
-        if (typeof window !== "undefined") localStorage.removeItem("admin_token");
-        if (!isLogin) router.replace("/admin/login");
         if (!cancelled) setReady(true);
+      } catch (err) {
+        if (err instanceof ApiUnauthorizedError) return;
+        if (typeof window !== "undefined") localStorage.removeItem("admin_token");
+        router.replace("/admin/login");
       }
     }
 
@@ -40,7 +35,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+  }, [router]);
 
   if (!ready) {
     return <PageLoader label="Loading…" />;

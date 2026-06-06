@@ -1,10 +1,4 @@
 import type { SearchVenueRow } from '@/lib/venueSearch';
-import {
-  PARTNER_BUSINESS_TYPES,
-  partnerTypeTileImage,
-  searchCategoryParamForPartnerType,
-} from '@/lib/partnerBusinessTypes';
-
 const FEATURED_TARGET = 5;
 const TOP_TARGET = 6;
 
@@ -15,8 +9,7 @@ export function isDiscoveryPlaceholderBusinessId(id: string): boolean {
 }
 
 export function searchCategoryForDiscoveryPlaceholder(businessId: string): string {
-  const typeId = businessId.slice(DISCOVERY_PLACEHOLDER_PREFIX.length);
-  return searchCategoryParamForPartnerType(typeId);
+  return businessId.slice(DISCOVERY_PLACEHOLDER_PREFIX.length);
 }
 
 function dedupeByBusinessId(venues: SearchVenueRow[]): SearchVenueRow[] {
@@ -81,44 +74,10 @@ function fillToCount(
   return out.slice(0, target);
 }
 
-/** Shuffled category tiles used when the live catalog cannot fill a home section. */
-export function buildHomeDiscoveryPlaceholders(seed: string): SearchVenueRow[] {
-  const types = shuffledArray([...PARTNER_BUSINESS_TYPES], seed);
-  return types.map((type, index) => {
-    const businessId = `${DISCOVERY_PLACEHOLDER_PREFIX}${type.id}`;
-    const img = partnerTypeTileImage(type);
-    const rating = 4.4 + (index % 6) * 0.1;
-    const reviews = 12 + ((index * 17) % 88);
-    const price = 18 + ((index * 11) % 72);
-    return {
-      id: businessId,
-      businessId,
-      name: type.primaryCategoryKey,
-      category: type.primaryCategoryKey,
-      categoryKey: type.primaryCategoryKey,
-      rating,
-      reviews,
-      price,
-      img,
-      lat: 0,
-      lng: 0,
-      popular: false,
-      locationLabel: '',
-      distanceLabel: '',
-      serviceName: type.primaryCategoryKey,
-      serviceDurationMinutes: 45,
-      imageUrl: img,
-      bannerUrl: img,
-      isDiscoveryPlaceholder: true,
-      placeholderLabelKey: type.labelKey,
-    };
-  });
-}
-
 /**
  * Featured = highest-rated venues (up to 5).
  * Top services = most-reviewed venues (up to 6), preferring businesses not in Featured.
- * Backfill from shuffled real venues, then discovery placeholders so sections are never empty.
+ * Backfill only from shuffled real venues so an empty database shows a real empty state.
  */
 export function splitHomeFeaturedAndTopServices(
   venues: SearchVenueRow[],
@@ -127,17 +86,12 @@ export function splitHomeFeaturedAndTopServices(
   featured: SearchVenueRow[];
   topServices: SearchVenueRow[];
 } {
-  const placeholders = buildHomeDiscoveryPlaceholders(`${seed}-ph`);
   const unique = dedupeByBusinessId(venues);
 
   if (unique.length === 0) {
     return {
-      featured: fillToCount([], placeholders, FEATURED_TARGET),
-      topServices: fillToCount(
-        [],
-        shuffledVenues(placeholders, `${seed}-top-ph`),
-        TOP_TARGET,
-      ),
+      featured: [],
+      topServices: [],
     };
   }
 
@@ -168,7 +122,7 @@ export function splitHomeFeaturedAndTopServices(
   if (featured.length < featuredTarget) {
     featured = fillToCount(
       featured,
-      shuffledVenues([...byRating, ...placeholders], `${seed}-feat-fallback`),
+      shuffledVenues(byRating, `${seed}-feat-fallback`),
       featuredTarget,
     );
   }
@@ -176,7 +130,7 @@ export function splitHomeFeaturedAndTopServices(
   if (topServices.length < TOP_TARGET) {
     topServices = fillToCount(
       topServices,
-      shuffledVenues([...byReviews, ...placeholders], `${seed}-top-ph-fill`),
+      shuffledVenues(byReviews, `${seed}-top-fill`),
       TOP_TARGET,
     );
   }

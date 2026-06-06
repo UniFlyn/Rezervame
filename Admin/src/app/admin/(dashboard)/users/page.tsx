@@ -11,7 +11,7 @@ import {
   Mail,
   Trash2,
 } from "lucide-react";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, ApiUnauthorizedError } from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
 import TablePagination from "@/components/admin/TablePagination";
 import { OverlayLoader } from "@/components/admin/OverlayLoader";
@@ -55,6 +55,8 @@ type UserRow = {
 export default function UsersPage() {
   const [usersData, setUsersData] = useState<UserRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -76,6 +78,7 @@ export default function UsersPage() {
         page: String(page),
         limit: String(pageSize),
         search: searchTerm,
+        status: statusFilter,
       });
       const response = await apiGet<{ data: UserRow[]; total: number; totalPages: number }>(
         `/admin/users?${query.toString()}`,
@@ -84,6 +87,7 @@ export default function UsersPage() {
       setTotalItems(response.total);
       setTotalPages(response.totalPages);
     } catch (err) {
+      if (err instanceof ApiUnauthorizedError) return;
       console.error("Failed to fetch users", err);
       toastError("Could not load users", err instanceof Error ? err.message : "");
     } finally {
@@ -96,11 +100,11 @@ export default function UsersPage() {
       void fetchUsers();
     }, 300);
     return () => clearTimeout(debounceTimer);
-  }, [page, searchTerm]);
+  }, [page, searchTerm, statusFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     if (!menuUserId) return;
@@ -205,12 +209,43 @@ export default function UsersPage() {
           </div>
           <button
             type="button"
+            onClick={() => setShowFilters((open) => !open)}
+            aria-expanded={showFilters}
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
             title="Filters"
           >
             <Filter className="w-5 h-5" />
           </button>
         </div>
+        {showFilters ? (
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-4 py-3">
+            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Status
+            </span>
+            {[
+              { label: "All", value: "all" },
+              { label: "Active", value: "active" },
+              { label: "Blocked", value: "blocked" },
+            ].map((option) => {
+              const selected = statusFilter === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setStatusFilter(option.value)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition",
+                    selected
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                  )}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">

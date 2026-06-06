@@ -2,6 +2,13 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ||
   'https://rezervame.onrender.com/api';
 
+export class ApiUnauthorizedError extends Error {
+  constructor() {
+    super('Invalid or missing session');
+    this.name = 'ApiUnauthorizedError';
+  }
+}
+
 async function errorBodySnippet(res: Response): Promise<string> {
   try {
     const text = await res.text();
@@ -22,12 +29,31 @@ function adminHeaders(): Record<string, string> {
   return h;
 }
 
+function clearAdminSessionAndRedirect(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('admin_token');
+  const path = window.location.pathname || '';
+  if (!path.startsWith('/admin/login')) {
+    window.location.replace('/admin/login');
+  }
+}
+
+async function assertOk(res: Response, method: string, path: string): Promise<void> {
+  if (res.status === 401) {
+    clearAdminSessionAndRedirect();
+    throw new ApiUnauthorizedError();
+  }
+  if (!res.ok) {
+    throw new Error(`${method} ${path} failed (${res.status}): ${await errorBodySnippet(res)}`);
+  }
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: adminHeaders(),
     cache: 'no-store',
   });
-  if (!res.ok) throw new Error(`GET ${path} failed (${res.status}): ${await errorBodySnippet(res)}`);
+  await assertOk(res, 'GET', path);
   return res.json() as Promise<T>;
 }
 
@@ -47,7 +73,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...adminHeaders() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`POST ${path} failed (${res.status}): ${await errorBodySnippet(res)}`);
+  await assertOk(res, 'POST', path);
   return res.json() as Promise<T>;
 }
 
@@ -56,7 +82,7 @@ export async function apiDelete(path: string): Promise<void> {
     method: 'DELETE',
     headers: adminHeaders(),
   });
-  if (!res.ok) throw new Error(`DELETE ${path} failed (${res.status}): ${await errorBodySnippet(res)}`);
+  await assertOk(res, 'DELETE', path);
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
@@ -65,7 +91,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...adminHeaders() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`PATCH ${path} failed (${res.status}): ${await errorBodySnippet(res)}`);
+  await assertOk(res, 'PATCH', path);
   return res.json() as Promise<T>;
 }
 
@@ -75,6 +101,6 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...adminHeaders() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`PUT ${path} failed (${res.status}): ${await errorBodySnippet(res)}`);
+  await assertOk(res, 'PUT', path);
   return res.json() as Promise<T>;
 }

@@ -58,6 +58,7 @@ export default function BusinessBookingsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasLoadedBookings, setHasLoadedBookings] = useState(false);
   const pageSize = 10;
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [staffList, setStaffList] = useState<any[]>([]);
@@ -137,6 +138,7 @@ export default function BusinessBookingsPage() {
       } catch (err) {
         console.error("Failed to fetch bookings", err);
       } finally {
+        setHasLoadedBookings(true);
         setIsLoading(false);
       }
     };
@@ -298,9 +300,15 @@ export default function BusinessBookingsPage() {
                   <td colSpan={6} className="px-8 py-20 text-center">
                     <div className="flex flex-col items-center gap-4">
                       <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center border border-slate-100">
-                        <AlertCircle className="w-8 h-8 text-slate-300" />
+                        {!hasLoadedBookings || isLoading ? (
+                          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                        ) : (
+                          <AlertCircle className="w-8 h-8 text-slate-300" />
+                        )}
                       </div>
-                      <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No bookings found.</p>
+                      <p className="text-sm font-black text-slate-400 uppercase tracking-widest">
+                        {!hasLoadedBookings || isLoading ? "Loading bookings..." : "No bookings found."}
+                      </p>
                     </div>
                   </td>
                 </tr>
@@ -312,7 +320,9 @@ export default function BusinessBookingsPage() {
         {/* Pagination */}
         <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-             Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalItems)} of {totalItems} entries
+             {totalItems > 0
+               ? `Showing ${(page - 1) * pageSize + 1} to ${Math.min(page * pageSize, totalItems)} of ${totalItems} entries`
+               : "Showing 0 to 0 of 0 entries"}
            </p>
            <div className="flex gap-2">
               <button 

@@ -21,11 +21,9 @@ import { useI18n } from "@/components/I18nProvider";
 import { parseAvailability } from "@/lib/staffAvailability";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
 import {
-  bookingConfirmationToSearchParams,
-  saveBookingConfirmation,
+  navigateToBookingConfirmation,
   type BookingConfirmationPayload,
 } from "@/lib/bookingConfirmation";
-import { BookingConfirmationView } from "@/components/BookingConfirmationView";
 import {
   normalizePublicPaymentConfig,
   pickDefaultPaymentMethod,
@@ -83,8 +81,7 @@ type Step =
   | "STAFF_LIST"
   | "PROFESSIONAL_DETAIL"
   | "CHECKOUT_PREVIEW"
-  | "SERVICE_PICKER"
-  | "CONFIRMATION";
+  | "SERVICE_PICKER";
 
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -229,7 +226,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   const { t, language } = useI18n();
   const dateLocale = "en-US";
   const [step, setStep] = useState<Step>("SCHEDULE");
-  const [confirmationData, setConfirmationData] = useState<BookingConfirmationPayload | null>(null);
   const [dayOffset, setDayOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [selectedTime, setSelectedTime] = useState<string>("10:30 AM");
@@ -300,12 +296,13 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       void apiGet<Record<string, unknown>>("/public/payment-config")
         .then((raw) => {
           const cfg = normalizePublicPaymentConfig(raw);
-          if (cfg.methods.length > 0) {
+          const visible = cfg.methods.filter((m) => m.enabled);
+          if (visible.length > 0) {
             setPayMethods(
-              cfg.methods.map((m) => ({
+              visible.map((m) => ({
                 id: m.id,
                 label: m.label,
-                enabled: m.enabled && m.configured,
+                enabled: m.configured,
               })),
             );
             setCheckoutPayTab(pickDefaultPaymentMethod(cfg.methods) as CheckoutPaymentId);
@@ -541,12 +538,8 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         paid: autoApproval && !isCashCheckout,
       };
 
-      saveBookingConfirmation(confirmationPayload);
       onBookingSuccess?.();
-      setConfirmationData(confirmationPayload);
-      setStep("CONFIRMATION");
-      const sp = bookingConfirmationToSearchParams(confirmationPayload);
-      window.history.replaceState(null, "", `/reservations/confirmation?${sp.toString()}`);
+      navigateToBookingConfirmation(confirmationPayload);
     } catch (e) {
       toastError(
         "Booking failed",
@@ -595,34 +588,9 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     return eligible.length === 0 && venueData.team.length > 0;
   }, [activeCartIndexForChange, venueData.team, selectedServiceIds]);
 
-  useEffect(() => {
-    if (step !== "CONFIRMATION") return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [step]);
-
-  if (!isOpen && step !== "CONFIRMATION") return null;
-
-  if (step === "CONFIRMATION" && confirmationData && typeof document !== "undefined") {
-    return createPortal(
-      <BookingConfirmationView
-        data={confirmationData}
-        onGoHome={() => {
-          setConfirmationData(null);
-          setStep("SCHEDULE");
-          onClose();
-          router.push("/");
-        }}
-      />,
-      document.body,
-    );
-  }
+  if (!isOpen) return null;
 
   const handleCloseAttempt = () => {
-    if (step === "CONFIRMATION") return;
     if (step !== "SCHEDULE") {
       setIsDiscardModalOpen(true);
     } else {

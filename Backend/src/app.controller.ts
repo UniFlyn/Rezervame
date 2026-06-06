@@ -2723,6 +2723,7 @@ export class AppController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('search') search?: string,
+    @Query('status') status?: string,
     @Headers('authorization') authorization?: string,
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
@@ -2730,6 +2731,9 @@ export class AppController {
     const l = Math.max(1, parseInt(limit));
     
     const where: any = { role: Role.USER };
+    if (status && status !== 'all') {
+      where.status = status.toLowerCase();
+    }
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -4473,7 +4477,28 @@ export class AppController {
         this.prisma.booking.count({ where }),
         this.prisma.booking.findMany({
           where,
-          include: { service: true, staff: true, user: true, familyMember: true, transaction: true },
+          include: {
+            service: true,
+            staff: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                status: true,
+                createdAt: true,
+                phone: true,
+                avatar: true,
+                address: true,
+                gender: true,
+                age: true,
+                webPushEnabled: true,
+              },
+            },
+            familyMember: true,
+            transaction: true,
+          },
           orderBy: { date: 'desc' },
           skip: (p - 1) * l,
           take: l,

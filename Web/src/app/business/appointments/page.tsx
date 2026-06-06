@@ -1087,12 +1087,27 @@ export default function AppointmentsPage() {
                                   )}
                                 </>
                               ) : (
-                                <button 
-                                  onClick={() => toggleGroup(groupKey)}
-                                  className="text-[10px] font-black text-cyan-600 uppercase tracking-widest hover:text-cyan-700 transition-colors"
-                                >
-                                  {isExpanded ? L(language as Language, 'Hide details', 'Ocultar') : L(language as Language, 'View details', 'Ver detalles')}
-                                </button>
+                                <>
+                                  {groupCanComplete && (
+                                    <button
+                                      onClick={() => handleCompleteJob(booking)}
+                                      disabled={updatingId === booking.id || updatingId === 'cash-confirm'}
+                                      className="rounded-lg bg-cyan-600 px-3 py-1.5 text-[9px] font-black uppercase text-white hover:bg-cyan-700 shadow-sm transition-all hover:scale-105 disabled:opacity-50"
+                                    >
+                                      {updatingId === booking.id || updatingId === 'cash-confirm'
+                                        ? '...'
+                                        : groupPayAtVenuePending.length > 0
+                                          ? L(language, 'Confirm cash', 'Confirmar efectivo')
+                                          : L(language, 'Complete', 'Completar')}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => toggleGroup(groupKey)}
+                                    className="text-[10px] font-black text-cyan-600 uppercase tracking-widest hover:text-cyan-700 transition-colors"
+                                  >
+                                    {isExpanded ? L(language as Language, 'Hide details', 'Ocultar') : L(language as Language, 'View details', 'Ver detalles')}
+                                  </button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -1168,7 +1183,7 @@ export default function AppointmentsPage() {
                                      </button>
                                    </>
                                  )}
-                                 {!isGroup && canCompleteBooking(subBooking) && (
+                                 {canCompleteBooking(subBooking) && (
                                    <button
                                      onClick={() => handleCompleteJob(subBooking)}
                                      disabled={updatingId === subBooking.id || updatingId === 'cash-confirm'}

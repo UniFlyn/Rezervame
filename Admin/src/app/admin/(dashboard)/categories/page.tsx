@@ -146,7 +146,7 @@ export default function CategoriesPage() {
               }}
             />
           </label>
-          <button className="rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-wide">Add Category</button>
+          <button type="submit" className="rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-wide">Add Category</button>
         </form>
         {newImageUrl ? <img src={newImageUrl} alt="new-category-preview" className="mt-3 h-20 w-20 rounded-lg object-cover border border-slate-200" /> : null}
       </div>

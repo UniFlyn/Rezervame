@@ -22,8 +22,7 @@ export function computeBookingTotals(
   const commPct =
     Number.isFinite(commissionPercent) && commissionPercent >= 0 ? commissionPercent : 15;
   const commissionAmount = Number(((subtotal * commPct) / 100).toFixed(2));
-  // Customer total should not include platform commission.
-  const totalPrice = Number((subtotal + taxAmount).toFixed(2));
+  const totalPrice = Number((subtotal + commissionAmount + taxAmount).toFixed(2));
   return {
     subtotal,
     taxAmount,

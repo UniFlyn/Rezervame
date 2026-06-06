@@ -16,6 +16,7 @@ import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import FilterToolbar from "@/components/admin/FilterToolbar";
 import TablePagination from "@/components/admin/TablePagination";
 import { OverlayLoader } from "@/components/admin/OverlayLoader";
+import { toastSuccess } from "@/lib/toast";
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
@@ -81,6 +82,34 @@ export default function TransactionsPage() {
     setTotalItems(prev => prev - 1);
   }
 
+  function exportTransactionsCsv() {
+    const rows = transactions.map((tx) => ({
+      id: tx.id,
+      business: tx.business,
+      amount: formatCurrency(tx.amount),
+      date: formatDate(tx.date),
+      status: tx.status,
+    }));
+    const headers = ["Transaction ID", "Business", "Amount", "Date", "Status"];
+    const escapeCsv = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      headers.map(escapeCsv).join(","),
+      ...rows.map((row) =>
+        [row.id, row.business, row.amount, row.date, row.status].map(escapeCsv).join(","),
+      ),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `rezervame-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toastSuccess("Export ready", `${rows.length} transactions exported.`);
+  }
+
   const statusKpis = useMemo(() => {
     const total = transactions.length;
     const completed = transactions.filter((tx) => tx.status === "completed").length;
@@ -121,7 +150,12 @@ export default function TransactionsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Financial Transactions</h1>
           <p className="text-slate-500 text-sm mt-1">Monitor all platform payments and revenue flow.</p>
         </div>
-        <button className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-200 transition shadow-sm border border-slate-200">
+        <button
+          type="button"
+          onClick={exportTransactionsCsv}
+          disabled={transactions.length === 0}
+          className="bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-200 transition shadow-sm border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Download className="w-4 h-4" />
           Export Report
         </button>
@@ -264,4 +298,3 @@ export default function TransactionsPage() {
     </div>
   );
 }
-

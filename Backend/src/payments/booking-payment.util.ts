@@ -44,8 +44,7 @@ export function calculateBookingSettlement(
   const commissionAmount = Number((grossSubtotal * (pct / 100)).toFixed(2));
   /** Net service amount credited to the business withdrawable balance (tax is pass-through). */
   const businessCredit = Number((grossSubtotal - commissionAmount).toFixed(2));
-  // Customers pay service + tax; platform commission is deducted from business payout.
-  const customerTotal = Number((grossSubtotal + totalTax).toFixed(2));
+  const customerTotal = Number((grossSubtotal + totalTax + commissionAmount).toFixed(2));
   return { grossSubtotal, totalTax, commissionAmount, businessCredit, customerTotal };
 }
 
@@ -105,7 +104,12 @@ export async function finalizeBookingGroupPayment(
 
   const bookings = await prisma.booking.findMany({
     where: { id: { in: bookingIds }, userId: user.id },
-    include: { staff: true, business: true, service: true, user: true },
+    include: {
+      staff: true,
+      business: true,
+      service: true,
+      user: { select: { id: true, email: true, name: true, phone: true, role: true } },
+    },
   });
   if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
 
@@ -245,7 +249,11 @@ export async function finalizeBusinessBookingGroupPayment(
 
   const bookings = await prisma.booking.findMany({
     where: { id: { in: bookingIds }, businessId },
-    include: { staff: true, service: true, user: true },
+    include: {
+      staff: true,
+      service: true,
+      user: { select: { id: true, email: true, name: true, phone: true, role: true } },
+    },
   });
   if (bookings.length === 0) throw new BadRequestException('No valid bookings found');
 

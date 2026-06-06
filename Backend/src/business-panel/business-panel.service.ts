@@ -125,7 +125,15 @@ export class BusinessPanelService {
 
     const rows = await this.prisma.booking.findMany({
       where,
-      include: { user: true },
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
       orderBy: { date: 'desc' },
     });
 

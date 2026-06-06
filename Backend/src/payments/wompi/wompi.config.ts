@@ -38,12 +38,18 @@ export function isWompiEnabledFlag(row: WompiConfigRow | null | undefined): bool
   return true;
 }
 
+export function isPlausibleWompiPublicKey(key: string | null | undefined): boolean {
+  const k = (key ?? '').trim();
+  if (!k || k.includes('@')) return false;
+  return k.startsWith('pub_') || /^[A-Za-z0-9_-]{16,}$/.test(k);
+}
+
 export function resolveWompiConfigFromRow(row: WompiConfigRow | null | undefined): WompiConfig | null {
   const fromEnv = readWompiConfigFromEnv();
   if (fromEnv) return fromEnv;
   const publicKey = row?.wompiPublicKey?.trim();
   const privateKey = row?.wompiPrivateKey?.trim();
-  if (!publicKey || !privateKey) return null;
+  if (!publicKey || !privateKey || !isPlausibleWompiPublicKey(publicKey)) return null;
   const envRaw = (row?.wompiEnv || 'sandbox').trim().toLowerCase();
   const env: WompiEnv = envRaw === 'production' ? 'production' : 'sandbox';
   return {
