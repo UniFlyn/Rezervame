@@ -90,7 +90,14 @@ export const Header = () => {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
       await apiPatch(`/notifications/${n.id}/read`, {}, "USER").catch(() => null);
     }
-    router.push("/profile?tab=bookings");
+    const ty = (n.type || "").toUpperCase();
+    if (ty.includes("PAYMENT") || ty.includes("REFUND") || ty.includes("INVOICE")) {
+      router.push("/profile?tab=invoices");
+    } else if (ty.includes("REVIEW")) {
+      router.push("/profile?tab=notifications");
+    } else {
+      router.push("/profile?tab=bookings");
+    }
   };
 
   const notificationItems = useMemo(
@@ -146,7 +153,7 @@ export const Header = () => {
         onFavorites={() => router.push("/profile?tab=favorites")}
         accountMenu={accountMenu}
         notificationItems={notificationItems}
-        onSeeAllNotifications={() => router.push("/profile?tab=bookings")}
+        onSeeAllNotifications={() => router.push("/profile?tab=notifications")}
         onMarkAllRead={markAllRead}
       />
     );

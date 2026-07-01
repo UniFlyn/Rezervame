@@ -19,6 +19,7 @@ import {
   TimeSlotSelector,
   RecipientPicker,
   RecipientBadge,
+  PersonBookingGroup,
   Button as DSButton,
 } from "@/ds";
 import { parseAvailability } from "@/lib/staffAvailability";
@@ -29,8 +30,8 @@ import {
 } from "@/lib/bookingConfirmation";
 import {
   normalizePublicPaymentConfig,
-  pickDefaultPaymentMethod,
-  type CheckoutPaymentId,
+  customerFacingPaymentMethods,
+  pickCustomerDefaultPaymentMethod,
 } from "@/lib/paymentConfig";
 
 type VenueServiceRow = {
@@ -66,6 +67,8 @@ export type BookingModalVenueData = {
   serviceFee?: number;
   /** `automatic` = confirm and pay at checkout; `manual` = request then pay after approval. */
   appointmentApprovalMode?: 'manual' | 'automatic';
+  /** Late-cancellation fee as a % of the reservation total (business-configured: 50 or 100). */
+  cancelFeePct?: number;
 };
 
 interface BookingModalProps {
@@ -76,6 +79,8 @@ interface BookingModalProps {
   selectedServiceIds: string[];
   venueData: BookingModalVenueData;
   promotions?: Array<{ serviceId: string; discountPercent: number; label?: string | null }>;
+  /** When set (from a staff "Ver disponibilidad" entry), bias service assignments to this pro. */
+  preferredStaffId?: string;
 }
 
 type Step =
@@ -235,7 +240,7 @@ function pickStaffForService(serviceId: string, team: VenueTeamRow[], day: Date)
   return ranked[0]?.id;
 }
 
-export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServiceIds, venueData, promotions }: BookingModalProps) => {
+export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServiceIds, venueData, promotions, preferredStaffId }: BookingModalProps) => {
   const { t, language } = useI18n();
   const dateLocale = "en-US";
   const [step, setStep] = useState<Step>("BUILDER");
@@ -250,14 +255,13 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   const [familyGuests, setFamilyGuests] = useState<Array<{ id: string; name: string }>>([]);
   /** map from cartIndex to memberId (`null` for user, string for family member) */
   const [serviceMemberMap, setServiceMemberMap] = useState<Record<number, string | null>>({});
-  const [paymentMethod, setPaymentMethod] = useState<"ONLINE" | "VENUE">("ONLINE");
-  const [checkoutPayTab, setCheckoutPayTab] = useState<"wompi" | "yappy" | "pay_at_venue">("pay_at_venue");
+  const [checkoutPayTab, setCheckoutPayTab] = useState<"wompi" | "yappy">("wompi");
+  const [holdModalOpen, setHoldModalOpen] = useState(false);
   const [payMethods, setPayMethods] = useState<
-    { id: "wompi" | "yappy" | "pay_at_venue"; label: string; enabled: boolean }[]
+    { id: "wompi" | "yappy"; label: string; enabled: boolean }[]
   >([
-    { id: "wompi", label: "Card", enabled: false },
-    { id: "yappy", label: "Yappy", enabled: false },
-    { id: "pay_at_venue", label: "Pay by visit", enabled: true },
+    { id: "wompi", label: "Card", enabled: true },
+    { id: "yappy", label: "Yappy", enabled: true },
   ]);
   const [serviceSearch, setServiceSearch] = useState("");
   const [isPaid, setIsPaid] = useState(false);
@@ -295,7 +299,15 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       const defaultDay = addDays(startOfLocalDay(new Date()), 0);
       const initial: Record<number, string> = {};
       selectedServiceIds.forEach((sid, idx) => {
-        const picked = pickStaffForService(sid, venueData.team, defaultDay);
+        const preferred = preferredStaffId
+          ? venueData.team.find(
+              (m) =>
+                m.id === preferredStaffId &&
+                staffOffersService(m, sid) &&
+                staffAvailableOnDay(m.availability, defaultDay),
+            )
+          : undefined;
+        const picked = preferred?.id ?? pickStaffForService(sid, venueData.team, defaultDay);
         initial[idx] = picked ?? venueData.team[0]?.id ?? sid;
       });
       setAssignments(initial);
@@ -306,22 +318,22 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       const initialMembers: Record<number, string | null> = {};
       selectedServiceIds.forEach((_, idx) => { initialMembers[idx] = null; });
       setServiceMemberMap(initialMembers);
-      setPaymentMethod("ONLINE");
       setIsPaid(false);
       void apiGet<Record<string, unknown>>("/public/payment-config")
         .then((raw) => {
           const cfg = normalizePublicPaymentConfig(raw);
-          const visible = cfg.methods.filter((m) => m.enabled);
-          if (visible.length > 0) {
+          // Spec §9: customer pays by card or Yappy only — never pay-at-venue.
+          const online = customerFacingPaymentMethods(cfg.methods);
+          if (online.length > 0) {
             setPayMethods(
-              visible.map((m) => ({
-                id: m.id,
+              online.map((m) => ({
+                id: m.id as "wompi" | "yappy",
                 label: m.label,
                 enabled: m.configured,
               })),
             );
-            setCheckoutPayTab(pickDefaultPaymentMethod(cfg.methods) as CheckoutPaymentId);
           }
+          setCheckoutPayTab(pickCustomerDefaultPaymentMethod(cfg.methods));
         })
         .catch(() => {});
       if (typeof window !== "undefined" && localStorage.getItem("rezervame_token")) {
@@ -374,7 +386,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
 
       return changed ? next : prev;
     });
-  }, [isOpen, selectedDateISO, selectedServiceIds, venueData.team]);
+  }, [isOpen, selectedDateISO, selectedServiceIds, venueData.team, preferredStaffId]);
 
   const getServicePrice = useCallback((svcId: string, basePrice: number) => {
     const promo = promotions?.find(p => p.serviceId === svcId);
@@ -473,6 +485,12 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     [subtotal, taxAmount, serviceFee],
   );
 
+  /** Late-cancellation fee % (business-configured 50/100; default 50 per spec §10). */
+  const cancelFeePct = useMemo(() => {
+    const n = Number(venueData.cancelFeePct);
+    return Number.isFinite(n) && n > 0 ? Math.min(100, n) : 50;
+  }, [venueData.cancelFeePct]);
+
   const autoApproval = venueData.appointmentApprovalMode === 'automatic';
 
   useEffect(() => {
@@ -527,12 +545,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         typeof crypto !== "undefined" && crypto.randomUUID
           ? crypto.randomUUID()
           : `grp_${Date.now()}`;
-      const preferredPayment =
-        checkoutPayTab === "wompi"
-          ? "Wompi"
-          : checkoutPayTab === "yappy"
-            ? "Yappy"
-            : "Pay by visit";
+      const preferredPayment = checkoutPayTab === "yappy" ? "Yappy" : "Wompi";
       const bookingIds: string[] = [];
       let cursor = new Date(start);
       for (const svc of selectedServices) {
@@ -567,7 +580,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         cursor = new Date(cursor.getTime() + mins * 60_000);
       }
 
-      const isCashCheckout = checkoutPayTab === "pay_at_venue";
       const iso = start.toISOString();
       const serviceSummary = selectedServices.map((s) => s.name).join(", ");
       const staffNames = new Set<string>();
@@ -599,8 +611,8 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         price: `$${totalPrice.toFixed(2)}`,
         bookingId: bookingIds[0],
         auto: autoApproval,
-        cash: isCashCheckout,
-        paid: autoApproval && !isCashCheckout,
+        cash: false,
+        paid: autoApproval,
       };
 
       onBookingSuccess?.();
@@ -860,27 +872,81 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
               {language === "en" ? "Your booking" : "Tu reserva"}
             </p>
 
-            <div className="space-y-2">
-              {serviceTimeRanges.map(({ svc, label }) => {
-                const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
-                const r = recipientName(svc.cartIndex);
+            {(() => {
+              // Group-by-person (spec §8): only when more than one distinct recipient
+              // is involved. Otherwise keep the flat list. Display-only — the
+              // multi-service sequencing engine is untouched.
+              const groupsOrder: string[] = [];
+              const groups: Record<
+                string,
+                { key: string; name: string; self: boolean; rows: typeof serviceTimeRanges }
+              > = {};
+              serviceTimeRanges.forEach((entry) => {
+                const memId = serviceMemberMap[entry.svc.cartIndex];
+                const key = memId || "self";
+                if (!groups[key]) {
+                  const r = recipientName(entry.svc.cartIndex);
+                  groups[key] = {
+                    key,
+                    name: r.self ? (language === "en" ? "For me · Your account" : "Para mí · Tu cuenta") : (r.name || ""),
+                    self: r.self,
+                    rows: [],
+                  };
+                  groupsOrder.push(key);
+                }
+                groups[key].rows.push(entry);
+              });
+              const multiRecipient = groupsOrder.length > 1;
+
+              if (multiRecipient) {
                 return (
-                  <div key={`sum-${svc.id}-${svc.cartIndex}`} className="rounded-xl bg-[var(--rz-gray-050)] p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-bold text-[var(--rz-navy)]">{svc.name}</p>
-                        <div className="mt-1"><RecipientBadge name={r.self ? undefined : r.name} self={r.self} size="sm" /></div>
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--rz-gray-600)]">
-                          {prof?.name ? <span>{prof.name}</span> : null}
-                          <span>{label}</span>
-                        </div>
-                      </div>
-                      <span className="shrink-0 text-[13px] font-black text-[var(--rz-navy)]">${Number(svc.finalPrice).toFixed(2)}</span>
-                    </div>
+                  <div className="space-y-3">
+                    {groupsOrder.map((key) => {
+                      const g = groups[key];
+                      return (
+                        <PersonBookingGroup
+                          key={`grp-${key}`}
+                          name={g.name}
+                          self={g.self}
+                          services={g.rows.map(({ svc, label }) => {
+                            const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
+                            return {
+                              name: svc.name,
+                              meta: [prof?.name, label].filter(Boolean).join(" · "),
+                              price: `$${Number(svc.finalPrice).toFixed(2)}`,
+                            };
+                          })}
+                        />
+                      );
+                    })}
                   </div>
                 );
-              })}
-            </div>
+              }
+
+              return (
+                <div className="space-y-2">
+                  {serviceTimeRanges.map(({ svc, label }) => {
+                    const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
+                    const r = recipientName(svc.cartIndex);
+                    return (
+                      <div key={`sum-${svc.id}-${svc.cartIndex}`} className="rounded-xl bg-[var(--rz-gray-050)] p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-bold text-[var(--rz-navy)]">{svc.name}</p>
+                            <div className="mt-1"><RecipientBadge name={r.self ? undefined : r.name} self={r.self} size="sm" /></div>
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--rz-gray-600)]">
+                              {prof?.name ? <span>{prof.name}</span> : null}
+                              <span>{label}</span>
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-[13px] font-black text-[var(--rz-navy)]">${Number(svc.finalPrice).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             <div className="my-4 h-px bg-[var(--border-subtle)]" />
 
@@ -910,9 +976,24 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
               <span className="text-2xl font-black text-[var(--rz-coral)]">${totalPrice.toFixed(2)}</span>
             </div>
 
-            <p className="mt-2 text-[12px] font-semibold text-[var(--rz-gray-500)]">
-              {language === "en" ? "Free cancellation up to 60 min before." : "Cancelación gratuita hasta 60 min antes."}
-            </p>
+            <div className="mt-3 space-y-1 rounded-xl bg-[var(--rz-gray-050)] p-3">
+              <div className="flex items-start gap-2">
+                <Check size={14} className="mt-0.5 shrink-0 text-emerald-600" />
+                <p className="text-[12px] font-semibold text-[var(--rz-gray-600)]">
+                  {language === "en"
+                    ? "Free cancellation up to 60 min before."
+                    : "Cancelación gratuita hasta 60 min antes."}
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <Info size={14} className="mt-0.5 shrink-0 text-[var(--rz-gray-400)]" />
+                <p className="text-[12px] font-semibold text-[var(--rz-gray-500)]">
+                  {language === "en"
+                    ? `Late-cancellation fee · up to ${cancelFeePct}% of total`
+                    : `Cargo por cancelación · hasta ${cancelFeePct}% del total`}
+                </p>
+              </div>
+            </div>
 
             <div className="mt-4">
               <DSButton
@@ -921,7 +1002,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                 size="lg"
                 leftIcon="check"
                 disabled={!canContinue}
-                onClick={() => setStep("CHECKOUT_PREVIEW")}
+                onClick={() => setHoldModalOpen(true)}
               >
                 {t("bookingContinue") || (language === "en" ? "Continue" : "Continuar")}
               </DSButton>
@@ -1205,11 +1286,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           You will pay via Yappy after the business confirms your booking.
         </p>
       ) : null}
-      {!autoApproval && checkoutPayTab === "pay_at_venue" ? (
-        <p className="mb-4 text-center text-[10px] font-bold text-[var(--rz-gray-500)]">
-          Pay when you visit. The venue confirms payment after your appointment.
-        </p>
-      ) : null}
       {autoApproval && checkoutPayTab === "wompi" ? (
         <p className="mb-4 text-center text-[10px] font-bold text-amber-700">
           Card payment will be available here soon.
@@ -1397,6 +1473,49 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         subtitle={language === "en" ? "Book for yourself, family or a friend." : "Reserva para ti, un familiar o un amigo."}
       />
 
+
+      {holdModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-[460px] rounded-[32px] bg-white p-8 shadow-3xl animate-in zoom-in-95 duration-300">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--rz-coral)]/10">
+              <Info size={26} className="text-[var(--rz-coral)]" />
+            </div>
+            <h3 className="text-center text-xl font-black text-[var(--rz-navy)]">
+              {language === "en" ? "How payment works" : "Cómo funciona el pago"}
+            </h3>
+            <p className="mt-3 text-center text-[13px] font-medium leading-relaxed text-[var(--rz-gray-600)]">
+              {language === "en"
+                ? "We place a temporary hold on your payment method for the reservation amount. The business is paid only after your service is completed. You can cancel for free up to 60 minutes before your appointment."
+                : "Realizamos una retención temporal en tu método de pago por el monto de la reserva. El negocio recibe el pago solo después de completar tu servicio. Puedes cancelar gratis hasta 60 minutos antes de tu cita."}
+            </p>
+            <div className="mt-4 flex items-baseline justify-between rounded-xl bg-[var(--rz-gray-050)] px-4 py-3">
+              <span className="text-[12px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Total</span>
+              <span className="text-lg font-black text-[var(--rz-coral)]">${totalPrice.toFixed(2)}</span>
+            </div>
+            <div className="mt-6 space-y-3">
+              <DSButton
+                variant="primary"
+                fullWidth
+                size="lg"
+                leftIcon="check"
+                onClick={() => {
+                  setHoldModalOpen(false);
+                  setStep("CHECKOUT_PREVIEW");
+                }}
+              >
+                {language === "en" ? "Got it, continue" : "Entendido, continuar"}
+              </DSButton>
+              <button
+                type="button"
+                onClick={() => setHoldModalOpen(false)}
+                className="w-full rounded-2xl border-2 border-[var(--border-subtle)] bg-white py-3 text-[11px] font-black uppercase tracking-[0.1em] text-[var(--rz-navy)] transition-all hover:bg-[var(--rz-gray-050)]"
+              >
+                {language === "en" ? "Back" : "Volver"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDiscardModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-in fade-in duration-300">

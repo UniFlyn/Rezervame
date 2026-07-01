@@ -8,14 +8,14 @@ import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { venueCardImageSrc, businessListingImageSrc, type SearchVenueRow } from "@/lib/venueSearch";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { InvoiceTable, InvoiceCard, EmptyState } from "@/ds";
+import { InvoiceTable, InvoiceCard, EmptyState, NotificationItem } from "@/ds";
 import { generateAndDownloadInvoicePDF } from "@/lib/invoicePdf";
 import { 
   Trash2, Edit2, Shield, User as UserIcon, 
   Users, Calendar, Heart, Lock, CheckCircle, 
   X, Plus, Camera, LogOut, ChevronLeft, ChevronRight, Mail, Phone,
   MapPin, Star, Download, RefreshCcw, Clock, CreditCard, Banknote, CheckCircle2, FileText,
-  Loader2, Check, Search
+  Loader2, Check, Search, Bell, ShieldCheck
 } from "lucide-react";
 import Link from "next/link";
 import { Pagination } from "@/components/ui/pagination";
@@ -48,7 +48,72 @@ import {
   normalizeCancellationPolicy,
 } from "@/lib/cancellationPolicy";
 
-type Tab = "bookings" | "family" | "settings" | "favorites" | "invoices";
+type Tab = "bookings" | "family" | "settings" | "favorites" | "invoices" | "notifications" | "payments";
+
+interface NotificationRow {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+const NOTIF_FILTERS = [
+  { id: "all" as const, en: "All", es: "Todas" },
+  { id: "booking" as const, en: "Reservations", es: "Reservas" },
+  { id: "payment" as const, en: "Payments", es: "Pagos" },
+  { id: "review" as const, en: "Reviews", es: "Reseñas" },
+  { id: "business" as const, en: "Businesses", es: "Negocios" },
+];
+
+function notifIconName(type: string): string {
+  const t = String(type || "").toUpperCase();
+  if (t.includes("BOOKING") || t.includes("RESERV")) return "calendar";
+  if (t.includes("PAYMENT") || t.includes("REFUND") || t.includes("INVOICE")) return "creditCard";
+  if (t.includes("REVIEW")) return "star";
+  if (t.includes("OFFER") || t.includes("PROMOT") || t.includes("BUSINESS") || t.includes("FAVOR")) return "heart";
+  return "bell";
+}
+
+function notifCategoryOf(type: string): "booking" | "payment" | "review" | "business" | "other" {
+  const t = String(type || "").toUpperCase();
+  if (t.includes("BOOKING") || t.includes("RESERV")) return "booking";
+  if (t.includes("PAYMENT") || t.includes("REFUND") || t.includes("INVOICE")) return "payment";
+  if (t.includes("REVIEW")) return "review";
+  if (t.includes("OFFER") || t.includes("PROMOT") || t.includes("BUSINESS") || t.includes("FAVOR")) return "business";
+  return "other";
+}
+
+function notifCategoryLabel(type: string, lang: string): string {
+  const c = notifCategoryOf(type);
+  const map: Record<string, [string, string]> = {
+    booking: ["Reservation", "Reserva"],
+    payment: ["Payment", "Pago"],
+    review: ["Review", "Reseña"],
+    business: ["Business", "Negocio"],
+    other: ["Update", "Novedad"],
+  };
+  return lang === "en" ? map[c][0] : map[c][1];
+}
+
+function notifRelativeTime(dateStr: string, lang: string): string {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "";
+  const diffMins = Math.floor((Date.now() - date.getTime()) / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  if (lang === "en") {
+    if (diffMins < 1) return "Now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} h ago`;
+    return `${diffDays} d ago`;
+  }
+  if (diffMins < 1) return "Ahora";
+  if (diffMins < 60) return `Hace ${diffMins} min`;
+  if (diffHours < 24) return `Hace ${diffHours} h`;
+  return `Hace ${diffDays} d`;
+}
 
 interface FamilyMember {
   id: string;
@@ -268,6 +333,9 @@ function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("bookings");
+  const [notifList, setNotifList] = useState<NotificationRow[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<"all" | "booking" | "payment" | "review" | "business">("all");
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
@@ -696,10 +764,36 @@ function ProfileContent() {
 
   useEffect(() => {
     const tab = searchParams.get("tab") as Tab;
-    if (tab && ["bookings", "family", "settings", "favorites", "invoices"].includes(tab)) {
+    if (tab && ["bookings", "family", "settings", "favorites", "invoices", "notifications", "payments"].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (activeTab !== "notifications") return;
+    let alive = true;
+    setNotifLoading(true);
+    apiGet<NotificationRow[]>("/notifications", "USER")
+      .then((d) => { if (alive) setNotifList(Array.isArray(d) ? d : []); })
+      .catch(() => { if (alive) setNotifList([]); })
+      .finally(() => { if (alive) setNotifLoading(false); });
+    return () => { alive = false; };
+  }, [activeTab]);
+
+  const markAllNotifRead = async () => {
+    setNotifList((prev) => prev.map((n) => ({ ...n, read: true })));
+    await apiPatch("/notifications/read-all", {}, "USER").catch(() => null);
+  };
+
+  const openNotif = async (n: NotificationRow) => {
+    if (!n.read) {
+      setNotifList((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      await apiPatch(`/notifications/${n.id}/read`, {}, "USER").catch(() => null);
+    }
+    const cat = notifCategoryOf(n.type);
+    if (cat === "payment") setActiveTab("invoices");
+    else setActiveTab("bookings");
+  };
 
   useEffect(() => {
     if (searchParams.get("payment") !== "success") return;
@@ -838,9 +932,11 @@ function ProfileContent() {
     () => [
       { id: "bookings" as const, label: t("myReservationsMenu"), icon: <Calendar size={20} /> },
       { id: "invoices" as const, label: t("invoicesMenu"), icon: <Download size={20} /> },
+      { id: "notifications" as const, label: language === "en" ? "Notifications" : "Notificaciones", icon: <Bell size={20} /> },
+      { id: "payments" as const, label: language === "en" ? "Payment methods" : "Métodos de pago", icon: <CreditCard size={20} /> },
       { id: "family" as const, label: t("familyFriends"), icon: <Users size={20} /> },
-      { id: "settings" as const, label: t("profileSettings"), icon: <UserIcon size={20} /> },
       { id: "favorites" as const, label: t("favoritesMenu"), icon: <Heart size={20} /> },
+      { id: "settings" as const, label: t("profileSettings"), icon: <UserIcon size={20} /> },
     ],
     [t, language],
   );
@@ -1665,6 +1761,151 @@ function ProfileContent() {
                    />
                  </div>
                )}
+            </div>
+          )}
+
+          {activeTab === "notifications" && (
+            <div className="animate-in fade-in duration-500">
+              <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+                <div>
+                  <h2 className="text-3xl font-black text-[var(--rz-navy)]">
+                    {language === "en" ? "Notifications" : "Notificaciones"}
+                  </h2>
+                  <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">
+                    {language === "en"
+                      ? "Your recent updates and alerts"
+                      : "Tus actualizaciones y alertas recientes"}
+                  </p>
+                </div>
+                {notifList.some((n) => !n.read) && (
+                  <button
+                    onClick={markAllNotifRead}
+                    className="text-sm font-black text-[var(--rz-coral)] hover:underline"
+                  >
+                    {language === "en" ? "Mark all as read" : "Marcar todas como leídas"}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2 mb-6 flex-wrap">
+                {NOTIF_FILTERS.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setNotifFilter(f.id)}
+                    className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition ${
+                      notifFilter === f.id
+                        ? "bg-[var(--rz-navy)] text-white"
+                        : "bg-white text-[var(--rz-gray-500)] border border-[var(--border-subtle)] hover:text-[var(--rz-navy)]"
+                    }`}
+                  >
+                    {language === "en" ? f.en : f.es}
+                  </button>
+                ))}
+              </div>
+
+              {notifLoading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="animate-spin text-[var(--rz-coral)]" size={28} />
+                </div>
+              ) : (() => {
+                const filtered = notifList.filter(
+                  (n) => notifFilter === "all" || notifCategoryOf(n.type) === notifFilter,
+                );
+                if (filtered.length === 0) {
+                  return (
+                    <EmptyState
+                      icon="bell"
+                      title={language === "en" ? "No notifications" : "Sin notificaciones"}
+                      message={
+                        language === "en"
+                          ? "Updates about your reservations, payments and reviews will appear here."
+                          : "Aquí aparecerán las novedades sobre tus reservas, pagos y reseñas."
+                      }
+                    />
+                  );
+                }
+                return (
+                  <div className="bg-white rounded-3xl border border-[var(--border-subtle)] overflow-hidden shadow-sm">
+                    {filtered.map((n, i) => (
+                      <NotificationItem
+                        key={n.id}
+                        variant="full"
+                        icon={notifIconName(n.type)}
+                        title={n.title}
+                        message={n.body}
+                        time={notifRelativeTime(n.createdAt, language)}
+                        categoryLabel={notifCategoryLabel(n.type, language)}
+                        unread={!n.read}
+                        divider={i > 0}
+                        actionLabel={language === "en" ? "View" : "Ver"}
+                        onClick={() => openNotif(n)}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {activeTab === "payments" && (
+            <div className="animate-in fade-in duration-500">
+              <div className="mb-8">
+                <h2 className="text-3xl font-black text-[var(--rz-navy)]">
+                  {language === "en" ? "Payment methods" : "Métodos de pago"}
+                </h2>
+                <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">
+                  {language === "en"
+                    ? "How you pay for reservations on Rezervame"
+                    : "Cómo pagas tus reservas en Rezervame"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                <div className="bg-white rounded-3xl border border-[var(--border-subtle)] shadow-sm p-6 flex items-center gap-4">
+                  <span className="flex-none w-14 h-14 rounded-2xl bg-[var(--rz-coral-050)] text-[var(--rz-coral)] flex items-center justify-center">
+                    <CreditCard size={26} />
+                  </span>
+                  <div>
+                    <h3 className="font-black text-[var(--rz-navy)] text-lg">
+                      {language === "en" ? "Card" : "Tarjeta"}
+                    </h3>
+                    <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-0.5">
+                      {language === "en"
+                        ? "A temporary hold is placed; charged after your service."
+                        : "Se realiza una retención temporal; se cobra tras tu servicio."}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-3xl border border-[var(--border-subtle)] shadow-sm p-6 flex items-center gap-4">
+                  <span className="flex-none w-14 h-14 rounded-2xl bg-white border border-[var(--border-subtle)] flex items-center justify-center overflow-hidden">
+                    <img src="/ds/logos/yappy-color.png" alt="Yappy" className="w-9 h-9 object-contain" />
+                  </span>
+                  <div>
+                    <h3 className="font-black text-[var(--rz-navy)] text-lg">Yappy</h3>
+                    <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-0.5">
+                      {language === "en"
+                        ? "Protected by Rezervame until your service is completed."
+                        : "Protegido por Rezervame hasta completar tu servicio."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--rz-coral-050)] rounded-3xl p-6 flex items-start gap-4">
+                <span className="flex-none w-11 h-11 rounded-full bg-white text-[var(--rz-coral)] flex items-center justify-center shadow-sm">
+                  <ShieldCheck size={22} />
+                </span>
+                <div>
+                  <h4 className="font-black text-[var(--rz-navy)] text-sm uppercase tracking-widest mb-1">
+                    {language === "en" ? "Secure by design" : "Seguro por diseño"}
+                  </h4>
+                  <p className="text-[var(--rz-gray-600)] font-medium text-sm leading-relaxed">
+                    {language === "en"
+                      ? "For your security, Rezervame does not store your card. You enter your payment details securely at checkout each time, and funds are only released to the business once your service is completed."
+                      : "Por tu seguridad, Rezervame no guarda tu tarjeta. Ingresas tus datos de pago de forma segura al momento de pagar, y los fondos solo se liberan al negocio cuando se completa tu servicio."}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
