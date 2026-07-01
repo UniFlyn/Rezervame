@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/I18nProvider";
+import { Button as DSButton } from "@/ds";
 import {
   BarChart3,
   CreditCard,
@@ -25,35 +27,45 @@ const STEPS = ["partnersStep1", "partnersStep2", "partnersStep3"] as const;
 
 export default function PartnersPage() {
   const { t } = useI18n();
+  const router = useRouter();
 
   return (
     <main className="min-h-screen bg-white">
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 to-white px-6 py-24 sm:px-10 lg:py-32">
+      <section className="relative overflow-hidden bg-gradient-to-br from-[var(--rz-gray-050)] to-white px-6 py-24 sm:px-10 lg:py-32">
         <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-2 lg:items-center">
           <div>
-            <span className="mb-4 inline-block rounded-full bg-[#ff5a5f] px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-white">
+            <span className="mb-4 inline-block rounded-full bg-[#ff5757] px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-white">
               {t("partnersEyebrow")}
             </span>
             <h1 className="text-4xl font-black leading-tight text-[#023047] sm:text-5xl">
               {t("partnersHeroTitle")}{" "}
-              <span className="text-[#ff5a5f]">{t("partnersHeroHighlight")}</span>
+              <span className="text-[#ff5757]">{t("partnersHeroHighlight")}</span>
             </h1>
-            <p className="mt-6 text-lg font-medium leading-relaxed text-slate-600">
+            <p className="mt-6 text-lg font-medium leading-relaxed text-[var(--rz-gray-600)]">
               {t("partnersHeroSub")}
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
-              <Link
-                href="/business/join"
-                className="rounded-full bg-[#ff5a5f] px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-[#ff5a5f]/30 transition hover:bg-[#e0484d]"
+              <DSButton
+                variant="primary"
+                size="lg"
+                shape="pill"
+                uppercase
+                rightIcon="arrowRight"
+                onClick={() => router.push("/business/join")}
               >
                 {t("partnersCtaPrimary")}
-              </Link>
-              <a
-                href="#how-it-works"
-                className="rounded-full border-2 border-[#ff5a5f] px-8 py-4 text-sm font-black uppercase tracking-widest text-[#ff5a5f] transition hover:bg-[#ff5a5f] hover:text-white"
+              </DSButton>
+              <DSButton
+                variant="outline"
+                size="lg"
+                shape="pill"
+                uppercase
+                onClick={() =>
+                  document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })
+                }
               >
                 {t("partnersCtaSecondary")}
-              </a>
+              </DSButton>
             </div>
             <div className="mt-12 grid grid-cols-2 gap-4">
               {[
@@ -64,10 +76,10 @@ export default function PartnersPage() {
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                  className="rounded-2xl border border-[var(--rz-gray-100)] bg-white p-4 shadow-sm"
                 >
-                  <p className="text-2xl font-black text-[#ff5a5f]">{item.stat}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{item.label}</p>
+                  <p className="text-2xl font-black text-[#ff5757]">{item.stat}</p>
+                  <p className="mt-1 text-xs font-bold text-[var(--rz-gray-500)]">{item.label}</p>
                 </div>
               ))}
             </div>
@@ -76,10 +88,10 @@ export default function PartnersPage() {
             {PARTNER_BUSINESS_TYPES.slice(0, 4).map((type) => (
               <div
                 key={type.id}
-                className="flex aspect-square flex-col items-center justify-center rounded-3xl border border-slate-100 bg-white p-4 text-center shadow-lg"
+                className="flex aspect-square flex-col items-center justify-center rounded-3xl border border-[var(--rz-gray-100)] bg-white p-4 text-center shadow-lg"
               >
                 <span className="text-4xl">{type.emoji}</span>
-                <p className="mt-2 text-[10px] font-black uppercase tracking-wide text-slate-600">
+                <p className="mt-2 text-[10px] font-black uppercase tracking-wide text-[var(--rz-gray-600)]">
                   {t(`${type.labelKey}Title`)}
                 </p>
               </div>
@@ -90,17 +102,17 @@ export default function PartnersPage() {
 
       <section id="business-types" className="px-6 py-20 sm:px-10">
         <div className="mx-auto max-w-6xl text-center">
-          <span className="mb-3 inline-block rounded-full bg-[#ff5a5f] px-4 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+          <span className="mb-3 inline-block rounded-full bg-[#ff5757] px-4 py-1 text-[10px] font-black uppercase tracking-widest text-white">
             {t("partnersTypesEyebrow")}
           </span>
           <h2 className="text-3xl font-black text-[#023047] sm:text-4xl">{t("partnersTypesTitle")}</h2>
-          <p className="mx-auto mt-4 max-w-2xl text-slate-600">{t("partnersTypesSub")}</p>
+          <p className="mx-auto mt-4 max-w-2xl text-[var(--rz-gray-600)]">{t("partnersTypesSub")}</p>
         </div>
         <div className="mx-auto mt-12 grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {PARTNER_BUSINESS_TYPES.map((type) => (
             <article
               key={type.id}
-              className="group relative overflow-hidden rounded-3xl border-2 border-transparent bg-slate-50 transition hover:border-[#ff5a5f] hover:shadow-lg"
+              className="group relative overflow-hidden rounded-3xl border-2 border-transparent bg-[var(--rz-gray-050)] transition hover:border-[#ff5757] hover:shadow-lg"
             >
               <div className="relative h-32 overflow-hidden">
                 <img
@@ -113,21 +125,21 @@ export default function PartnersPage() {
               </div>
               <div className="p-5">
                 <h3 className="text-lg font-black text-[#023047]">{t(`${type.labelKey}Title`)}</h3>
-                <p className="mt-2 text-sm font-medium text-slate-600">{t(`${type.labelKey}Desc`)}</p>
+                <p className="mt-2 text-sm font-medium text-[var(--rz-gray-600)]">{t(`${type.labelKey}Desc`)}</p>
                 <ul className="mt-4 space-y-2">
                   {(["F1", "F2", "F3"] as const).map((n) => (
                     <li
                       key={n}
-                      className="flex items-start gap-2 text-xs font-bold text-slate-500"
+                      className="flex items-start gap-2 text-xs font-bold text-[var(--rz-gray-500)]"
                     >
-                      <span className="text-[#ff5a5f]">✓</span>
+                      <span className="text-[#ff5757]">✓</span>
                       {t(`${type.labelKey}${n}`)}
                     </li>
                   ))}
                 </ul>
                 <Link
                   href={`/business/join?type=${encodeURIComponent(type.id)}`}
-                  className="mt-4 inline-block text-[10px] font-black uppercase tracking-widest text-[#ff5a5f] hover:underline"
+                  className="mt-4 inline-block text-[10px] font-black uppercase tracking-widest text-[#ff5757] hover:underline"
                 >
                   {t("partnersCtaPrimary")} →
                 </Link>
@@ -140,51 +152,51 @@ export default function PartnersPage() {
       <section className="bg-[#023047] px-6 py-20 text-white sm:px-10">
         <div className="mx-auto max-w-6xl text-center">
           <h2 className="text-3xl font-black sm:text-4xl">{t("partnersBenefitsTitle")}</h2>
-          <p className="mx-auto mt-4 max-w-2xl text-slate-300">{t("partnersBenefitsSub")}</p>
+          <p className="mx-auto mt-4 max-w-2xl text-[var(--rz-gray-300)]">{t("partnersBenefitsSub")}</p>
         </div>
         <div className="mx-auto mt-12 grid max-w-6xl gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {BENEFITS.map(({ Icon, key }) => (
             <div key={key} className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#ff5a5f] shadow-lg">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#ff5757] shadow-lg">
                 <Icon className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-lg font-black">{t(`${key}Title`)}</h3>
-              <p className="mt-2 text-sm text-slate-300">{t(`${key}Body`)}</p>
+              <p className="mt-2 text-sm text-[var(--rz-gray-300)]">{t(`${key}Body`)}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section id="how-it-works" className="bg-slate-50 px-6 py-20 sm:px-10">
+      <section id="how-it-works" className="bg-[var(--rz-gray-050)] px-6 py-20 sm:px-10">
         <div className="mx-auto max-w-3xl text-center">
-          <span className="mb-3 inline-block rounded-full bg-[#ff5a5f] px-4 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+          <span className="mb-3 inline-block rounded-full bg-[#ff5757] px-4 py-1 text-[10px] font-black uppercase tracking-widest text-white">
             {t("partnersProcessEyebrow")}
           </span>
           <h2 className="text-3xl font-black text-[#023047]">{t("partnersProcessTitle")}</h2>
-          <p className="mt-4 text-slate-600">{t("partnersProcessSub")}</p>
+          <p className="mt-4 text-[var(--rz-gray-600)]">{t("partnersProcessSub")}</p>
         </div>
         <div className="mx-auto mt-12 max-w-3xl space-y-10">
           {STEPS.map((key, i) => (
             <div key={key} className="flex gap-6">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#ff5a5f] text-xl font-black text-white">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#ff5757] text-xl font-black text-white">
                 {i + 1}
               </div>
               <div>
                 <h3 className="text-xl font-black text-[#023047]">{t(`${key}Title`)}</h3>
-                <p className="mt-2 font-medium leading-relaxed text-slate-600">{t(`${key}Body`)}</p>
+                <p className="mt-2 font-medium leading-relaxed text-[var(--rz-gray-600)]">{t(`${key}Body`)}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="bg-[#ff5a5f] px-6 py-16 text-center text-white sm:px-10">
+      <section className="bg-[#ff5757] px-6 py-16 text-center text-white sm:px-10">
         <h2 className="text-3xl font-black sm:text-4xl">{t("partnersCtaBlockTitle")}</h2>
         <p className="mx-auto mt-4 max-w-xl text-lg opacity-95">{t("partnersCtaBlockSub")}</p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           <Link
             href="/business/join"
-            className="rounded-full bg-white px-8 py-4 text-sm font-black uppercase tracking-widest text-[#ff5a5f] shadow-lg transition hover:scale-105"
+            className="rounded-full bg-white px-8 py-4 text-sm font-black uppercase tracking-widest text-[#ff5757] shadow-lg transition hover:scale-105"
           >
             {t("partnersCtaPrimary")}
           </Link>

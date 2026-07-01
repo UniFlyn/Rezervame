@@ -17,19 +17,19 @@ export default function JobsPage() {
 
       <h2>Posiciones Abiertas</h2>
       <div className="space-y-6 mt-8">
-        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center group hover:border-[#ff5a5f] transition-all">
+        <div className="p-6 bg-[var(--rz-gray-050)] rounded-2xl border border-[var(--rz-gray-100)] flex justify-between items-center group hover:border-[#ff5757] transition-all">
           <div>
-            <h4 className="text-xl font-bold text-slate-800">Senior Full-stack Developer</h4>
-            <p className="text-sm font-medium text-slate-500 mt-1">Remoto • Tiempo Completo</p>
+            <h4 className="text-xl font-bold text-[var(--rz-navy-800)]">Senior Full-stack Developer</h4>
+            <p className="text-sm font-medium text-[var(--rz-gray-500)] mt-1">Remoto • Tiempo Completo</p>
           </div>
-          <button className="text-[#ff5a5f] font-black text-xs uppercase tracking-widest hover:underline">Aplicar ahora</button>
+          <button className="text-[#ff5757] font-black text-xs uppercase tracking-widest hover:underline">Aplicar ahora</button>
         </div>
-        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center group hover:border-[#ff5a5f] transition-all">
+        <div className="p-6 bg-[var(--rz-gray-050)] rounded-2xl border border-[var(--rz-gray-100)] flex justify-between items-center group hover:border-[#ff5757] transition-all">
           <div>
-            <h4 className="text-xl font-bold text-slate-800">Especialista en Marketing Digital</h4>
-            <p className="text-sm font-medium text-slate-500 mt-1">Panamá City • Tiempo Completo</p>
+            <h4 className="text-xl font-bold text-[var(--rz-navy-800)]">Especialista en Marketing Digital</h4>
+            <p className="text-sm font-medium text-[var(--rz-gray-500)] mt-1">Panamá City • Tiempo Completo</p>
           </div>
-          <button className="text-[#ff5a5f] font-black text-xs uppercase tracking-widest hover:underline">Aplicar ahora</button>
+          <button className="text-[#ff5757] font-black text-xs uppercase tracking-widest hover:underline">Aplicar ahora</button>
         </div>
       </div>
     </StaticPageLayout>

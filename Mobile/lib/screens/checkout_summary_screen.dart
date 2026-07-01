@@ -84,7 +84,15 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   @override
   void initState() {
     super.initState();
-    _lines = List<BookingCartLine>.from(widget.cartLines);
+    final liveCart = BookingCart.instance;
+    if (liveCart.isNotEmpty &&
+        (liveCart.businessId == null ||
+            liveCart.businessId == widget.businessId ||
+            widget.businessId == null)) {
+      _lines = List<BookingCartLine>.from(liveCart.lines);
+    } else {
+      _lines = List<BookingCartLine>.from(widget.cartLines);
+    }
     final list = widget.specialists ?? const [];
     final defaultStaff = list.isNotEmpty ? _staffDisplayName(list.first) : 'checkoutNoStaffListed'.tr();
 
@@ -111,14 +119,12 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
               .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
           _payMethods;
-      final selectable = selectablePaymentMethods(methods);
+      final visible = checkoutVisibleMethods(methods);
       setState(() {
-        _payMethods = selectable.isNotEmpty ? selectable : methods;
+        _payMethods = visible.isNotEmpty ? visible : methods;
         final dc = cfg['defaultCommission'];
         if (dc is num) _commissionPercent = dc.toDouble();
-        _checkoutPayTab = pickDefaultPaymentMethodId(
-          methods.map((m) => Map<String, dynamic>.from(m)).toList(),
-        );
+        _checkoutPayTab = pickDefaultPaymentMethodId(methods);
       });
     } catch (_) {}
   }
@@ -130,10 +136,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
       if (mounted && biz != null) {
         setState(() {
           _taxPercentage = double.tryParse('${biz['taxPercentage']}') ?? 0.0;
-          _commissionPercent = double.tryParse(
-                '${biz['commissionPercent'] ?? biz['serviceFee']}',
-              ) ??
-              15.0;
+          _commissionPercent = double.tryParse('${biz['commissionPercent']}') ?? 15.0;
           _autoApproval = '${biz['appointmentApprovalMode'] ?? ''}' == 'automatic';
         });
       }
@@ -142,24 +145,14 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
     }
   }
 
-  bool _methodEnabled(String id) {
-    final m = _payMethods.where((x) => '${x['id']}' == id).toList();
-    if (m.isEmpty) return true;
-    return isPaymentMethodSelectable(m.first);
-  }
-
-  String _paymentTabLabel(String id) {
-    final m = _payMethods.where((x) => '${x['id']}' == id).toList();
-    if (m.isNotEmpty && '${m.first['label']}'.trim().isNotEmpty) {
-      return '${m.first['label']}';
-    }
-    switch (id) {
+  IconData _paymentMethodIcon(String id) {
+    switch (normalizeCheckoutMethodId(id)) {
       case 'yappy':
-        return 'Yappy';
-      case 'cash':
-        return 'Cash';
+        return Icons.account_balance_wallet_outlined;
+      case 'wompi':
+        return Icons.credit_card;
       default:
-        return 'Card';
+        return Icons.payments_outlined;
     }
   }
 
@@ -518,6 +511,14 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('checkoutYourItems'.tr(), style: AppTypography.sectionTitle.copyWith(color: AppColors.grey900)),
+                      if (_lines.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '${_lines.length} ${_lines.length == 1 ? 'service' : 'services'}',
+                            style: AppTypography.body100.copyWith(color: AppColors.grey500),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       if (_lines.isEmpty)
                         _buildEmptyCart()
@@ -799,61 +800,75 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
   }
 
   Widget _buildPaymentMethod() {
-    final enabledTabs = ['card', 'yappy', 'cash'].where(_methodEnabled).toList();
-    if (!enabledTabs.contains(_checkoutPayTab) && enabledTabs.isNotEmpty) {
+    if (_payMethods.isEmpty) {
+      return Text(
+        'checkoutPaymentPending'.tr(),
+        style: AppTypography.body100.copyWith(color: AppColors.grey500),
+      );
+    }
+
+    final activeId = normalizeCheckoutMethodId(_checkoutPayTab);
+    if (!isCheckoutMethodSelectable(activeId, _payMethods)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _checkoutPayTab = enabledTabs.first);
+        if (mounted) {
+          setState(() => _checkoutPayTab = pickDefaultPaymentMethodId(_payMethods));
+        }
       });
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: enabledTabs.map((id) {
-        final selected = _checkoutPayTab == id;
-        IconData icon;
-        switch (id) {
-          case 'yappy':
-            icon = Icons.account_balance_wallet_outlined;
-            break;
-          case 'cash':
-            icon = Icons.payments_outlined;
-            break;
-          default:
-            icon = Icons.credit_card;
-        }
+      children: _payMethods.map((method) {
+        final id = '${method['id']}';
+        final selectable = isPaymentMethodSelectable(method);
+        final selected = activeId == id && selectable;
+        final label = '${method['label'] ?? ''}'.trim();
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Material(
             color: selected ? AppColors.primary50 : AppColors.white,
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
-              onTap: () => setState(() => _checkoutPayTab = id),
+              onTap: selectable ? () => setState(() => _checkoutPayTab = id) : null,
               borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: selected ? AppColors.primary500 : AppColors.grey100,
-                    width: selected ? 2 : 1,
+              child: Opacity(
+                opacity: selectable ? 1 : 0.45,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: selected ? AppColors.primary500 : AppColors.grey100,
+                      width: selected ? 2 : 1,
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, color: AppColors.primary500),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        _paymentTabLabel(id),
-                        style: AppTypography.body200.copyWith(
-                          color: AppColors.grey900,
-                          fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  child: Row(
+                    children: [
+                      Icon(_paymentMethodIcon(id), color: AppColors.primary500),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              label.isNotEmpty ? label : id,
+                              style: AppTypography.body200.copyWith(
+                                color: AppColors.grey900,
+                                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                              ),
+                            ),
+                            if (!selectable)
+                              Text(
+                                'checkoutPaymentPending'.tr(),
+                                style: AppTypography.body100.copyWith(color: AppColors.grey500),
+                              ),
+                          ],
                         ),
                       ),
-                    ),
-                    if (selected)
-                      const Icon(Icons.check_circle, color: AppColors.primary500, size: 22),
-                  ],
+                      if (selected)
+                        const Icon(Icons.check_circle, color: AppColors.primary500, size: 22),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -870,7 +885,7 @@ class _CheckoutSummaryScreenState extends State<CheckoutSummaryScreen> {
         const SizedBox(height: 12),
         _priceRow('Service Fee (${_commissionPercent.toStringAsFixed(0)}%)', _money(_platformFee)),
         const SizedBox(height: 12),
-        _priceRow('Tax', _money(_tax)),
+        _priceRow('Tax${_taxPercentage > 0 ? ' (${_taxPercentage.toStringAsFixed(0)}%)' : ''}', _money(_tax)),
         const SizedBox(height: 16),
         const Divider(color: AppColors.grey100),
         const SizedBox(height: 16),

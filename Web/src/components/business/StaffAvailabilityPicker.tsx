@@ -104,7 +104,7 @@ export function StaffAvailabilityPicker({
 
   return (
     <div className="space-y-4">
-      <div className="flex rounded-2xl bg-slate-100 p-1">
+      <div className="flex rounded-2xl bg-[var(--rz-gray-100)] p-1">
         <button
           type="button"
           onClick={() => {
@@ -113,7 +113,7 @@ export function StaffAvailabilityPicker({
           }}
           className={clsx(
             'flex-1 rounded-xl py-2.5 text-[10px] font-black uppercase tracking-widest transition-all',
-            mode === 'weekly' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800',
+            mode === 'weekly' ? 'bg-white text-[var(--rz-navy)] shadow-sm' : 'text-[var(--rz-gray-500)] hover:text-[var(--rz-navy-800)]',
           )}
         >
           Weekly
@@ -126,7 +126,7 @@ export function StaffAvailabilityPicker({
           }}
           className={clsx(
             'flex-1 rounded-xl py-2.5 text-[10px] font-black uppercase tracking-widest transition-all',
-            mode === 'dates' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800',
+            mode === 'dates' ? 'bg-white text-[var(--rz-navy)] shadow-sm' : 'text-[var(--rz-gray-500)] hover:text-[var(--rz-navy-800)]',
           )}
         >
           Calendar
@@ -144,7 +144,7 @@ export function StaffAvailabilityPicker({
                 'rounded-xl border-2 py-3 text-center text-[10px] font-black uppercase tracking-tighter transition-all',
                 weekly.includes(d)
                   ? 'border-primary bg-primary text-white shadow-md'
-                  : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-slate-200',
+                  : 'border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] text-[var(--rz-gray-500)] hover:border-[var(--rz-gray-200)]',
               )}
             >
               {weekdayLabel(d).slice(0, 3)}
@@ -152,27 +152,27 @@ export function StaffAvailabilityPicker({
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border-2 border-slate-100 bg-slate-50/80 p-4">
+        <div className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/80 p-4">
           <div className="mb-4 flex items-center justify-between">
             <button
               type="button"
-              className="rounded-xl p-2 text-slate-600 hover:bg-white"
+              className="rounded-xl p-2 text-[var(--rz-gray-600)] hover:bg-white"
               onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
               aria-label="Previous month"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <span className="text-xs font-black uppercase tracking-widest text-slate-800">{monthTitle}</span>
+            <span className="text-xs font-black uppercase tracking-widest text-[var(--rz-navy-800)]">{monthTitle}</span>
             <button
               type="button"
-              className="rounded-xl p-2 text-slate-600 hover:bg-white"
+              className="rounded-xl p-2 text-[var(--rz-gray-600)] hover:bg-white"
               onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
               aria-label="Next month"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-black uppercase tracking-widest text-slate-400">
+          <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((l, i) => (
               <div key={`h-${i}`} className="py-1">
                 {l}
@@ -195,7 +195,7 @@ export function StaffAvailabilityPicker({
                       onClick={() => toggleYmd(ymd)}
                       className={clsx(
                         'aspect-square rounded-lg text-xs font-bold transition-all',
-                        !sel && 'bg-white text-slate-700 hover:bg-primary/10',
+                        !sel && 'bg-white text-[var(--rz-gray-700)] hover:bg-primary/10',
                         sel && 'bg-primary text-white shadow-md',
                       )}
                     >
@@ -209,9 +209,9 @@ export function StaffAvailabilityPicker({
         </div>
       )}
 
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
         Preview:{' '}
-        <span className="text-slate-700">
+        <span className="text-[var(--rz-gray-700)]">
           {formatAvailabilityDisplay(
             mode === 'weekly'
               ? serializeWeekly(weekly)

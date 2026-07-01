@@ -94,8 +94,8 @@ export declare function createSupportTicket(prisma: PrismaService, input: {
     businessId: string | null;
     updatedAt: Date;
     subject: string;
-    userId: string | null;
     ticketRef: string;
+    userId: string | null;
     priority: string;
     createdByRole: import(".prisma/client").$Enums.Role;
     requesterName: string;
@@ -183,8 +183,8 @@ export declare function addSupportTicketReply(prisma: PrismaService, ticketId: s
         businessId: string | null;
         updatedAt: Date;
         subject: string;
-        userId: string | null;
         ticketRef: string;
+        userId: string | null;
         priority: string;
         createdByRole: import(".prisma/client").$Enums.Role;
         requesterName: string;

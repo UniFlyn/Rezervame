@@ -1,0 +1,126 @@
+/* Rezervame — Color tokens
+   ============================================================
+   OFFICIAL BRAND COLORS (never substitute these two):
+     • #FF5757  Bittersweet / Rezervame Red  — main brand accent
+     • #023047  Prussian Blue                — primary dark
+   Scale steps (lighter/darker) are ONLY for states, tints and
+   surfaces — they must NOT stand in for the official values.
+   Warm, friendly, premium, trustworthy: white surfaces, soft gray
+   sections, coral for action, navy for authority, gold for ratings.
+   ============================================================ */
+
+:root {
+  /* ----- Brand: Prussian Blue (official primary dark) -----
+     #023047 is the DEFAULT primary dark: headings, important text,
+     strong hierarchy, dark UI accents. Darker steps are for
+     backgrounds/high-emphasis surfaces only — not a replacement. */
+  --rz-navy-900: #011d2c;  /* very dark backgrounds / high-emphasis surfaces ONLY */
+  --rz-navy-800: #022a3d;  /* dark-button hover (on navy CTAs) */
+  --rz-navy: #023047;      /* ★ OFFICIAL PRIMARY DARK — headings, key text, dark accents */
+  --rz-navy-600: #0a4a66;
+  --rz-navy-500: #1f6885;  /* muted navy / info accent */
+  --rz-navy-100: #e3edf2;  /* tint — soft navy fill */
+  --rz-navy-050: #f1f6f8;  /* tint — faint navy section wash */
+
+  /* ----- Brand: Bittersweet / Rezervame Red (official accent) -----
+     #FF5757 is the DEFAULT accent: primary CTAs, logo accents, active
+     & selected states, important links, key highlights. The two darker
+     steps are strictly interaction states, never the resting accent. */
+  --rz-coral-700: #d83b3b;  /* pressed / active-press (= error red) */
+  --rz-coral-600: #f04646;  /* hover only */
+  --rz-coral: #ff5757;      /* ★ OFFICIAL ACCENT — primary CTA, logo, links, active */
+  --rz-coral-400: #ff7d7d;  /* light coral (decorative) */
+  --rz-coral-300: #ffa3a3;  /* light coral (decorative) */
+  --rz-coral-100: #ffe3e3;  /* tint — soft coral fill / coral badges */
+  --rz-coral-050: #fff1f1;  /* tint — faint coral wash */
+
+  /* ----- Gold (RATINGS ONLY) -----
+     Stars, rating numbers and review UI only. Never a general accent. */
+  --rz-gold: #fdc700;      /* star ratings / review scores */
+  --rz-gold-100: #fff6d6;  /* rating chip background */
+
+  /* ----- Neutrals (warm-leaning gray ramp) ----- */
+  --rz-white: #ffffff;
+  --rz-gray-050: #f7f8fa;  /* page section background */
+  --rz-gray-100: #f1f3f6;  /* subtle fill, table header */
+  --rz-gray-200: #e7eaef;  /* borders, dividers */
+  --rz-gray-300: #d7dbe2;  /* strong border / input border */
+  --rz-gray-400: #b3b8c2;  /* disabled text / placeholder */
+  --rz-gray-500: #878a93;  /* muted label */
+  --rz-gray-600: #6b6f7b;  /* secondary body text */
+  --rz-gray-700: #4a4f5b;  /* body text */
+  --rz-gray-900: #1c2230;  /* near-black text */
+
+  /* ----- Semantic status (SEMANTIC UI STATES ONLY — not accents) -----
+     Use exclusively to communicate state: confirmations, alerts, errors,
+     informational notices. Do not use as decorative or brand colors. */
+  --rz-success: #1f9d5b;   /* confirmed / paid / available (Pagada, Disponible) */
+  --rz-success-bg: #e6f6ee;
+  --rz-warning: #b4690e;   /* pending / attention (Pendiente) */
+  --rz-warning-bg: #fdf0d5;
+  --rz-error: #d83b3b;     /* error / cancelled / destructive (Cancelada) */
+  --rz-error-bg: #ffe3e3;
+  --rz-info: #1f6885;      /* neutral informational notices */
+  --rz-info-bg: #e3edf2;
+
+  /* ===================== Semantic aliases ===================== */
+  /* Surfaces (backgrounds)
+     Page = soft gray (#F7F8FA); cards/raised = pure white; navy for
+     inverse/footer-dark; coral for brand surfaces (e.g. coral footer). */
+  --surface-page: var(--rz-gray-050);    /* app/page background */
+  --surface-card: var(--rz-white);       /* cards, panels, modals */
+  --surface-raised: var(--rz-white);     /* popovers, dropdowns */
+  --surface-section: var(--rz-gray-050); /* alternating section band */
+  --surface-sunken: var(--rz-gray-100);  /* wells, table headers */
+  --surface-inverse: var(--rz-navy);     /* dark surfaces (footer, nav) */
+  --surface-brand: var(--rz-coral);      /* brand surface (coral footer/CTA band) */
+
+  /* Text hierarchy
+     strong (navy) = headings & key text; body = default copy;
+     secondary/muted = supporting; placeholder = empty fields;
+     link = coral; price = navy. */
+  --text-strong: var(--rz-navy);        /* headings, important text, prices */
+  --text-body: var(--rz-gray-700);      /* default paragraph copy */
+  --text-secondary: var(--rz-gray-600); /* supporting / secondary copy */
+  --text-muted: var(--rz-gray-500);     /* labels, meta, captions */
+  --text-placeholder: var(--rz-gray-400);
+  --text-on-coral: var(--rz-white);
+  --text-on-navy: var(--rz-white);
+  --text-link: var(--rz-coral);         /* important links */
+  --text-price: var(--rz-navy);
+  --text-rating: var(--rz-navy);        /* rating number next to gold stars */
+
+  /* Ratings (gold) — stars & review UI ONLY */
+  --rating-star: var(--rz-gold);
+  --rating-bg: var(--rz-gold-100);
+
+  /* Borders
+     subtle = dividers/hairlines; default = inputs/cards resting;
+     strong = navy emphasis; active/focus = coral. */
+  --border-subtle: var(--rz-gray-200);  /* dividers, card hairlines */
+  --border-default: var(--rz-gray-300); /* inputs, resting card border */
+  --border-strong: var(--rz-navy);      /* emphasis outline */
+  --border-active: var(--rz-coral);     /* selected / active border */
+  --border-focus: var(--rz-coral);      /* focus ring border */
+
+  /* Actions
+     PRIMARY CTA  = coral (#FF5757), hover #F04646, pressed #D83B3B.
+     SECONDARY CTA = navy solid (#023047) OR coral outline — see
+                     --action-secondary-* below.
+     ACTIVE / SELECTED = coral fill or coral border + coral-100 wash. */
+  --action-primary: var(--rz-coral);            /* primary CTA resting */
+  --action-primary-hover: var(--rz-coral-600);  /* primary CTA hover */
+  --action-primary-active: var(--rz-coral-700); /* primary CTA pressed */
+  --action-dark: var(--rz-navy);                /* secondary CTA (solid navy) */
+  --action-dark-hover: var(--rz-navy-800);
+  --action-secondary: var(--rz-coral);          /* secondary CTA (coral outline) border/text */
+  --action-secondary-bg: var(--rz-white);
+  --action-secondary-hover-bg: var(--rz-coral-050);
+  --selected-bg: var(--rz-coral-100);           /* active/selected wash (chips, slots, tabs) */
+  --selected-fg: var(--rz-coral-700);           /* active/selected label */
+  --action-disabled: var(--rz-gray-200);
+  --action-disabled-text: var(--rz-gray-400);
+
+  --focus-ring: rgba(255, 87, 87, 0.28);
+  --overlay-scrim: rgba(3, 18, 28, 0.55);
+}

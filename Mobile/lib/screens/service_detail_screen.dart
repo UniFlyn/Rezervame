@@ -137,16 +137,31 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with TickerPr
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadVenueDetail());
   }
 
+  double _finalServicePrice(Map<String, dynamic> s) {
+    final id = '${s['id']}';
+    final base = (s['priceValue'] as num?)?.toDouble() ??
+        BookingCartLine.parsePriceLabel('${s['price']}');
+    for (final p in _promotions) {
+      if ('${p['serviceId']}' != id) continue;
+      final discountPct = (p['discountPercent'] as num?)?.toDouble();
+      if (discountPct != null && discountPct > 0) {
+        return double.parse((base * (1 - discountPct / 100)).toStringAsFixed(2));
+      }
+    }
+    return base;
+  }
+
   void _syncCart() {
     final lines = <BookingCartLine>[];
     for (final id in _selectedServiceIds) {
       final s = _services.firstWhere((item) => item['id'] == id);
+      final finalPrice = _finalServicePrice(s);
       lines.add(BookingCartLine(
         id: '${s['id']}',
         name: s['name'] as String,
         durationLabel: s['time'] as String,
-        priceLabel: s['price'] as String,
-        priceValue: BookingCartLine.parsePriceLabel(s['price'] as String),
+        priceLabel: '\$${finalPrice.toStringAsFixed(2)}',
+        priceValue: finalPrice,
       ));
     }
     if (lines.isEmpty) {
@@ -346,6 +361,9 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> with TickerPr
         }).toList();
         _detailLoading = false;
       });
+      if (_selectedServiceIds.isNotEmpty) {
+        _syncCart();
+      }
       if (_heroPageIndex >= _heroSlides.length) {
         _heroPageIndex = 0;
         if (_heroPageController.hasClients) {

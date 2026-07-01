@@ -1188,11 +1188,14 @@ class ApiRepository {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       return {
         'wompiEnabled': false,
+        'wompiConfigured': false,
+        'yappyConfigured': false,
+        'payAtVenueEnabled': true,
         'defaultCommission': 15,
         'methods': [
-          {'id': 'wompi', 'label': 'Card', 'enabled': false},
-          {'id': 'yappy', 'label': 'Yappy', 'enabled': false},
-          {'id': 'pay_at_venue', 'label': 'Pay by visit', 'enabled': true},
+          {'id': 'wompi', 'label': 'Card', 'enabled': false, 'configured': false},
+          {'id': 'yappy', 'label': 'Yappy', 'enabled': false, 'configured': false},
+          {'id': 'pay_at_venue', 'label': 'Pay by visit', 'enabled': true, 'configured': true},
         ],
       };
     }

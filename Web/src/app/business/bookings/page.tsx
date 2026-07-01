@@ -34,7 +34,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; i
   Approved:  { label: "Approved",  bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700",  icon: <CheckCircle className="w-3 h-3" /> },
   Paid:      { label: "Paid",      bg: "bg-blue-50 border-blue-200",     text: "text-blue-700",  icon: <DollarSign className="w-3 h-3" /> },
   Completed: { label: "Completed", bg: "bg-cyan-50 border-cyan-200",   text: "text-cyan-700", icon: <CheckCircle className="w-3 h-3" /> },
-  Cancelled: { label: "Cancelled", bg: "bg-slate-100 border-slate-200",  text: "text-slate-500", icon: <XCircle className="w-3 h-3" /> },
+  Cancelled: { label: "Cancelled", bg: "bg-[var(--rz-gray-100)] border-[var(--rz-gray-200)]",  text: "text-[var(--rz-gray-500)]", icon: <XCircle className="w-3 h-3" /> },
   Rejected:  { label: "Rejected",  bg: "bg-red-50 border-red-200",       text: "text-red-600",   icon: <XCircle className="w-3 h-3" /> },
   Rescheduled: { label: "Rescheduled", bg: "bg-amber-50 border-amber-200", text: "text-amber-700", icon: <Clock className="w-3 h-3" /> },
 };
@@ -164,10 +164,10 @@ export default function BusinessBookingsPage() {
     <div className="space-y-6 pb-10">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-3xl uppercase">
+          <h1 className="text-2xl font-black tracking-tight text-[var(--rz-navy)] md:text-3xl uppercase">
             Booking Management
           </h1>
-          <p className="mt-0.5 text-sm text-slate-500 font-medium">
+          <p className="mt-0.5 text-sm text-[var(--rz-gray-500)] font-medium">
             Flat list of all your appointments. Use filters to find specific bookings.
           </p>
         </div>
@@ -176,22 +176,22 @@ export default function BusinessBookingsPage() {
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-500)] w-4 h-4" />
           <input
             type="text"
             placeholder="Search by customer name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm"
+            className="w-full pl-12 pr-4 py-4 bg-white border border-[var(--rz-gray-200)] rounded-2xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm"
           />
         </div>
         <div className="flex gap-2">
           <div className="relative">
-            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-500)] w-4 h-4" />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="pl-12 pr-10 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none transition-all shadow-sm"
+              className="pl-12 pr-10 py-4 bg-white border border-[var(--rz-gray-200)] rounded-2xl text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none transition-all shadow-sm"
             >
               <option value="all">All Statuses</option>
               <option value="Pending">Pending</option>
@@ -201,13 +201,13 @@ export default function BusinessBookingsPage() {
               <option value="Cancelled">Cancelled</option>
               <option value="Rejected">Rejected</option>
             </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-500)] w-4 h-4 pointer-events-none" />
           </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
+      <div className="bg-white rounded-[32px] border border-[var(--rz-gray-200)] shadow-xl shadow-[color:rgba(231,234,239,0.5)] overflow-hidden">
         <div className="relative overflow-x-auto">
           {isLoading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]" aria-hidden>
@@ -216,41 +216,41 @@ export default function BusinessBookingsPage() {
           )}
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Customer</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Service</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Date & Time</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Price</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
+              <tr className="bg-[var(--rz-gray-050)] border-b border-[var(--rz-gray-100)]">
+                <th className="px-8 py-6 text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em]">Customer</th>
+                <th className="px-8 py-6 text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em]">Service</th>
+                <th className="px-8 py-6 text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em]">Date & Time</th>
+                <th className="px-8 py-6 text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em]">Price</th>
+                <th className="px-8 py-6 text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em]">Status</th>
+                <th className="px-8 py-6 text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[var(--rz-gray-100)]">
               {bookingsData.map((booking) => (
-                <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors group">
+                <tr key={booking.id} className="hover:bg-[#f7f8fa]/50 transition-colors group">
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 font-black text-xs border border-slate-200 group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-all">
+                      <div className="w-10 h-10 bg-[var(--rz-gray-100)] rounded-xl flex items-center justify-center text-[var(--rz-gray-500)] font-black text-xs border border-[var(--rz-gray-200)] group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-all">
                         {booking.customerName.charAt(0)}
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-800 tracking-tight">{booking.customerName}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{booking.user?.email || 'Walk-in'}</p>
+                        <p className="text-sm font-black text-[var(--rz-navy-800)] tracking-tight">{booking.customerName}</p>
+                        <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">{booking.user?.email || 'Walk-in'}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                    <p className="text-sm font-bold text-slate-600 tracking-tight">{booking.service?.name || "—"}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{booking.staff?.name || 'Any Staff'}</p>
+                    <p className="text-sm font-bold text-[var(--rz-gray-600)] tracking-tight">{booking.service?.name || "—"}</p>
+                    <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-0.5">{booking.staff?.name || 'Any Staff'}</p>
                   </td>
                   <td className="px-8 py-5">
-                    <div className="flex items-center gap-2 text-slate-500">
+                    <div className="flex items-center gap-2 text-[var(--rz-gray-500)]">
                       <Calendar className="w-3.5 h-3.5 text-primary" />
                       <span className="text-xs font-bold tracking-tight">{formatDate(booking.date)}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                    <p className="text-sm font-black text-slate-900 tracking-tighter">${Number(booking.price || 0).toFixed(2)}</p>
+                    <p className="text-sm font-black text-[var(--rz-navy)] tracking-tighter">${Number(booking.price || 0).toFixed(2)}</p>
                   </td>
                   <td className="px-8 py-5">
                     <StatusBadge status={booking.status} />
@@ -287,7 +287,7 @@ export default function BusinessBookingsPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedBooking(booking)}
-                        className="p-3 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all border border-transparent hover:border-primary/10"
+                        className="p-3 text-[var(--rz-gray-500)] hover:text-primary hover:bg-primary/5 rounded-2xl transition-all border border-transparent hover:border-primary/10"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -299,14 +299,14 @@ export default function BusinessBookingsPage() {
                 <tr>
                   <td colSpan={6} className="px-8 py-20 text-center">
                     <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center border border-slate-100">
+                      <div className="w-16 h-16 bg-[var(--rz-gray-050)] rounded-3xl flex items-center justify-center border border-[var(--rz-gray-100)]">
                         {!hasLoadedBookings || isLoading ? (
                           <Loader2 className="w-8 h-8 animate-spin text-primary" />
                         ) : (
-                          <AlertCircle className="w-8 h-8 text-slate-300" />
+                          <AlertCircle className="w-8 h-8 text-[var(--rz-gray-300)]" />
                         )}
                       </div>
-                      <p className="text-sm font-black text-slate-400 uppercase tracking-widest">
+                      <p className="text-sm font-black text-[var(--rz-gray-500)] uppercase tracking-widest">
                         {!hasLoadedBookings || isLoading ? "Loading bookings..." : "No bookings found."}
                       </p>
                     </div>
@@ -318,8 +318,8 @@ export default function BusinessBookingsPage() {
         </div>
 
         {/* Pagination */}
-        <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+        <div className="px-8 py-6 bg-[var(--rz-gray-050)] border-t border-[var(--rz-gray-100)] flex items-center justify-between">
+           <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">
              {totalItems > 0
                ? `Showing ${(page - 1) * pageSize + 1} to ${Math.min(page * pageSize, totalItems)} of ${totalItems} entries`
                : "Showing 0 to 0 of 0 entries"}
@@ -328,14 +328,14 @@ export default function BusinessBookingsPage() {
               <button 
                 disabled={page === 1}
                 onClick={() => setPage(p => p - 1)}
-                className="p-2 bg-white border border-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-50 transition-all shadow-sm"
+                className="p-2 bg-white border border-[var(--rz-gray-200)] rounded-xl disabled:opacity-50 hover:bg-[var(--rz-gray-050)] transition-all shadow-sm"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button 
                 disabled={page === totalPages}
                 onClick={() => setPage(p => p + 1)}
-                className="p-2 bg-white border border-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-50 transition-all shadow-sm"
+                className="p-2 bg-white border border-[var(--rz-gray-200)] rounded-xl disabled:opacity-50 hover:bg-[var(--rz-gray-050)] transition-all shadow-sm"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -345,10 +345,10 @@ export default function BusinessBookingsPage() {
 
       {/* Detail Modal */}
       {selectedBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#023047]/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="w-full max-w-xl bg-white rounded-[40px] shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden">
             {/* Header */}
-            <div className="bg-slate-900 p-10 text-white relative">
+            <div className="bg-[var(--rz-navy)] p-10 text-white relative">
               <button
                 onClick={() => setSelectedBooking(null)}
                 className="absolute top-8 right-8 p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-2xl transition-all"
@@ -366,23 +366,23 @@ export default function BusinessBookingsPage() {
             <div className="p-10 space-y-8">
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Customer</label>
-                   <p className="text-sm font-black text-slate-900">{selectedBooking.customerName}</p>
+                   <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block mb-2">Customer</label>
+                   <p className="text-sm font-black text-[var(--rz-navy)]">{selectedBooking.customerName}</p>
                 </div>
                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Service</label>
-                   <p className="text-sm font-black text-slate-900">{selectedBooking.service?.name || '—'}</p>
+                   <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block mb-2">Service</label>
+                   <p className="text-sm font-black text-[var(--rz-navy)]">{selectedBooking.service?.name || '—'}</p>
                 </div>
                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Date & Time</label>
-                   <p className="text-sm font-black text-slate-900">{formatDate(selectedBooking.date)}</p>
+                   <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block mb-2">Date & Time</label>
+                   <p className="text-sm font-black text-[var(--rz-navy)]">{formatDate(selectedBooking.date)}</p>
                 </div>
                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Price</label>
+                   <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block mb-2">Price</label>
                    <p className="text-sm font-black text-primary tracking-tighter">${Number(selectedBooking.price || 0).toFixed(2)}</p>
                 </div>
                 <div className="col-span-2">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Professional (Reassign if needed)</label>
+                   <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block mb-2">Professional (Reassign if needed)</label>
                    {selectedBooking.status === 'Pending' ? (
                      <div className="relative">
                        <select
@@ -401,17 +401,17 @@ export default function BusinessBookingsPage() {
                                : b
                            ));
                          }}
-                         className="w-full pl-4 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none transition-all shadow-sm"
+                         className="w-full pl-4 pr-10 py-3.5 bg-[var(--rz-gray-050)] border border-[var(--rz-gray-200)] rounded-2xl text-sm font-bold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none transition-all shadow-sm"
                        >
                          <option value="">Any Staff (No specific staff)</option>
                          {staffList.map((s) => (
                            <option key={s.id} value={s.id}>{s.name} ({s.role || "Professional"})</option>
                          ))}
                        </select>
-                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-500)] w-4 h-4 pointer-events-none" />
                      </div>
                    ) : (
-                     <p className="text-sm font-black text-slate-900">{selectedBooking.staff?.name || 'Any Staff'}</p>
+                     <p className="text-sm font-black text-[var(--rz-navy)]">{selectedBooking.staff?.name || 'Any Staff'}</p>
                    )}
                 </div>
               </div>
@@ -448,8 +448,8 @@ export default function BusinessBookingsPage() {
                 </div>
               )}
 
-              <div className="pt-8 border-t border-slate-100">
-                <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+              <div className="pt-8 border-t border-[var(--rz-gray-100)]">
+                <p className="text-center text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em]">
                   Business Management Portal
                 </p>
               </div>
@@ -460,8 +460,8 @@ export default function BusinessBookingsPage() {
 
       {/* Confirmation Modal */}
       {confirmApprovalBooking && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white rounded-[40px] shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300 overflow-hidden">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#011d2c]/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-[40px] shadow-2xl border border-[var(--rz-gray-100)] animate-in zoom-in-95 duration-300 overflow-hidden">
             {/* Upper banner */}
             <div className="bg-emerald-600 p-8 text-white text-center relative">
               <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
@@ -473,26 +473,26 @@ export default function BusinessBookingsPage() {
 
             {/* Details panel */}
             <div className="p-8 space-y-6">
-              <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100 text-xs font-bold text-slate-600">
+              <div className="space-y-4 bg-[var(--rz-gray-050)] p-6 rounded-3xl border border-[var(--rz-gray-100)] text-xs font-bold text-[var(--rz-gray-600)]">
                 <div className="flex justify-between">
-                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Customer</span>
-                  <span className="text-slate-900 font-black">{confirmApprovalBooking.customerName}</span>
+                  <span className="text-[var(--rz-gray-500)] uppercase tracking-widest text-[9px]">Customer</span>
+                  <span className="text-[var(--rz-navy)] font-black">{confirmApprovalBooking.customerName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Service</span>
-                  <span className="text-slate-900 font-black">{confirmApprovalBooking.service?.name || "—"}</span>
+                  <span className="text-[var(--rz-gray-500)] uppercase tracking-widest text-[9px]">Service</span>
+                  <span className="text-[var(--rz-navy)] font-black">{confirmApprovalBooking.service?.name || "—"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Assigned Staff</span>
+                  <span className="text-[var(--rz-gray-500)] uppercase tracking-widest text-[9px]">Assigned Staff</span>
                   <span className="text-primary font-black">{confirmApprovalBooking.staff?.name || "Any Staff"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Date & Time</span>
-                  <span className="text-slate-900 font-black">{formatDate(confirmApprovalBooking.date)}</span>
+                  <span className="text-[var(--rz-gray-500)] uppercase tracking-widest text-[9px]">Date & Time</span>
+                  <span className="text-[var(--rz-navy)] font-black">{formatDate(confirmApprovalBooking.date)}</span>
                 </div>
-                <div className="flex justify-between border-t border-slate-200/60 pt-3">
-                  <span className="text-slate-400 uppercase tracking-widest text-[9px]">Total price</span>
-                  <span className="text-slate-900 font-black text-sm">${Number(confirmApprovalBooking.price || 0).toFixed(2)}</span>
+                <div className="flex justify-between border-t border-[#e7eaef]/60 pt-3">
+                  <span className="text-[var(--rz-gray-500)] uppercase tracking-widest text-[9px]">Total price</span>
+                  <span className="text-[var(--rz-navy)] font-black text-sm">${Number(confirmApprovalBooking.price || 0).toFixed(2)}</span>
                 </div>
               </div>
 
@@ -501,7 +501,7 @@ export default function BusinessBookingsPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmApprovalBooking(null)}
-                  className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black uppercase rounded-2xl transition-all"
+                  className="flex-1 py-4 bg-[var(--rz-gray-100)] hover:bg-[var(--rz-gray-200)] text-[var(--rz-gray-600)] text-xs font-black uppercase rounded-2xl transition-all"
                 >
                   Cancel
                 </button>

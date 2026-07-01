@@ -1,0 +1,43 @@
+<!-- @dsCard group="Components" viewport="700x600" name="Header & Footer" subtitle="Home + business headers & coral brand footer" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 0; background: var(--rz-gray-050); }
+  .frame { transform: scale(0.78); transform-origin: top left; width: 128%; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { Header, Footer } = window.RezervameDesignSystem_4317c4;
+    const logo = "../../assets/logos/rezervame-color.png";
+    const logoW = "../../assets/logos/rezervame-white.png";
+    function Demo() {
+      return (
+        <div className="frame">
+          <div style={{fontSize:11,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--rz-gray-400)',padding:'14px 32px 6px'}}>Home header</div>
+          <Header variant="home" logoSrc={logo} onLogin={()=>{}} />
+          <div style={{height:18}}></div>
+          <div style={{fontSize:11,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--rz-gray-400)',padding:'4px 32px 6px'}}>Business header</div>
+          <Header logoSrc={logo} notifications user={{name:'Richard Lucas', reservations:152, avatar:'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&h=80&q=70'}} contextTitle="Luxe Hair Studio" contextSubtitle="Categoría: Servicios para el cabello" />
+          <div style={{height:20}}></div>
+          <Footer logoSrc={logoW}
+            columns={[
+              {title:'Para Clientes', links:['Descargar app','Cómo funciona','Atención al cliente']},
+              {title:'Para Negocios', links:['Únete a Rezervame','Precios','Soporte']},
+              {title:'Rezervame', links:['Sobre nosotros','Empleos','Privacidad']}
+            ]} />
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!-- @dsCard group="Components" viewport="700x620" name="Date & Time Selectors" subtitle="Booking date strip, time-slot grid + multi-service summary" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: #fff; }
+  .panel { max-width: 560px; }
+  .grid { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 24px; align-items: start; }
+  .hr { height: 1px; background: var(--border-subtle); margin: 22px 0; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { DateSelector, TimeSlotSelector, ReservationSummary } = window.RezervameDesignSystem_4317c4;
+    function Demo() {
+      const [date, setDate] = React.useState(null);
+      const [time, setTime] = React.useState('10:30 AM');
+      const [services, setServices] = React.useState([
+        { name: 'Corte de cabello para mujer', price: 65, duration: '60 min' },
+        { name: 'Highlights', price: 55, duration: '90 min' },
+      ]);
+      const days = [
+        {date:'1',weekday:'Lun',day:13},{date:'2',weekday:'Mar',day:14},{date:'3',weekday:'Mié',day:15},
+        {date:'4',weekday:'Jue',day:16},{date:'5',weekday:'Vie',day:17},{date:'6',weekday:'Sáb',day:18,disabled:true},{date:'7',weekday:'Dom',day:19}
+      ];
+      return (
+        <div className="grid">
+          <div className="panel">
+            <DateSelector days={days} value={date||'3'} onChange={setDate} monthLabel="Noviembre 2025" />
+            <div className="hr"></div>
+            <TimeSlotSelector value={time} onChange={setTime} columns={4}
+              slots={['9:00 AM','9:30 AM','10:00 AM','10:30 AM',{time:'11:00 AM',disabled:true},'11:30 AM','12:00 PM','2:00 PM']} />
+          </div>
+          <ReservationSummary
+            services={services}
+            professional="Mateo Ríos"
+            date="15 Nov 2025"
+            time={time}
+            onAddService={() => setServices(s => [...s, { name: 'Tratamiento capilar', price: 40, duration: '30 min' }])}
+            onRemoveService={(s,i) => setServices(list => list.filter((_,idx) => idx !== i))}
+          />
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

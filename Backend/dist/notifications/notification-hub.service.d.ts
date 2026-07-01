@@ -11,10 +11,10 @@ export declare function createInAppNotification(prisma: PrismaService, input: In
     id: string;
     role: import(".prisma/client").$Enums.Role;
     createdAt: Date;
+    title: string;
     body: string;
     userId: string | null;
     type: string;
-    title: string;
     read: boolean;
 }>;
 export declare function notifyPlatformAdmins(prisma: PrismaService, input: {
@@ -25,6 +25,7 @@ export declare function notifyPlatformAdmins(prisma: PrismaService, input: {
 }): Promise<void>;
 export declare function notifyCustomerUser(prisma: PrismaService, user: {
     id: string;
+    name?: string | null;
     email?: string | null;
     phone?: string | null;
 }, input: {
@@ -32,6 +33,8 @@ export declare function notifyCustomerUser(prisma: PrismaService, user: {
     title: string;
     body: string;
     emailSubject?: string;
+    emailTemplate?: import('../email/render-platform-email.util').PlatformEmailTemplate;
+    emailModel?: Record<string, unknown>;
 }): Promise<void>;
 export declare function notifyBusinessAccount(prisma: PrismaService, business: {
     email: string;
@@ -43,6 +46,9 @@ export declare function notifyBusinessAccount(prisma: PrismaService, business: {
     title: string;
     body: string;
     emailSubject?: string;
+    emailTemplate?: import('../email/render-platform-email.util').PlatformEmailTemplate;
+    emailModel?: Record<string, unknown>;
+    sendEmail?: boolean;
 }): Promise<void>;
 export declare function notifyRoleBroadcast(prisma: PrismaService, role: Role, message: string, targetLabel: string): Promise<{
     pushSent: number;

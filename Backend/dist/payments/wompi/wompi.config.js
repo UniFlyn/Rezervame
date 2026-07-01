@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.readWompiConfigFromEnv = readWompiConfigFromEnv;
 exports.isWompiEnabledFlag = isWompiEnabledFlag;
+exports.isPlausibleWompiPublicKey = isPlausibleWompiPublicKey;
 exports.resolveWompiConfigFromRow = resolveWompiConfigFromRow;
 exports.resolveWompiConfig = resolveWompiConfig;
 exports.isWompiConfigured = isWompiConfigured;
@@ -26,13 +27,19 @@ function isWompiEnabledFlag(row) {
         return false;
     return true;
 }
+function isPlausibleWompiPublicKey(key) {
+    const k = (key ?? '').trim();
+    if (!k || k.includes('@'))
+        return false;
+    return k.startsWith('pub_') || /^[A-Za-z0-9_-]{16,}$/.test(k);
+}
 function resolveWompiConfigFromRow(row) {
     const fromEnv = readWompiConfigFromEnv();
     if (fromEnv)
         return fromEnv;
     const publicKey = row?.wompiPublicKey?.trim();
     const privateKey = row?.wompiPrivateKey?.trim();
-    if (!publicKey || !privateKey)
+    if (!publicKey || !privateKey || !isPlausibleWompiPublicKey(publicKey))
         return null;
     const envRaw = (row?.wompiEnv || 'sandbox').trim().toLowerCase();
     const env = envRaw === 'production' ? 'production' : 'sandbox';

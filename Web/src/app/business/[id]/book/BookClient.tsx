@@ -106,7 +106,7 @@ export default function BookClient({ params }: { params: { id: string } }) {
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto py-12 px-6">
-        <p className="text-slate-600">Loading…</p>
+        <p className="text-[var(--rz-gray-600)]">Loading…</p>
       </div>
     );
   }
@@ -115,11 +115,11 @@ export default function BookClient({ params }: { params: { id: string } }) {
     <div className="max-w-3xl mx-auto py-12 px-6">
       <h1 className="text-3xl font-bold mb-8">Confirm your appointment</h1>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-8">
+      <div className="bg-white rounded-xl shadow-sm border border-[var(--rz-gray-200)] p-8 space-y-8">
         <div>
           <h2 className="text-xl font-bold border-b pb-2 mb-4">1. Service</h2>
           {services.length === 0 ? (
-            <p className="text-sm text-slate-500">No services listed for this business yet.</p>
+            <p className="text-sm text-[var(--rz-gray-500)]">No services listed for this business yet.</p>
           ) : (
             <select
               className="w-full p-3 border rounded-lg bg-white"
@@ -137,7 +137,7 @@ export default function BookClient({ params }: { params: { id: string } }) {
 
         <div>
           <h2 className="text-xl font-bold border-b pb-2 mb-4">2. Preferred professional</h2>
-          <p className="text-sm text-slate-500 mb-2">
+          <p className="text-sm text-[var(--rz-gray-500)] mb-2">
             Optional — final assignment is up to the business.
           </p>
           <select className="w-full p-3 border rounded-lg bg-white" defaultValue="">
@@ -162,7 +162,7 @@ export default function BookClient({ params }: { params: { id: string } }) {
 
         <div>
           <h2 className="text-xl font-bold border-b pb-2 mb-4">4. Payment</h2>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-[var(--rz-gray-600)]">
             Pay at the venue or per agreement with the business. Online card capture is not required for this step.
           </p>
         </div>
@@ -175,7 +175,7 @@ export default function BookClient({ params }: { params: { id: string } }) {
           type="button"
           disabled={submitting || services.length === 0}
           onClick={() => void submit()}
-          className="w-full py-4 bg-slate-900 text-white font-bold rounded-lg text-lg shadow hover:bg-slate-800 disabled:opacity-50"
+          className="w-full py-4 bg-[var(--rz-navy)] text-white font-bold rounded-lg text-lg shadow hover:bg-[var(--rz-navy-800)] disabled:opacity-50"
         >
           {submitting ? "Submitting…" : "Submit booking request"}
         </button>

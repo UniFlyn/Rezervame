@@ -8,6 +8,7 @@ import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { venueCardImageSrc, businessListingImageSrc, type SearchVenueRow } from "@/lib/venueSearch";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { InvoiceTable, InvoiceCard, EmptyState } from "@/ds";
 import { generateAndDownloadInvoicePDF } from "@/lib/invoicePdf";
 import { 
   Trash2, Edit2, Shield, User as UserIcon, 
@@ -900,11 +901,11 @@ function ProfileContent() {
   if (!isLoggedIn) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-        <p className="max-w-md text-sm font-semibold text-slate-600">{t("favoritesSignIn")}</p>
+        <p className="max-w-md text-sm font-semibold text-[var(--rz-gray-600)]">{t("favoritesSignIn")}</p>
         <button
           type="button"
           onClick={() => setIsLoginModalOpen(true)}
-          className="rounded-2xl bg-[#ff5a5f] px-8 py-3 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-[#e0484d]"
+          className="rounded-2xl bg-[#ff5757] px-8 py-3 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-[#d83b3b]"
         >
           {t("authSignIn")}
         </button>
@@ -913,28 +914,28 @@ function ProfileContent() {
   }
 
   return (
-    <div className="bg-slate-50 flex h-screen overflow-hidden animate-in fade-in duration-700">
+    <div className="bg-[var(--rz-gray-050)] flex h-screen overflow-hidden animate-in fade-in duration-700">
       {/* Sidebar */}
-      <aside className="w-[320px] bg-white border-r border-slate-200 flex flex-col hidden lg:flex shadow-sm shrink-0">
-        <div className="p-8 flex flex-col items-center border-b border-slate-50">
+      <aside className="w-[320px] bg-white border-r border-[var(--border-default)] flex flex-col hidden lg:flex shadow-sm shrink-0">
+        <div className="p-8 flex flex-col items-center border-b border-[var(--border-subtle)]">
           <div className="relative group mb-4">
-            <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-100 flex items-center justify-center transform group-hover:rotate-3 transition-transform">
+            <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-[var(--border-subtle)] shadow-sm bg-[var(--rz-gray-100)] flex items-center justify-center transform group-hover:rotate-3 transition-transform">
               <img 
                 src={user?.avatar || PLACEHOLDER_IMAGE_DATA_URI} 
                 alt={user?.name || "User Profile"} 
                 className="w-full h-full object-cover"
                 onError={(e) => { 
                   const target = e.target as HTMLImageElement;
-                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=ff5a5f&color=fff&size=128&bold=true`; 
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=ff5757&color=fff&size=128&bold=true`; 
                 }}
               />
             </div>
-            <button className="absolute -bottom-1 -right-1 bg-[#ff5a5f] p-2 rounded-xl text-white shadow-lg opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110">
+            <button className="absolute -bottom-1 -right-1 bg-[#ff5757] p-2 rounded-xl text-white shadow-lg opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110">
               <Camera size={14} />
             </button>
           </div>
-          <h2 className="text-lg font-black text-slate-800">{user?.name}</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{user?.phone?.trim() || "—"}</p>
+          <h2 className="text-lg font-black text-[var(--rz-navy)]">{user?.name}</h2>
+          <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">{user?.phone?.trim() || "—"}</p>
         </div>
 
         <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">
@@ -944,11 +945,11 @@ function ProfileContent() {
               onClick={() => setActiveTab(item.id as Tab)}
               className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-2xl font-bold transition-all ${
                 activeTab === item.id 
-                ? "bg-[#ff5a5f] text-white shadow-lg shadow-[#ff5a5f]/20 transform -translate-y-0.5" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                ? "bg-[#ff5757] text-white shadow-lg shadow-[#ff5757]/20 transform -translate-y-0.5" 
+                : "text-[var(--rz-gray-500)] hover:bg-[var(--rz-gray-050)] hover:text-[var(--rz-gray-700)]"
               }`}
             >
-              <span className={activeTab === item.id ? "text-white" : "text-slate-400"}>
+              <span className={activeTab === item.id ? "text-white" : "text-[var(--rz-gray-500)]"}>
                 {item.icon}
               </span>
               <span className="text-sm">{item.label}</span>
@@ -956,10 +957,10 @@ function ProfileContent() {
           ))}
         </nav>
 
-        <div className="p-6 border-t border-slate-50">
+        <div className="p-6 border-t border-[var(--border-subtle)]">
           <button 
             onClick={() => { logout(); router.push('/'); }}
-            className="w-full flex items-center justify-center space-x-3 px-4 py-3.5 rounded-2xl font-black text-[#ff5a5f] hover:bg-red-50 transition-all text-[11px] uppercase tracking-widest"
+            className="w-full flex items-center justify-center space-x-3 px-4 py-3.5 rounded-2xl font-black text-[#ff5757] hover:bg-red-50 transition-all text-[11px] uppercase tracking-widest"
           >
             <LogOut size={16} />
             <span>{"Log Out"}</span>
@@ -968,7 +969,7 @@ function ProfileContent() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-slate-50">
+      <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[var(--rz-gray-050)]">
         <div className="max-w-[1000px] mx-auto w-full p-6 lg:p-12">
           
           {/* TAB: BOOKINGS */}
@@ -976,30 +977,30 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
-                  <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">
+                  <h1 className="text-3xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
                     {"My Reservations"}
                   </h1>
-                  <p className="text-slate-400 font-bold text-sm">
+                  <p className="text-[var(--rz-gray-500)] font-bold text-sm">
                     {"Manage your appointments and download your invoices"}
                   </p>
                 </div>
               </div>
 
               <div className="mb-12 space-y-6">
-                <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest mb-4">{"UPCOMING RESERVATIONS"}</h3>
+                <h3 className="text-xs font-black text-[var(--rz-gray-600)] uppercase tracking-widest mb-4">{"UPCOMING RESERVATIONS"}</h3>
                 {ongoingReservations.length > 0 ? (
                   ongoingReservations.map((res) => (
-                    <div key={res.id} className="bg-white border-2 border-slate-100 rounded-3xl p-6 md:p-8 text-slate-900 shadow-md flex flex-col md:flex-row justify-between items-center group cursor-pointer hover:shadow-lg transition-all relative overflow-hidden hover:border-[#ff5a5f]/20">
+                    <div key={res.id} className="bg-white border-2 border-[var(--border-subtle)] rounded-3xl p-6 md:p-8 text-[var(--rz-navy)] shadow-md flex flex-col md:flex-row justify-between items-center group cursor-pointer hover:shadow-lg transition-all relative overflow-hidden hover:border-[#ff5757]/20">
                       <div className="flex items-start gap-6 md:gap-8 relative z-10 w-full md:w-auto">
-                        <div className="w-20 h-20 bg-[#ff5a5f]/10 rounded-2xl flex flex-col items-center justify-center font-black border border-[#ff5a5f]/25 shrink-0 overflow-hidden">
+                        <div className="w-20 h-20 bg-[#ff5757]/10 rounded-2xl flex flex-col items-center justify-center font-black border border-[#ff5757]/25 shrink-0 overflow-hidden">
                           <img src={res.img} alt="" className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start mb-1">
-                            <h4 className="font-black text-xl md:text-2xl leading-tight text-slate-900">{res.serviceName}</h4>
-                            <span className="text-[10px] font-black text-[#ff5a5f] bg-[#ff5a5f]/5 px-3 py-1 rounded-lg border border-[#ff5a5f]/20">#{res.refNumber}</span>
+                            <h4 className="font-black text-xl md:text-2xl leading-tight text-[var(--rz-navy)]">{res.serviceName}</h4>
+                            <span className="text-[10px] font-black text-[#ff5757] bg-[#ff5757]/5 px-3 py-1 rounded-lg border border-[#ff5757]/20">#{res.refNumber}</span>
                           </div>
-                          <p className="text-sm font-bold text-slate-600 mt-1">{res.venueName} • {res.time}</p>
+                          <p className="text-sm font-bold text-[var(--rz-gray-600)] mt-1">{res.venueName} • {res.time}</p>
                           <div className="flex flex-wrap items-center gap-3 mt-4">
                             {/* Status Badge */}
                             {res.status === "pending" && (
@@ -1028,23 +1029,23 @@ function ProfileContent() {
                               </span>
                             )}
                             {res.customerName ? (
-                              <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
+                              <span className="bg-[var(--rz-gray-100)] text-[var(--rz-gray-600)] px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-[var(--border-default)]">
                                 For: <span className="normal-case tracking-normal">{res.customerName}</span>
                               </span>
                             ) : null}
                             {res.staffName ? (
-                              <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-slate-200">
+                              <span className="bg-[var(--rz-gray-100)] text-[var(--rz-gray-600)] px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-[var(--border-default)]">
                                 Pro: <span className="normal-case tracking-normal">{res.staffName}</span>
                               </span>
                             ) : null}
                             {res.phone && (
-                              <span className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide"><Phone size={14} className="text-[#ff5a5f]" /> {res.phone}</span>
+                              <span className="flex items-center gap-2 text-[11px] font-bold text-[var(--rz-gray-500)] uppercase tracking-wide"><Phone size={14} className="text-[#ff5757]" /> {res.phone}</span>
                             )}
                           </div>
                         </div>
                       </div>
                       <div className="text-right mt-6 md:mt-0 relative z-10 w-full md:w-auto shrink-0">
-                        <div className="text-3xl md:text-4xl font-black text-slate-900 mb-3">{res.price}</div>
+                        <div className="text-3xl md:text-4xl font-black text-[var(--rz-navy)] mb-3">{res.price}</div>
                         <button 
                           type="button"
                           onClick={() => {
@@ -1052,7 +1053,7 @@ function ProfileContent() {
                             setPaymentView("none");
                             setIsResModalOpen(true);
                           }}
-                          className="text-xs font-black uppercase tracking-widest bg-[#ff5a5f] text-white px-8 py-3 rounded-2xl hover:bg-[#e0484d] transition-colors shadow-md"
+                          className="text-xs font-black uppercase tracking-widest bg-[#ff5757] text-white px-8 py-3 rounded-2xl hover:bg-[#d83b3b] transition-colors shadow-md"
                         >
                           {"See Details"}
                         </button>
@@ -1060,20 +1061,20 @@ function ProfileContent() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm font-medium text-slate-500">{"No upcoming reservations."}</p>
+                  <p className="text-sm font-medium text-[var(--rz-gray-500)]">{"No upcoming reservations."}</p>
                 )}
               </div>
 
               <div ref={historyRef}>
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">{"APPOINTMENT HISTORY"}</h3>
+                <h3 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest mb-6">{"APPOINTMENT HISTORY"}</h3>
                 <div className="space-y-6">
                   {historyReservations.length === 0 && (
-                    <p className="text-sm text-slate-500">{"No past appointments yet."}</p>
+                    <p className="text-sm text-[var(--rz-gray-500)]">{"No past appointments yet."}</p>
                   )}
                   {historyReservations.map((res) => (
-                    <div key={res.id} className="bg-white border border-slate-200 rounded-[40px] p-8 flex flex-col md:flex-row justify-between items-center hover:shadow-2xl hover:shadow-slate-200/50 transition duration-500 shadow-sm group">
+                    <div key={res.id} className="bg-white border border-[var(--border-default)] rounded-[40px] p-8 flex flex-col md:flex-row justify-between items-center hover:shadow-2xl hover:shadow-[color:rgba(231,234,239,0.5)] transition duration-500 shadow-sm group">
                       <div className="flex items-center space-x-8">
-                        <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-slate-50 relative shrink-0">
+                        <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-[var(--border-subtle)] relative shrink-0">
                            <img 
                              src={res.img} 
                              alt={res.venueName} 
@@ -1082,10 +1083,10 @@ function ProfileContent() {
                         </div>
                         <div>
                           <div className="flex items-center gap-3">
-                            <h4 className="font-black text-slate-800 text-xl group-hover:text-[#ff5a5f] transition-colors">{res.venueName}</h4>
-                            <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">#{res.refNumber}</span>
+                            <h4 className="font-black text-[var(--rz-navy)] text-xl group-hover:text-[#ff5757] transition-colors">{res.venueName}</h4>
+                            <span className="text-[9px] font-black text-[var(--rz-gray-500)] bg-[var(--rz-gray-050)] px-2 py-0.5 rounded border border-[var(--border-subtle)]">#{res.refNumber}</span>
                           </div>
-                          <p className="text-base font-bold text-slate-400 mt-1">{res.serviceName} • {res.date}</p>
+                          <p className="text-base font-bold text-[var(--rz-gray-500)] mt-1">{res.serviceName} • {res.date}</p>
                           <div className="flex flex-wrap items-center gap-2 mt-3">
                              <div className="flex items-center gap-2">
                                 {res.status === "completed" && (
@@ -1105,12 +1106,12 @@ function ProfileContent() {
                                 )}
                              </div>
                              {res.customerName ? (
-                                <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                <span className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase bg-[var(--rz-gray-050)] px-2 py-0.5 rounded border border-[var(--border-subtle)]">
                                    For: <span className="normal-case">{res.customerName}</span>
                                 </span>
                              ) : null}
                              {res.staffName ? (
-                                <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                <span className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase bg-[var(--rz-gray-050)] px-2 py-0.5 rounded border border-[var(--border-subtle)]">
                                    Pro: <span className="normal-case">{res.staffName}</span>
                                 </span>
                              ) : null}
@@ -1118,15 +1119,15 @@ function ProfileContent() {
                         </div>
                       </div>
                       <div className="text-right flex flex-col items-end mt-4 md:mt-0">
-                         <div className="font-black text-slate-800 text-2xl mb-3">{res.price}</div>
+                         <div className="font-black text-[var(--rz-navy)] text-2xl mb-3">{res.price}</div>
                          <div className="flex flex-wrap justify-end gap-3">
                             <button 
                               onClick={() => { setSelectedRes(res); setIsResModalOpen(true); setPaymentView("none"); }} 
-                              className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 bg-slate-50 px-4 py-2 rounded-xl transition"
+                              className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] px-4 py-2 rounded-xl transition"
                             >
                                {"Details"}
                             </button>
-                            <button onClick={() => handleDownloadInvoice(res)} className="p-3 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-2xl transition">
+                            <button onClick={() => handleDownloadInvoice(res)} className="p-3 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] rounded-2xl transition">
                                <Download size={18} />
                             </button>
                              {res.status === "completed" && !res.isReviewed && (
@@ -1139,7 +1140,7 @@ function ProfileContent() {
                              )}
                             <button 
                               onClick={() => { if (res.businessId) router.push(`/venue/${res.businessId}`); }}
-                              className="text-xs font-black text-[#ff5a5f] uppercase tracking-widest hover:underline flex items-center gap-1 bg-[#ff5a5f]/5 px-6 py-3 rounded-2xl hover:bg-[#ff5a5f]/10 transition-all transform hover:-translate-y-1"
+                              className="text-xs font-black text-[#ff5757] uppercase tracking-widest hover:underline flex items-center gap-1 bg-[#ff5757]/5 px-6 py-3 rounded-2xl hover:bg-[#ff5757]/10 transition-all transform hover:-translate-y-1"
                             >
                                 {"Re-book"}
                                 <ChevronRight size={14} />
@@ -1169,46 +1170,42 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
                <div className="flex justify-between items-center mb-8">
                  <div>
-                    <h2 className="text-2xl font-black text-slate-900">{"Family & Friends"}</h2>
-                    <p className="text-slate-400 font-bold text-sm mt-1">
+                    <h2 className="text-2xl font-black text-[var(--rz-navy)]">{"Family & Friends"}</h2>
+                    <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">
                       {"Manage appointments for your inner circle"}
                     </p>
                  </div>
                  <button 
                   onClick={() => { setEditingMember(null); setIsFamilyModalOpen(true); }}
-                  className="bg-[#ff5a5f] text-white font-black px-6 py-3 rounded-2xl text-sm shadow-xl shadow-[#ff5a5f]/20 hover:bg-[#e0484d] transition flex items-center gap-2 transform hover:-translate-y-1"
+                  className="bg-[#ff5757] text-white font-black px-6 py-3 rounded-2xl text-sm shadow-xl shadow-[#ff5757]/20 hover:bg-[#d83b3b] transition flex items-center gap-2 transform hover:-translate-y-1"
                  >
                     <Plus size={18} /> Add Member
                  </button>
                </div>
                
                {familyMembers.length === 0 ? (
-                 <div className="h-full flex flex-col items-center justify-center py-32 bg-white rounded-[40px] border-2 border-dashed border-slate-200 text-center px-10">
-                    <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-6">
-                       <Users size={48} />
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-900 mb-3">{"No members added yet"}</h3>
-                    <p className="text-slate-500 max-w-sm mb-10 font-medium leading-relaxed">
-                      Add your children, partner, or friends to schedule services for them quickly.
-                    </p>
-                    <button 
-                      onClick={() => setIsFamilyModalOpen(true)}
-                      className="text-[#ff5a5f] font-black text-sm uppercase tracking-widest hover:underline"
-                    >
-                      {"Get started now"}
-                    </button>
-                 </div>
+                 <EmptyState
+                   icon="users"
+                   title={language === "en" ? "No members added yet" : "Aún no has agregado personas"}
+                   message={
+                     language === "en"
+                       ? "Add your children, partner, or friends to schedule services for them quickly."
+                       : "Agrega a tus hijos, pareja o amigos para reservarles servicios rápidamente."
+                   }
+                   actionLabel={language === "en" ? "Get started now" : "Comenzar ahora"}
+                   onAction={() => setIsFamilyModalOpen(true)}
+                 />
                ) : (
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {familyMembers.map((member) => (
-                      <div key={member.id} className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm flex justify-between items-center group hover:shadow-xl hover:shadow-slate-200/50 transition duration-500">
+                      <div key={member.id} className="bg-white p-6 rounded-[32px] border border-[var(--border-default)] shadow-sm flex justify-between items-center group hover:shadow-xl hover:shadow-[color:rgba(231,234,239,0.5)] transition duration-500">
                         <div className="flex items-center gap-5">
-                           <div className="w-16 h-16 bg-slate-100 rounded-[20px] flex items-center justify-center text-[#ff5a5f] font-black text-2xl border-2 border-white shadow-sm group-hover:bg-[#ff5a5f] group-hover:text-white transition-colors duration-500">
+                           <div className="w-16 h-16 bg-[var(--rz-gray-100)] rounded-[20px] flex items-center justify-center text-[#ff5757] font-black text-2xl border-2 border-white shadow-sm group-hover:bg-[#ff5757] group-hover:text-white transition-colors duration-500">
                              {member.name.charAt(0)}
                            </div>
                            <div>
-                              <h4 className="font-black text-slate-800 text-lg group-hover:text-[#ff5a5f] transition-colors">{member.name}</h4>
-                              <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                              <h4 className="font-black text-[var(--rz-navy)] text-lg group-hover:text-[#ff5757] transition-colors">{member.name}</h4>
+                              <p className="text-xs font-bold text-[var(--rz-gray-500)] mt-1 uppercase tracking-widest">
                                 {member.age} {language === "es" ? "años" : "years"} • {member.gender}
                                 {member.email ? ` • ${member.email}` : ""}
                               </p>
@@ -1217,7 +1214,7 @@ function ProfileContent() {
                         <div className="flex gap-2">
                            <button 
                             onClick={() => { setEditingMember(member); setIsFamilyModalOpen(true); }}
-                            className="p-3 text-slate-400 hover:text-[#ff5a5f] hover:bg-[#ff5a5f]/5 rounded-2xl transition-all"
+                            className="p-3 text-[var(--rz-gray-500)] hover:text-[#ff5757] hover:bg-[#ff5757]/5 rounded-2xl transition-all"
                            >
                               <Edit2 size={18} />
                            </button>
@@ -1240,7 +1237,7 @@ function ProfileContent() {
                                 }
                               })();
                             }}
-                            className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                            className="p-3 text-[var(--rz-gray-500)] hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
                            >
                               <Trash2 size={18} />
                            </button>
@@ -1258,25 +1255,25 @@ function ProfileContent() {
               <form onSubmit={handleUpdateProfile}>
                 <div className="flex justify-between items-end mb-8">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900">{t("profileSettings")}</h2>
-                    <p className="text-slate-400 font-bold text-sm mt-1">{t("profileUpdatePersonal")}</p>
+                    <h2 className="text-2xl font-black text-[var(--rz-navy)]">{t("profileSettings")}</h2>
+                    <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">{t("profileUpdatePersonal")}</p>
                   </div>
-                  <button type="submit" disabled={isUpdatingProfile} className="bg-slate-900 text-white font-black px-8 py-3 rounded-2xl text-sm shadow-xl hover:bg-slate-800 transition transform hover:-translate-y-1 disabled:opacity-50">
+                  <button type="submit" disabled={isUpdatingProfile} className="bg-[var(--rz-navy)] text-white font-black px-8 py-3 rounded-2xl text-sm shadow-xl hover:bg-[var(--rz-navy-800)] transition transform hover:-translate-y-1 disabled:opacity-50">
                     {isUpdatingProfile ? t("profileSaving") : t("profileSaveChanges")}
                   </button>
                 </div>
 
-                <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm space-y-10">
-                  <div className="flex items-center gap-8 pb-10 border-b border-slate-100">
+                <div className="bg-white rounded-[40px] p-10 border border-[var(--border-default)] shadow-sm space-y-10">
+                  <div className="flex items-center gap-8 pb-10 border-b border-[var(--border-subtle)]">
                      <div className="relative group" onClick={() => fileInputRef.current?.click()}>
-                        <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-slate-50 shadow-lg">
+                        <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-[var(--border-subtle)] shadow-lg">
                             <img 
                               src={avatarPreview || user?.avatar || PLACEHOLDER_IMAGE_DATA_URI} 
                               alt="User" 
                               className="w-full h-full object-cover" 
                               onError={(e) => { 
                                 const target = e.target as HTMLImageElement;
-                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=ff5a5f&color=fff&size=128&bold=true`; 
+                                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=ff5757&color=fff&size=128&bold=true`; 
                               }}
                             />
                         </div>
@@ -1286,8 +1283,8 @@ function ProfileContent() {
                      </div>
                      <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleAvatarChange} />
                      <div>
-                       <h3 className="font-black text-slate-800 text-xl">{user?.name}</h3>
-                       <p className="text-slate-400 font-bold text-sm">
+                       <h3 className="font-black text-[var(--rz-navy)] text-xl">{user?.name}</h3>
+                       <p className="text-[var(--rz-gray-500)] font-bold text-sm">
                          {t("profileMemberSince")}
                        </p>
                      </div>
@@ -1295,31 +1292,31 @@ function ProfileContent() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("fullName")}</label>
+                        <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">{t("fullName")}</label>
                         <div className="relative">
-                          <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                          <input type="text" name="name" defaultValue={user?.name} required className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
+                          <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-300)]" size={18} />
+                          <input type="text" name="name" defaultValue={user?.name} required className="w-full border-2 border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all font-bold text-[var(--rz-navy)]" />
                         </div>
                      </div>
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("phoneNumber")}</label>
+                        <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">{t("phoneNumber")}</label>
                         <div className="relative">
-                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                          <input type="text" name="phone" defaultValue={user?.phone ?? ""} className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
+                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-300)]" size={18} />
+                          <input type="text" name="phone" defaultValue={user?.phone ?? ""} className="w-full border-2 border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all font-bold text-[var(--rz-navy)]" />
                         </div>
                      </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("email")}</label>
+                        <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">{t("email")}</label>
                         <div className="relative">
-                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                           <input type="email" name="email" defaultValue={user?.email} required className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800" />
+                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-300)]" size={18} />
+                           <input type="email" name="email" defaultValue={user?.email} required className="w-full border-2 border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 pl-12 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all font-bold text-[var(--rz-navy)]" />
                         </div>
                      </div>
                      <div className="space-y-3">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("genderLabel")}</label>
+                        <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">{t("genderLabel")}</label>
                         <select
                           name="gender"
                           defaultValue={
@@ -1331,7 +1328,7 @@ function ProfileContent() {
                                   ? "female"
                                   : ""
                           }
-                          className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold text-slate-800 appearance-none cursor-pointer"
+                          className="w-full border-2 border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all font-bold text-[var(--rz-navy)] appearance-none cursor-pointer"
                         >
                           <option value="">{t("profilePreferNotSay")}</option>
                           <option value="male">{t("profileGenderMale")}</option>
@@ -1343,15 +1340,15 @@ function ProfileContent() {
                 </div>
               </form>
 
-              <form onSubmit={handleUpdatePassword} className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm mt-8">
+              <form onSubmit={handleUpdatePassword} className="bg-white rounded-[40px] p-10 border border-[var(--border-default)] shadow-sm mt-8">
                 <div>
                   <div className="flex items-center gap-4 mb-10">
-                     <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg shadow-slate-200">
+                     <div className="p-3 bg-[var(--rz-navy)] text-white rounded-2xl shadow-lg shadow-[color:var(--rz-gray-200)]">
                         <Lock size={22} />
                      </div>
                      <div>
-                        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">{t("changePassword")}</h3>
-                        <p className="text-slate-400 font-bold text-xs mt-1">
+                        <h3 className="font-black text-[var(--rz-navy)] uppercase tracking-widest text-sm">{t("changePassword")}</h3>
+                        <p className="text-[var(--rz-gray-500)] font-bold text-xs mt-1">
                           {t("profileProtectPassword")}
                         </p>
                      </div>
@@ -1359,32 +1356,32 @@ function ProfileContent() {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("currPass")}</label>
-                      <input type="password" name="currentPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
+                      <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">{t("currPass")}</label>
+                      <input type="password" name="currentPassword" required placeholder="••••••••" className="w-full border-2 border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all font-bold" />
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("newPass")}</label>
-                      <input type="password" name="newPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
+                      <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">{t("newPass")}</label>
+                      <input type="password" name="newPassword" required placeholder="••••••••" className="w-full border-2 border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all font-bold" />
                     </div>
                     <div className="space-y-3">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t("confPass")}</label>
-                      <input type="password" name="confirmPassword" required placeholder="••••••••" className="w-full border-2 border-slate-50 bg-slate-50/50 p-4 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all font-bold" />
+                      <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">{t("confPass")}</label>
+                      <input type="password" name="confirmPassword" required placeholder="••••••••" className="w-full border-2 border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all font-bold" />
                     </div>
                   </div>
                   
                   <div className="mt-10 flex justify-end">
-                    <button type="submit" disabled={isUpdatingPassword} className="bg-[#ff5a5f] text-white font-black px-10 py-4 rounded-[20px] text-xs uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/20 hover:bg-[#e0484d] transition transform hover:-translate-y-1 disabled:opacity-50">
+                    <button type="submit" disabled={isUpdatingPassword} className="bg-[#ff5757] text-white font-black px-10 py-4 rounded-[20px] text-xs uppercase tracking-widest shadow-xl shadow-[#ff5757]/20 hover:bg-[#d83b3b] transition transform hover:-translate-y-1 disabled:opacity-50">
                        {isUpdatingPassword ? t("profileUpdatingPassword") : t("profileUpdatePasswordBtn")}
                     </button>
                   </div>
                 </div>
               </form>
 
-              <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm">
-                <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-2">
+              <div className="bg-white rounded-[40px] p-10 border border-[var(--border-default)] shadow-sm">
+                <h3 className="font-black text-[var(--rz-navy)] uppercase tracking-widest text-sm mb-2">
                   {t("language")}
                 </h3>
-                <p className="text-slate-400 font-bold text-xs mb-6">
+                <p className="text-[var(--rz-gray-500)] font-bold text-xs mb-6">
                   {t("selectLanguageDescription")}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1393,42 +1390,42 @@ function ProfileContent() {
                     onClick={() => setLanguage("en")}
                     className={`rounded-2xl border-2 px-5 py-4 text-left transition ${
                       language === "en"
-                        ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
-                        : "border-slate-100 bg-slate-50/80 hover:border-slate-200"
+                        ? "border-[#ff5757] bg-[#ff5757]/5"
+                        : "border-[var(--border-subtle)] bg-[var(--rz-gray-050)] hover:border-[var(--border-default)]"
                     }`}
                   >
-                    <p className="text-sm font-black text-slate-900">English</p>
-                    <p className="text-xs font-bold text-slate-500 mt-1">United States</p>
+                    <p className="text-sm font-black text-[var(--rz-navy)]">English</p>
+                    <p className="text-xs font-bold text-[var(--rz-gray-500)] mt-1">United States</p>
                   </button>
                   <button
                     type="button"
                     onClick={() => setLanguage("es")}
                     className={`rounded-2xl border-2 px-5 py-4 text-left transition ${
                       language === "es"
-                        ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
-                        : "border-slate-100 bg-slate-50/80 hover:border-slate-200"
+                        ? "border-[#ff5757] bg-[#ff5757]/5"
+                        : "border-[var(--border-subtle)] bg-[var(--rz-gray-050)] hover:border-[var(--border-default)]"
                     }`}
                   >
-                    <p className="text-sm font-black text-slate-900">Español</p>
-                    <p className="text-xs font-bold text-slate-500 mt-1">Latinoamérica</p>
+                    <p className="text-sm font-black text-[var(--rz-navy)]">Español</p>
+                    <p className="text-xs font-bold text-[var(--rz-gray-500)] mt-1">Latinoamérica</p>
                   </button>
                 </div>
               </div>
 
-              <div className="bg-white rounded-[40px] p-10 border border-slate-200 shadow-sm">
-                <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm mb-2">
+              <div className="bg-white rounded-[40px] p-10 border border-[var(--border-default)] shadow-sm">
+                <h3 className="font-black text-[var(--rz-navy)] uppercase tracking-widest text-sm mb-2">
                   {t("notifications")}
                 </h3>
-                <p className="text-slate-400 font-bold text-xs mb-6">
+                <p className="text-[var(--rz-gray-500)] font-bold text-xs mb-6">
                   {t("notificationsSub")}
                 </p>
                 <div className="mb-6">
                   <BrowserPushSettings language={language} />
                 </div>
-                <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 px-5 py-4 cursor-pointer">
+                <label className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-5 py-4 cursor-pointer">
                   <div className="flex items-center gap-3">
-                    <Mail className="text-[#ff5a5f]" size={20} />
-                    <span className="text-sm font-bold text-slate-800">
+                    <Mail className="text-[#ff5757]" size={20} />
+                    <span className="text-sm font-bold text-[var(--rz-navy)]">
                       {t("profileEmailNotifications")}
                     </span>
                   </div>
@@ -1436,7 +1433,7 @@ function ProfileContent() {
                     type="checkbox"
                     checked={notifyEmail}
                     onChange={(e) => setNotifyEmail(e.target.checked)}
-                    className="h-5 w-5 rounded border-slate-300 text-[#ff5a5f] focus:ring-[#ff5a5f]"
+                    className="h-5 w-5 rounded border-[var(--border-default)] text-[#ff5757] focus:ring-[#ff5757]"
                   />
                 </label>
               </div>
@@ -1448,28 +1445,28 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
-                  <h1 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">
+                  <h1 className="text-3xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
                     {"My Favorite Places"}
                   </h1>
-                  <p className="text-slate-400 font-bold text-sm">
+                  <p className="text-[var(--rz-gray-500)] font-bold text-sm">
                     {"Your preferred locations in one place"}
                   </p>
                 </div>
-                <div className="bg-white px-8 py-4 rounded-[28px] shadow-sm border border-slate-100 flex items-center gap-4">
-                   <Heart className="text-[#ff5a5f]" size={24} fill="#ff5a5f" />
-                   <span className="font-black text-slate-800 text-sm uppercase tracking-widest">{favoritesTotal} Places</span>
+                <div className="bg-white px-8 py-4 rounded-[28px] shadow-sm border border-[var(--border-subtle)] flex items-center gap-4">
+                   <Heart className="text-[#ff5757]" size={24} fill="#ff5757" />
+                   <span className="font-black text-[var(--rz-navy)] text-sm uppercase tracking-widest">{favoritesTotal} Places</span>
                 </div>
               </div>
 
               <div className="mb-8 space-y-4">
                 <div className="relative max-w-xl">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-500)]" size={20} />
                   <input
                     type="search"
                     value={favoritesSearch}
                     onChange={(e) => setFavoritesSearch(e.target.value)}
                     placeholder="Search favorites"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#ff5a5f] focus:ring-2 focus:ring-[#ff5a5f]/20"
+                    className="w-full rounded-2xl border border-[var(--border-default)] bg-[var(--rz-gray-050)] py-3.5 pl-12 pr-4 text-sm font-semibold text-[var(--rz-navy)] outline-none focus:border-[#ff5757] focus:ring-2 focus:ring-[#ff5757]/20"
                   />
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1489,8 +1486,8 @@ function ProfileContent() {
                         onClick={() => setFavoritesChip(chip.id)}
                         className={`rounded-full border px-5 py-2 text-xs font-bold transition ${
                           active
-                            ? "border-[#ff5a5f] bg-[#ff5a5f] text-white"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                            ? "border-[#ff5757] bg-[#ff5757] text-white"
+                            : "border-[var(--border-default)] bg-white text-[var(--rz-gray-600)] hover:border-[var(--border-default)]"
                         }`}
                       >
                         {chip.label}
@@ -1502,13 +1499,25 @@ function ProfileContent() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 {favoritesList.length === 0 ? (
-                  <p className="text-sm text-slate-500 col-span-full text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 font-bold">
-                    {"No favorites yet."}
-                  </p>
+                  <div className="col-span-full">
+                    <EmptyState
+                      icon="heart"
+                      title={language === "en" ? "No favorites yet" : "Aún no hay favoritos"}
+                      message={
+                        language === "en"
+                          ? "Save businesses you love and find them here in one tap."
+                          : "Guarda los negocios que te gustan y encuéntralos aquí al instante."
+                      }
+                    />
+                  </div>
                 ) : filteredFavorites.length === 0 ? (
-                  <p className="text-sm text-slate-500 col-span-full text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 font-bold">
-                    {"No favorites match your search."}
-                  </p>
+                  <div className="col-span-full">
+                    <EmptyState
+                      icon="search"
+                      title={language === "en" ? "No matches" : "Sin resultados"}
+                      message={language === "en" ? "No favorites match your search." : "Ningún favorito coincide con tu búsqueda."}
+                    />
+                  </div>
                 ) : (
                   filteredFavorites.map((biz: any) => {
                     const bId = biz.businessId;
@@ -1518,9 +1527,9 @@ function ProfileContent() {
                         key={bId}
                         tabIndex={0}
                         onClick={() => router.push(`/venue/${bId}`)}
-                        className="bg-white border border-slate-200 rounded-[48px] p-6 flex flex-col sm:flex-row gap-8 hover:shadow-2xl hover:shadow-slate-200/50 transition duration-700 cursor-pointer group shadow-sm relative overflow-hidden"
+                        className="bg-white border border-[var(--border-default)] rounded-[48px] p-6 flex flex-col sm:flex-row gap-8 hover:shadow-2xl hover:shadow-[color:rgba(231,234,239,0.5)] transition duration-700 cursor-pointer group shadow-sm relative overflow-hidden"
                       >
-                        <div className="w-full sm:w-40 h-40 rounded-[32px] overflow-hidden flex-shrink-0 relative border-2 border-white shadow-xl bg-slate-100">
+                        <div className="w-full sm:w-40 h-40 rounded-[32px] overflow-hidden flex-shrink-0 relative border-2 border-white shadow-xl bg-[var(--rz-gray-100)]">
                            <img 
                              src={src} 
                              alt={biz.name} 
@@ -1531,23 +1540,23 @@ function ProfileContent() {
                               e.stopPropagation();
                               if (bId) handleRemoveFavorite(bId);
                             }}
-                            className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-3 rounded-2xl text-[#ff5a5f] shadow-lg transform hover:scale-110 transition border border-slate-100"
+                            className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-3 rounded-2xl text-[#ff5757] shadow-lg transform hover:scale-110 transition border border-[var(--border-subtle)]"
                           >
-                             <Heart size={20} fill="#ff5a5f" />
+                             <Heart size={20} fill="#ff5757" />
                           </button>
                         </div>
                         <div className="flex flex-col justify-center py-2">
-                           <h3 className="text-2xl font-black text-slate-900 group-hover:text-[#ff5a5f] transition-colors mb-2">{biz.name}</h3>
-                           <div className="flex items-center gap-2 text-slate-400 font-bold text-sm mb-4">
+                           <h3 className="text-2xl font-black text-[var(--rz-navy)] group-hover:text-[#ff5757] transition-colors mb-2">{biz.name}</h3>
+                           <div className="flex items-center gap-2 text-[var(--rz-gray-500)] font-bold text-sm mb-4">
                               <MapPin size={16} />
                               <span>{biz.locationLabel || "Location unavailable"}</span>
                            </div>
                            <div className="flex items-center gap-4">
-                              <div className="flex items-center bg-[#ff5a5f]/5 px-4 py-2 rounded-2xl border border-[#ff5a5f]/10">
-                                 <Star size={16} fill="#ff5a5f" className="text-[#ff5a5f] mr-2" />
-                                 <span className="font-black text-[#ff5a5f] text-sm">{biz.rating || "4.8"}</span>
+                              <div className="flex items-center bg-[#ff5757]/5 px-4 py-2 rounded-2xl border border-[#ff5757]/10">
+                                 <Star size={16} fill="#ff5757" className="text-[#ff5757] mr-2" />
+                                 <span className="font-black text-[#ff5757] text-sm">{biz.rating || "4.8"}</span>
                               </div>
-                              <button className="text-slate-400 hover:text-slate-900 transition-colors">
+                              <button className="text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] transition-colors">
                                  <ChevronRight size={24} />
                               </button>
                            </div>
@@ -1576,68 +1585,75 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
                <div className="flex justify-between items-center mb-10">
                  <div>
-                    <h2 className="text-3xl font-black text-slate-900">{"My Invoices"}</h2>
-                    <p className="text-slate-400 font-bold text-sm mt-1">
+                    <h2 className="text-3xl font-black text-[var(--rz-navy)]">{"My Invoices"}</h2>
+                    <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">
                       {"Payment history and tax receipts"}
                     </p>
                  </div>
-                 <div className="p-4 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3">
-                    <Download className="text-slate-400" size={20} />
-                    <span className="font-black text-slate-800 text-xs uppercase tracking-widest">{invoicesList.length} total</span>
+                 <div className="p-4 bg-white rounded-3xl border border-[var(--border-subtle)] shadow-sm flex items-center gap-3">
+                    <Download className="text-[var(--rz-gray-500)]" size={20} />
+                    <span className="font-black text-[var(--rz-navy)] text-xs uppercase tracking-widest">{invoicesList.length} total</span>
                  </div>
                </div>
 
-               <div className="bg-white rounded-[48px] border border-slate-200 overflow-hidden shadow-sm">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr>
-                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">{"Invoice"}</th>
-                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{"Venue"}</th>
-                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{"Date"}</th>
-                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{"Amount"}</th>
-                        <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {invoicesList.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-10 py-20 text-center text-slate-400 font-bold italic">
-                            {"No invoices yet."}
-                          </td>
-                        </tr>
-                      ) : (
-                        invoicesList.map((inv: any) => (
-                          <tr key={inv.id} className="hover:bg-slate-50/50 transition duration-300 group">
-                            <td className="px-6 py-5 text-center whitespace-nowrap">
-                               <span className="font-bold text-slate-800 text-sm">{inv.number || `INV-${String(inv.id || "").slice(0,6).toUpperCase()}`}</span>
-                            </td>
-                            <td className="px-6 py-5 text-center">
-                               <span className="font-semibold text-slate-600 text-sm line-clamp-2">{inv.venueName || inv.business?.name || "Venue"}</span>
-                            </td>
-                            <td className="px-6 py-5 text-center whitespace-nowrap">
-                               <span className="font-bold text-slate-400">
-                                 {(() => {
-                                   const raw = inv.issuedDate || inv.date || inv.createdAt;
-                                   if (!raw) return "—";
-                                   const d = new Date(raw);
-                                   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-                                 })()}
-                               </span>
-                            </td>
-                            <td className="px-6 py-5 text-center whitespace-nowrap">
-                               <span className="font-bold text-slate-900">${Number(inv.total || 0).toFixed(2)}</span>
-                            </td>
-                            <td className="px-6 py-5 text-center">
-                               <button onClick={() => handleDownloadInvoice(inv)} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg hover:bg-slate-800 hover:scale-110 transition transform active:scale-95">
-                                  <Download size={18} />
-                               </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-               </div>
+               {invoicesList.length === 0 ? (
+                 <EmptyState
+                   icon="download"
+                   title={language === "en" ? "No invoices yet" : "Aún no hay facturas"}
+                   message={
+                     language === "en"
+                       ? "Your paid bookings will appear here as downloadable receipts."
+                       : "Tus reservas pagadas aparecerán aquí como recibos descargables."
+                   }
+                 />
+               ) : (
+                 (() => {
+                   const fmtDate = (raw: unknown): string => {
+                     if (!raw) return "—";
+                     const d = new Date(raw as string);
+                     return isNaN(d.getTime())
+                       ? "—"
+                       : d.toLocaleDateString(language === "en" ? "en-US" : "es-ES", { year: "numeric", month: "short", day: "numeric" });
+                   };
+                   const mapStatus = (s: unknown): "paid" | "pending" | "cancelled" | "refunded" => {
+                     const v = String(s || "").toLowerCase();
+                     if (v.includes("pend")) return "pending";
+                     if (v.includes("cancel")) return "cancelled";
+                     if (v.includes("refund") || v.includes("reembol")) return "refunded";
+                     return "paid";
+                   };
+                   const rows = (invoicesList as any[]).map((inv) => ({
+                     id: inv.number || `INV-${String(inv.id || "").slice(0, 6).toUpperCase()}`,
+                     date: fmtDate(inv.issuedDate || inv.date || inv.createdAt),
+                     business: inv.venueName || inv.business?.name || "Venue",
+                     amount: Number(inv.total || 0).toFixed(2),
+                     status: mapStatus(inv.status),
+                     _raw: inv,
+                   }));
+                   const download = (row: any) => {
+                     const inv = (invoicesList as any[]).find(
+                       (i) => (i.number || `INV-${String(i.id || "").slice(0, 6).toUpperCase()}`) === row.id,
+                     );
+                     if (inv) handleDownloadInvoice(inv);
+                   };
+                   const columns =
+                     language === "en"
+                       ? ["Invoice", "Date", "Business", "Amount", "Status", "Actions"]
+                       : ["Factura", "Fecha", "Negocio", "Importe", "Estado", "Acciones"];
+                   return (
+                     <>
+                       <div className="hidden md:block">
+                         <InvoiceTable rows={rows} columns={columns} onDownload={download} />
+                       </div>
+                       <div className="space-y-3 md:hidden">
+                         {rows.map((row) => (
+                           <InvoiceCard key={row.id} invoice={row} onDownload={() => download(row)} />
+                         ))}
+                       </div>
+                     </>
+                   );
+                 })()
+               )}
                {invoicesTotalPages > 1 && (
                  <div className="mt-10">
                    <Pagination 
@@ -1657,39 +1673,39 @@ function ProfileContent() {
       {/* Reservation Detail Modal */}
       {isResModalOpen && selectedRes && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10 animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsResModalOpen(false)} />
+          <div className="absolute inset-0 bg-[rgba(1,29,44,0.6)] backdrop-blur-sm" onClick={() => setIsResModalOpen(false)} />
           <div className="relative w-full max-w-5xl bg-white rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+            <div className="px-8 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-white shrink-0">
               <button 
                 onClick={() => setIsResModalOpen(false)} 
-                className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition text-sm"
+                className="flex items-center gap-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] font-bold transition text-sm"
               >
                 <ChevronLeft size={20} />
                 {"Back"}
               </button>
               <div className="flex flex-col items-center">
-                <h2 className="text-sm font-black text-slate-950 uppercase tracking-widest">{selectedRes.venueName}</h2>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">#{selectedRes.refNumber}</span>
+                <h2 className="text-sm font-black text-[var(--rz-navy)] uppercase tracking-widest">{selectedRes.venueName}</h2>
+                <span className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-0.5">#{selectedRes.refNumber}</span>
               </div>
               <button 
                 onClick={() => setIsResModalOpen(false)} 
-                className="p-2.5 bg-slate-50 text-slate-400 hover:text-slate-905 hover:bg-slate-100 rounded-xl transition"
+                className="p-2.5 bg-[var(--rz-gray-050)] text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] hover:bg-[var(--rz-gray-100)] rounded-xl transition"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Inner Content Scroller */}
-            <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-slate-50/50">
+            <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-[var(--rz-gray-050)]">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* LEFT: Details */}
                 <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm">
+                  <div className="bg-white rounded-[32px] border border-[var(--border-subtle)] overflow-hidden shadow-sm">
                     <div className="h-52 relative">
                       <img src={selectedRes.img} className="w-full h-full object-cover" alt={selectedRes.venueName} />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[rgba(1,29,44,0.8)] to-transparent" />
                       <div className="absolute bottom-6 left-8 right-6">
                          <h3 className="text-2xl font-black text-white">{selectedRes.venueName}</h3>
                          <p className="text-white/80 font-bold text-xs flex items-center gap-2 mt-1.5">
@@ -1700,14 +1716,14 @@ function ProfileContent() {
                     </div>
 
                     <div className="p-8 space-y-8">
-                       <div className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100/80">
+                       <div className="flex items-center justify-between p-5 bg-[var(--rz-gray-050)] rounded-2xl border border-[var(--border-subtle)]">
                           <div className="flex items-center gap-4">
-                             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#ff5a5f] shadow-sm border border-slate-100">
+                             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#ff5757] shadow-sm border border-[var(--border-subtle)]">
                                 <Calendar size={22} />
                              </div>
                              <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Date & Time"}</p>
-                                <p className="font-black text-slate-800 text-sm">{selectedRes.date} at {selectedRes.time}</p>
+                                <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Date & Time"}</p>
+                                <p className="font-black text-[var(--rz-navy)] text-sm">{selectedRes.date} at {selectedRes.time}</p>
                              </div>
                           </div>
                           <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${reservationStatusBadgeClass(selectedRes.status)}`}>
@@ -1716,23 +1732,23 @@ function ProfileContent() {
                        </div>
 
                        <div>
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">{"Service Details"}</h4>
+                          <h4 className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-4">{"Service Details"}</h4>
                           <div className="space-y-3.5">
                              {selectedRes.items.map((item) => (
-                               <div key={item.id} className="flex justify-between items-center p-5 rounded-2xl bg-white border border-slate-100 hover:border-[#ff5a5f]/20 transition-all shadow-sm">
+                               <div key={item.id} className="flex justify-between items-center p-5 rounded-2xl bg-white border border-[var(--border-subtle)] hover:border-[#ff5757]/20 transition-all shadow-sm">
                                   <div className="flex items-center gap-4">
-                                     <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-[#ff5a5f] font-black text-lg border border-slate-100 shrink-0">
+                                     <div className="w-12 h-12 bg-[var(--rz-gray-050)] rounded-2xl flex items-center justify-center text-[#ff5757] font-black text-lg border border-[var(--border-subtle)] shrink-0">
                                         {item.name.charAt(0)}
                                      </div>
                                      <div>
-                                        <h5 className="font-black text-slate-800 text-sm">{item.name}</h5>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                        <h5 className="font-black text-[var(--rz-navy)] text-sm">{item.name}</h5>
+                                        <p className="text-[9px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">
                                            {item.customerName || selectedRes.customerName || "Customer"} • {item.staffName || "Staff"}
                                         </p>
                                      </div>
                                   </div>
                                   <div className="flex items-center gap-4 shrink-0">
-                                     <span className="font-black text-slate-900 text-sm">${item.price}</span>
+                                     <span className="font-black text-[var(--rz-navy)] text-sm">${item.price}</span>
                                      {item.status === 'paid' && (
                                        <span className="text-[9px] font-black text-cyan-600 uppercase tracking-widest flex items-center gap-1">
                                          <CreditCard size={12} />
@@ -1770,33 +1786,33 @@ function ProfileContent() {
 
                 {/* RIGHT: Summary & Payment */}
                 <div className="space-y-6">
-                   <div className="bg-white rounded-[32px] border border-slate-100 p-6 md:p-8 shadow-sm">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-5">{"Payment Summary"}</h4>
+                   <div className="bg-white rounded-[32px] border border-[var(--border-subtle)] p-6 md:p-8 shadow-sm">
+                      <h4 className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-5">{"Payment Summary"}</h4>
                       
                       <div className="space-y-3.5">
                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-400">{"Services"}</span>
-                            <span className="font-black text-slate-700">${selectedRes.subtotal.toFixed(2)}</span>
+                            <span className="font-bold text-[var(--rz-gray-500)]">{"Services"}</span>
+                            <span className="font-black text-[var(--rz-gray-700)]">${selectedRes.subtotal.toFixed(2)}</span>
                          </div>
                          {selectedRes.commissionAmount > 0 && (
                            <div className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-slate-400">
+                              <span className="font-bold text-[var(--rz-gray-500)]">
                                 {`Service fee (${selectedRes.commissionPercent}%)`}
                               </span>
-                              <span className="font-black text-slate-700">${selectedRes.commissionAmount.toFixed(2)}</span>
+                              <span className="font-black text-[var(--rz-gray-700)]">${selectedRes.commissionAmount.toFixed(2)}</span>
                            </div>
                          )}
                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-400">
+                            <span className="font-bold text-[var(--rz-gray-500)]">
                               {selectedRes.taxPercentage > 0
                                 ? `Tax (${selectedRes.taxPercentage}%)`
                                 : "Tax"}
                             </span>
-                            <span className="font-black text-slate-700">${selectedRes.taxAmount.toFixed(2)}</span>
+                            <span className="font-black text-[var(--rz-gray-700)]">${selectedRes.taxAmount.toFixed(2)}</span>
                          </div>
-                         <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex justify-between items-center">
-                            <span className="text-sm font-black text-slate-900">{"Total"}</span>
-                            <span className="text-2xl font-black text-[#ff5a5f]">${selectedRes.totalPrice.toFixed(2)}</span>
+                         <div className="pt-3.5 mt-3.5 border-t border-[var(--border-subtle)] flex justify-between items-center">
+                            <span className="text-sm font-black text-[var(--rz-navy)]">{"Total"}</span>
+                            <span className="text-2xl font-black text-[#ff5757]">${selectedRes.totalPrice.toFixed(2)}</span>
                          </div>
                       </div>
 
@@ -1809,7 +1825,7 @@ function ProfileContent() {
                            <button 
                              type="button"
                              onClick={() => setPaymentView("review")}
-                             className="w-full bg-[#ff5a5f] hover:bg-[#e0484d] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/15 transition-all transform active:scale-95"
+                             className="w-full bg-[#ff5757] hover:bg-[#d83b3b] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5757]/15 transition-all transform active:scale-95"
                            >
                              {"Review & Pay"}
                            </button>
@@ -1825,7 +1841,7 @@ function ProfileContent() {
                            <button 
                              onClick={handleAcceptReschedule}
                              disabled={payingLoading}
-                             className="w-full bg-[#ff5a5f] hover:bg-[#e0484d] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/15 transition-all flex items-center justify-center gap-2"
+                             className="w-full bg-[#ff5757] hover:bg-[#d83b3b] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5757]/15 transition-all flex items-center justify-center gap-2"
                            >
                              {payingLoading && <Loader2 className="animate-spin text-white" size={14} />}
                              {"Accept New Time"}
@@ -1842,7 +1858,7 @@ function ProfileContent() {
                             <button 
                               onClick={handleMarkCompletedGroup}
                               disabled={payingLoading}
-                              className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
+                              className="w-full bg-[var(--rz-navy-900)] hover:bg-[var(--rz-navy)] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
                             >
                               {payingLoading && <Loader2 className="animate-spin text-white" size={14} />}
                               {"Mark as Completed"}
@@ -1872,7 +1888,7 @@ function ProfileContent() {
                             </div>
                             <button 
                               onClick={() => { setIsResModalOpen(false); setIsReviewModalOpen(true); }}
-                              className="w-full bg-[#ff5a5f] hover:bg-[#e0484d] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5a5f]/15 transition-all transform active:scale-95"
+                              className="w-full bg-[#ff5757] hover:bg-[#d83b3b] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5757]/15 transition-all transform active:scale-95"
                             >
                               {"Rate Experience"}
                             </button>
@@ -1881,9 +1897,9 @@ function ProfileContent() {
 
                       {paymentView === "none" && selectedRes.status === "pending" && (
                          <div className="mt-6 space-y-4">
-                            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
-                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
-                               <p className="text-slate-500 text-[10px] font-medium mt-2">{"You can cancel anytime before the venue accepts."}</p>
+                            <div className="p-4 bg-[var(--rz-gray-050)] border border-[var(--border-subtle)] rounded-2xl text-center">
+                               <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Waiting for Venue"}</p>
+                               <p className="text-[var(--rz-gray-500)] text-[10px] font-medium mt-2">{"You can cancel anytime before the venue accepts."}</p>
                             </div>
                             <button
                               type="button"
@@ -1897,10 +1913,10 @@ function ProfileContent() {
 
                       {paymentView === "review" && (
                          <div className="mt-6 space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                            <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-[10px] font-bold text-slate-600">
-                              <p className="font-black uppercase tracking-widest text-slate-800 mb-2">{"Payment details"}</p>
+                            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 text-[10px] font-bold text-[var(--rz-gray-600)]">
+                              <p className="font-black uppercase tracking-widest text-[var(--rz-navy)] mb-2">{"Payment details"}</p>
                               <p>{selectedRes.items.length} {"service(s)"} · {selectedRes.venueName}</p>
-                              <p className="mt-1 text-slate-500">{selectedRes.date} · {selectedRes.time}</p>
+                              <p className="mt-1 text-[var(--rz-gray-500)]">{selectedRes.date} · {selectedRes.time}</p>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                               {paymentMethods.map((m) => (
@@ -1910,17 +1926,17 @@ function ProfileContent() {
                                   disabled={!m.configured}
                                   onClick={() => setPayMethod(m.id as "wompi" | "yappy" | "pay_at_venue")}
                                   className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                                    payMethod === m.id ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 hover:border-slate-200"
+                                    payMethod === m.id ? "border-[#ff5757] bg-[#ff5757]/5" : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"
                                   }`}
                                 >
                                   {m.id === "wompi" || m.id === "card" ? (
-                                    <CreditCard className="text-[#ff5a5f]" size={22} />
+                                    <CreditCard className="text-[#ff5757]" size={22} />
                                   ) : m.id === "yappy" ? (
-                                    <Shield className="text-[#ff5a5f]" size={22} />
+                                    <Shield className="text-[#ff5757]" size={22} />
                                   ) : (
-                                    <Banknote className="text-[#ff5a5f]" size={22} />
+                                    <Banknote className="text-[#ff5757]" size={22} />
                                   )}
-                                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                                  <span className="text-[10px] font-black text-[var(--rz-gray-700)] uppercase tracking-widest">
                                     {m.label}
                                   </span>
                                 </button>
@@ -1936,7 +1952,7 @@ function ProfileContent() {
                               type="button"
                               onClick={() => void handlePayNow(selectedRes)}
                               disabled={payingLoading}
-                              className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                              className="w-full bg-[var(--rz-navy-900)] hover:bg-[var(--rz-navy)] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                {payingLoading ? <Loader2 className="animate-spin text-white" size={14} /> : <Shield size={14} />}
                                {payingLoading ? ("Processing...") : (`Pay $${selectedRes.totalPrice.toFixed(2)}`)}
@@ -1953,7 +1969,7 @@ function ProfileContent() {
                               )}
                               <button 
                                 onClick={() => setPaymentView("none")}
-                                className="flex-1 bg-white border border-slate-200 text-slate-500 font-black py-3 rounded-xl text-[9px] uppercase tracking-widest hover:bg-slate-50 transition"
+                                className="flex-1 bg-white border border-[var(--border-default)] text-[var(--rz-gray-500)] font-black py-3 rounded-xl text-[9px] uppercase tracking-widest hover:bg-[var(--rz-gray-050)] transition"
                               >
                                  {"Back"}
                               </button>
@@ -1987,7 +2003,7 @@ function ProfileContent() {
                                 setPaymentView("none");
                                 setRefreshTrigger((p) => p + 1);
                               }}
-                              className="w-full bg-slate-950 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest"
+                              className="w-full bg-[var(--rz-navy-900)] text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest"
                             >
                               {"Done"}
                             </button>
@@ -1995,26 +2011,26 @@ function ProfileContent() {
                       )}
                    </div>
 
-                   <div className="bg-slate-950 rounded-[32px] p-6 md:p-8 text-white shadow-xl shadow-slate-200/50">
+                   <div className="bg-[var(--rz-navy-900)] rounded-[32px] p-6 md:p-8 text-white shadow-xl shadow-[color:rgba(231,234,239,0.5)]">
                       <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-5">{"Safety & Policy"}</h4>
                       <div className="space-y-5 text-[11px]">
                          {selectedRes.status === 'cash_at_venue' ? (
                            <div className="flex gap-3.5">
-                              <Banknote className="text-[#ff5a5f] flex-shrink-0" size={18} />
+                              <Banknote className="text-[#ff5757] flex-shrink-0" size={18} />
                               <p className="font-medium text-white/80 leading-relaxed">
                                  {"Cash payment is collected at the venue when you arrive for your appointment."}
                               </p>
                            </div>
                          ) : (
                            <div className="flex gap-3.5">
-                              <Shield className="text-[#ff5a5f] flex-shrink-0" size={18} />
+                              <Shield className="text-[#ff5757] flex-shrink-0" size={18} />
                               <p className="font-medium text-white/80 leading-relaxed">
                                  {"Secure encrypted payments powered by Rezervame."}
                               </p>
                            </div>
                          )}
                          <div className="flex gap-3.5">
-                            <Clock className="text-[#ff5a5f] flex-shrink-0" size={18} />
+                            <Clock className="text-[#ff5757] flex-shrink-0" size={18} />
                             <p className="font-medium text-white/80 leading-relaxed">
                                {selectedRes.cancellationPolicyMessage ||
                                  policyMessageForBooking(
@@ -2058,31 +2074,31 @@ function ProfileContent() {
       {/* Family Member Modal */}
       {isFamilyModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-500" onClick={() => setIsFamilyModalOpen(false)} />
+          <div className="absolute inset-0 bg-[rgba(2,48,71,0.8)] backdrop-blur-md animate-in fade-in duration-500" onClick={() => setIsFamilyModalOpen(false)} />
           <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 duration-500">
              <div className="flex justify-between items-center mb-10">
-                <h3 className="text-2xl font-black text-slate-900">{editingMember ? ("Edit Member") : ("New Member")}</h3>
-                <button onClick={() => setIsFamilyModalOpen(false)} className="p-3 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-2xl transition"><X size={20} /></button>
+                <h3 className="text-2xl font-black text-[var(--rz-navy)]">{editingMember ? ("Edit Member") : ("New Member")}</h3>
+                <button onClick={() => setIsFamilyModalOpen(false)} className="p-3 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] rounded-2xl transition"><X size={20} /></button>
              </div>
              
              <form onSubmit={handleAddFamily} className="space-y-8">
                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{"Full Name"}</label>
+                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{"Full Name"}</label>
                   <div className="relative group">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#ff5a5f] transition-colors">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-300)] group-focus-within:text-[#ff5757] transition-colors">
                       <UserIcon size={18} />
                     </div>
-                    <input name="name" type="text" defaultValue={editingMember?.name} required placeholder="e.g. John Doe" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
+                    <input name="name" type="text" defaultValue={editingMember?.name} required placeholder="e.g. John Doe" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 pl-12 pr-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
                   </div>
                </div>
                <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">{"Age"}</label>
-                    <input name="age" type="number" defaultValue={editingMember?.age} required placeholder="Years" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{"Age"}</label>
+                    <input name="age" type="number" defaultValue={editingMember?.age} required placeholder="Years" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
                  </div>
                  <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Gender</label>
-                    <select name="gender" defaultValue={editingMember?.gender || "Male"} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all appearance-none cursor-pointer">
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">Gender</label>
+                    <select name="gender" defaultValue={editingMember?.gender || "Male"} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all appearance-none cursor-pointer">
                        <option value="Male">Male</option>
                        <option value="Female">Female</option>
                        <option value="Other">Other</option>
@@ -2090,10 +2106,10 @@ function ProfileContent() {
                  </div>
                </div>
                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-wide ml-1">Email (optional)</label>
-                  <input name="email" type="email" defaultValue={editingMember?.email ?? ""} placeholder="email@example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 font-bold text-slate-800 text-sm focus:outline-none focus:border-[#ff5a5f] focus:bg-white transition-all placeholder:text-slate-400" />
+                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">Email (optional)</label>
+                  <input name="email" type="email" defaultValue={editingMember?.email ?? ""} placeholder="email@example.com" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
                </div>
-              <button type="submit" disabled={isSavingFamilyMember} className="w-full bg-[#ff5a5f] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5a5f]/25 hover:bg-[#e0484d] transition-all text-xs uppercase tracking-widest mt-4 disabled:opacity-60 flex items-center justify-center gap-2">
+              <button type="submit" disabled={isSavingFamilyMember} className="w-full bg-[#ff5757] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5757]/25 hover:bg-[#d83b3b] transition-all text-xs uppercase tracking-widest mt-4 disabled:opacity-60 flex items-center justify-center gap-2">
                  {isSavingFamilyMember ? <Loader2 className="animate-spin" size={16} /> : null}
                  {isSavingFamilyMember ? "Saving..." : (editingMember ? "Save Changes" : "Add Member")}
                </button>
@@ -2103,11 +2119,11 @@ function ProfileContent() {
       )}
       
       {isReviewModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(2,48,71,0.6)] p-4 backdrop-blur-md animate-in fade-in duration-300">
            <div className="w-full max-w-lg bg-white rounded-[40px] shadow-2xl p-10 relative overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
               <button 
                 onClick={() => setIsReviewModalOpen(false)} 
-                className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-900 transition-colors"
+                className="absolute top-6 right-6 p-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] transition-colors"
               >
                  <X size={24} />
               </button>
@@ -2116,10 +2132,10 @@ function ProfileContent() {
                  <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/10">
                     <Star size={36} fill="currentColor" />
                  </div>
-                 <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">
+                 <h2 className="text-2xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
                     {"Rate Your Experience"}
                  </h2>
-                 <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
+                 <p className="text-[var(--rz-gray-500)] font-bold text-xs uppercase tracking-widest">
                     {selectedRes?.venueName}
                  </p>
               </div>
@@ -2127,37 +2143,37 @@ function ProfileContent() {
               <div className="space-y-10">
                  {/* Venue Rating */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block text-center">{"Common Venue Rating"}</label>
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block text-center">{"Common Venue Rating"}</label>
                     <div className="flex justify-center gap-3">
                        {[1,2,3,4,5].map((star) => (
-                         <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5a5f]/10 text-[#ff5a5f] shadow-sm" : "bg-slate-50 text-slate-300"}`}>
+                         <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5757]/10 text-[#ff5757] shadow-sm" : "bg-[var(--rz-gray-050)] text-[var(--rz-gray-300)]"}`}>
                            <Star size={24} fill={businessRating >= star ? "currentColor" : "none"} />
                          </button>
                        ))}
                     </div>
                  </div>
 
-                 <div className="h-px bg-slate-100" />
+                 <div className="h-px bg-[var(--rz-gray-100)]" />
 
                  {/* Individual Services */}
                  <div className="space-y-8">
-                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">{"Individual Service Ratings"}</h4>
+                   <h4 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest text-center">{"Individual Service Ratings"}</h4>
                    {selectedRes?.items.filter(i => i.status === 'completed' && !i.isReviewed).map((item) => (
-                     <div key={item.id} className="p-6 bg-slate-50 rounded-3xl space-y-6">
+                     <div key={item.id} className="p-6 bg-[var(--rz-gray-050)] rounded-3xl space-y-6">
                         <div>
-                           <p className="font-black text-slate-900 text-sm">{item.name}</p>
-                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.staffName}</p>
+                           <p className="font-black text-[var(--rz-navy)] text-sm">{item.name}</p>
+                           <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">{item.staffName}</p>
                         </div>
 
                         <div className="space-y-6">
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Service Quality"}</p>
+                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Service Quality"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
                                     key={star} 
                                     onClick={() => setServiceRatings(prev => ({ ...prev, [item.id]: star }))} 
-                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (serviceRatings[item.id] || 5) >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-white text-slate-200 border border-slate-100"}`}
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (serviceRatings[item.id] || 5) >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-white text-[var(--rz-gray-200)] border border-[var(--border-subtle)]"}`}
                                   >
                                     <Star size={18} fill={(serviceRatings[item.id] || 5) >= star ? "currentColor" : "none"} />
                                   </button>
@@ -2166,13 +2182,13 @@ function ProfileContent() {
                            </div>
 
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Staff Rating"}</p>
+                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Staff Rating"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
                                     key={star} 
                                     onClick={() => setStaffRatings(prev => ({ ...prev, [item.id]: star }))} 
-                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (staffRatings[item.id] || 5) >= star ? "bg-cyan-100 text-cyan-600 shadow-sm" : "bg-white text-slate-200 border border-slate-100"}`}
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (staffRatings[item.id] || 5) >= star ? "bg-cyan-100 text-cyan-600 shadow-sm" : "bg-white text-[var(--rz-gray-200)] border border-[var(--border-subtle)]"}`}
                                   >
                                     <Star size={18} fill={(staffRatings[item.id] || 5) >= star ? "currentColor" : "none"} />
                                   </button>
@@ -2185,12 +2201,12 @@ function ProfileContent() {
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block text-center">Review comment (shared)</label>
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block text-center">Review comment (shared)</label>
                     <textarea 
                       value={reviewComment}
                       onChange={(e) => setReviewComment(e.target.value)}
                       placeholder={"Tell us more about your visit..."}
-                      className="w-full h-32 bg-slate-50 border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                      className="w-full h-32 bg-[var(--rz-gray-050)] border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                     />
                  </div>
 
@@ -2224,7 +2240,7 @@ function ProfileContent() {
                      }
                    }}
                    disabled={isSubmittingReview}
-                   className="w-full bg-slate-900 text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 hover:bg-[#ff5a5f] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                   className="w-full bg-[var(--rz-navy)] text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-[color:rgba(2,48,71,0.2)] hover:bg-[#ff5757] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                  >
                     {isSubmittingReview ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} strokeWidth={3} />}
                     {isSubmittingReview ? ("Submitting...") : ("Submit All Ratings")}

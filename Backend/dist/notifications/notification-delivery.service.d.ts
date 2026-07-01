@@ -1,4 +1,5 @@
 import { PrismaService } from '../prisma.service';
+import { type PlatformEmailTemplate } from '../email/render-platform-email.util';
 import type { SendTemplateEmailOptions } from '../email/interfaces/email-options.interface';
 export type EmailConfig = {
     emailEnabled: boolean;
@@ -21,6 +22,17 @@ export declare function loadMessagingConfig(prisma: PrismaService): Promise<Emai
     notifyNewTicketSms: boolean;
 }>;
 export declare function sendEmailWithTemplate(prisma: PrismaService, options: SendTemplateEmailOptions): Promise<{
+    ok: boolean;
+    skipped?: boolean;
+    error?: string;
+    messageId?: string;
+}>;
+export declare function sendPlatformEmail(prisma: PrismaService, options: {
+    to: string;
+    template: PlatformEmailTemplate;
+    model?: Record<string, unknown>;
+    subject?: string;
+}): Promise<{
     ok: boolean;
     skipped?: boolean;
     error?: string;

@@ -50,8 +50,8 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-slate-900 h-screen text-white flex flex-col fixed left-0 top-0">
-      <div className="px-6 py-8 border-b border-slate-800 flex flex-col items-center gap-4">
+    <aside className="w-64 bg-[var(--rz-navy)] h-screen text-white flex flex-col fixed left-0 top-0">
+      <div className="px-6 py-8 border-b border-[var(--rz-navy-800)] flex flex-col items-center gap-4">
         <img src="/logo.png" alt="Logo" className="w-32 h-auto object-contain brightness-0 invert" />
         <div className="text-center px-4">
           <p className="text-sm font-black tracking-tighter uppercase text-white leading-tight break-words">
@@ -68,8 +68,8 @@ export function Sidebar() {
                 <Link
                   href={item.href}
                   className={clsx(
-                    'flex items-center px-6 py-3 text-xs font-black uppercase tracking-widest transition-all hover:bg-slate-800/50',
-                    pathname.startsWith(item.href) ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'
+                    'flex items-center px-6 py-3 text-xs font-black uppercase tracking-widest transition-all hover:bg-[#022a3d]/50',
+                    pathname.startsWith(item.href) ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-[var(--rz-gray-500)] hover:text-[var(--rz-gray-300)]'
                   )}
                 >
                   <Icon className="h-4 w-4 mr-3" />
@@ -80,10 +80,10 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
-      <div className="p-4 border-t border-slate-800 mt-auto">
+      <div className="p-4 border-t border-[var(--rz-navy-800)] mt-auto">
         <button 
           onClick={handleLogout}
-          className="w-full flex items-center px-6 py-4 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-primary transition-all hover:bg-primary/5 rounded-2xl group"
+          className="w-full flex items-center px-6 py-4 text-xs font-black uppercase tracking-widest text-[var(--rz-gray-500)] hover:text-primary transition-all hover:bg-primary/5 rounded-2xl group"
         >
           <LogOut className="h-4 w-4 mr-3 group-hover:scale-110 transition-transform" />
           Logout

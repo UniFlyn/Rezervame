@@ -12,27 +12,27 @@ export type AppLoaderProps = {
 export function AppLoader({ label, variant = "page", className = "" }: AppLoaderProps) {
   const rings = (
     <div className="relative flex h-16 w-16 items-center justify-center" aria-hidden>
-      <span className="absolute inset-0 rounded-full border-2 border-[#ff5a5f]/15" />
-      <span className="absolute inset-1 rounded-full border-2 border-transparent border-t-[#ff5a5f] animate-spin [animation-duration:1.1s]" />
-      <span className="absolute inset-3 rounded-full border-2 border-transparent border-b-[#ff5a5f]/70 animate-spin [animation-duration:1.6s] [animation-direction:reverse]" />
-      <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#ff5a5f] to-[#e0484d] shadow-lg shadow-[#ff5a5f]/30">
+      <span className="absolute inset-0 rounded-full border-2 border-[#ff5757]/15" />
+      <span className="absolute inset-1 rounded-full border-2 border-transparent border-t-[#ff5757] animate-spin [animation-duration:1.1s]" />
+      <span className="absolute inset-3 rounded-full border-2 border-transparent border-b-[#ff5757]/70 animate-spin [animation-duration:1.6s] [animation-direction:reverse]" />
+      <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#ff5757] to-[#d83b3b] shadow-lg shadow-[#ff5757]/30">
         <span className="text-[9px] font-black tracking-tighter text-white">R</span>
       </span>
     </div>
   );
 
   const labelEl = label ? (
-    <p className="mt-5 text-sm font-semibold tracking-wide text-slate-600 animate-pulse">{label}</p>
+    <p className="mt-5 text-sm font-semibold tracking-wide text-[var(--rz-gray-600)] animate-pulse">{label}</p>
   ) : null;
 
   if (variant === "inline") {
     return (
       <span className={`inline-flex items-center gap-2 ${className}`} role="status" aria-live="polite">
         <span className="relative h-5 w-5">
-          <span className="absolute inset-0 rounded-full border-2 border-slate-200" />
-          <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#ff5a5f] animate-spin" />
+          <span className="absolute inset-0 rounded-full border-2 border-[var(--rz-gray-200)]" />
+          <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#ff5757] animate-spin" />
         </span>
-        {label ? <span className="text-xs font-semibold text-slate-500">{label}</span> : null}
+        {label ? <span className="text-xs font-semibold text-[var(--rz-gray-500)]">{label}</span> : null}
       </span>
     );
   }

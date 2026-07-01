@@ -64,8 +64,8 @@ export default function PricingPage() {
         breadcrumb="Pricing"
       >
         <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-[#ff5a5f]" />
-          <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Loading subscription tiers...</p>
+          <Loader2 className="w-12 h-12 animate-spin text-[#ff5757]" />
+          <p className="text-[var(--rz-gray-500)] font-black uppercase tracking-widest text-[10px]">Loading subscription tiers...</p>
         </div>
       </StaticPageLayout>
     );
@@ -88,37 +88,37 @@ export default function PricingPage() {
                 active 
                   ? isPremium 
                     ? 'border-amber-400 bg-white ring-4 ring-amber-400/10 shadow-2xl relative' 
-                    : 'border-[#ff5a5f] bg-white ring-4 ring-[#ff5a5f]/10 shadow-2xl relative'
-                  : 'bg-slate-50 border-slate-100'
+                    : 'border-[#ff5757] bg-white ring-4 ring-[#ff5757]/10 shadow-2xl relative'
+                  : 'bg-[var(--rz-gray-050)] border-[var(--rz-gray-100)]'
               }`}
             >
               {isPremium && !active && (
-                <div className="absolute -top-5 bg-[#ff5a5f] text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">Recommended</div>
+                <div className="absolute -top-5 bg-[#ff5757] text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">Recommended</div>
               )}
               {active && (
                 <div className={`absolute -top-5 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${
-                  isPremium ? 'bg-amber-400' : 'bg-[#ff5a5f]'
+                  isPremium ? 'bg-amber-400' : 'bg-[#ff5757]'
                 }`}>
                   <CheckCircle size={14} /> Active Plan
                 </div>
               )}
               
               {isPremium ? (
-                <Star className={`w-12 h-12 mb-6 ${active ? 'text-amber-400' : 'text-[#ff5a5f]'}`} />
+                <Star className={`w-12 h-12 mb-6 ${active ? 'text-amber-400' : 'text-[#ff5757]'}`} />
               ) : (
-                <Zap className="w-12 h-12 text-slate-400 mb-6" />
+                <Zap className="w-12 h-12 text-[var(--rz-gray-500)] mb-6" />
               )}
               
               <h3 className="text-2xl font-black uppercase mb-2">{plan.name}</h3>
-              <p className="text-4xl font-black text-slate-900 mb-6">
+              <p className="text-4xl font-black text-[var(--rz-navy)] mb-6">
                 ${plan.price}
-                <span className="text-lg text-slate-400">/{plan.billingCycle === 'monthly' ? 'Month' : 'Year'}</span>
+                <span className="text-lg text-[var(--rz-gray-500)]">/{plan.billingCycle === 'monthly' ? 'Month' : 'Year'}</span>
               </p>
               
               <ul className="text-left w-full space-y-4 mb-10">
                 {plan.features.map((feature: string, idx: number) => (
-                  <li key={idx} className="flex items-center gap-3 font-bold text-slate-500">
-                    <CheckIcon className={`w-5 h-5 ${isPremium ? 'text-[#ff5a5f]' : 'text-green-500'}`} /> 
+                  <li key={idx} className="flex items-center gap-3 font-bold text-[var(--rz-gray-500)]">
+                    <CheckIcon className={`w-5 h-5 ${isPremium ? 'text-[#ff5757]' : 'text-green-500'}`} /> 
                     {feature}
                   </li>
                 ))}
@@ -129,10 +129,10 @@ export default function PricingPage() {
                 onClick={() => handleUpgrade(plan.name, plan.id)}
                 className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${
                   active 
-                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed' 
+                    ? 'bg-[var(--rz-gray-200)] text-[var(--rz-gray-500)] cursor-not-allowed' 
                     : isPremium 
-                      ? 'bg-[#ff5a5f] text-white hover:bg-[#e0454a] shadow-[#ff5a5f]/30 shadow-xl' 
-                      : 'bg-slate-900 text-white hover:bg-slate-800'
+                      ? 'bg-[#ff5757] text-white hover:bg-[#e0454a] shadow-[#ff5757]/30 shadow-xl' 
+                      : 'bg-[var(--rz-navy)] text-white hover:bg-[var(--rz-navy-800)]'
                 }`}
               >
                 {upgrading === plan.id 

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="Rezervame Landing" description="Brand landing page — header, photo hero with search, category grid and coral footer" -->
+<helmet>
+  <script src="./ds-base.js"></script>
+</helmet>
+
+<div style="font-family: var(--font-sans); background: #fff; color: var(--rz-gray-700);">
+
+  <!-- Header -->
+  <header style="display:flex; align-items:center; gap:24px; height:84px; padding:0 40px; border-bottom:1px solid var(--rz-gray-200);">
+    <img src="../../assets/logos/rezervame-color.png" alt="rezervame" style="height:30px;" />
+    <nav style="display:flex; gap:28px; margin-left:24px;">
+      <a href="#" style="font-size:14px; font-weight:600; color:var(--rz-navy);">Explorar</a>
+      <a href="#" style="font-size:14px; font-weight:600; color:var(--rz-gray-600);">Categorías</a>
+      <a href="#" style="font-size:14px; font-weight:600; color:var(--rz-gray-600);">Para negocios</a>
+    </nav>
+    <div style="margin-left:auto; display:flex; gap:12px; align-items:center;">
+      <a href="#" style="font-size:14px; font-weight:600; color:var(--rz-navy);">Iniciar sesión</a>
+      <x-import component-from-global-scope="RezervameDesignSystem_4317c4.Button" variant="primary" shape="pill" size="sm" hint-size="120px,40px">Registrarse</x-import>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section style="position:relative; min-height:480px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:48px 24px; overflow:hidden;">
+    <img src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1600&h=800&q=72" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" />
+    <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(2,18,28,0.32), rgba(2,18,28,0.64));"></div>
+    <div style="position:relative; text-align:center; max-width:760px; width:100%;">
+      <h1 style="color:#fff; font-size:46px; font-weight:700; line-height:1.1; letter-spacing:-0.01em;">Reserva belleza y bienestar, <span style="color:var(--rz-coral);">sin filas</span></h1>
+      <p style="color:rgba(255,255,255,0.92); font-size:17px; margin-top:14px;">Descubre los mejores salones, barberías y spas de Panamá.</p>
+      <div style="margin-top:28px;">
+        <x-import component-from-global-scope="RezervameDesignSystem_4317c4.SearchBar" hint-size="100%,60px"></x-import>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; justify-content:center;">
+        <span style="padding:8px 16px; border-radius:999px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.4); color:#fff; font-size:13px; font-weight:600;">Cabello</span>
+        <span style="padding:8px 16px; border-radius:999px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.4); color:#fff; font-size:13px; font-weight:600;">Barbería</span>
+        <span style="padding:8px 16px; border-radius:999px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.4); color:#fff; font-size:13px; font-weight:600;">Uñas</span>
+        <span style="padding:8px 16px; border-radius:999px; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.4); color:#fff; font-size:13px; font-weight:600;">Spa</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Categories -->
+  <section style="max-width:1180px; margin:0 auto; padding:56px 24px;">
+    <h2 style="font-size:30px; font-weight:700; color:var(--rz-navy); text-align:center; letter-spacing:-0.01em;">Explora por categoría</h2>
+    <p style="font-size:15px; color:var(--rz-gray-500); text-align:center; margin-top:10px; margin-bottom:30px;">Encuentra el servicio perfecto para ti</p>
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;">
+      <div style="position:relative; height:180px; border-radius:12px; overflow:hidden;">
+        <img src="https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=500&h=360&q=72" alt="" style="width:100%; height:100%; object-fit:cover;" />
+        <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(2,18,28,0.82), rgba(2,18,28,0) 60%);"></div>
+        <div style="position:absolute; left:16px; bottom:14px;"><div style="color:#fff; font-size:14px; font-weight:700; text-transform:uppercase;">Servicios para el cabello</div><div style="color:rgba(255,255,255,0.85); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin-top:4px;">Explorar</div></div>
+      </div>
+      <div style="position:relative; height:180px; border-radius:12px; overflow:hidden;">
+        <img src="https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=500&h=360&q=72" alt="" style="width:100%; height:100%; object-fit:cover;" />
+        <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(2,18,28,0.82), rgba(2,18,28,0) 60%);"></div>
+        <div style="position:absolute; left:16px; bottom:14px;"><div style="color:#fff; font-size:14px; font-weight:700; text-transform:uppercase;">Spa y bienestar</div><div style="color:rgba(255,255,255,0.85); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin-top:4px;">Explorar</div></div>
+      </div>
+      <div style="position:relative; height:180px; border-radius:12px; overflow:hidden;">
+        <img src="https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?auto=format&fit=crop&w=500&h=360&q=72" alt="" style="width:100%; height:100%; object-fit:cover;" />
+        <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(2,18,28,0.82), rgba(2,18,28,0) 60%);"></div>
+        <div style="position:absolute; left:16px; bottom:14px;"><div style="color:#fff; font-size:14px; font-weight:700; text-transform:uppercase;">Barbería</div><div style="color:rgba(255,255,255,0.85); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin-top:4px;">Explorar</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer style="background:var(--rz-coral); color:#fff; padding:48px 40px 28px;">
+    <div style="max-width:1180px; margin:0 auto; display:flex; flex-wrap:wrap; gap:40px; justify-content:space-between;">
+      <div style="flex:1 1 280px; max-width:360px;">
+        <img src="../../assets/logos/rezervame-white.png" alt="rezervame" style="height:28px; margin-bottom:16px;" />
+        <p style="font-size:14px; line-height:1.6; color:rgba(255,255,255,0.92);">La principal plataforma de reservas de belleza y bienestar. Conéctate con los mejores profesionales de tu zona.</p>
+      </div>
+      <div>
+        <h5 style="font-size:15px; font-weight:700; color:#fff; margin:0 0 14px;">Para Clientes</h5>
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:14px; color:rgba(255,255,255,0.9);"><a href="#" style="color:inherit;">Descargar app</a><a href="#" style="color:inherit;">Cómo funciona</a><a href="#" style="color:inherit;">Atención al cliente</a></div>
+      </div>
+      <div>
+        <h5 style="font-size:15px; font-weight:700; color:#fff; margin:0 0 14px;">Para Negocios</h5>
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:14px; color:rgba(255,255,255,0.9);"><a href="#" style="color:inherit;">Únete a Rezervame</a><a href="#" style="color:inherit;">Precios</a><a href="#" style="color:inherit;">Soporte</a></div>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+</x-dc>
+</body>
+</html>

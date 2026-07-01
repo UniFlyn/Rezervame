@@ -1,0 +1,48 @@
+<!-- @dsCard group="Components" viewport="780x520" name="NotificationItem — compact & full" subtitle="Header dropdown row + account center row, unread/read states" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: var(--rz-gray-050); font-family: var(--font-sans); }
+  .grid { display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start; }
+  .panel { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); overflow: hidden; }
+  .lbl { font-size: 12px; font-weight: 700; letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--rz-gray-500); margin: 0 0 10px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { NotificationItem } = window.RezervameDesignSystem_4317c4;
+    function Demo() {
+      return (
+        <div className="grid">
+          <div>
+            <p className="lbl">Compact · header dropdown</p>
+            <div className="panel" style={{ padding: 6 }}>
+              <NotificationItem variant="compact" icon="calendar" title="Tu cita en Luxe Hair Studio es mañana a las 10:30." time="Hace 2 h" unread onClick={()=>{}} />
+              <NotificationItem variant="compact" icon="checkCircle" title="Pago confirmado · Spa Wellness." time="Ayer" onClick={()=>{}} />
+              <NotificationItem variant="compact" icon="star" title="¿Cómo estuvo tu visita? Deja una reseña." time="Hace 3 d" onClick={()=>{}} />
+            </div>
+          </div>
+          <div>
+            <p className="lbl">Full · account center</p>
+            <div className="panel">
+              <NotificationItem variant="full" icon="calendar" title="Recordatorio de cita" categoryLabel="Reserva" message="Tu cita en Luxe Hair Studio es mañana a las 10:30 AM." time="Hace 2 horas" actionLabel="Ver reserva" unread onClick={()=>{}} />
+              <NotificationItem variant="full" divider icon="lock" title="Pago pendiente" categoryLabel="Pago" message="Completa el pago para asegurar tu cita en Spa Wellness." time="Ayer" actionLabel="Completar pago" unread onClick={()=>{}} />
+              <NotificationItem variant="full" divider icon="star" title="Deja tu reseña" categoryLabel="Reseña" message="Cuéntale a otros clientes cómo estuvo tu visita." time="Hace 3 días" reviewed onClick={()=>{}} />
+              <NotificationItem variant="full" divider icon="checkCircle" title="Reserva confirmada" categoryLabel="Reserva" message="Tu cita quedó confirmada. Te esperamos." time="Hace 5 días" onClick={()=>{}} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

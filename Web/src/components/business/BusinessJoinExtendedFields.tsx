@@ -20,8 +20,8 @@ import {
 } from "@/lib/businessJoinConfig";
 
 const inputClass =
-  "w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm font-semibold text-slate-800 transition-all focus:outline-none focus:border-[#ff5a5f] focus:bg-white focus:ring-2 focus:ring-[#ff5a5f]/10";
-const labelClass = "text-[11px] font-bold text-slate-500 uppercase tracking-wide";
+  "w-full bg-[var(--rz-gray-050)] border border-[var(--rz-gray-200)] rounded-2xl px-4 py-3.5 text-sm font-semibold text-[var(--rz-navy-800)] transition-all focus:outline-none focus:border-[#ff5757] focus:bg-white focus:ring-2 focus:ring-[#ff5757]/10";
+const labelClass = "text-[11px] font-bold text-[var(--rz-gray-500)] uppercase tracking-wide";
 
 type Lang = "en" | "es";
 
@@ -166,8 +166,8 @@ export function LocationDetailFields({
               key={o.value}
               className={`flex items-start gap-2.5 rounded-xl border p-3 cursor-pointer text-sm ${
                 details.locationAccess === o.value
-                  ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
-                  : "border-slate-200"
+                  ? "border-[#ff5757] bg-[#ff5757]/5"
+                  : "border-[var(--rz-gray-200)]"
               }`}
             >
               <input
@@ -178,7 +178,7 @@ export function LocationDetailFields({
                 required={!details.locationAccess}
                 className="mt-0.5"
               />
-              <span className="font-semibold text-slate-700">
+              <span className="font-semibold text-[var(--rz-gray-700)]">
                 {lang === "es" ? o.labelEs : o.labelEn}
               </span>
             </label>
@@ -226,8 +226,8 @@ export function LocationDetailFields({
               key={o.value}
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold cursor-pointer ${
                 details.parking === o.value
-                  ? "border-[#ff5a5f] bg-[#ff5a5f]/5 text-[#ff5a5f]"
-                  : "border-slate-200 text-slate-600"
+                  ? "border-[#ff5757] bg-[#ff5757]/5 text-[#ff5757]"
+                  : "border-[var(--rz-gray-200)] text-[var(--rz-gray-600)]"
               }`}
             >
               <input
@@ -319,8 +319,8 @@ export function BusinessStepExtendedFields({
               key={o.value}
               className={`flex items-start gap-3 rounded-2xl border-2 p-4 cursor-pointer ${
                 details.locationAccess === o.value
-                  ? "border-[#ff5a5f] bg-[#ff5a5f]/5"
-                  : "border-slate-100"
+                  ? "border-[#ff5757] bg-[#ff5757]/5"
+                  : "border-[var(--rz-gray-100)]"
               }`}
             >
               <input
@@ -330,7 +330,7 @@ export function BusinessStepExtendedFields({
                 onChange={() => patch({ locationAccess: o.value })}
                 required={!details.locationAccess}
               />
-              <span className="text-sm font-bold text-slate-700">
+              <span className="text-sm font-bold text-[var(--rz-gray-700)]">
                 {lang === "es" ? o.labelEs : o.labelEn}
               </span>
             </label>
@@ -383,7 +383,7 @@ export function BusinessStepExtendedFields({
         <p className={labelClass}>{lang === "es" ? "Estacionamiento" : "Parking"}</p>
         <div className="flex flex-wrap gap-3">
           {PARKING_OPTIONS.map((o) => (
-            <label key={o.value} className="flex items-center gap-2 text-sm font-bold text-slate-600">
+            <label key={o.value} className="flex items-center gap-2 text-sm font-bold text-[var(--rz-gray-600)]">
               <input
                 type="radio"
                 name="parking"
@@ -419,7 +419,7 @@ export function OwnerIdentityFields({
             <label
               key={o.value}
               className={`flex items-center gap-2.5 rounded-xl border p-3 cursor-pointer ${
-                details.personType === o.value ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-200"
+                details.personType === o.value ? "border-[#ff5757] bg-[#ff5757]/5" : "border-[var(--rz-gray-200)]"
               }`}
             >
               <input
@@ -435,7 +435,7 @@ export function OwnerIdentityFields({
         </div>
       </div>
       {details.personType === "juridica" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-[var(--rz-gray-100)] bg-[#f7f8fa]/80 p-4">
           <div className="space-y-2 md:col-span-2">
             <label className={labelClass}>{lang === "es" ? "Razón social" : "Legal company name"}</label>
             <input
@@ -499,8 +499,8 @@ export function BankPayoutFields({
   const patch = (p: Partial<JoinExtendedState>) => setDetails((d) => ({ ...d, ...p }));
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5 space-y-4">
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+    <div className="rounded-2xl border border-[var(--rz-gray-100)] bg-[#f7f8fa]/50 p-5 space-y-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-[var(--rz-gray-500)]">
         {lang === "es" ? "Datos bancarios (pagos)" : "Bank details (payouts)"}
       </p>
       <SelectField
@@ -563,7 +563,7 @@ export function OwnerBankStepFields({
             <label
               key={o.value}
               className={`flex items-center gap-3 rounded-2xl border-2 p-4 cursor-pointer ${
-                details.personType === o.value ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100"
+                details.personType === o.value ? "border-[#ff5757] bg-[#ff5757]/5" : "border-[var(--rz-gray-100)]"
               }`}
             >
               <input
@@ -579,7 +579,7 @@ export function OwnerBankStepFields({
         </div>
       </div>
       {details.personType === "juridica" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 rounded-3xl border border-slate-100 bg-slate-50/80 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 rounded-3xl border border-[var(--rz-gray-100)] bg-[#f7f8fa]/80 p-6">
           <div className="space-y-3 md:col-span-2">
             <label className={labelClass}>{lang === "es" ? "Razón social" : "Legal company name"}</label>
             <input
@@ -627,8 +627,8 @@ export function OwnerBankStepFields({
           />
         </div>
       </div>
-      <div className="rounded-3xl border border-slate-100 p-6 space-y-6">
-        <p className="text-xs font-black uppercase tracking-widest text-slate-500">
+      <div className="rounded-3xl border border-[var(--rz-gray-100)] p-6 space-y-6">
+        <p className="text-xs font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
           {lang === "es" ? "Datos bancarios (pagos)" : "Bank details (payouts)"}
         </p>
         <SelectField
@@ -693,8 +693,8 @@ export function OperationsStepFields({
               key={o.value}
               className={`flex items-center gap-2 rounded-2xl border-2 px-3 py-3 text-[11px] font-bold cursor-pointer ${
                 details.offeredServices.includes(o.value)
-                  ? "border-[#ff5a5f] bg-[#ff5a5f]/5 text-[#ff5a5f]"
-                  : "border-slate-100 text-slate-600"
+                  ? "border-[#ff5757] bg-[#ff5757]/5 text-[#ff5757]"
+                  : "border-[var(--rz-gray-100)] text-[var(--rz-gray-600)]"
               }`}
             >
               <input
@@ -760,8 +760,8 @@ export function OperationsStepFields({
               }
               className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${
                 details.operatingDays.includes(d.value)
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100 text-slate-500"
+                  ? "bg-[var(--rz-navy)] text-white"
+                  : "bg-[var(--rz-gray-100)] text-[var(--rz-gray-500)]"
               }`}
             >
               {lang === "es" ? d.labelEs : d.labelEn}
@@ -772,7 +772,7 @@ export function OperationsStepFields({
       <div className="space-y-4">
         <p className={labelClass}>{lang === "es" ? "Tipo de citas" : "Appointments"}</p>
         {APPOINTMENT_MODE_OPTIONS.map((o) => (
-          <label key={o.value} className="flex items-center gap-3 text-sm font-bold text-slate-700">
+          <label key={o.value} className="flex items-center gap-3 text-sm font-bold text-[var(--rz-gray-700)]">
             <input
               type="radio"
               name="appointments"
@@ -823,13 +823,13 @@ export function ExtraDocumentUpload({
 }) {
   const id = `doc-extra-${title.replace(/\s+/g, "-")}`;
   return (
-    <div className="rounded-3xl border-2 border-slate-100 bg-slate-50 p-4">
-      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-1">{title}</p>
-      {hint ? <p className="text-xs text-slate-400 mb-3">{hint}</p> : null}
+    <div className="rounded-3xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] p-4">
+      <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.15em] mb-1">{title}</p>
+      {hint ? <p className="text-xs text-[var(--rz-gray-500)] mb-3">{hint}</p> : null}
       {value ? (
         <img src={value} alt="" className="w-full h-28 rounded-2xl object-cover border mb-3" />
       ) : (
-        <div className="h-28 rounded-2xl border border-dashed border-slate-200 mb-3 flex items-center justify-center text-[10px] font-black uppercase text-slate-400">
+        <div className="h-28 rounded-2xl border border-dashed border-[var(--rz-gray-200)] mb-3 flex items-center justify-center text-[10px] font-black uppercase text-[var(--rz-gray-500)]">
           {uploadLabel}
         </div>
       )}
@@ -849,7 +849,7 @@ export function ExtraDocumentUpload({
         type="button"
         disabled={uploading}
         onClick={() => (document.getElementById(id) as HTMLInputElement | null)?.click()}
-        className="w-full rounded-2xl bg-white border border-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-slate-600 hover:border-[#ff5a5f] disabled:opacity-50"
+        className="w-full rounded-2xl bg-white border border-[var(--rz-gray-200)] px-3 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-[var(--rz-gray-600)] hover:border-[#ff5757] disabled:opacity-50"
       >
         {uploading ? "…" : value ? okLabel : uploadLabel}
       </button>

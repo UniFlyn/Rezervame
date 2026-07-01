@@ -23,8 +23,7 @@ import 'payment_method.dart';
   });
   final commPct = commissionPercent.isFinite && commissionPercent >= 0 ? commissionPercent : 15;
   final commissionAmount = double.parse(((subtotal * commPct) / 100).toStringAsFixed(2));
-  // Customer total excludes platform commission.
-  final totalPrice = double.parse((subtotal + taxAmount).toStringAsFixed(2));
+  final totalPrice = double.parse((subtotal + commissionAmount + taxAmount).toStringAsFixed(2));
   return (
     subtotal: subtotal,
     taxAmount: taxAmount,

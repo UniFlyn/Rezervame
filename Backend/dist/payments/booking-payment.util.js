@@ -26,7 +26,7 @@ function calculateBookingSettlement(bookings, commissionPercent) {
     const pct = Number.isFinite(commissionPercent) && commissionPercent >= 0 ? commissionPercent : 15;
     const commissionAmount = Number((grossSubtotal * (pct / 100)).toFixed(2));
     const businessCredit = Number((grossSubtotal - commissionAmount).toFixed(2));
-    const customerTotal = Number((grossSubtotal + totalTax).toFixed(2));
+    const customerTotal = Number((grossSubtotal + totalTax + commissionAmount).toFixed(2));
     return { grossSubtotal, totalTax, commissionAmount, businessCredit, customerTotal };
 }
 async function creditPlatformCommission(tx, commissionAmount) {
@@ -61,7 +61,12 @@ async function finalizeBookingGroupPayment(prisma, user, bookingIds, paymentMeth
     }
     const bookings = await prisma.booking.findMany({
         where: { id: { in: bookingIds }, userId: user.id },
-        include: { staff: true, business: true, service: true, user: true },
+        include: {
+            staff: true,
+            business: true,
+            service: true,
+            user: { select: { id: true, email: true, name: true, phone: true, role: true } },
+        },
     });
     if (bookings.length === 0)
         throw new common_1.BadRequestException('No valid bookings found');
@@ -112,11 +117,25 @@ async function finalizeBookingGroupPayment(prisma, user, bookingIds, paymentMeth
         return transaction;
     });
     const biz = payableBookings[0].business;
+    const amountLabel = `$${settlement.customerTotal.toFixed(2)}`;
     if (biz?.notifyBookingEmail && biz.email) {
-        void (0, notification_delivery_service_1.sendEmail)(prisma, biz.email, `[Rezervame] Payment received — $${settlement.customerTotal.toFixed(2)}`, `<p>A customer paid <strong>$${settlement.customerTotal.toFixed(2)}</strong> for booking(s) at ${biz.name}.</p>`);
+        void (0, notification_delivery_service_1.sendPlatformEmail)(prisma, {
+            to: biz.email,
+            template: 'payment-received-business',
+            model: { businessName: biz.name, amount: amountLabel },
+        });
     }
     if (user.email) {
-        void (0, notification_delivery_service_1.sendEmail)(prisma, user.email, `[Rezervame] Payment confirmed`, `<p>Your payment of <strong>$${settlement.customerTotal.toFixed(2)}</strong> was successful.</p>`);
+        void (0, notification_delivery_service_1.sendPlatformEmail)(prisma, {
+            to: user.email,
+            template: 'payment-receipt',
+            model: {
+                userName: user.name,
+                customerName: user.name,
+                amount: amountLabel,
+                paymentMethod,
+            },
+        });
     }
     return {
         ok: true,
@@ -156,7 +175,11 @@ async function finalizeBusinessBookingGroupPayment(prisma, businessId, bookingId
     }
     const bookings = await prisma.booking.findMany({
         where: { id: { in: bookingIds }, businessId },
-        include: { staff: true, service: true, user: true },
+        include: {
+            staff: true,
+            service: true,
+            user: { select: { id: true, email: true, name: true, phone: true, role: true } },
+        },
     });
     if (bookings.length === 0)
         throw new common_1.BadRequestException('No valid bookings found');

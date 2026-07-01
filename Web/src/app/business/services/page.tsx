@@ -267,9 +267,9 @@ export default function ServicesPage() {
       </div>
 
       <BusinessFilterToolbar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search services...">
-        <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Category</label>
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="cursor-pointer bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-800 outline-none">
+        <div className="flex items-center gap-2 rounded-2xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-4 py-2">
+          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Category</label>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="cursor-pointer bg-transparent text-[10px] font-black uppercase tracking-widest text-[var(--rz-navy-800)] outline-none">
             <option value="all">All</option>
             {allowedCategories.map((c) => (
               <option key={c.id} value={c.key}>{labelForCategory(language, c)}</option>
@@ -299,16 +299,16 @@ export default function ServicesPage() {
       ) : null}
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-[#023047]/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-white rounded-[40px] w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center relative">
-              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight text-center w-full">
+            <div className="p-8 border-b border-[var(--rz-gray-050)] flex justify-between items-center relative">
+              <h3 className="text-xl font-black text-[var(--rz-navy-800)] uppercase tracking-tight text-center w-full">
                 {modalTitle}
               </h3>
               <button
                 type="button"
                 onClick={() => closeModal()}
-                className="absolute right-8 p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400"
+                className="absolute right-8 p-2 hover:bg-[var(--rz-gray-050)] rounded-full transition-colors text-[var(--rz-gray-500)]"
               >
                 <X size={20} />
               </button>
@@ -316,7 +316,7 @@ export default function ServicesPage() {
             <form onSubmit={submitService} className="p-10 space-y-8">
               <div className="flex flex-col items-center space-y-4">
                 <div className="relative">
-                  <div className="w-24 h-24 bg-primary/10 rounded-2xl flex items-center justify-center text-primary overflow-hidden border-2 border-slate-100">
+                  <div className="w-24 h-24 bg-primary/10 rounded-2xl flex items-center justify-center text-primary overflow-hidden border-2 border-[var(--rz-gray-100)]">
                     {newService.imageUrl ? (
                       <img
                         src={newService.imageUrl}
@@ -349,7 +349,7 @@ export default function ServicesPage() {
                     <button
                       type="button"
                       onClick={() => document.getElementById('service-image-upload')?.click()}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary transition-colors"
+                      className="inline-flex items-center gap-2 rounded-xl bg-[var(--rz-navy)] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary transition-colors"
                     >
                       <Camera className="h-3.5 w-3.5" />
                       {newService.imageUrl ? 'Change image' : 'Upload image'}
@@ -358,19 +358,19 @@ export default function ServicesPage() {
                       <button
                         type="button"
                         onClick={() => setNewService((prev) => ({ ...prev, imageUrl: '' }))}
-                        className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-600"
+                        className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)] hover:text-rose-600"
                       >
                         Remove
                       </button>
                     ) : null}
                   </div>
                 </div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Service details</p>
+                <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">Service details</p>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                  <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 mb-2 block">
                     Name
                   </label>
                   <input
@@ -381,12 +381,12 @@ export default function ServicesPage() {
                       setNewService({ ...newService, name: e.target.value })
                     }
                     placeholder="e.g. Classic cut"
-                    className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                    className="w-full px-6 py-4 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                    <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 mb-2 block">
                       Price ($)
                     </label>
                     <input
@@ -398,11 +398,11 @@ export default function ServicesPage() {
                       onChange={(e) =>
                         setNewService({ ...newService, price: e.target.value === '' ? '' : Number(e.target.value) })
                       }
-                      className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                      className="w-full px-6 py-4 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                    <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 mb-2 block">
                       Duration (min)
                     </label>
                     <input
@@ -415,12 +415,12 @@ export default function ServicesPage() {
                       onChange={(e) =>
                         setNewService({ ...newService, duration: Number(e.target.value) })
                       }
-                      className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                      className="w-full px-6 py-4 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                  <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 mb-2 block">
                     Category (signup types)
                   </label>
                   <select
@@ -429,7 +429,7 @@ export default function ServicesPage() {
                     onChange={(e) =>
                       setNewService({ ...newService, categoryKey: e.target.value })
                     }
-                    className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                    className="w-full px-6 py-4 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                   >
                     <option value="">Select category</option>
                     {categorySelectOptions.map((c) => (
@@ -443,7 +443,7 @@ export default function ServicesPage() {
 
               <button
                 type="submit"
-                className="w-full py-5 bg-slate-900 hover:bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-slate-200"
+                className="w-full py-5 bg-[var(--rz-navy)] hover:bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-[color:var(--rz-gray-200)]"
               >
                 {editing ? 'Save changes' : 'Save service'}
               </button>
@@ -452,10 +452,10 @@ export default function ServicesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-xl shadow-[color:rgba(231,234,239,0.5)] border border-[var(--rz-gray-100)] overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            <tr className="bg-[var(--rz-gray-050)] border-b border-[var(--rz-gray-100)] text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">
               <th className="px-8 py-5 w-16">Photo</th>
               <th className="px-8 py-5">Service</th>
               <th className="px-8 py-5">Category</th>
@@ -464,7 +464,7 @@ export default function ServicesPage() {
               <th className="px-8 py-5 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50 text-sm font-bold">
+          <tbody className="divide-y divide-[var(--rz-gray-050)] text-sm font-bold">
             {services.map((service: Service) => (
               <tr key={service.id} className="hover:bg-primary/5 transition-all group">
                 <td className="px-8 py-6">
@@ -480,7 +480,7 @@ export default function ServicesPage() {
                     )}
                   </div>
                 </td>
-                <td className="px-8 py-6 text-slate-900 font-black">
+                <td className="px-8 py-6 text-[var(--rz-navy)] font-black">
                   {service.name}
                   {(service as any).promotions?.length > 0 && (
                     <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-700">
@@ -488,18 +488,18 @@ export default function ServicesPage() {
                     </span>
                   )}
                 </td>
-                <td className="px-8 py-6 text-slate-500 font-medium">
+                <td className="px-8 py-6 text-[var(--rz-gray-500)] font-medium">
                   {labelByKey.get(service.category) ?? service.category}
                 </td>
                 <td className="px-8 py-6 text-center text-emerald-600 font-black">${service.price}</td>
-                <td className="px-8 py-6 text-center text-slate-400 font-medium">{service.duration} min</td>
+                <td className="px-8 py-6 text-center text-[var(--rz-gray-500)] font-medium">{service.duration} min</td>
                  <td className="px-8 py-6">
                   <div className="flex justify-end space-x-2">
                     <button
                       type="button"
                       onClick={() => openPromo(service)}
                       title="Promotions"
-                      className="p-3 text-slate-300 hover:text-emerald-500 hover:bg-white rounded-2xl transition-all shadow-sm group-hover:shadow-md"
+                      className="p-3 text-[var(--rz-gray-300)] hover:text-emerald-500 hover:bg-white rounded-2xl transition-all shadow-sm group-hover:shadow-md"
                     >
                       <Tag className="h-5 w-5" />
                     </button>
@@ -507,7 +507,7 @@ export default function ServicesPage() {
                       type="button"
                       aria-label={`Edit ${service.name}`}
                       onClick={() => openEdit(service)}
-                      className="p-3 text-slate-300 hover:text-primary hover:bg-white rounded-2xl transition-all shadow-sm group-hover:shadow-md"
+                      className="p-3 text-[var(--rz-gray-300)] hover:text-primary hover:bg-white rounded-2xl transition-all shadow-sm group-hover:shadow-md"
                     >
                       <Edit className="h-5 w-5" />
                     </button>
@@ -515,7 +515,7 @@ export default function ServicesPage() {
                       type="button"
                       aria-label={`Delete ${service.name}`}
                       onClick={() => void onDelete(service.id)}
-                      className="p-3 text-slate-300 hover:text-red-500 hover:bg-white rounded-2xl transition-all shadow-sm group-hover:shadow-md"
+                      className="p-3 text-[var(--rz-gray-300)] hover:text-red-500 hover:bg-white rounded-2xl transition-all shadow-sm group-hover:shadow-md"
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
@@ -539,27 +539,27 @@ export default function ServicesPage() {
       )}
 
       {promoModal.open && promoModal.service && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-[#023047]/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-white rounded-[40px] w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center relative">
-              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight text-center w-full">
+            <div className="p-8 border-b border-[var(--rz-gray-050)] flex justify-between items-center relative">
+              <h3 className="text-xl font-black text-[var(--rz-navy-800)] uppercase tracking-tight text-center w-full">
                 Promote Service
               </h3>
               <button
                 type="button"
                 onClick={() => setPromoModal({ open: false, service: null })}
-                className="absolute right-8 p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400"
+                className="absolute right-8 p-2 hover:bg-[var(--rz-gray-050)] rounded-full transition-colors text-[var(--rz-gray-500)]"
               >
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={savePromo} className="p-10 space-y-8">
               <div className="space-y-6">
-                <p className="text-sm font-bold text-slate-500">
-                  Setup a discount for <span className="text-slate-900 font-black">{promoModal.service.name}</span>.
+                <p className="text-sm font-bold text-[var(--rz-gray-500)]">
+                  Setup a discount for <span className="text-[var(--rz-navy)] font-black">{promoModal.service.name}</span>.
                 </p>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                  <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 mb-2 block">
                     Discount Percent (%)
                   </label>
                   <input
@@ -569,11 +569,11 @@ export default function ServicesPage() {
                     required
                     value={promoDraft.discount}
                     onChange={(e) => setPromoDraft({ ...promoDraft, discount: Number(e.target.value) })}
-                    className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                    className="w-full px-6 py-4 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                  <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 mb-2 block">
                     Promotion Label (Optional)
                   </label>
                   <input
@@ -581,13 +581,13 @@ export default function ServicesPage() {
                     placeholder="e.g. Summer Sale"
                     value={promoDraft.label}
                     onChange={(e) => setPromoDraft({ ...promoDraft, label: e.target.value })}
-                    className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                    className="w-full px-6 py-4 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                   />
                 </div>
 
                 <div className="space-y-4 pt-2">
                    <div className="flex items-center justify-between">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                     <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1">
                        Promotion Expiry
                      </label>
                      <div className="flex items-center gap-2">
@@ -598,7 +598,7 @@ export default function ServicesPage() {
                         onChange={(e) => setPromoDraft({...promoDraft, noExpiry: e.target.checked})}
                         className="w-4 h-4 rounded-md accent-primary"
                        />
-                       <label htmlFor="no-expiry" className="text-[10px] font-black text-slate-600 uppercase tracking-widest cursor-pointer">No expiry</label>
+                       <label htmlFor="no-expiry" className="text-[10px] font-black text-[var(--rz-gray-600)] uppercase tracking-widest cursor-pointer">No expiry</label>
                      </div>
                    </div>
                    
@@ -609,9 +609,9 @@ export default function ServicesPage() {
                           required={!promoDraft.noExpiry}
                           value={promoDraft.endsAt}
                           onChange={(e) => setPromoDraft({ ...promoDraft, endsAt: e.target.value })}
-                          className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
+                          className="w-full px-6 py-4 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white font-bold transition-all"
                         />
-                        <p className="mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 italic">The promotion will automatically stop after this date.</p>
+                        <p className="mt-2 text-[9px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 italic">The promotion will automatically stop after this date.</p>
                      </div>
                    )}
                 </div>

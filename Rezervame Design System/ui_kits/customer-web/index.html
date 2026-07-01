@@ -1,0 +1,216 @@
+<!-- @dsCard group="Customer Web" viewport="1280x780" name="Customer Web — Full Kit" subtitle="Home → Venue → Booking → Checkout → Account" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rezervame — Customer Web</title>
+<link rel="stylesheet" href="../../styles.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<style>
+  body { margin: 0; background: var(--rz-gray-050); }
+  #switcher {
+    position: fixed; z-index: 200; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 4px; padding: 6px; background: rgba(255,255,255,0.92);
+    border: 1px solid var(--border-subtle); border-radius: 999px; box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(8px);
+  }
+  #switcher button {
+    border: none; background: none; cursor: pointer; font-family: var(--font-sans);
+    font-size: 13px; font-weight: 600; color: var(--rz-gray-600);
+    padding: 9px 16px; border-radius: 999px; transition: all .2s;
+  }
+  #switcher button.active { background: var(--rz-coral); color: #fff; }
+  /* Service cards: coral border + subtle lift on hover only (no selected/default state) */
+  .rz-svc-hover > * { transition: border-color var(--dur-base), box-shadow var(--dur-base), transform var(--dur-base); }
+  .rz-svc-hover:hover > * { border-color: var(--rz-coral) !important; box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  /* Amenity cards: soft coral hover lift */
+  .rz-amenity:hover { border-color: var(--rz-coral) !important; box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+  /* Portfolio lightbox entrance */
+  @keyframes rz-lb-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes rz-lb-pop { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="switcher"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script src="data.js"></script>
+  <script src="account-data.js"></script>
+  <script type="text/babel" src="Home.jsx"></script>
+  <script type="text/babel" src="SearchResults.jsx"></script>
+  <script type="text/babel" src="BusinessLanding.jsx"></script>
+  <script type="text/babel" src="VenuePage.jsx"></script>
+  <script type="text/babel" src="Booking.jsx"></script>
+  <script type="text/babel" src="Checkout.jsx"></script>
+  <script type="text/babel" src="AccountReservations.jsx"></script>
+  <script type="text/babel" src="AccountExtras.jsx"></script>
+  <script type="text/babel" src="Account.jsx"></script>
+  <script type="text/babel">
+    const SCREENS = [
+      { id: 'home', label: 'Inicio' },
+      { id: 'search', label: 'Buscar' },
+      { id: 'venue', label: 'Negocio' },
+      { id: 'booking', label: 'Reservar' },
+      { id: 'checkout', label: 'Pago' },
+      { id: 'account', label: 'Cuenta' },
+      { id: 'business', label: 'Para negocios' },
+    ];
+    const logoColor = '../../assets/logos/rezervame-color.png';
+
+    /* Favorite-login prompt — shown when a logged-out user taps the heart. */
+    function FavoritePrompt({ open, onLogin, onSignup, onClose }) {
+      const DS = window.RezervameDesignSystem_4317c4;
+      const { Modal, Button, Glyph } = DS;
+      if (!open) return null;
+      return (
+        <Modal open={open} onClose={onClose} width={420}>
+          <div style={{ padding: 'clamp(28px,5vw,38px) clamp(24px,5vw,34px) clamp(22px,4vw,28px)', textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 60, height: 60, borderRadius: '50%', background: 'var(--rz-coral-050)', color: 'var(--rz-coral)', marginBottom: 18 }}>
+              <Glyph name="heart" size={28} filled />
+            </div>
+            <h2 style={{ fontSize: 23, fontWeight: 700, color: 'var(--rz-navy)', letterSpacing: '-0.3px' }}>Guarda tus favoritos</h2>
+            <p style={{ fontSize: 15, color: 'var(--rz-gray-500)', marginTop: 10, lineHeight: 1.55, maxWidth: 320, margin: '10px auto 0' }}>
+              Inicia sesión o crea una cuenta para guardar este negocio y encontrarlo fácilmente después.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 26 }}>
+              <Button variant="primary" size="lg" fullWidth onClick={onLogin}>Iniciar sesión</Button>
+              <Button variant="outline" size="lg" fullWidth onClick={onSignup}>Crear cuenta</Button>
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--rz-gray-500)', marginTop: 16 }}>Ahora no</button>
+          </div>
+        </Modal>
+      );
+    }
+
+    function App() {
+      const KEY = 'rz_kit_screen';
+      const { LoginModal } = window.RezervameDesignSystem_4317c4;
+      const [screen, setScreen] = React.useState(() => localStorage.getItem(KEY) || 'home');
+      const [searchCtx, setSearchCtx] = React.useState({});
+      const [bookingInit, setBookingInit] = React.useState({});
+      const [order, setOrder] = React.useState(null); // booking → checkout payment handoff
+      const go = (s) => { setScreen(s); localStorage.setItem(KEY, s); window.scrollTo(0, 0); };
+      const goSearch = (ctx) => { setSearchCtx(ctx || {}); go('search'); };
+      const goBooking = (arg) => {
+        let init = {};
+        if (arg && arg.reservation) init = { reservation: arg.reservation };
+        else if (arg && arg.proName) init = { proName: arg.proName };
+        else if (arg && arg.name) init = { service: arg };
+        setBookingInit(init); go('booking');
+      };
+      const goCheckout = (ord) => { setOrder(ord); go('checkout'); };
+
+      // ---- app-level auth + favorites ----
+      const [isLoggedIn, setLoggedIn] = React.useState(false);
+      const [loginOpen, setLoginOpen] = React.useState(false);
+      const [loginLoading, setLoginLoading] = React.useState(false);
+      const [favPromptOpen, setFavPromptOpen] = React.useState(false);
+      const [favorites, setFavorites] = React.useState({});
+      const pendingFav = React.useRef(null);
+
+      // ---- notifications (shared between header dropdown + Account center) ----
+      const [notifications, setNotifications] = React.useState(() =>
+        (window.RZ.account ? window.RZ.account.notifications : []).map((n) => ({ ...n }))
+      );
+      const [acctTab, setAcctTab] = React.useState({ tab: null, n: 0 });
+      const [reviewedIds, setReviewedIds] = React.useState([]);
+      const [reviewReq, setReviewReq] = React.useState({ reservationId: null, notifId: null, n: 0 });
+      const goAccount = (t) => { setAcctTab((s) => ({ tab: t || null, n: s.n + 1 })); go('account'); };
+      const markNotificationRead = (id) => setNotifications((ns) => ns.map((n) => n.id === id ? { ...n, unread: false } : n));
+      const markAllNotificationsRead = () => setNotifications((ns) => ns.map((n) => ({ ...n, unread: false })));
+      const markReviewed = (resId) => setReviewedIds((ids) => ids.includes(resId) ? ids : [...ids, resId]);
+      // Open the review modal on the Account page for a specific completed reservation.
+      const requestReview = (n) => { setReviewReq((s) => ({ reservationId: n.reservationId, notifId: n.id, n: s.n + 1 })); go('account'); };
+      // Clicking a notification → mark read + navigate to the relevant surface.
+      // Review notifications instead open the review modal (read marked on submit).
+      const NOTIF_ROUTE = { reservation: 'reservas', review: 'reservas', payment: 'facturas', business: 'venue' };
+      const handleNotificationClick = (n) => {
+        if (n.action === 'review') { requestReview(n); return; }
+        markNotificationRead(n.id);
+        const dest = NOTIF_ROUTE[n.action] || 'reservas';
+        if (dest === 'venue') go('venue');
+        else goAccount(dest);
+      };
+
+      const user = isLoggedIn ? window.RZ.user : null;
+
+      const completeLogin = () => {
+        setLoginLoading(true);
+        setTimeout(() => {
+          setLoginLoading(false); setLoginOpen(false); setLoggedIn(true);
+          if (pendingFav.current != null) {
+            const idx = pendingFav.current; pendingFav.current = null;
+            setFavorites((f) => ({ ...f, [idx]: true }));
+          }
+        }, 900);
+      };
+      const openLogin = () => { setFavPromptOpen(false); setLoginOpen(true); };
+      // auth-gated favorite toggle
+      const toggleFav = (idx) => {
+        if (!isLoggedIn) { pendingFav.current = idx; setFavPromptOpen(true); return; }
+        setFavorites((f) => ({ ...f, [idx]: !f[idx] }));
+      };
+      const auth = {
+        isLoggedIn, user, favorites, onToggleFav: toggleFav,
+        onLogin: () => setLoginOpen(true),
+        onAccount: () => go('account'),
+        onFavorites: () => go('account'),
+        onViewHistory: () => go('account'),
+        onLogout: () => { setLoggedIn(false); setFavorites({}); go('home'); },
+        notifications,
+        onMarkNotificationRead: markNotificationRead,
+        onMarkAllNotificationsRead: markAllNotificationsRead,
+        onNotificationClick: handleNotificationClick,
+      };
+
+      // Publish the live notification store so the shared header dropdown
+      // (RZ.loggedInHeaderProps, used by every page) reads current state.
+      // Set during render — before child pages render and call it.
+      window.RZ._notif = {
+        items: notifications,
+        onMarkAllRead: markAllNotificationsRead,
+        onSeeAll: () => goAccount('notificaciones'),
+        onItemClick: handleNotificationClick,
+      };
+
+      React.useEffect(() => {
+        const el = document.getElementById('switcher');
+        el.innerHTML = '';
+        SCREENS.forEach(s => {
+          const b = document.createElement('button');
+          b.textContent = s.label;
+          if (s.id === screen) b.className = 'active';
+          b.onclick = () => go(s.id);
+          el.appendChild(b);
+        });
+      }, [screen]);
+
+      let view;
+      switch (screen) {
+        case 'search': view = <SearchResults context={searchCtx} onOpenVenue={() => go('venue')} onHome={() => go('home')} onSearch={goSearch} onJoinBusiness={() => go('business')} {...auth} />; break;
+        case 'venue': view = <VenuePage onReserve={goBooking} onHome={() => go('home')} {...auth} />; break;
+        case 'booking': view = <Booking initialService={bookingInit.service} initialProName={bookingInit.proName} initialReservation={bookingInit.reservation} onProceedToPayment={goCheckout} onHome={() => go('home')} {...auth} />; break;
+        case 'checkout': view = <Checkout order={order} onPaid={() => go('account')} onBack={() => go('booking')} onHome={() => go('home')} {...auth} />; break;
+        case 'account': view = <Account onHome={() => go('home')} onReserve={(arg) => goBooking(arg)} initialTab={acctTab.tab} tabNonce={acctTab.n} reviewedIds={reviewedIds} onMarkReviewed={markReviewed} reviewReq={reviewReq} {...auth} />; break;
+        case 'business': view = <BusinessLanding onHome={() => go('home')} onLogin={() => setLoginOpen(true)} />; break;
+        default: view = <Home onOpenVenue={() => go('venue')} onSearch={goSearch} onJoinBusiness={() => go('business')} {...auth} />;
+      }
+
+      return (
+        <React.Fragment>
+          {view}
+          <LoginModal open={loginOpen} logoSrc={logoColor} loading={loginLoading} onSubmit={completeLogin} onGoogle={completeLogin} onClose={() => setLoginOpen(false)} />
+          <FavoritePrompt open={favPromptOpen} onLogin={openLogin} onSignup={openLogin} onClose={() => { setFavPromptOpen(false); pendingFav.current = null; }} />
+        </React.Fragment>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

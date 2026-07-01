@@ -46,6 +46,6 @@ export function reservationStatusBadgeClass(status: ReservationUiStatus): string
     case 'cancelled':
       return 'bg-red-50 text-red-500 border border-red-100';
     default:
-      return 'bg-slate-50 text-slate-600 border border-slate-100';
+      return 'bg-[var(--rz-gray-050)] text-[var(--rz-gray-600)] border border-[var(--rz-gray-100)]';
   }
 }

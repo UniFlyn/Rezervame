@@ -1,0 +1,70 @@
+<!-- @dsCard group="Components" viewport="900x620" name="People — book for family & friends" subtitle="RecipientBadge, PersonCard (manage / select), AddPersonModal, RecipientPicker" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 28px; background: var(--rz-gray-050); font-family: var(--font-sans); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+  .lbl { font-size: 12px; font-weight: 700; letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--rz-gray-500); margin: 0 0 12px; }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { PersonCard, RecipientBadge, AddPersonModal, RecipientPicker, Button } = window.RezervameDesignSystem_4317c4;
+    const people = [
+      { id: 'p1', name: 'Ana Pérez', relationship: 'Hija', phone: '+507 6000-0001' },
+      { id: 'p2', name: 'Laura Gómez', relationship: 'Amiga', phone: '+507 6000-0002' },
+      { id: 'p3', name: 'Carlos Rivera', relationship: 'Esposo', phone: '+507 6000-0003' },
+    ];
+    function Demo() {
+      const [pickOpen, setPickOpen] = React.useState(false);
+      const [addOpen, setAddOpen] = React.useState(false);
+      const [value, setValue] = React.useState('self');
+      const sel = value === 'self' ? null : people.find((p) => p.id === value);
+      return (
+        <div className="grid">
+          <div>
+            <p className="lbl">PersonCard · manage</p>
+            <div className="stack">
+              <PersonCard name="Ana Pérez" relationship="Hija" phone="+507 6000-0001" onEdit={()=>{}} onRemove={()=>{}} />
+              <PersonCard name="Laura Gómez" relationship="Amiga" phone="+507 6000-0002" note="Prefiere citas por la mañana." onEdit={()=>{}} onRemove={()=>{}} />
+            </div>
+            <p className="lbl" style={{ marginTop: 22 }}>RecipientBadge</p>
+            <div className="row">
+              <RecipientBadge self />
+              <RecipientBadge name="Ana Pérez" />
+              <RecipientBadge name="Carlos Rivera" size="md" />
+            </div>
+          </div>
+          <div>
+            <p className="lbl">PersonCard · select</p>
+            <div className="stack">
+              <PersonCard variant="select" icon="user" name="Para mí" subtitle="Tu cuenta" selected={value === 'self'} onSelect={() => setValue('self')} />
+              {people.map((p) => (
+                <PersonCard key={p.id} variant="select" name={p.name} subtitle={`${p.relationship} · ${p.phone}`} selected={value === p.id} onSelect={() => setValue(p.id)} />
+              ))}
+            </div>
+            <div className="row" style={{ marginTop: 18 }}>
+              <Button variant="outline" onClick={() => setPickOpen(true)}>Abrir RecipientPicker</Button>
+              <Button variant="ghost" onClick={() => setAddOpen(true)}>Abrir AddPersonModal</Button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--rz-gray-500)', marginTop: 12 }}>Seleccionado: <strong style={{ color: 'var(--rz-navy)' }}>{sel ? sel.name : 'Para mí'}</strong></p>
+          </div>
+          <RecipientPicker open={pickOpen} onClose={() => setPickOpen(false)} people={people} value={value} onChange={setValue} onAddPerson={() => {}} />
+          <AddPersonModal open={addOpen} onClose={() => setAddOpen(false)} onSave={() => {}} />
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

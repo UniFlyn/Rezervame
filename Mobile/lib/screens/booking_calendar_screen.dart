@@ -5,6 +5,7 @@ import '../data/api_repository.dart';
 import '../models/booking_cart_line.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_typography.dart';
+import '../utils/booking_cart.dart';
 import '../utils/booking_utils.dart';
 import 'checkout_summary_screen.dart';
 
@@ -142,7 +143,9 @@ class _BookingCalendarScreenState extends State<BookingCalendarScreen> {
                               heroImageUrl: widget.heroImageUrl ?? '',
                               bookingDate: _selectedDate,
                               bookingTime: _selectedTime,
-                              cartLines: List<BookingCartLine>.from(widget.cartLines),
+                              cartLines: BookingCart.instance.isNotEmpty
+                                  ? List<BookingCartLine>.from(BookingCart.instance.lines)
+                                  : List<BookingCartLine>.from(widget.cartLines),
                               specialists: widget.specialists,
                               businessId: widget.businessId,
                             ),

@@ -1,0 +1,52 @@
+<!-- @dsCard group="Components" viewport="640x420" name="Truncated Reveal" subtitle="Compact truncated text → expands in place on hover / focus / tap (no tooltip)" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 32px; background: linear-gradient(135deg, #eef2f4 0%, #e2eaee 100%); }
+  .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rz-gray-500); margin-bottom: 12px; }
+  .card { width: 240px; background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 16px; overflow: hidden; }
+  .row { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+  .eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rz-coral); margin-bottom: 4px; }
+  .hint { font-size: 12px; color: var(--rz-gray-500); margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { TruncatedReveal } = window.RezervameDesignSystem_4317c4;
+    function Demo() {
+      return (
+        <div>
+          <div className="lbl">Single-line ellipsis → expands in place &nbsp;·&nbsp; hover / tap the title</div>
+          <div className="row">
+            <div className="card">
+              <div className="eyebrow">Bienestar</div>
+              <TruncatedReveal as="h5" lines={1} expandLines={2} lineHeight={1.3} style={{ fontSize: 16, fontWeight: 600, color: 'var(--rz-navy)' }}>
+                Serenity Spa &amp; Lounge Bella Vista
+              </TruncatedReveal>
+              <div className="hint">Fits → stays put:</div>
+              <TruncatedReveal as="h5" lines={1} expandLines={2} lineHeight={1.3} style={{ fontSize: 16, fontWeight: 600, color: 'var(--rz-navy)' }}>
+                Luxe Hair
+              </TruncatedReveal>
+            </div>
+            <div className="card">
+              <div className="eyebrow">Cabello</div>
+              <TruncatedReveal as="h5" lines={1} expandLines={2} lineHeight={1.3} style={{ fontSize: 16, fontWeight: 600, color: 'var(--rz-navy)' }}>
+                Estudio de Belleza &amp; Color Avenida Balboa
+              </TruncatedReveal>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

@@ -133,7 +133,7 @@ export default function BusinessSetupPage() {
 
   if (!business) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm font-bold text-slate-500">
+      <div className="flex min-h-[40vh] items-center justify-center text-sm font-bold text-[var(--rz-gray-500)]">
         Loading…
       </div>
     );
@@ -155,16 +155,16 @@ export default function BusinessSetupPage() {
     <div className="mx-auto max-w-3xl space-y-8 pb-16">
       <div>
         <p className="text-[10px] font-black uppercase tracking-widest text-primary">Welcome</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Business setup</h1>
-        <p className="mt-2 text-sm font-medium text-slate-500">
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--rz-navy)]">Business setup</h1>
+        <p className="mt-2 text-sm font-medium text-[var(--rz-gray-500)]">
           Add the required photos, location, and hours. Until this is done, your listing stays hidden and the
           visibility toggle stays disabled.
         </p>
       </div>
 
       {setup.missing.length > 0 ? (
-        <ul className="rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-sm text-slate-600">
-          <li className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Still needed</li>
+        <ul className="rounded-2xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-5 py-4 text-sm text-[var(--rz-gray-600)]">
+          <li className="mb-2 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Still needed</li>
           {setup.missing.map((f: BusinessSetupField) => (
             <li key={f} className="flex items-center gap-2 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -179,17 +179,17 @@ export default function BusinessSetupPage() {
         </div>
       )}
 
-      <section className="space-y-4 rounded-[32px] border border-slate-100 bg-white p-6 shadow-lg md:p-8">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Logo & banner</h2>
+      <section className="space-y-4 rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-6 shadow-lg md:p-8">
+        <h2 className="text-sm font-black uppercase tracking-widest text-[var(--rz-navy-800)]">Logo & banner</h2>
         <div className="grid gap-6 sm:grid-cols-2">
           <ImagePick label="Logo" value={logo} onChange={setLogo} maxWidth={512} maxHeight={512} />
           <ImagePick label="Banner" value={banner} onChange={setBanner} maxWidth={1600} maxHeight={900} />
         </div>
       </section>
 
-      <section className="space-y-4 rounded-[32px] border border-slate-100 bg-white p-6 shadow-lg md:p-8">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Gallery</h2>
-        <p className="text-xs text-slate-500">At least one photo for your public venue page.</p>
+      <section className="space-y-4 rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-6 shadow-lg md:p-8">
+        <h2 className="text-sm font-black uppercase tracking-widest text-[var(--rz-navy-800)]">Gallery</h2>
+        <p className="text-xs text-[var(--rz-gray-500)]">At least one photo for your public venue page.</p>
         <div className="flex flex-wrap gap-3">
           {gallery.map((src, idx) => (
             <div key={`${idx}-${src.slice(0, 24)}`} className="relative h-24 w-24 overflow-hidden rounded-2xl border">
@@ -203,7 +203,7 @@ export default function BusinessSetupPage() {
               </button>
             </div>
           ))}
-          <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary">
+          <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--rz-gray-200)] text-[var(--rz-gray-500)] hover:border-primary hover:text-primary">
             <ImagePlus className="h-6 w-6" />
             <span className="mt-1 text-[9px] font-black uppercase">Add</span>
             <input
@@ -228,23 +228,23 @@ export default function BusinessSetupPage() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-[32px] border border-slate-100 bg-white p-6 shadow-lg md:p-8">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Basics</h2>
+      <section className="space-y-4 rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-6 shadow-lg md:p-8">
+        <h2 className="text-sm font-black uppercase tracking-widest text-[var(--rz-navy-800)]">Basics</h2>
         <label className="block">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Description</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Description</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            className="mt-2 w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold"
+            className="mt-2 w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-4 py-3 text-sm font-bold"
           />
         </label>
         <label className="block">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Address</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Address</span>
           <input
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            className="mt-2 w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold"
+            className="mt-2 w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-4 py-3 text-sm font-bold"
           />
         </label>
         <div className="flex flex-wrap items-center gap-3">
@@ -252,7 +252,7 @@ export default function BusinessSetupPage() {
             type="button"
             onClick={() => void useMyLocation()}
             disabled={locating}
-            className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-widest text-white"
+            className="inline-flex items-center gap-2 rounded-2xl bg-[var(--rz-navy)] px-5 py-3 text-xs font-black uppercase tracking-widest text-white"
           >
             {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
             Pin on map (GPS)
@@ -268,18 +268,18 @@ export default function BusinessSetupPage() {
         {location.trim() ? (
           <iframe
             title="map-preview"
-            className="h-48 w-full rounded-2xl border border-slate-100"
+            className="h-48 w-full rounded-2xl border border-[var(--rz-gray-100)]"
             src={`https://www.google.com/maps?q=${encodeURIComponent(location)}&output=embed`}
           />
         ) : null}
       </section>
 
-      <section className="space-y-4 rounded-[32px] border border-slate-100 bg-white p-6 shadow-lg md:p-8">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Working hours</h2>
+      <section className="space-y-4 rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-6 shadow-lg md:p-8">
+        <h2 className="text-sm font-black uppercase tracking-widest text-[var(--rz-navy-800)]">Working hours</h2>
         <ul className="space-y-2">
           {hours.map((item, idx) => (
-            <li key={item.day} className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-2">
-              <span className="w-24 text-xs font-black uppercase text-slate-600">{item.day}</span>
+            <li key={item.day} className="flex flex-wrap items-center gap-3 rounded-xl bg-[var(--rz-gray-050)] px-4 py-2">
+              <span className="w-24 text-xs font-black uppercase text-[var(--rz-gray-600)]">{item.day}</span>
               <label className="flex items-center gap-2 text-xs font-bold">
                 <input
                   type="checkbox"
@@ -299,7 +299,7 @@ export default function BusinessSetupPage() {
                     }
                     className="rounded-lg border px-2 py-1 text-xs"
                   />
-                  <span className="text-slate-400">–</span>
+                  <span className="text-[var(--rz-gray-500)]">–</span>
                   <input
                     value={item.end}
                     onChange={(e) =>
@@ -309,7 +309,7 @@ export default function BusinessSetupPage() {
                   />
                 </>
               ) : (
-                <span className="text-xs font-bold text-slate-400">Closed</span>
+                <span className="text-xs font-bold text-[var(--rz-gray-500)]">Closed</span>
               )}
             </li>
           ))}
@@ -322,7 +322,7 @@ export default function BusinessSetupPage() {
         onClick={() => void saveSetup()}
         className={clsx(
           'w-full rounded-2xl py-4 text-sm font-black uppercase tracking-widest text-white',
-          saving ? 'bg-slate-400' : 'bg-primary hover:opacity-90',
+          saving ? 'bg-[var(--rz-gray-500)]' : 'bg-primary hover:opacity-90',
         )}
       >
         {saving ? 'Saving…' : 'Save & continue'}
@@ -346,8 +346,8 @@ function ImagePick({
 }) {
   return (
     <div>
-      <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-      <div className="relative aspect-video overflow-hidden rounded-2xl border bg-slate-50">
+      <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">{label}</p>
+      <div className="relative aspect-video overflow-hidden rounded-2xl border bg-[var(--rz-gray-050)]">
         <img src={value || PLACEHOLDER_IMAGE_DATA_URI} alt={label} className="h-full w-full object-cover" />
         <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 hover:bg-black/20">
           <span className="rounded-xl bg-white/90 px-3 py-2 text-[10px] font-black uppercase">Upload</span>

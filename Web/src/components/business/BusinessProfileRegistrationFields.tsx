@@ -88,13 +88,13 @@ export function BusinessProfileRegistrationFields({
   extended: JoinExtendedState;
   setExtended: React.Dispatch<React.SetStateAction<JoinExtendedState>>;
 }) {
-  const sectionTitle = 'text-sm font-black uppercase tracking-tight text-slate-800';
+  const sectionTitle = 'text-sm font-black uppercase tracking-tight text-[var(--rz-navy-800)]';
   const sectionSub =
-    'mt-2 text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400';
+    'mt-2 text-[10px] font-bold uppercase leading-relaxed tracking-widest text-[var(--rz-gray-500)]';
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
+      <section className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
         <h4 className={sectionTitle}>Location & region</h4>
         <p className={sectionSub}>Same fields as partner registration — country, city, and access.</p>
         <div className="mt-6">
@@ -102,7 +102,7 @@ export function BusinessProfileRegistrationFields({
         </div>
       </section>
 
-      <section className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
+      <section className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
         <h4 className={sectionTitle}>Location details</h4>
         <p className={sectionSub}>Building, parking, and directions for customers.</p>
         <div className="mt-6">
@@ -110,7 +110,7 @@ export function BusinessProfileRegistrationFields({
         </div>
       </section>
 
-      <section className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
+      <section className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
         <h4 className={sectionTitle}>Owner & legal</h4>
         <p className={sectionSub}>Identity and company information from your application.</p>
         <div className="mt-6">
@@ -118,7 +118,7 @@ export function BusinessProfileRegistrationFields({
         </div>
       </section>
 
-      <section className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
+      <section className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
         <h4 className={sectionTitle}>Payout bank</h4>
         <p className={sectionSub}>Bank account used for withdrawals (from registration).</p>
         <div className="mt-6">
@@ -126,7 +126,7 @@ export function BusinessProfileRegistrationFields({
         </div>
       </section>
 
-      <section className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
+      <section className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
         <h4 className={sectionTitle}>Operations</h4>
         <p className={sectionSub}>Services offered, hours template, appointments, and team size.</p>
         <div className="mt-6">

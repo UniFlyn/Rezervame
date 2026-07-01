@@ -1,0 +1,40 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Carousel Section" subtitle="Fresha-style Home section — title, 'Ver todos →', horizontal card row + arrows" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px 40px; background: #fff; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { CarouselSection, BusinessCard } = window.RezervameDesignSystem_4317c4;
+    const img = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=400&h=300&q=70`;
+    const biz = [
+      { name:'Luxe Hair Studio', img:img('1560066984-138dadb4c035'), rating:4.9, reviews:287, category:'Cabello', location:'Av. Balboa', badge:'Nuevo' },
+      { name:'Studio Blush', img:img('1521590832167-7bcbfaa6381f'), rating:5.0, reviews:64, category:'Cabello', location:'El Cangrejo' },
+      { name:'Nail Society', img:img('1604654894610-df63bc536371'), rating:4.8, reviews:142, category:'Uñas', location:'Costa del Este' },
+      { name:'Serenity Spa', img:img('1570172619644-dfd03ed5d881'), rating:4.9, reviews:231, category:'Spa', location:'Obarrio' },
+      { name:'The Grooming Room', img:img('1599351431202-1e0f0137899a'), rating:4.9, reviews:98, category:'Barbería', location:'San Francisco', badge:'Verificado' },
+    ];
+    function Demo() {
+      const [fav, setFav] = React.useState({0:true});
+      return (
+        <CarouselSection title="Recomendados para ti" subtitle="Elegidos según tus gustos" onLink={()=>{}} cardWidth={258}>
+          {biz.map((b,i)=>(
+            <BusinessCard key={i} {...b} favorite={!!fav[i]} onFavorite={()=>setFav(f=>({...f,[i]:!f[i]}))} onClick={()=>{}} />
+          ))}
+        </CarouselSection>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

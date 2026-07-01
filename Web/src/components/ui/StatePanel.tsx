@@ -40,10 +40,10 @@ const VARIANT_STYLES: Record<
   },
   empty: {
     Icon: Search,
-    ring: "ring-slate-100",
-    iconWrap: "bg-gradient-to-br from-slate-50 to-white",
-    iconColor: "text-slate-400",
-    accent: "from-slate-400/5",
+    ring: "ring-[var(--rz-gray-100)]",
+    iconWrap: "bg-gradient-to-br from-[var(--rz-gray-050)] to-white",
+    iconColor: "text-[var(--rz-gray-500)]",
+    accent: "from-[rgba(135,138,147,0.05)]",
   },
   offline: {
     Icon: WifiOff,
@@ -66,7 +66,7 @@ export function StatePanel({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-3xl border border-slate-100 bg-white px-6 py-12 text-center shadow-sm sm:px-10 sm:py-14 ${className}`}
+      className={`relative overflow-hidden rounded-3xl border border-[var(--rz-gray-100)] bg-white px-6 py-12 text-center shadow-sm sm:px-10 sm:py-14 ${className}`}
       role="status"
     >
       <div
@@ -79,11 +79,11 @@ export function StatePanel({
         >
           <Icon className={`h-9 w-9 ${style.iconColor}`} strokeWidth={1.75} aria-hidden />
         </div>
-        <h3 className="max-w-md text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">
+        <h3 className="max-w-md text-lg font-extrabold tracking-tight text-[var(--rz-navy)] sm:text-xl">
           {title}
         </h3>
         {description ? (
-          <p className="mt-2 max-w-md text-sm font-medium leading-relaxed text-slate-500">
+          <p className="mt-2 max-w-md text-sm font-medium leading-relaxed text-[var(--rz-gray-500)]">
             {description}
           </p>
         ) : null}
@@ -98,8 +98,8 @@ export function StatePanel({
                   onClick={action.onClick}
                   className={
                     action.primary
-                      ? "inline-flex items-center gap-2 rounded-xl bg-[#ff5a5f] px-6 py-3 text-sm font-bold text-white shadow-md shadow-[#ff5a5f]/20 transition hover:bg-[#e0484d]"
-                      : "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      ? "inline-flex items-center gap-2 rounded-xl bg-[#ff5757] px-6 py-3 text-sm font-bold text-white shadow-md shadow-[#ff5757]/20 transition hover:bg-[#d83b3b]"
+                      : "inline-flex items-center gap-2 rounded-xl border border-[var(--rz-gray-200)] bg-white px-6 py-3 text-sm font-bold text-[var(--rz-gray-700)] transition hover:border-[var(--rz-gray-300)] hover:bg-[var(--rz-gray-050)]"
                   }
                 >
                   {ActionIcon ? <ActionIcon className="h-4 w-4" aria-hidden /> : null}

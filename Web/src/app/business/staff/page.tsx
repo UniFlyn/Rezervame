@@ -219,14 +219,14 @@ export default function StaffPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight text-gray-900 md:text-3xl">Staff management</h2>
-          <p className="mt-0.5 text-sm text-slate-500 font-medium">Manage your team members and their schedules.</p>
+          <p className="mt-0.5 text-sm text-[var(--rz-gray-500)] font-medium">Manage your team members and their schedules.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-2xl bg-slate-100 p-1.5">
-            <button type="button" onClick={() => setViewMode('grid')} className={clsx('flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all', viewMode === 'grid' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400')}>
+          <div className="flex rounded-2xl bg-[var(--rz-gray-100)] p-1.5">
+            <button type="button" onClick={() => setViewMode('grid')} className={clsx('flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all', viewMode === 'grid' ? 'bg-white text-[var(--rz-navy)] shadow-md' : 'text-[var(--rz-gray-500)]')}>
               <LayoutGrid size={14} /> Grid
             </button>
-            <button type="button" onClick={() => setViewMode('list')} className={clsx('flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all', viewMode === 'list' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400')}>
+            <button type="button" onClick={() => setViewMode('list')} className={clsx('flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all', viewMode === 'list' ? 'bg-white text-[var(--rz-navy)] shadow-md' : 'text-[var(--rz-gray-500)]')}>
               <List size={14} /> List
             </button>
           </div>
@@ -239,12 +239,12 @@ export default function StaffPage() {
       {message && <div className={clsx('rounded-2xl border px-4 py-3 text-sm font-semibold', message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-rose-200 bg-rose-50 text-rose-900')}>{message.text}</div>}
 
       <BusinessFilterToolbar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by name, specialist...">
-        <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Specialist</label>
+        <div className="flex items-center gap-2 rounded-2xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-4 py-2">
+          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Specialist</label>
           <select
             value={specialistFilter}
             onChange={(e) => setSpecialistFilter(e.target.value)}
-            className="max-w-[180px] cursor-pointer bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-800 outline-none"
+            className="max-w-[180px] cursor-pointer bg-transparent text-[10px] font-black uppercase tracking-widest text-[var(--rz-navy-800)] outline-none"
           >
             {specialistFilterOptions.map((r) => (
               <option key={r} value={r}>
@@ -256,11 +256,11 @@ export default function StaffPage() {
       </BusinessFilterToolbar>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md fade-in duration-300">
+        <div className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-[#023047]/60 p-4 backdrop-blur-md fade-in duration-300">
           <div className="animate-in zoom-in-95 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-[40px] bg-white shadow-2xl duration-300">
-            <div className="relative flex items-center justify-between border-b border-slate-50 p-8">
-              <h3 className="w-full text-center text-xl font-black uppercase tracking-tight text-slate-800">{editingId ? 'Edit staff member' : 'New staff member'}</h3>
-              <button type="button" onClick={closeModal} className="absolute right-8 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-50"><X size={20} /></button>
+            <div className="relative flex items-center justify-between border-b border-[var(--rz-gray-050)] p-8">
+              <h3 className="w-full text-center text-xl font-black uppercase tracking-tight text-[var(--rz-navy-800)]">{editingId ? 'Edit staff member' : 'New staff member'}</h3>
+              <button type="button" onClick={closeModal} className="absolute right-8 rounded-full p-2 text-[var(--rz-gray-500)] transition-colors hover:bg-[var(--rz-gray-050)]"><X size={20} /></button>
             </div>
             <form onSubmit={submit} className="space-y-8 p-10">
               <input
@@ -276,7 +276,7 @@ export default function StaffPage() {
                 <label
                   htmlFor={staffPhotoInputId}
                   className={clsx(
-                    'group relative flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-slate-200 bg-slate-50 shadow-inner transition-all hover:border-primary/30 hover:bg-primary/5',
+                    'group relative flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] shadow-inner transition-all hover:border-primary/30 hover:bg-primary/5',
                     photoUploading && 'pointer-events-none opacity-60',
                   )}
                 >
@@ -285,7 +285,7 @@ export default function StaffPage() {
                     alt={draft.name ? `${draft.name} photo` : 'Staff photo'}
                     className="h-full w-full object-cover"
                   />
-                  <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-slate-900/0 text-white opacity-0 transition-all group-hover:bg-slate-900/40 group-hover:opacity-100">
+                  <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-[#023047]/0 text-white opacity-0 transition-all group-hover:bg-[#023047]/40 group-hover:opacity-100">
                     <Camera className="h-6 w-6" />
                     <span className="mt-1 text-[8px] font-black uppercase tracking-widest">
                       {photoUploading ? 'Processing…' : 'Change'}
@@ -296,7 +296,7 @@ export default function StaffPage() {
                   <label
                     htmlFor={staffPhotoInputId}
                     className={clsx(
-                      'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary',
+                      'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[var(--rz-navy)] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary',
                       photoUploading && 'pointer-events-none opacity-60',
                     )}
                   >
@@ -307,7 +307,7 @@ export default function StaffPage() {
                     <button
                       type="button"
                       onClick={() => setDraft((d) => ({ ...d, image: '' }))}
-                      className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-600"
+                      className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)] hover:text-rose-600"
                     >
                       Remove
                     </button>
@@ -315,12 +315,12 @@ export default function StaffPage() {
                 </div>
               </div>
               <div className="space-y-6">
-                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Full name</label><input type="text" required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
+                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Full name</label><input type="text" required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
                 <div>
-                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
                     Specialist
                   </label>
-                  <p className="mb-3 text-[11px] font-semibold text-slate-500">
+                  <p className="mb-3 text-[11px] font-semibold text-[var(--rz-gray-500)]">
                     Choose specialist type(s) from the list — select all that apply.
                   </p>
                   <select
@@ -329,7 +329,7 @@ export default function StaffPage() {
                       const v = e.target.value;
                       if (v) toggleSpecialistType(v);
                     }}
-                    className="mb-3 w-full cursor-pointer rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-primary focus:bg-white"
+                    className="mb-3 w-full cursor-pointer rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-4 py-3 text-sm font-bold text-[var(--rz-navy-800)] outline-none focus:border-primary focus:bg-white"
                   >
                     <option value="">Add specialist from dropdown…</option>
                     {STAFF_SPECIALIST_OPTIONS.filter((t) => !draft.specialistTypes.includes(t)).map(
@@ -340,27 +340,27 @@ export default function StaffPage() {
                       ),
                     )}
                   </select>
-                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-2xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] p-3">
                     {STAFF_SPECIALIST_OPTIONS.map((type) => (
                       <label
                         key={type}
-                        className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-bold text-slate-800 hover:bg-white"
+                        className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-bold text-[var(--rz-navy-800)] hover:bg-white"
                       >
                         <input
                           type="checkbox"
                           checked={draft.specialistTypes.includes(type)}
                           onChange={() => toggleSpecialistType(type)}
-                          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                          className="h-4 w-4 rounded border-[var(--rz-gray-300)] text-primary focus:ring-primary"
                         />
                         <span>{type}</span>
                       </label>
                     ))}
                   </div>
                 </div>
-                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Years of Experience</label><input type="number" value={draft.experienceYears} onChange={(e) => setDraft({ ...draft, experienceYears: parseInt(e.target.value) || 0 })} className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
-                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Professional Bio</label><textarea rows={3} value={draft.bio} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} placeholder="Tell us about their background..." className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
+                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Years of Experience</label><input type="number" value={draft.experienceYears} onChange={(e) => setDraft({ ...draft, experienceYears: parseInt(e.target.value) || 0 })} className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
+                <div><label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Professional Bio</label><textarea rows={3} value={draft.bio} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} placeholder="Tell us about their background..." className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none" /></div>
                 <div>
-                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
                     Availability
                   </label>
                   <StaffAvailabilityPicker
@@ -369,28 +369,28 @@ export default function StaffPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
                     Services performed
                   </label>
-                  <p className="mb-3 text-[11px] font-semibold text-slate-500">
+                  <p className="mb-3 text-[11px] font-semibold text-[var(--rz-gray-500)]">
                     Select which catalog services this person offers. Leave none selected to allow any service at booking.
                   </p>
                   {bizServices.length === 0 ? (
-                    <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-400">
+                    <p className="rounded-2xl border border-dashed border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] px-4 py-3 text-xs font-semibold text-[var(--rz-gray-500)]">
                       Add services under Services first to tag staff by service.
                     </p>
                   ) : (
-                    <div className="max-h-40 space-y-2 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                    <div className="max-h-40 space-y-2 overflow-y-auto rounded-2xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] p-3">
                       {bizServices.map((svc) => (
                         <label
                           key={svc.id}
-                          className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-bold text-slate-800 hover:bg-white"
+                          className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-bold text-[var(--rz-navy-800)] hover:bg-white"
                         >
                           <input
                             type="checkbox"
                             checked={draft.serviceIds.includes(svc.id)}
                             onChange={() => toggleDraftService(svc.id)}
-                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                            className="h-4 w-4 rounded border-[var(--rz-gray-300)] text-primary focus:ring-primary"
                           />
                           <span>{svc.name}</span>
                         </label>
@@ -402,7 +402,7 @@ export default function StaffPage() {
               <button
                 type="submit"
                 disabled={photoUploading}
-                className="w-full rounded-2xl bg-slate-900 py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-slate-200 transition-all hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-2xl bg-[var(--rz-navy)] py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-[color:var(--rz-gray-200)] transition-all hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {editingId ? 'Save changes' : 'Create member'}
               </button>
@@ -414,13 +414,13 @@ export default function StaffPage() {
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
           {staff.map((member) => (
-            <div key={member.id} className="group relative rounded-[40px] border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/50 transition-all hover:-translate-y-1 hover:shadow-2xl">
+            <div key={member.id} className="group relative rounded-[40px] border border-[var(--rz-gray-100)] bg-white p-8 shadow-xl shadow-[color:rgba(231,234,239,0.5)] transition-all hover:-translate-y-1 hover:shadow-2xl">
               <div className="absolute right-6 top-6 flex space-x-1">
-                <button type="button" onClick={() => openEdit(member)} className="rounded-2xl p-2 text-slate-400 transition-all hover:bg-primary/5 hover:text-primary"><Edit className="h-5 w-5" /></button>
-                <button type="button" onClick={() => void remove(member.id)} className="rounded-2xl p-2 text-slate-400 transition-all hover:bg-red-50 hover:text-red-600"><Trash2 className="h-5 w-5" /></button>
+                <button type="button" onClick={() => openEdit(member)} className="rounded-2xl p-2 text-[var(--rz-gray-500)] transition-all hover:bg-primary/5 hover:text-primary"><Edit className="h-5 w-5" /></button>
+                <button type="button" onClick={() => void remove(member.id)} className="rounded-2xl p-2 text-[var(--rz-gray-500)] transition-all hover:bg-red-50 hover:text-red-600"><Trash2 className="h-5 w-5" /></button>
               </div>
               <div className="mb-8 flex items-center space-x-6">
-                <div className="flex h-20 w-20 shrink-0 overflow-hidden rounded-3xl border border-slate-100 bg-slate-50 shadow-inner">
+                <div className="flex h-20 w-20 shrink-0 overflow-hidden rounded-3xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] shadow-inner">
                   <img
                     src={staffPhotoSrc(member.name, member.image)}
                     alt={member.name}
@@ -428,31 +428,31 @@ export default function StaffPage() {
                   />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black uppercase leading-tight tracking-tight text-slate-900">{member.name}</h3>
+                  <h3 className="text-xl font-black uppercase leading-tight tracking-tight text-[var(--rz-navy)]">{member.name}</h3>
                   <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-primary">{member.role}</p>
                   <div className="mt-2 flex items-center gap-1.5">
                     <div className="flex gap-0.5">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className={clsx("h-3 w-3", i < Math.round(member.rating || 0) ? "fill-amber-400 text-amber-400" : "text-slate-200")} />
+                        <Star key={i} className={clsx("h-3 w-3", i < Math.round(member.rating || 0) ? "fill-amber-400 text-amber-400" : "text-[var(--rz-gray-200)]")} />
                       ))}
                     </div>
-                    <span className="text-[10px] font-black text-slate-700">{member.rating || 0}</span>
-                    <span className="text-[10px] font-bold text-slate-400">({member.reviews || 0})</span>
+                    <span className="text-[10px] font-black text-[var(--rz-gray-700)]">{member.rating || 0}</span>
+                    <span className="text-[10px] font-bold text-[var(--rz-gray-500)]">({member.reviews || 0})</span>
                   </div>
                 </div>
               </div>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">
-                    <Clock className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
+                  <div className="flex items-center rounded-2xl bg-[var(--rz-gray-050)] p-4 text-xs font-bold text-[var(--rz-gray-500)]">
+                    <Clock className="mr-3 h-4 w-4 shrink-0 text-[var(--rz-gray-500)]" />
                     {formatAvailabilityDisplay(member.availability)}
                   </div>
-                  <div className="flex items-center rounded-2xl bg-slate-50 p-4 text-xs font-bold text-slate-500">
-                    <Users className="mr-3 h-4 w-4 shrink-0 text-slate-400" />
+                  <div className="flex items-center rounded-2xl bg-[var(--rz-gray-050)] p-4 text-xs font-bold text-[var(--rz-gray-500)]">
+                    <Users className="mr-3 h-4 w-4 shrink-0 text-[var(--rz-gray-500)]" />
                     {member.clients || 0} {member.clients === 1 ? 'Client' : 'Clients'}
                   </div>
                 </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
                   {member.serviceIds?.length
                     ? `${member.serviceIds.length} service${member.serviceIds.length === 1 ? '' : 's'} on profile`
                     : 'All services (not restricted)'}
@@ -462,15 +462,15 @@ export default function StaffPage() {
           ))}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-xl shadow-slate-200/50">
+        <div className="overflow-hidden rounded-[32px] border border-[var(--rz-gray-100)] bg-white shadow-xl shadow-[color:rgba(231,234,239,0.5)]">
           <table className="w-full border-collapse text-left">
-            <thead><tr className="border-b border-slate-50 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400"><th className="px-8 py-5">Professional</th><th className="px-8 py-5">Specialist</th><th className="px-8 py-5">Availability</th><th className="px-8 py-5 text-right">Actions</th></tr></thead>
-            <tbody className="divide-y divide-slate-50 text-sm font-bold">
+            <thead><tr className="border-b border-[var(--rz-gray-050)] bg-[var(--rz-gray-050)] text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]"><th className="px-8 py-5">Professional</th><th className="px-8 py-5">Specialist</th><th className="px-8 py-5">Availability</th><th className="px-8 py-5 text-right">Actions</th></tr></thead>
+            <tbody className="divide-y divide-[var(--rz-gray-050)] text-sm font-bold">
               {staff.map((member) => (
                 <tr key={member.id} className="hover:bg-primary/5">
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-slate-50">
+                      <div className="flex h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-[var(--rz-gray-050)]">
                         <img
                           src={staffPhotoSrc(member.name, member.image)}
                           alt=""
@@ -478,18 +478,18 @@ export default function StaffPage() {
                         />
                       </div>
                       <div>
-                        <div className="font-black text-slate-900">{member.name}</div>
+                        <div className="font-black text-[var(--rz-navy)]">{member.name}</div>
                         <div className="flex items-center gap-1 mt-0.5">
                           <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-                          <span className="text-[10px] font-black text-slate-600">{member.rating || 0}</span>
-                          <span className="text-[10px] font-bold text-slate-400 ml-1">({member.reviews || 0} reviews)</span>
+                          <span className="text-[10px] font-black text-[var(--rz-gray-600)]">{member.rating || 0}</span>
+                          <span className="text-[10px] font-bold text-[var(--rz-gray-500)] ml-1">({member.reviews || 0} reviews)</span>
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-5 text-primary">{member.role}</td>
-                  <td className="px-8 py-5 text-slate-500">{formatAvailabilityDisplay(member.availability)}</td>
-                  <td className="px-8 py-5 text-right"><button type="button" onClick={() => openEdit(member)} className="rounded-xl p-2 text-slate-300 hover:bg-slate-100 hover:text-slate-700"><Edit className="h-5 w-5" /></button><button type="button" onClick={() => void remove(member.id)} className="rounded-xl p-2 text-slate-300 hover:bg-rose-50 hover:text-rose-500"><Trash2 className="h-5 w-5" /></button></td>
+                  <td className="px-8 py-5 text-[var(--rz-gray-500)]">{formatAvailabilityDisplay(member.availability)}</td>
+                  <td className="px-8 py-5 text-right"><button type="button" onClick={() => openEdit(member)} className="rounded-xl p-2 text-[var(--rz-gray-300)] hover:bg-[var(--rz-gray-100)] hover:text-[var(--rz-gray-700)]"><Edit className="h-5 w-5" /></button><button type="button" onClick={() => void remove(member.id)} className="rounded-xl p-2 text-[var(--rz-gray-300)] hover:bg-rose-50 hover:text-rose-500"><Trash2 className="h-5 w-5" /></button></td>
                 </tr>
               ))}
             </tbody>

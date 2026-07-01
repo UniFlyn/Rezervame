@@ -2,11 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadMessagingConfig = loadMessagingConfig;
 exports.sendEmailWithTemplate = sendEmailWithTemplate;
+exports.sendPlatformEmail = sendPlatformEmail;
 exports.sendEmail = sendEmail;
 exports.sendSms = sendSms;
 exports.notifyAdminNewTicket = notifyAdminNewTicket;
 exports.notifyUserTicketUpdate = notifyUserTicketUpdate;
 const system_integration_config_1 = require("../config/system-integration.config");
+const postmark_errors_util_1 = require("../email/postmark-errors.util");
+const render_platform_email_util_1 = require("../email/render-platform-email.util");
 const email_service_1 = require("../email/email.service");
 const email_service_2 = require("../email/email.service");
 async function loadMessagingConfig(prisma) {
@@ -59,6 +62,23 @@ async function sendEmailWithTemplate(prisma, options) {
         return { ok: false, error: msg };
     }
 }
+async function sendPlatformEmail(prisma, options) {
+    const to = options.to.trim();
+    if (!to)
+        return { ok: false, error: 'Missing recipient' };
+    const model = options.model ?? {};
+    const rendered = (0, render_platform_email_util_1.renderPlatformEmail)(options.template, model);
+    const subject = options.subject?.trim() || rendered.subject;
+    const templateResult = await sendEmailWithTemplate(prisma, {
+        to,
+        templateAlias: rendered.postmarkAlias,
+        templateModel: model,
+    });
+    if (templateResult.ok && !templateResult.skipped && templateResult.messageId) {
+        return templateResult;
+    }
+    return sendEmail(prisma, to, subject, rendered.html, rendered.text);
+}
 async function sendEmail(prisma, to, subject, html, text) {
     const recipient = to.trim();
     if (!recipient)
@@ -82,7 +102,7 @@ async function sendEmail(prisma, to, subject, html, text) {
         return { ok: true, messageId: result.MessageID };
     }
     catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = (0, postmark_errors_util_1.formatPostmarkError)(err);
         await logDelivery(prisma, 'email', recipient, subject, text || html, 'failed', msg);
         console.error('[email:postmark-failed]', msg);
         return { ok: false, error: msg };
@@ -132,7 +152,18 @@ async function notifyAdminNewTicket(prisma, ticket) {
     const adminEmail = cfg.adminNotifyEmail?.trim();
     const summary = `New support ticket ${ticket.ticketRef}: ${ticket.subject} (${ticket.category}) from ${ticket.requesterName}`;
     if (cfg.notifyNewTicketEmail && adminEmail) {
-        await sendEmail(prisma, adminEmail, `[Rezervame] ${ticket.ticketRef} — ${ticket.subject}`, `<p>${summary}</p><p>Review in Admin → Support.</p>`, summary);
+        await sendPlatformEmail(prisma, {
+            to: adminEmail,
+            template: 'generic-notification',
+            subject: `[Rezervame] ${ticket.ticketRef} — ${ticket.subject}`,
+            model: {
+                recipientName: 'Admin',
+                title: `New support ticket ${ticket.ticketRef}`,
+                body: summary,
+                ctaUrl: 'https://rezervame-admin.web.app/admin/notifications',
+                ctaLabel: 'View ticket',
+            },
+        });
     }
     if (cfg.notifyNewTicketSms && adminEmail) {
         await sendSms(prisma, adminEmail, summary.slice(0, 300));
@@ -140,7 +171,15 @@ async function notifyAdminNewTicket(prisma, ticket) {
 }
 async function notifyUserTicketUpdate(prisma, email, phone, ticketRef, message) {
     if (email) {
-        await sendEmail(prisma, email, `[Rezervame] Update on ${ticketRef}`, `<p>${message}</p>`, message);
+        await sendPlatformEmail(prisma, {
+            to: email,
+            template: 'support-ticket-update',
+            model: {
+                ticketRef,
+                status: 'update',
+                message,
+            },
+        });
     }
     if (phone) {
         await sendSms(prisma, phone, `${ticketRef}: ${message}`.slice(0, 300));

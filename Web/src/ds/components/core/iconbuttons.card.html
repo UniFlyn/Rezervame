@@ -1,0 +1,69 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Icon Buttons" subtitle="Standardized sizes, variants, states & badge — 40px default, optically centered" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: #fff; font-family: var(--font-sans); }
+  .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .grp { display: flex; align-items: center; gap: 12px; }
+  .lbl { width: 100%; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rz-gray-400); margin: 16px 0 2px; }
+  .tag { font-size: 11px; color: var(--rz-gray-500); }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { IconButton } = window.RezervameDesignSystem_4317c4;
+    function Demo() {
+      return (
+        <div>
+          <div className="lbl">Sizes — 32 · 40 · 48 (icon 16 / 18 / 22, optically centered)</div>
+          <div className="row">
+            <IconButton icon="heart" variant="soft" size="sm" round label="Favorite" />
+            <IconButton icon="heart" variant="soft" size="md" round label="Favorite" />
+            <IconButton icon="heart" variant="soft" size="lg" round label="Favorite" />
+            <span className="tag">+ square (rounded 12px) ↓</span>
+            <IconButton icon="settings" variant="soft" size="sm" label="Settings" />
+            <IconButton icon="settings" variant="soft" size="md" label="Settings" />
+            <IconButton icon="settings" variant="soft" size="lg" label="Settings" />
+          </div>
+
+          <div className="lbl">Variants — neutral · outline · filled · dark · soft · outlineNeutral</div>
+          <div className="row">
+            <IconButton icon="share" variant="neutral" round label="Share" />
+            <IconButton icon="share" variant="outline" round label="Share" />
+            <IconButton icon="share" variant="filled" round label="Share" />
+            <IconButton icon="share" variant="dark" round label="Share" />
+            <IconButton icon="share" variant="soft" round label="Share" />
+            <IconButton icon="download" variant="outlineNeutral" round label="Download" />
+          </div>
+
+          <div className="lbl">States — default · selected (hover any to see fill / press)</div>
+          <div className="row">
+            <IconButton icon="heart" variant="outline" round label="Favorite" />
+            <IconButton icon="heart" variant="outline" round selected label="Favorited" />
+            <IconButton icon="bell" variant="neutral" round label="Notifications" />
+            <IconButton icon="mapPin" variant="neutral" round selected label="Location" />
+            <IconButton icon="lock" variant="soft" round disabled label="Locked" />
+            <span className="tag">↑ disabled</span>
+          </div>
+
+          <div className="lbl">Notification badge — dot &amp; count, top-right, never crops icon</div>
+          <div className="row">
+            <IconButton icon="bell" variant="neutral" round badge label="Notifications" />
+            <IconButton icon="bell" variant="soft" round badgeCount={3} label="Notifications" />
+            <IconButton icon="mail" variant="dark" round badgeCount={12} label="Messages" />
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

@@ -343,22 +343,22 @@ export default function ProfilePage() {
     setAmenityKeysDraft((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   }
 
-  const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2';
+  const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)] mb-2';
   const inputCls =
-    'w-full min-h-[52px] px-5 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-primary focus:bg-white focus:ring-0 transition-colors';
+    'w-full min-h-[52px] px-5 py-3.5 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl text-sm font-bold text-[var(--rz-navy-800)] placeholder:text-[var(--rz-gray-300)] focus:outline-none focus:border-primary focus:bg-white focus:ring-0 transition-colors';
   const errCls = 'mt-1.5 text-red-500 text-[10px] font-bold';
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8 pb-20 md:space-y-10">
       <div className="relative group">
-        <div className="relative h-56 w-full overflow-hidden rounded-3xl border-4 border-white bg-slate-100 shadow-2xl sm:h-64 sm:rounded-[40px]">
+        <div className="relative h-56 w-full overflow-hidden rounded-3xl border-4 border-white bg-[var(--rz-gray-100)] shadow-2xl sm:h-64 sm:rounded-[40px]">
           <img
             key={bannerVal ? bannerVal.slice(0, 48) : 'banner-empty'}
             src={bannerVal || PLACEHOLDER_IMAGE_DATA_URI}
             alt="Business Banner"
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(2,48,71,0.7)] via-[rgba(2,48,71,0.2)] to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-8">
             <div className="flex min-w-0 items-center gap-4 sm:gap-6">
               <div className="h-20 w-20 shrink-0 rounded-2xl bg-white p-1 shadow-2xl sm:h-24 sm:w-24 sm:rounded-3xl">
@@ -402,9 +402,9 @@ export default function ProfilePage() {
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-10">
         <div className="lg:col-span-7 xl:col-span-8">
-          <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200/50 sm:rounded-[40px] sm:p-8 md:p-10">
-            <div className="mb-8 border-b border-slate-100 pb-6">
-              <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">General information</h3>
+          <div className="rounded-3xl border border-[var(--rz-gray-100)] bg-white p-6 shadow-xl shadow-[color:rgba(231,234,239,0.5)] sm:rounded-[40px] sm:p-8 md:p-10">
+            <div className="mb-8 border-b border-[var(--rz-gray-100)] pb-6">
+              <h3 className="text-xl font-black uppercase tracking-tight text-[var(--rz-navy-800)]">General information</h3>
             </div>
             {errorMessage && (
               <div className="mb-4 flex items-center rounded-2xl bg-rose-50 p-4 text-sm font-bold text-rose-700">
@@ -449,9 +449,9 @@ export default function ProfilePage() {
                 {errors.description && <p className={errCls}>{errors.description.message}</p>}
               </div>
 
-              <div className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6">
+              <div className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6">
                 <label className={labelCls}>{t('joinBusinessTypeLabel')}</label>
-                <p className="mb-4 text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400">
+                <p className="mb-4 text-[10px] font-bold uppercase leading-relaxed tracking-widest text-[var(--rz-gray-500)]">
                   {t('joinBusinessTypeSub')}
                 </p>
                 {!businessTypeId ? (
@@ -488,10 +488,10 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
-                <div className="mb-4 border-b border-slate-200/80 pb-4">
-                  <h4 className="text-sm font-black uppercase tracking-tight text-slate-800">Amenities</h4>
-                  <p className="mt-2 max-w-2xl text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400">
+              <div className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
+                <div className="mb-4 border-b border-[#e7eaef]/80 pb-4">
+                  <h4 className="text-sm font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Amenities</h4>
+                  <p className="mt-2 max-w-2xl text-[10px] font-bold uppercase leading-relaxed tracking-widest text-[var(--rz-gray-500)]">
                     Select what guests can expect. Managed in Admin → Amenities.
                   </p>
                 </div>
@@ -505,7 +505,7 @@ export default function ProfilePage() {
                         type="button"
                         onClick={() => toggleAmenityKey(a.key)}
                         className={`inline-flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-[11px] font-black uppercase tracking-wide transition-colors ${
-                          on ? 'border-primary bg-primary/10 text-primary' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          on ? 'border-primary bg-primary/10 text-primary' : 'border-[var(--rz-gray-200)] bg-white text-[var(--rz-gray-600)] hover:border-[var(--rz-gray-300)]'
                         }`}
                       >
                         <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
@@ -515,24 +515,24 @@ export default function ProfilePage() {
                   })}
                 </div>
                 {amenityCatalog.length === 0 ? (
-                  <p className="mt-2 text-xs font-bold text-slate-400">No amenities loaded. Check API and seed.</p>
+                  <p className="mt-2 text-xs font-bold text-[var(--rz-gray-500)]">No amenities loaded. Check API and seed.</p>
                 ) : null}
               </div>
 
-              <div className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
-                <div className="mb-6 border-b border-slate-200/80 pb-4">
-                  <h4 className="text-sm font-black uppercase tracking-tight text-slate-800">Social links</h4>
-                  <p className="mt-2 max-w-2xl text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400">
+              <div className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8">
+                <div className="mb-6 border-b border-[#e7eaef]/80 pb-4">
+                  <h4 className="text-sm font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Social links</h4>
+                  <p className="mt-2 max-w-2xl text-[10px] font-bold uppercase leading-relaxed tracking-widest text-[var(--rz-gray-500)]">
                     Public links (https://...). Leave blank if not applicable.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
-                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-[var(--rz-gray-100)] bg-white p-5 shadow-sm">
                     <div className="mb-3 flex shrink-0 items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
                         <Youtube className="h-5 w-5" strokeWidth={2} />
                       </span>
-                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-slate-600">YouTube</span>
+                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-600)]">YouTube</span>
                     </div>
                     <input
                       type="url"
@@ -542,12 +542,12 @@ export default function ProfilePage() {
                     />
                     {errors.socialYoutube && <p className={errCls}>{errors.socialYoutube.message}</p>}
                   </div>
-                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-[var(--rz-gray-100)] bg-white p-5 shadow-sm">
                     <div className="mb-3 flex shrink-0 items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pink-50 text-pink-600">
                         <Instagram className="h-5 w-5" strokeWidth={2} />
                       </span>
-                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-slate-600">Instagram</span>
+                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-600)]">Instagram</span>
                     </div>
                     <input
                       type="url"
@@ -557,12 +557,12 @@ export default function ProfilePage() {
                     />
                     {errors.socialInstagram && <p className={errCls}>{errors.socialInstagram.message}</p>}
                   </div>
-                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-[var(--rz-gray-100)] bg-white p-5 shadow-sm">
                     <div className="mb-3 flex shrink-0 items-center gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--rz-navy)] text-white">
                         <Twitter className="h-5 w-5" strokeWidth={2} />
                       </span>
-                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-slate-600">X (Twitter)</span>
+                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-600)]">X (Twitter)</span>
                     </div>
                     <input
                       type="url"
@@ -572,12 +572,12 @@ export default function ProfilePage() {
                     />
                     {errors.socialX && <p className={errCls}>{errors.socialX.message}</p>}
                   </div>
-                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex min-h-[7.5rem] flex-col rounded-2xl border-2 border-[var(--rz-gray-100)] bg-white p-5 shadow-sm">
                     <div className="mb-3 flex shrink-0 items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
                         <TiktokGlyph className="h-5 w-5" />
                       </span>
-                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-slate-600">TikTok</span>
+                      <span className="min-w-0 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-600)]">TikTok</span>
                     </div>
                     <input
                       type="url"
@@ -590,16 +590,16 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border-2 border-slate-100 bg-slate-50/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="mb-6 border-b border-slate-200/80 pb-4">
-                  <h4 className="text-sm font-black uppercase tracking-tight text-slate-800">Business Hours</h4>
-                  <p className="mt-2 max-w-2xl text-[10px] font-bold uppercase leading-relaxed tracking-widest text-slate-400">
+              <div className="rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[#f7f8fa]/90 p-5 sm:rounded-[28px] sm:p-6 md:p-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mb-6 border-b border-[#e7eaef]/80 pb-4">
+                  <h4 className="text-sm font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Business Hours</h4>
+                  <p className="mt-2 max-w-2xl text-[10px] font-bold uppercase leading-relaxed tracking-widest text-[var(--rz-gray-500)]">
                     Set your weekly operating hours. Turn off the toggle for days you are closed.
                   </p>
                 </div>
                 <div className="space-y-4">
                   {workingHoursDraft.map((item, idx) => (
-                    <div key={item.day} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200/60 bg-white shadow-sm transition-all hover:border-slate-300">
+                    <div key={item.day} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-[#e7eaef]/60 bg-white shadow-sm transition-all hover:border-[var(--rz-gray-300)]">
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
@@ -608,11 +608,11 @@ export default function ProfilePage() {
                             updated[idx].open = !updated[idx].open;
                             setWorkingHoursDraft(updated);
                           }}
-                          className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${item.open ? 'bg-slate-900' : 'bg-slate-200'}`}
+                          className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${item.open ? 'bg-[var(--rz-navy)]' : 'bg-[var(--rz-gray-200)]'}`}
                         >
                           <div className={`w-4 h-4 bg-white rounded-full transition-all duration-300 ${item.open ? 'translate-x-6' : 'translate-x-0'}`}></div>
                         </button>
-                        <span className="text-xs font-black uppercase tracking-wider text-slate-700 min-w-[90px]">{item.day}</span>
+                        <span className="text-xs font-black uppercase tracking-wider text-[var(--rz-gray-700)] min-w-[90px]">{item.day}</span>
                       </div>
                       
                       {item.open ? (
@@ -624,7 +624,7 @@ export default function ProfilePage() {
                               updated[idx].start = e.target.value;
                               setWorkingHoursDraft(updated);
                             }}
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer focus:border-slate-400"
+                            className="bg-[var(--rz-gray-050)] border border-[var(--rz-gray-200)] rounded-lg px-2.5 py-1.5 text-xs font-bold text-[var(--rz-navy-800)] outline-none cursor-pointer focus:border-[var(--rz-gray-500)]"
                           >
                             {Array.from({ length: 24 }).map((_, h) => {
                               const hour = h % 12 === 0 ? 12 : h % 12;
@@ -639,7 +639,7 @@ export default function ProfilePage() {
                               );
                             })}
                           </select>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">to</span>
+                          <span className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">to</span>
                           <select
                             value={item.end}
                             onChange={(e) => {
@@ -647,7 +647,7 @@ export default function ProfilePage() {
                               updated[idx].end = e.target.value;
                               setWorkingHoursDraft(updated);
                             }}
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer focus:border-slate-400"
+                            className="bg-[var(--rz-gray-050)] border border-[var(--rz-gray-200)] rounded-lg px-2.5 py-1.5 text-xs font-bold text-[var(--rz-navy-800)] outline-none cursor-pointer focus:border-[var(--rz-gray-500)]"
                           >
                             {Array.from({ length: 24 }).map((_, h) => {
                               const hour = h % 12 === 0 ? 12 : h % 12;
@@ -664,7 +664,7 @@ export default function ProfilePage() {
                           </select>
                         </div>
                       ) : (
-                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400 py-1.5 px-4 bg-slate-50 border border-slate-100 rounded-lg">Closed</span>
+                        <span className="text-xs font-bold uppercase tracking-widest text-[var(--rz-gray-500)] py-1.5 px-4 bg-[var(--rz-gray-050)] border border-[var(--rz-gray-100)] rounded-lg">Closed</span>
                       )}
                     </div>
                   ))}
@@ -681,11 +681,11 @@ export default function ProfilePage() {
                 setExtended={setRegistrationExtended}
               />
 
-              <div className="border-t border-slate-100 pt-8">
+              <div className="border-t border-[var(--rz-gray-100)] pt-8">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full min-h-[52px] rounded-2xl bg-slate-900 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-slate-200 transition-all hover:bg-primary disabled:opacity-50"
+                  className="w-full min-h-[52px] rounded-2xl bg-[var(--rz-navy)] py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-[color:var(--rz-gray-200)] transition-all hover:bg-primary disabled:opacity-50"
                 >
                   {isSubmitting ? 'Saving...' : 'Save changes'}
                 </button>
@@ -695,15 +695,15 @@ export default function ProfilePage() {
         </div>
 
         <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-6">
-          <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200/50 sm:rounded-[40px] sm:p-8 md:p-10">
-            <div className="mb-8 border-b border-slate-100 pb-6">
-              <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">Visual banner</h3>
-              <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          <div className="rounded-3xl border border-[var(--rz-gray-100)] bg-white p-6 shadow-xl shadow-[color:rgba(231,234,239,0.5)] sm:rounded-[40px] sm:p-8 md:p-10">
+            <div className="mb-8 border-b border-[var(--rz-gray-100)] pb-6">
+              <h3 className="text-xl font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Visual banner</h3>
+              <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
                 Upload your banner image (saved with Save changes). No stock presets.
               </p>
             </div>
-            <label className="group flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 text-center transition-colors hover:border-primary/40 sm:rounded-3xl">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 transition-colors group-hover:text-primary">
+            <label className="group flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] p-6 text-center transition-colors hover:border-primary/40 sm:rounded-3xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)] transition-colors group-hover:text-primary">
                 + Upload custom banner
               </p>
               <input
@@ -725,10 +725,10 @@ export default function ProfilePage() {
               />
             </label>
 
-            <div className="mt-8 border-t border-slate-100 pt-8">
+            <div className="mt-8 border-t border-[var(--rz-gray-100)] pt-8">
               <div className="mb-6">
-                <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">Photo gallery</h3>
-                <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                <h3 className="text-xl font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Photo gallery</h3>
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
                   Add up to {MAX_GALLERY_PHOTOS} photos for your public venue page. Logo stays on the banner; these appear in the gallery.
                 </p>
               </div>
@@ -736,13 +736,13 @@ export default function ProfilePage() {
                 {galleryDraft.map((src, idx) => (
                   <div
                     key={`${src.slice(0, 24)}-${idx}`}
-                    className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-slate-100 bg-slate-50"
+                    className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)]"
                   >
                     <img src={src} alt="" className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => setGalleryDraft((prev) => prev.filter((_, i) => i !== idx))}
-                      className="absolute right-2 top-2 rounded-full bg-slate-900/80 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      className="absolute right-2 top-2 rounded-full bg-[#023047]/80 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
                       aria-label="Remove photo"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -750,9 +750,9 @@ export default function ProfilePage() {
                   </div>
                 ))}
                 {galleryDraft.length < MAX_GALLERY_PHOTOS ? (
-                  <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
-                    <ImagePlus className="mb-2 h-6 w-6 text-slate-300" />
-                    <span className="px-2 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
+                    <ImagePlus className="mb-2 h-6 w-6 text-[var(--rz-gray-300)]" />
+                    <span className="px-2 text-[9px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
                       Add photo
                     </span>
                     <input
@@ -790,22 +790,22 @@ export default function ProfilePage() {
                   </label>
                 ) : null}
               </div>
-              <p className="mt-3 text-[10px] font-bold text-slate-400">
+              <p className="mt-3 text-[10px] font-bold text-[var(--rz-gray-500)]">
                 {galleryDraft.length} / {MAX_GALLERY_PHOTOS} photos · Save changes to publish
               </p>
             </div>
           </div>
 
           {/* PLAN MANAGEMENT CARD */}
-          <div className="mt-8 rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200/50 sm:rounded-[40px] sm:p-8 md:p-10">
-            <div className="mb-6 border-b border-slate-100 pb-6">
+          <div className="mt-8 rounded-3xl border border-[var(--rz-gray-100)] bg-white p-6 shadow-xl shadow-[color:rgba(231,234,239,0.5)] sm:rounded-[40px] sm:p-8 md:p-10">
+            <div className="mb-6 border-b border-[var(--rz-gray-100)] pb-6">
               <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 bg-gradient-to-tr from-[#ff5a5f] to-amber-500 rounded-lg flex items-center justify-center text-white shadow-md shadow-[#ff5a5f]/20">
+                 <div className="w-8 h-8 bg-gradient-to-tr from-[#ff5757] to-amber-500 rounded-lg flex items-center justify-center text-white shadow-md shadow-[#ff5757]/20">
                     <Sparkles size={16} />
                  </div>
                  <div>
-                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-800">Subscription Plan</h3>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    <h3 className="text-lg font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Subscription Plan</h3>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
                        Manage your merchant subscription tier
                     </p>
                  </div>
@@ -813,12 +813,12 @@ export default function ProfilePage() {
             </div>
 
             {/* Current Active Plan Banner */}
-            <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-6 text-white shadow-lg mb-6">
-               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5a5f]">Active Plan</p>
+            <div className="rounded-2xl bg-gradient-to-br from-[var(--rz-navy)] to-[var(--rz-navy-800)] p-6 text-white shadow-lg mb-6">
+               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5757]">Active Plan</p>
                <h4 className="text-2xl font-black uppercase tracking-tight mt-1">
                   {business?.plan || 'Basic'}
                </h4>
-               <div className="mt-4 flex items-center gap-2 text-xs font-bold text-slate-300">
+               <div className="mt-4 flex items-center gap-2 text-xs font-bold text-[var(--rz-gray-300)]">
                   <CheckCircle className="text-emerald-400" size={14} />
                   <span>Seeded Enterprise Ready</span>
                </div>
@@ -826,7 +826,7 @@ export default function ProfilePage() {
 
             {/* Plan Switcher Grid */}
             <div className="space-y-4">
-               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Change Plan</p>
+               <p className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Change Plan</p>
                <div className="grid grid-cols-1 gap-3">
                   {plans.map((p) => {
                      const isCurrent = (business?.planId === p.id) || (!business?.planId && p.id === 'basic') || (business?.plan?.toLowerCase() === p.id.toLowerCase()) || (business?.plan?.toLowerCase() === p.name.toLowerCase());
@@ -845,27 +845,27 @@ export default function ProfilePage() {
                            }}
                            className={`relative w-full rounded-2xl border-2 p-4 text-left transition-all duration-300 flex items-center justify-between ${
                               isCurrent
-                                 ? 'border-[#ff5a5f] bg-[#ff5a5f]/5 shadow-[#ff5a5f]/5 cursor-default'
-                                 : 'border-slate-100 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                                 ? 'border-[#ff5757] bg-[#ff5757]/5 shadow-[#ff5757]/5 cursor-default'
+                                 : 'border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] hover:border-[var(--rz-gray-300)] hover:bg-white'
                            }`}
                         >
                            <div>
                               <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
-                                 isCurrent ? 'bg-[#ff5a5f] text-white' : 'bg-slate-200 text-slate-600'
+                                 isCurrent ? 'bg-[#ff5757] text-white' : 'bg-[var(--rz-gray-200)] text-[var(--rz-gray-600)]'
                               }`}>
                                  {p.name}
                               </span>
-                              <p className="text-sm font-black text-slate-900 mt-1">
-                                 ${p.price.toFixed(2)} <span className="text-[10px] text-slate-400 font-bold">/ {p.billingCycle === 'yearly' ? 'year' : 'month'}</span>
+                              <p className="text-sm font-black text-[var(--rz-navy)] mt-1">
+                                 ${p.price.toFixed(2)} <span className="text-[10px] text-[var(--rz-gray-500)] font-bold">/ {p.billingCycle === 'yearly' ? 'year' : 'month'}</span>
                               </p>
                            </div>
 
                            {isCurrent ? (
-                              <span className="text-[9px] font-black uppercase tracking-widest text-[#ff5a5f] bg-[#ff5a5f]/10 px-3 py-1.5 rounded-xl">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-[#ff5757] bg-[#ff5757]/10 px-3 py-1.5 rounded-xl">
                                  Active
                               </span>
                            ) : (
-                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm hover:bg-slate-50">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-[var(--rz-gray-600)] bg-white border border-[var(--rz-gray-200)] px-3 py-1.5 rounded-xl shadow-sm hover:bg-[var(--rz-gray-050)]">
                                  Switch
                               </span>
                            )}

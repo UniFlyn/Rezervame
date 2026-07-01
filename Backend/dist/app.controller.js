@@ -46,9 +46,9 @@ const merchant_number_util_1 = require("./merchant-number.util");
 const prisma_service_1 = require("./prisma.service");
 const normalize_image_url_1 = require("./storage/normalize-image-url");
 const notification_delivery_service_1 = require("./notifications/notification-delivery.service");
-const email_constants_1 = require("./email/email.constants");
 const system_integration_config_1 = require("./config/system-integration.config");
-const email_service_1 = require("./email/email.service");
+const postmark_errors_util_1 = require("./email/postmark-errors.util");
+const postmark_config_1 = require("./email/postmark.config");
 const password_reset_util_1 = require("./auth/password-reset.util");
 const venue_details_util_1 = require("./business/venue-details.util");
 const notification_hub_service_1 = require("./notifications/notification-hub.service");
@@ -1003,7 +1003,11 @@ let AppController = class AppController {
                     expiresAt,
                 },
             });
-            void (0, notification_delivery_service_1.sendEmail)(this.prisma, user.email, '[Rezervame Admin] Sign-in verification code', `<p>Your admin sign-in code is <strong>${code}</strong>. It expires in 15 minutes.</p>`, `Your admin sign-in code is ${code}. It expires in 15 minutes.`);
+            void (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
+                to: user.email,
+                template: 'admin-sign-in-code',
+                model: { code },
+            });
             return {
                 twoFactorRequired: true,
                 email: (0, security_policy_util_1.maskEmailForDisplay)(user.email),
@@ -1065,6 +1069,11 @@ let AppController = class AppController {
                 age: body.age ?? null,
             },
         });
+        void (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
+            to: email,
+            template: 'welcome-client',
+            model: { userName: user.name, customerName: user.name },
+        }).catch(() => undefined);
         return (0, auth_response_util_1.buildAuthResponse)(this.prisma, user);
     }
     async findValidPasswordResetCode(email, code) {
@@ -1110,24 +1119,16 @@ let AppController = class AppController {
                 expiresAt,
             },
         });
-        const templateResult = await (0, notification_delivery_service_1.sendEmailWithTemplate)(this.prisma, {
+        void (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
             to: email,
-            templateAlias: email_constants_1.POSTMARK_TEMPLATE.PASSWORD_RESET,
-            templateModel: {
+            template: 'password-reset',
+            model: {
                 userName: user.name,
                 verificationCode: code,
                 resetCode: code,
                 expiresIn: '15 minutes',
             },
         });
-        if (templateResult.skipped || !templateResult.ok) {
-            await (0, email_service_1.postmarkSendRaw)(this.prisma, {
-                to: email,
-                subject: 'Your Rezervame verification code',
-                htmlBody: `<p>Hi ${user.name},</p><p>Your verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p><p>It expires in 15 minutes.</p>`,
-                textBody: `Your Rezervame verification code is ${code}. It expires in 15 minutes.`,
-            });
-        }
         const out = { ...generic };
         if (process.env.NODE_ENV !== 'production' && !(await (0, system_integration_config_1.resolvePostmarkConfig)(this.prisma))) {
             out.devCode = code;
@@ -2062,6 +2063,13 @@ let AppController = class AppController {
                 body: reasonText ||
                     'Your REZERVAME business account is active. Log in to the business panel to manage bookings.',
                 emailSubject: '[Rezervame] Business approved — you can start accepting bookings',
+                emailTemplate: 'business-approved',
+                emailModel: {
+                    businessName: updated.name,
+                    ownerName: updated.owner || updated.name,
+                    body: reasonText ||
+                        'Your REZERVAME business account is active. Log in to the business panel to manage bookings.',
+                },
             });
         }
         else if (status === 'rejected') {
@@ -2070,6 +2078,12 @@ let AppController = class AppController {
                 title: 'Business application not approved',
                 body: reasonText || 'Your application was not approved at this time.',
                 emailSubject: '[Rezervame] Business application update',
+                emailTemplate: 'business-rejected',
+                emailModel: {
+                    businessName: updated.name,
+                    ownerName: updated.owner || updated.name,
+                    body: reasonText || 'Your application was not approved at this time.',
+                },
             });
         }
         else if (status === 'suspended') {
@@ -2078,6 +2092,12 @@ let AppController = class AppController {
                 title: 'Business account suspended',
                 body: reasonText || 'Your business account has been suspended. Contact support for help.',
                 emailSubject: '[Rezervame] Business account suspended',
+                emailTemplate: 'business-suspended',
+                emailModel: {
+                    businessName: updated.name,
+                    ownerName: updated.owner || updated.name,
+                    body: reasonText || 'Your business account has been suspended. Contact support for help.',
+                },
             });
         }
         else if (status === 'pending' && before.status !== 'pending') {
@@ -2346,11 +2366,14 @@ let AppController = class AppController {
         });
         return businesses;
     }
-    async getAdminUsers(page = '1', limit = '10', search, authorization) {
+    async getAdminUsers(page = '1', limit = '10', search, status, authorization) {
         await (0, auth_helpers_1.requireUser)(this.prisma, authorization, [client_1.Role.ADMIN]);
         const p = Math.max(1, parseInt(page));
         const l = Math.max(1, parseInt(limit));
         const where = { role: client_1.Role.USER };
+        if (status && status !== 'all') {
+            where.status = status.toLowerCase();
+        }
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: 'insensitive' } },
@@ -2440,10 +2463,18 @@ let AppController = class AppController {
             data: { status: next },
         });
         if (next === 'blocked' && updated.email) {
-            void (0, notification_delivery_service_1.sendEmail)(this.prisma, updated.email, '[Rezervame] Account suspended', `<p>Hi ${updated.name},</p><p>Your Rezervame customer account has been suspended. Contact support if you believe this is a mistake.</p>`, `Hi ${updated.name}, your Rezervame account has been suspended.`);
+            void (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
+                to: updated.email,
+                template: 'account-suspended',
+                model: { userName: updated.name },
+            });
         }
         else if (next === 'active' && updated.email) {
-            void (0, notification_delivery_service_1.sendEmail)(this.prisma, updated.email, '[Rezervame] Account reactivated', `<p>Hi ${updated.name},</p><p>Your Rezervame customer account is active again. You can sign in and book appointments.</p>`, `Hi ${updated.name}, your Rezervame account is active again.`);
+            void (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
+                to: updated.email,
+                template: 'account-reactivated',
+                model: { userName: updated.name },
+            });
         }
         return { ok: true, id: updated.id, status: updated.status };
     }
@@ -2461,7 +2492,16 @@ let AppController = class AppController {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/\n/g, '<br/>');
-        return (0, notification_delivery_service_1.sendEmail)(this.prisma, target.email, subject.startsWith('[') ? subject : `[Rezervame] ${subject}`, `<p>${safe}</p>`, message);
+        return (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
+            to: target.email,
+            template: 'admin-user-message',
+            subject: subject.startsWith('[') ? subject : `[Rezervame] ${subject}`,
+            model: {
+                userName: target.name,
+                subject: subject.startsWith('[') ? subject : `[Rezervame] ${subject}`,
+                message: safe,
+            },
+        });
     }
     async deleteAdminUser(authorization, id) {
         await (0, auth_helpers_1.requireUser)(this.prisma, authorization, [client_1.Role.ADMIN]);
@@ -2760,7 +2800,15 @@ let AppController = class AppController {
             include: { business: true, user: true },
         });
         if (ticket.requesterEmail) {
-            void (0, notification_delivery_service_1.sendEmail)(this.prisma, ticket.requesterEmail, `[Rezervame] Ticket ${ticket.ticketRef} — ${status}`, `<p>Your support ticket <strong>${ticket.ticketRef}</strong> is now <strong>${status}</strong>.</p>`);
+            void (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
+                to: ticket.requesterEmail,
+                template: 'support-ticket-update',
+                model: {
+                    ticketRef: ticket.ticketRef,
+                    status,
+                    message: `Your support ticket ${ticket.ticketRef} is now ${status}.`,
+                },
+            });
         }
         return (0, support_ticket_util_1.mapSupportTicketRow)(ticket);
     }
@@ -2804,21 +2852,70 @@ let AppController = class AppController {
     async testAdminEmail(authorization, body) {
         await (0, auth_helpers_1.requireUser)(this.prisma, authorization, [client_1.Role.ADMIN]);
         const cfg = await (0, notification_delivery_service_1.loadMessagingConfig)(this.prisma);
-        const to = (body.to || cfg.adminNotifyEmail || '').trim();
+        const postmark = await (0, system_integration_config_1.resolvePostmarkConfig)(this.prisma);
+        const to = (body.to || cfg.adminNotifyEmail || '').trim().toLowerCase();
         if (!to)
-            throw new common_1.BadRequestException('Provide test recipient email');
-        const result = await (0, notification_delivery_service_1.sendEmail)(this.prisma, to, '[Rezervame] Test email', '<p>This is a test message from <strong>Rezervame Admin</strong>.</p><p>If you received this, outbound email is working.</p>', 'This is a test message from Rezervame Admin. If you received this, outbound email is working.');
+            throw new common_1.BadRequestException('Enter a test recipient email address.');
+        if (!(0, postmark_errors_util_1.isValidEmailAddress)(to)) {
+            throw new common_1.BadRequestException('Enter a valid email address (e.g. you@gmail.com).');
+        }
+        if (!postmark) {
+            throw new common_1.BadRequestException('Postmark is not configured. Add the Server API token under Settings → Email, or set POSTMARK_API_KEY on the API server.');
+        }
+        const result = await (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
+            to,
+            template: 'admin-test',
+            model: {},
+        });
         if (!result.ok && !result.skipped) {
             throw new common_1.BadRequestException(result.error || 'Email could not be sent. Check Postmark API key and sender addresses.');
         }
         if (result.skipped) {
             throw new common_1.BadRequestException('Postmark is not configured. Add the Server API token under Settings → Email, or set POSTMARK_API_KEY on the API server.');
         }
+        const configSource = (0, postmark_config_1.readPostmarkConfigFromEnv)()?.apiKey ? 'server_env' : 'admin_settings';
         return {
             ...result,
             ok: true,
             provider: 'postmark',
-            message: `Test email sent via Postmark to ${to}`,
+            to,
+            from: postmark.fromEmail,
+            messageStream: postmark.messageStream,
+            configSource,
+            message: `Test email accepted by Postmark for ${to}. Check inbox and spam. Message ID: ${result.messageId || 'n/a'}`,
+        };
+    }
+    async getAdminEmailRecent(authorization) {
+        await (0, auth_helpers_1.requireUser)(this.prisma, authorization, [client_1.Role.ADMIN]);
+        const postmark = await (0, system_integration_config_1.resolvePostmarkConfig)(this.prisma);
+        const configSource = (0, postmark_config_1.readPostmarkConfigFromEnv)()?.apiKey ? 'server_env' : 'admin_settings';
+        let recent = [];
+        try {
+            recent = await this.prisma.notificationDelivery.findMany({
+                where: { channel: { in: ['email', 'email_webhook'] } },
+                orderBy: { createdAt: 'desc' },
+                take: 15,
+                select: {
+                    id: true,
+                    recipient: true,
+                    subject: true,
+                    status: true,
+                    error: true,
+                    meta: true,
+                    createdAt: true,
+                },
+            });
+        }
+        catch {
+            recent = [];
+        }
+        return {
+            configured: Boolean(postmark),
+            from: postmark?.fromEmail ?? null,
+            replyTo: postmark?.replyTo ?? null,
+            messageStream: postmark?.messageStream ?? null,
+            configSource,
+            recent,
         };
     }
     async testAdminSms(authorization, body) {
@@ -3607,7 +3704,28 @@ let AppController = class AppController {
                 this.prisma.booking.count({ where }),
                 this.prisma.booking.findMany({
                     where,
-                    include: { service: true, staff: true, user: true, familyMember: true, transaction: true },
+                    include: {
+                        service: true,
+                        staff: true,
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                role: true,
+                                status: true,
+                                createdAt: true,
+                                phone: true,
+                                avatar: true,
+                                address: true,
+                                gender: true,
+                                age: true,
+                                webPushEnabled: true,
+                            },
+                        },
+                        familyMember: true,
+                        transaction: true,
+                    },
                     orderBy: { date: 'desc' },
                     skip: (p - 1) * l,
                     take: l,
@@ -4468,12 +4586,33 @@ let AppController = class AppController {
                 bookingGroupId,
             },
         });
+        const dateLabel = date.toLocaleDateString('es-PA', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+        const timeLabel = date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
+        const bookingCode = `RZV-${date.getFullYear()}-${booking.id.slice(0, 4).toUpperCase()}`;
+        const bookingModel = {
+            customerName,
+            userName: user.name,
+            businessName: business.name,
+            serviceName: service.name,
+            date: dateLabel,
+            time: timeLabel,
+            address: business.address || '',
+            paymentMethod,
+            bookingCode,
+        };
         void (0, notification_hub_service_1.notifyCustomerUser)(this.prisma, user, {
             type: autoApproved ? 'BOOKING_APPROVED' : 'BOOKING_CREATED',
             title: autoApproved ? 'Booking confirmed' : 'Booking request submitted',
             body: autoApproved
                 ? `Your appointment at ${business.name} is confirmed. You can complete payment when ready.`
                 : `Your appointment request at ${business.name} was submitted and is pending approval.`,
+            emailTemplate: autoApproved ? 'booking-confirmation' : 'booking-request-sent',
+            emailModel: bookingModel,
         });
         void (0, notification_hub_service_1.notifyPlatformAdmins)(this.prisma, {
             type: 'BOOKING_CREATED',
@@ -4484,21 +4623,14 @@ let AppController = class AppController {
         void (0, notification_hub_service_1.notifyBusinessAccount)(this.prisma, business, {
             type: 'BOOKING_CREATED',
             title: autoApproved ? 'New confirmed booking' : 'New booking request',
-            body: `${customerName} — ${service.name} on ${date.toLocaleString()}.`,
+            body: `${customerName} — ${service.name} on ${dateLabel} at ${timeLabel}.`,
             emailSubject: autoApproved
                 ? `[Rezervame] New confirmed booking`
                 : `[Rezervame] New booking request`,
+            emailTemplate: autoApproved ? 'booking-confirmation' : 'booking-request-sent',
+            emailModel: { ...bookingModel, customerName, userName: business.owner || business.name },
+            sendEmail: business.notifyBookingEmail !== false,
         });
-        if (business.notifyBookingEmail && business.email) {
-            void (0, notification_delivery_service_1.sendEmail)(this.prisma, business.email, autoApproved ? `[Rezervame] New confirmed booking` : `[Rezervame] New booking request`, autoApproved
-                ? `<p><strong>${customerName}</strong> booked <strong>${service.name}</strong> on ${date.toLocaleString()} (auto-confirmed).</p><p>Preferred payment: ${paymentMethod}</p>`
-                : `<p><strong>${customerName}</strong> requested <strong>${service.name}</strong> on ${date.toLocaleString()}.</p><p>Preferred payment: ${paymentMethod}</p>`);
-        }
-        if (user.email) {
-            void (0, notification_delivery_service_1.sendEmail)(this.prisma, user.email, autoApproved ? `[Rezervame] Booking confirmed` : `[Rezervame] Booking request sent`, autoApproved
-                ? `<p>Your appointment at <strong>${business.name}</strong> is confirmed. You can pay from your reservations when ready.</p>`
-                : `<p>Your request at <strong>${business.name}</strong> was submitted and is pending approval.</p>`);
-        }
         return booking;
     }
     async getMobileInvoices(page = '1', limit = '10', authorization) {
@@ -4946,10 +5078,10 @@ let AppController = class AppController {
             body: 'Thank you for registering. Our team will review your application within 24–48 hours.',
             emailSubject: '[Rezervame] We received your business registration',
         });
-        void (0, notification_delivery_service_1.sendEmailWithTemplate)(this.prisma, {
+        void (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
             to: email,
-            templateAlias: email_constants_1.POSTMARK_TEMPLATE.WELCOME_BUSINESS,
-            templateModel: {
+            template: 'welcome-business',
+            model: {
                 businessName: name,
                 ownerName: owner,
                 nextSteps: 'Our team will review your documents within 24–48 hours. You will receive an email when your partner account is approved.',
@@ -5555,9 +5687,10 @@ __decorate([
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
     __param(2, (0, common_1.Query)('search')),
-    __param(3, (0, common_1.Headers)('authorization')),
+    __param(3, (0, common_1.Query)('status')),
+    __param(4, (0, common_1.Headers)('authorization')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], AppController.prototype, "getAdminUsers", null);
 __decorate([
@@ -5742,6 +5875,13 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AppController.prototype, "testAdminEmail", null);
+__decorate([
+    (0, common_1.Get)('admin/email/recent'),
+    __param(0, (0, common_1.Headers)('authorization')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AppController.prototype, "getAdminEmailRecent", null);
 __decorate([
     (0, common_1.Post)('admin/sms/test'),
     __param(0, (0, common_1.Headers)('authorization')),

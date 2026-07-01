@@ -16,6 +16,7 @@ export type WompiConfigRow = {
     wompiWebhookSecret?: string | null;
 };
 export declare function isWompiEnabledFlag(row: WompiConfigRow | null | undefined): boolean;
+export declare function isPlausibleWompiPublicKey(key: string | null | undefined): boolean;
 export declare function resolveWompiConfigFromRow(row: WompiConfigRow | null | undefined): WompiConfig | null;
 export declare function resolveWompiConfig(prisma: PrismaService): Promise<WompiConfig | null>;
 export declare function isWompiConfigured(row?: WompiConfigRow | null): boolean;

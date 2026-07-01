@@ -1,0 +1,65 @@
+REZERVAME — PROJECT TECHNICAL OVERVIEW
+======================================
+
+Prepared for client review. Standard handover notes on how this product was built and maintained.
+
+WHAT THIS IS
+------------
+Rezervame is a booking platform for beauty and wellness businesses. It includes:
+
+  • Mobile app (Flutter) — customer bookings on Android and iOS
+  • Web app (Next.js) — public site, search, and business owner panel
+  • Admin console (Next.js) — platform management
+  • API (NestJS + PostgreSQL) — hosted on Render
+  • Database (PostgreSQL) — Neon
+
+All components share one backend and one database. Changes in Admin (categories, payments, businesses) reflect in Mobile and Web after sync through the API.
+
+HOW THE CODE IS ORGANIZED
+-------------------------
+The repository is a monorepo:
+
+  Barber/
+    Mobile/     Flutter source
+    Web/        Customer + business web app
+    Admin/      Admin dashboard
+    Backend/    API, database schema, email, payments
+    shared/     Shared locale files and config used by Web
+
+Version control is Git. Every feature, fix, and deployment is tracked in commit history. Production builds are produced from tagged releases on the main branch.
+
+DEVELOPMENT PROCESS
+-------------------
+Work follows a normal software lifecycle:
+
+  1. Requirements and UI specs agreed with the client
+  2. Implementation in the appropriate module (Mobile / Web / Admin / Backend)
+  3. Local testing against the API
+  4. Deploy to staging or production (Firebase for frontends, Render for API)
+  5. Client verification on live URLs
+
+Third-party services are integrated with standard SDKs and REST APIs: Stripe/Wompi for payments, Postmark for email, Firebase for hosting, S3 for images.
+
+LANGUAGE / LOCALIZATION
+-----------------------
+User-facing text for Mobile and Web lives in JSON locale files (see README.txt in this folder). The app reads these at runtime. Switching language in the Mobile app or Web header loads the matching file. No text is hard-coded in a way that blocks translation updates.
+
+SECURITY & ACCESS
+-----------------
+  • Passwords are hashed (bcrypt) before storage
+  • Sessions use signed JWT tokens
+  • Admin access supports email verification on sign-in
+  • Business owners only see their own business data
+  • API routes enforce role checks on every protected endpoint
+
+OWNERSHIP & MAINTENANCE
+-----------------------
+The codebase, database schema, and deployment configuration are maintained by the development team under the project agreement. The client receives builds (APK, hosted URLs) and documentation such as this file. Source code access can be provided per contract terms.
+
+For translation changes, use the JSON files in this folder. For functional changes or new features, raise a change request with the team so impact on Mobile, Web, and Admin can be assessed together.
+
+LIVE ENVIRONMENT (REFERENCE)
+----------------------------
+  Web:     https://rezervame-web.web.app
+  Admin:   https://rezervame-admin.web.app
+  API:     https://rezervame.onrender.com/api

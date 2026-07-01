@@ -1,0 +1,22 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Status & Ratings" subtitle="Semantic states + the gold rating color" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; background: #fff; display: flex; gap: 12px; flex-wrap: wrap; }
+  .item { flex: 1; min-width: 110px; border-radius: 12px; padding: 14px; }
+  .dot { width: 30px; height: 30px; border-radius: 50%; margin-bottom: 10px; }
+  .lbl { font-size: 12px; font-weight: 700; }
+  .sub { font-size: 11px; opacity: 0.8; }
+</style>
+</head>
+<body>
+  <div class="item" style="background:var(--rz-success-bg)"><div class="dot" style="background:var(--rz-success)"></div><div class="lbl" style="color:var(--rz-success)">Success</div><div class="sub" style="color:var(--rz-success)">Pagada · #1F9D5B</div></div>
+  <div class="item" style="background:var(--rz-warning-bg)"><div class="dot" style="background:var(--rz-warning)"></div><div class="lbl" style="color:var(--rz-warning)">Warning</div><div class="sub" style="color:var(--rz-warning)">Pendiente · #B4690E</div></div>
+  <div class="item" style="background:var(--rz-error-bg)"><div class="dot" style="background:var(--rz-error)"></div><div class="lbl" style="color:var(--rz-error)">Error</div><div class="sub" style="color:var(--rz-error)">Cancelada · #D83B3B</div></div>
+  <div class="item" style="background:var(--rz-info-bg)"><div class="dot" style="background:var(--rz-info)"></div><div class="lbl" style="color:var(--rz-info)">Info</div><div class="sub" style="color:var(--rz-info)">#1F6885</div></div>
+  <div class="item" style="background:var(--rz-gold-100)"><div class="dot" style="background:var(--rz-gold)"></div><div class="lbl" style="color:#9a7a00">Gold</div><div class="sub" style="color:#9a7a00">Ratings · #FDC700</div></div>
+</body>
+</html>

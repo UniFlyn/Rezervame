@@ -37,11 +37,23 @@ Map<String, dynamic> normalizePaymentConfig(Map<String, dynamic>? cfg) {
   }
 
   if (methods.isEmpty) {
+    final wompiOn = raw['wompiEnabled'] == true;
+    final yappyOn = raw['yappyEnabled'] == true;
     final payAtVenue =
         raw['cashPayEnabled'] != false && raw['payAtVenueEnabled'] != false;
     methods.addAll([
-      {'id': 'wompi', 'label': 'Card', 'enabled': false, 'configured': false},
-      {'id': 'yappy', 'label': 'Yappy', 'enabled': false, 'configured': false},
+      {
+        'id': 'wompi',
+        'label': 'Card',
+        'enabled': wompiOn || raw['wompiConfigured'] == true,
+        'configured': raw['wompiConfigured'] == true,
+      },
+      {
+        'id': 'yappy',
+        'label': 'Yappy',
+        'enabled': yappyOn || raw['yappyConfigured'] == true,
+        'configured': raw['yappyConfigured'] == true,
+      },
       {
         'id': 'pay_at_venue',
         'label': 'Pay by visit',
@@ -74,6 +86,30 @@ bool _inferConfigured(String rawId, Map<String, dynamic> cfg) {
 
 bool isPaymentMethodSelectable(Map<String, dynamic> method) {
   return method['enabled'] != false && method['configured'] == true;
+}
+
+/// Map legacy checkout tab ids (`card`/`cash`) to API gateway ids.
+String normalizeCheckoutMethodId(String id) {
+  if (id == 'wompi' || id == 'card') return 'wompi';
+  if (id == 'yappy') return 'yappy';
+  return 'pay_at_venue';
+}
+
+bool isCheckoutMethodSelectable(
+  String tabId,
+  List<Map<String, dynamic>> methods,
+) {
+  final canonical = normalizeCheckoutMethodId(tabId);
+  for (final m in methods) {
+    if ('${m['id']}' == canonical) return isPaymentMethodSelectable(m);
+  }
+  return false;
+}
+
+List<Map<String, dynamic>> checkoutVisibleMethods(
+  List<Map<String, dynamic>> methods,
+) {
+  return methods.where((m) => m['enabled'] != false).toList();
 }
 
 String pickDefaultPaymentMethodId(List<Map<String, dynamic>> methods) {

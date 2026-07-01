@@ -391,7 +391,7 @@ export default function ReservationClient() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--rz-gray-050)]">
         <Loader2 className="animate-spin text-primary" size={40} />
       </div>
     );
@@ -400,17 +400,17 @@ export default function ReservationClient() {
   if (!res) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-[var(--rz-gray-050)] pb-20">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+      <div className="bg-white border-b border-[var(--border-default)] sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
-          <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition">
+          <button onClick={() => router.back()} className="flex items-center gap-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] font-bold transition">
             <ChevronLeft size={20} />
             {"Back"}
           </button>
           <div className="flex flex-col items-center">
-             <h1 className="text-sm font-black text-slate-900 uppercase tracking-widest">{res.venueName}</h1>
-             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">#{res.refNumber}</span>
+             <h1 className="text-sm font-black text-[var(--rz-navy)] uppercase tracking-widest">{res.venueName}</h1>
+             <span className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-0.5">#{res.refNumber}</span>
           </div>
           <div className="w-10" /> {/* Spacer */}
         </div>
@@ -421,7 +421,7 @@ export default function ReservationClient() {
           
           {/* LEFT: Details */}
           <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white rounded-[40px] border border-slate-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-[40px] border border-[var(--border-default)] overflow-hidden shadow-sm">
               <div className="h-56 relative">
                 <img src={res.img} className="w-full h-full object-cover" alt="" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -435,14 +435,14 @@ export default function ReservationClient() {
               </div>
 
               <div className="p-10 space-y-8">
-                 <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                 <div className="flex items-center justify-between p-6 bg-[var(--rz-gray-050)] rounded-3xl border border-[var(--border-subtle)]">
                     <div className="flex items-center gap-4">
                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm">
                           <Calendar size={24} />
                        </div>
                        <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Date & Time"}</p>
-                          <p className="font-black text-slate-800">{res.date} at {res.time}</p>
+                          <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Date & Time"}</p>
+                          <p className="font-black text-[var(--rz-navy)]">{res.date} at {res.time}</p>
                        </div>
                     </div>
                     <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${reservationStatusBadgeClass(res.status)}`}>
@@ -451,23 +451,23 @@ export default function ReservationClient() {
                  </div>
 
                  <div>
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{"Service Details"}</h3>
+                    <h3 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-6">{"Service Details"}</h3>
                     <div className="space-y-4">
                        {res.items.map((item) => (
-                         <div key={item.id} className="flex justify-between items-center p-6 rounded-3xl bg-white border border-slate-100 hover:border-primary/20 transition-all shadow-sm">
+                         <div key={item.id} className="flex justify-between items-center p-6 rounded-3xl bg-white border border-[var(--border-subtle)] hover:border-primary/20 transition-all shadow-sm">
                             <div className="flex items-center gap-4">
-                               <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-primary font-black text-lg border border-slate-100">
+                               <div className="w-12 h-12 bg-[var(--rz-gray-050)] rounded-2xl flex items-center justify-center text-primary font-black text-lg border border-[var(--border-subtle)]">
                                   {item.name.charAt(0)}
                                </div>
                                <div>
-                                  <h4 className="font-black text-slate-800">{item.name}</h4>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                  <h4 className="font-black text-[var(--rz-navy)]">{item.name}</h4>
+                                  <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">
                                      {item.customerName} • {item.staffName || "Staff"}
                                   </p>
                                </div>
                             </div>
                             <div className="flex items-center gap-6">
-                               <span className="font-black text-slate-900">${item.price}</span>
+                               <span className="font-black text-[var(--rz-navy)]">${item.price}</span>
                                {item.status === 'paid' && (
                                  <span className="text-[10px] font-black text-cyan-600 uppercase tracking-widest flex items-center gap-1">
                                    <CreditCard size={12} />
@@ -505,32 +505,32 @@ export default function ReservationClient() {
 
           {/* RIGHT: Summary & Payment */}
           <div className="space-y-6">
-             <div className="bg-white rounded-[40px] border border-slate-200 p-8 shadow-sm">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6">{"Payment Summary"}</h3>
+             <div className="bg-white rounded-[40px] border border-[var(--border-default)] p-8 shadow-sm">
+                <h3 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-6">{"Payment Summary"}</h3>
                 
                 <div className="space-y-3">
                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-slate-400">{"Services"}</span>
-                      <span className="text-sm font-black text-slate-600">${res.subtotal.toFixed(2)}</span>
+                      <span className="text-sm font-bold text-[var(--rz-gray-500)]">{"Services"}</span>
+                      <span className="text-sm font-black text-[var(--rz-gray-600)]">${res.subtotal.toFixed(2)}</span>
                    </div>
                    {res.commissionAmount > 0 && (
                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-bold text-slate-400">
+                        <span className="text-sm font-bold text-[var(--rz-gray-500)]">
                           {`Service fee (${res.commissionPercent}%)`}
                         </span>
-                        <span className="text-sm font-black text-slate-600">${res.commissionAmount.toFixed(2)}</span>
+                        <span className="text-sm font-black text-[var(--rz-gray-600)]">${res.commissionAmount.toFixed(2)}</span>
                      </div>
                    )}
                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-slate-400">
+                      <span className="text-sm font-bold text-[var(--rz-gray-500)]">
                         {res.taxPercentage > 0
                           ? `Tax (${res.taxPercentage}%)`
                           : "Tax"}
                       </span>
-                      <span className="text-sm font-black text-slate-600">${res.taxAmount.toFixed(2)}</span>
+                      <span className="text-sm font-black text-[var(--rz-gray-600)]">${res.taxAmount.toFixed(2)}</span>
                    </div>
-                   <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
-                      <span className="text-lg font-black text-slate-900">{"Total"}</span>
+                   <div className="pt-4 mt-4 border-t border-[var(--border-subtle)] flex justify-between items-center">
+                      <span className="text-lg font-black text-[var(--rz-navy)]">{"Total"}</span>
                       <span className="text-3xl font-black text-primary">${res.totalPrice.toFixed(2)}</span>
                    </div>
                 </div>
@@ -576,7 +576,7 @@ export default function ReservationClient() {
                       <button 
                         onClick={handleMarkCompletedGroup}
                         disabled={payingLoading}
-                        className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
+                        className="w-full bg-[var(--rz-navy)] text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
                       >
                         {payingLoading && <Loader2 className="animate-spin" size={16} />}
                         {"Mark as Completed"}
@@ -615,9 +615,9 @@ export default function ReservationClient() {
 
                 {paymentView === "none" && res.status === "pending" && res.canCancelAny && (
                    <div className="mt-8 space-y-4">
-                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-center">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{"Waiting for Venue"}</p>
-                         <p className="text-slate-500 text-[10px] font-medium mt-2">{res.cancellationPolicyMessage}</p>
+                      <div className="p-4 bg-[var(--rz-gray-050)] border border-[var(--border-subtle)] rounded-2xl text-center">
+                         <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Waiting for Venue"}</p>
+                         <p className="text-[var(--rz-gray-500)] text-[10px] font-medium mt-2">{res.cancellationPolicyMessage}</p>
                       </div>
                       <button
                         onClick={() => handleCancelAllInGroup(res)}
@@ -630,7 +630,7 @@ export default function ReservationClient() {
 
                 {paymentView === "select" && (
                    <div className="mt-8 space-y-4 animate-in fade-in slide-in-from-bottom-4">
-      <p className="text-[10px] font-bold text-slate-500 text-center">
+      <p className="text-[10px] font-bold text-[var(--rz-gray-500)] text-center">
         Online payment is not available yet. Choose pay by visit to confirm how you will pay.
       </p>
                       <div className="p-5 border-2 border-primary bg-primary/5 rounded-2xl flex flex-col items-center gap-2">
@@ -641,7 +641,7 @@ export default function ReservationClient() {
                       <button 
                         onClick={() => void handlePayNow(true)}
                         disabled={payingLoading}
-                        className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                        className="w-full bg-[var(--rz-navy)] text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                       >
                          {payingLoading ? <Loader2 className="animate-spin" size={16} /> : <Shield size={16} />}
                          {payingLoading ? ("Processing...") : ("Confirm & Pay")}
@@ -658,7 +658,7 @@ export default function ReservationClient() {
                       )}
                       <button 
                         onClick={() => setPaymentView("none")}
-                        className="flex-1 bg-white border-2 border-slate-100 text-slate-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-slate-50 transition"
+                        className="flex-1 bg-white border-2 border-[var(--border-subtle)] text-[var(--rz-gray-500)] font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-[var(--rz-gray-050)] transition"
                       >
                          {"Back"}
                       </button>
@@ -680,7 +680,7 @@ export default function ReservationClient() {
                 )}
              </div>
 
-             <div className="bg-slate-900 rounded-[40px] p-8 text-white shadow-xl shadow-slate-200">
+             <div className="bg-[var(--rz-navy)] rounded-[40px] p-8 text-white shadow-xl shadow-[color:var(--rz-gray-200)]">
                 <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-6">{"Safety & Policy"}</h3>
                 <div className="space-y-6">
                    {res.status !== 'cash_at_venue' ? (
@@ -725,45 +725,45 @@ export default function ReservationClient() {
       {/* Rate Modal (Reused) */}
       {isRateModalOpen && (
          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
-           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setIsRateModalOpen(false)} />
+           <div className="absolute inset-0 bg-[rgba(2,48,71,0.8)] backdrop-blur-md" onClick={() => setIsRateModalOpen(false)} />
            <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-black text-slate-900 mb-8">{"Rate Experience"}</h3>
+              <h3 className="text-2xl font-black text-[var(--rz-navy)] mb-8">{"Rate Experience"}</h3>
               <div className="space-y-10">
                  {/* Venue Rating */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{"Common Venue Rating"}</label>
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Common Venue Rating"}</label>
                     <div className="flex gap-3">
                        {[1,2,3,4,5].map((star) => (
-                         <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5a5f]/10 text-[#ff5a5f] shadow-sm" : "bg-slate-50 text-slate-300"}`}>
+                         <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5757]/10 text-[#ff5757] shadow-sm" : "bg-[var(--rz-gray-050)] text-[var(--rz-gray-300)]"}`}>
                            <Star size={24} fill={businessRating >= star ? "currentColor" : "none"} />
                          </button>
                        ))}
                     </div>
                  </div>
 
-                 <div className="h-px bg-slate-100" />
+                 <div className="h-px bg-[var(--rz-gray-100)]" />
 
                  {/* Individual Services */}
                  <div className="space-y-8">
-                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">{"Individual Service Ratings"}</h4>
+                   <h4 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Individual Service Ratings"}</h4>
                    {res?.items.filter(i => i.status === 'completed' && !i.isReviewed).map((item) => (
-                     <div key={item.id} className="p-6 bg-slate-50 rounded-3xl space-y-6">
+                     <div key={item.id} className="p-6 bg-[var(--rz-gray-050)] rounded-3xl space-y-6">
                         <div className="flex justify-between items-start">
                            <div>
-                              <p className="font-black text-slate-900 text-sm">{item.name}</p>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.staffName}</p>
+                              <p className="font-black text-[var(--rz-navy)] text-sm">{item.name}</p>
+                              <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">{item.staffName}</p>
                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 gap-6">
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Service Quality"}</p>
+                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Service Quality"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
                                     key={star} 
                                     onClick={() => setServiceRatings(prev => ({ ...prev, [item.id]: star }))} 
-                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (serviceRatings[item.id] || 5) >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-white text-slate-200 border border-slate-100"}`}
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (serviceRatings[item.id] || 5) >= star ? "bg-amber-100 text-amber-500 shadow-sm" : "bg-white text-[var(--rz-gray-200)] border border-[var(--border-subtle)]"}`}
                                   >
                                     <Star size={18} fill={(serviceRatings[item.id] || 5) >= star ? "currentColor" : "none"} />
                                   </button>
@@ -772,13 +772,13 @@ export default function ReservationClient() {
                            </div>
 
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{"Staff Rating"}</p>
+                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Staff Rating"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
                                     key={star} 
                                     onClick={() => setStaffRatings(prev => ({ ...prev, [item.id]: star }))} 
-                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (staffRatings[item.id] || 5) >= star ? "bg-cyan-100 text-cyan-600 shadow-sm" : "bg-white text-slate-200 border border-slate-100"}`}
+                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${ (staffRatings[item.id] || 5) >= star ? "bg-cyan-100 text-cyan-600 shadow-sm" : "bg-white text-[var(--rz-gray-200)] border border-[var(--border-subtle)]"}`}
                                   >
                                     <Star size={18} fill={(staffRatings[item.id] || 5) >= star ? "currentColor" : "none"} />
                                   </button>
@@ -791,19 +791,19 @@ export default function ReservationClient() {
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Review comment (shared)</label>
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">Review comment (shared)</label>
                     <textarea 
                       value={reviewComment}
                       onChange={(e) => setReviewComment(e.target.value)}
                       placeholder={"Tell us more about your visit..."}
-                      className="w-full h-32 bg-slate-50 border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                      className="w-full h-32 bg-[var(--rz-gray-050)] border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                     />
                  </div>
 
                  <button 
                    onClick={handleSubmitReview}
                    disabled={isSubmittingReview}
-                   className="w-full bg-slate-900 text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 hover:bg-[#ff5a5f] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                   className="w-full bg-[var(--rz-navy)] text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-[color:rgba(2,48,71,0.2)] hover:bg-[#ff5757] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                  >
                     {isSubmittingReview ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} strokeWidth={3} />}
                     {isSubmittingReview ? ("Submitting...") : ("Submit All Ratings")}

@@ -1,3 +1,6 @@
+/* Rezervame Design System — tokens, fonts, base (vendored). Must precede Tailwind. */
+@import "../ds/styles.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -63,13 +66,9 @@
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  font-family: var(--font-sans);
+  color: var(--text-body);
+  background: var(--surface-page);
 }
 
 /* Business Panel — FullCalendar “premium” skin */
@@ -77,10 +76,10 @@ body {
   --fc-border-color: #f1f5f9;
   --fc-button-bg-color: #0f172a;
   --fc-button-border-color: #0f172a;
-  --fc-button-hover-bg-color: #ff5a5f;
-  --fc-button-hover-border-color: #ff5a5f;
-  --fc-button-active-bg-color: #e04a50;
-  --fc-today-bg-color: rgba(255, 90, 95, 0.06);
+  --fc-button-hover-bg-color: #ff5757;
+  --fc-button-hover-border-color: #ff5757;
+  --fc-button-active-bg-color: #d83b3b;
+  --fc-today-bg-color: rgba(255, 87, 87, 0.06);
   --fc-page-bg-color: #ffffff;
   font-family: inherit;
 }

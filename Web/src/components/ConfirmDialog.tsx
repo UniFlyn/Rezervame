@@ -41,18 +41,18 @@ export function ConfirmDialog({
       ? "bg-red-500 hover:bg-red-600 shadow-red-200"
       : variant === "warning"
       ? "bg-amber-500 hover:bg-amber-600 shadow-amber-200"
-      : "bg-[#ff5a5f] hover:bg-[#e0484d] shadow-[#ff5a5f]/20";
+      : "bg-[#ff5757] hover:bg-[#d83b3b] shadow-[#ff5757]/20";
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200"
+        className="absolute inset-0 bg-[#023047]/70 backdrop-blur-sm animate-in fade-in duration-200"
         onClick={onCancel}
       />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-md bg-white rounded-[32px] shadow-2xl shadow-slate-900/20 animate-in zoom-in-95 fade-in duration-300 overflow-hidden">
+      <div className="relative w-full max-w-md bg-white rounded-[32px] shadow-2xl shadow-[color:rgba(2,48,71,0.2)] animate-in zoom-in-95 fade-in duration-300 overflow-hidden">
         {/* Top accent bar */}
         <div
           className={`h-1 w-full ${
@@ -60,7 +60,7 @@ export function ConfirmDialog({
               ? "bg-gradient-to-r from-red-400 to-red-600"
               : variant === "warning"
               ? "bg-gradient-to-r from-amber-400 to-amber-600"
-              : "bg-gradient-to-r from-[#ff5a5f] to-[#ff8a5f]"
+              : "bg-gradient-to-r from-[#ff5757] to-[#ff8a5f]"
           }`}
         />
 
@@ -68,7 +68,7 @@ export function ConfirmDialog({
           {/* Close button */}
           <button
             onClick={onCancel}
-            className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+            className="absolute top-6 right-6 p-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-gray-700)] hover:bg-[var(--rz-gray-100)] rounded-xl transition-all"
           >
             <X size={18} />
           </button>
@@ -83,15 +83,15 @@ export function ConfirmDialog({
           </div>
 
           {/* Content */}
-          <h3 className="text-xl font-black text-slate-900 mb-2 leading-tight">{title}</h3>
-          <p className="text-slate-500 font-medium text-sm leading-relaxed mb-8">{message}</p>
+          <h3 className="text-xl font-black text-[var(--rz-navy)] mb-2 leading-tight">{title}</h3>
+          <p className="text-[var(--rz-gray-500)] font-medium text-sm leading-relaxed mb-8">{message}</p>
 
           {/* Actions */}
           <div className="flex gap-3">
             <button
               onClick={onCancel}
               disabled={confirming}
-              className="flex-1 py-3.5 px-6 rounded-2xl border-2 border-slate-100 bg-slate-50 text-slate-600 font-black text-xs uppercase tracking-widest hover:bg-slate-100 hover:border-slate-200 transition-all disabled:opacity-60"
+              className="flex-1 py-3.5 px-6 rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] text-[var(--rz-gray-600)] font-black text-xs uppercase tracking-widest hover:bg-[var(--rz-gray-100)] hover:border-[var(--rz-gray-200)] transition-all disabled:opacity-60"
             >
               {cancelLabel}
             </button>

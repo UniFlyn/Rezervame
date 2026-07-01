@@ -12,13 +12,13 @@ export function MaintenancePage({ platformName = "Rezervame" }: MaintenancePageP
       <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 text-rose-500">
         <Wrench size={36} strokeWidth={2.2} />
       </div>
-      <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 sm:text-3xl">
+      <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--rz-navy)] sm:text-3xl">
         We&apos;ll be back soon
       </h1>
-      <p className="mt-4 max-w-md text-sm font-semibold leading-relaxed text-slate-500">
+      <p className="mt-4 max-w-md text-sm font-semibold leading-relaxed text-[var(--rz-gray-500)]">
         {platformName} is undergoing scheduled maintenance. Please check again in a little while.
       </p>
-      <p className="mt-8 text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
+      <p className="mt-8 text-[10px] font-black uppercase tracking-[0.25em] text-[var(--rz-gray-500)]">
         Thank you for your patience
       </p>
     </div>

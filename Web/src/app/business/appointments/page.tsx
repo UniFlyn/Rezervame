@@ -214,7 +214,7 @@ function rowStatusClass(booking: Booking) {
   if (booking.status === 'Approved') return 'bg-emerald-50 text-emerald-700';
   if (booking.status === 'Pending') return 'bg-amber-50 text-amber-700';
   if (booking.status === 'Rescheduled') return 'bg-amber-100 text-amber-800';
-  return 'bg-slate-50 text-slate-600';
+  return 'bg-[var(--rz-gray-050)] text-[var(--rz-gray-600)]';
 }
 
 function canCompleteBooking(booking: Booking) {
@@ -549,17 +549,17 @@ export default function AppointmentsPage() {
     const lang = language as Language;
     if (sorted.length === 1) {
       return (
-        <span className="text-sm font-bold text-slate-900">
+        <span className="text-sm font-bold text-[var(--rz-navy)]">
           {formatTime12(lang, sorted[0].date)}
         </span>
       );
     }
     return (
       <span className="flex flex-col gap-0.5">
-        <span className="text-sm font-bold text-slate-900">
+        <span className="text-sm font-bold text-[var(--rz-navy)]">
           {formatTimeRange12(lang, start, end)}
         </span>
-        <span className="text-[10px] font-medium text-slate-500">
+        <span className="text-[10px] font-medium text-[var(--rz-gray-500)]">
           {formatDateOnly(lang, sorted[0].date)}
         </span>
       </span>
@@ -593,13 +593,13 @@ export default function AppointmentsPage() {
           <div
             className={clsx(
               'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-black tabular-nums leading-none',
-              today ? 'bg-cyan-500 text-white shadow-sm shadow-cyan-500/30' : 'bg-transparent text-slate-900',
+              today ? 'bg-cyan-500 text-white shadow-sm shadow-cyan-500/30' : 'bg-transparent text-[var(--rz-navy)]',
             )}
           >
             {d.getDate()}
           </div>
-          <div className="text-[9px] font-black leading-none tracking-wide text-slate-500">{weekdayShort(lang, d)}</div>
-          <div className="text-[8px] font-semibold leading-tight text-slate-400">
+          <div className="text-[9px] font-black leading-none tracking-wide text-[var(--rz-gray-500)]">{weekdayShort(lang, d)}</div>
+          <div className="text-[8px] font-semibold leading-tight text-[var(--rz-gray-500)]">
             {n} {apptWord}
           </div>
           {closed ? (
@@ -617,10 +617,10 @@ export default function AppointmentsPage() {
     <div className="space-y-6 pb-10">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-3xl">
+          <h1 className="text-2xl font-black tracking-tight text-[var(--rz-navy)] md:text-3xl">
             {L(language as Language, 'Appointments', 'Citas')}
           </h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-[var(--rz-gray-500)]">
             {L(language as Language, 'Team schedule and availability', 'Agenda y disponibilidad del equipo')}
           </p>
         </div>
@@ -628,7 +628,7 @@ export default function AppointmentsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
+            className="rounded-xl border border-[var(--rz-gray-200)] bg-white px-4 py-2.5 text-xs font-bold text-[var(--rz-gray-700)] shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
           >
             <option value="all">{L(language as Language, 'All statuses', 'Todos los estados')}</option>
             <option value="Pending">{L(language as Language, 'Pending', 'Pendiente')}</option>
@@ -639,7 +639,7 @@ export default function AppointmentsPage() {
           <select
             value={staffScope}
             onChange={(e) => setStaffScope(e.target.value)}
-            className="min-w-[180px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
+            className="min-w-[180px] rounded-xl border border-[var(--rz-gray-200)] bg-white px-4 py-2.5 text-xs font-bold text-[var(--rz-gray-700)] shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
             title={L(language as Language, 'Filter appointments by professional', 'Filtrar citas por profesional')}
           >
             <option value="all">{L(language as Language, 'All staff', 'Todo el staff')}</option>
@@ -654,22 +654,22 @@ export default function AppointmentsPage() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
+              className="rounded-xl border border-[var(--rz-gray-200)] bg-white px-3 py-2 text-xs font-bold text-[var(--rz-gray-700)] shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
               title={L(language as Language, 'Start Date', 'Fecha inicio')}
             />
-            <span className="text-slate-400 font-bold">-</span>
+            <span className="text-[var(--rz-gray-500)] font-bold">-</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
+              className="rounded-xl border border-[var(--rz-gray-200)] bg-white px-3 py-2 text-xs font-bold text-[var(--rz-gray-700)] shadow-sm outline-none ring-cyan-500/20 focus:ring-2"
               title={L(language as Language, 'End Date', 'Fecha fin')}
             />
           </div>
           <button
             type="button"
             onClick={clearFilters}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--rz-gray-200)] bg-white px-4 py-2.5 text-xs font-bold text-[var(--rz-gray-700)] shadow-sm transition hover:bg-[var(--rz-gray-050)]"
             title={L(language as Language, 'Clear filters', 'Limpiar filtros')}
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -678,14 +678,14 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between md:p-5">
+      <div className="flex flex-col gap-4 rounded-2xl border border-[var(--rz-gray-100)] bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between md:p-5">
         <div className="flex flex-wrap items-center gap-2">
           {scheduleView === 'calendar' ? (
             <>
               <button
                 type="button"
                 onClick={goPrev}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-600 hover:bg-white"
+                className="rounded-xl border border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] p-2.5 text-[var(--rz-gray-600)] hover:bg-white"
                 aria-label={L(language as Language, 'Previous', 'Anterior')}
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -693,7 +693,7 @@ export default function AppointmentsPage() {
               <button
                 type="button"
                 onClick={goToday}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-wide text-slate-700 shadow-sm hover:border-cyan-300"
+                className="rounded-xl border border-[var(--rz-gray-200)] bg-white px-4 py-2 text-[10px] font-black uppercase tracking-wide text-[var(--rz-gray-700)] shadow-sm hover:border-cyan-300"
                 title={L(language as Language, 'Today', 'Hoy')}
               >
                 {L(language as Language, 'Today', 'Hoy')}
@@ -701,28 +701,28 @@ export default function AppointmentsPage() {
               <button
                 type="button"
                 onClick={goNext}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-600 hover:bg-white"
+                className="rounded-xl border border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] p-2.5 text-[var(--rz-gray-600)] hover:bg-white"
                 aria-label={L(language as Language, 'Next', 'Siguiente')}
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
-              <span className="min-w-0 max-w-full break-words text-center text-[11px] font-black uppercase leading-snug tracking-tight text-slate-800 md:min-w-[280px] md:text-left md:text-xs">
+              <span className="min-w-0 max-w-full break-words text-center text-[11px] font-black uppercase leading-snug tracking-tight text-[var(--rz-navy-800)] md:min-w-[280px] md:text-left md:text-xs">
                 {calTitle || '…'}
               </span>
             </>
           ) : (
-            <span className="text-sm font-black text-slate-800">{L(language as Language, 'Appointments list', 'Lista de citas')}</span>
+            <span className="text-sm font-black text-[var(--rz-navy-800)]">{L(language as Language, 'Appointments list', 'Lista de citas')}</span>
           )}
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="flex rounded-xl bg-slate-100 p-1">
+          <div className="flex rounded-xl bg-[var(--rz-gray-100)] p-1">
             <button
               type="button"
               onClick={() => setScheduleView('calendar')}
               className={clsx(
                 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-colors',
-                scheduleView === 'calendar' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-800',
+                scheduleView === 'calendar' ? 'bg-white text-[var(--rz-navy)] shadow' : 'text-[var(--rz-gray-500)] hover:text-[var(--rz-navy-800)]',
               )}
             >
               <CalendarDays className="h-3.5 w-3.5" />
@@ -733,7 +733,7 @@ export default function AppointmentsPage() {
               onClick={() => setScheduleView('list')}
               className={clsx(
                 'flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-colors',
-                scheduleView === 'list' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-800',
+                scheduleView === 'list' ? 'bg-white text-[var(--rz-navy)] shadow' : 'text-[var(--rz-gray-500)] hover:text-[var(--rz-navy-800)]',
               )}
             >
               <List className="h-3.5 w-3.5" />
@@ -741,7 +741,7 @@ export default function AppointmentsPage() {
             </button>
           </div>
           {scheduleView === 'calendar' ? (
-            <div className="flex rounded-xl bg-slate-100 p-1">
+            <div className="flex rounded-xl bg-[var(--rz-gray-100)] p-1">
               {(['day', 'week', 'month'] as const).map((m) => (
                 <button
                   key={m}
@@ -749,7 +749,7 @@ export default function AppointmentsPage() {
                   onClick={() => applyCalMode(m)}
                   className={clsx(
                     'rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-colors',
-                    calMode === m ? 'bg-[#f87171] text-white shadow-sm' : 'text-slate-500 hover:text-slate-800',
+                    calMode === m ? 'bg-[#f87171] text-white shadow-sm' : 'text-[var(--rz-gray-500)] hover:text-[var(--rz-navy-800)]',
                   )}
                   title={
                     m === 'day'
@@ -769,9 +769,9 @@ export default function AppointmentsPage() {
 
 
 
-      <div className="relative overflow-visible rounded-2xl border border-slate-100 bg-white shadow-sm">
-        <div className="relative flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 md:px-4">
-          <span className="text-[11px] font-bold tabular-nums text-slate-500">{tzLabel}</span>
+      <div className="relative overflow-visible rounded-2xl border border-[var(--rz-gray-100)] bg-white shadow-sm">
+        <div className="relative flex items-center justify-between gap-3 border-b border-[var(--rz-gray-100)] px-3 py-2 md:px-4">
+          <span className="text-[11px] font-bold tabular-nums text-[var(--rz-gray-500)]">{tzLabel}</span>
           <div className="relative">
             <button
               type="button"
@@ -779,17 +779,17 @@ export default function AppointmentsPage() {
                 setMenuOpen((o) => !o);
                 setSearchOpen(false);
               }}
-              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+              className="rounded-xl p-2 text-[var(--rz-gray-500)] transition hover:bg-[var(--rz-gray-100)] hover:text-[var(--rz-navy-800)]"
               aria-expanded={menuOpen}
               aria-label="Menu"
             >
               <Menu className="h-5 w-5" />
             </button>
             {menuOpen ? (
-              <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-xl border border-[var(--rz-gray-200)] bg-white py-1 shadow-lg">
                 <Link
                   href="/business/dashboard"
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-[var(--rz-gray-700)] hover:bg-[var(--rz-gray-050)]"
                   onClick={() => setMenuOpen(false)}
                 >
                   <LayoutDashboard className="h-4 w-4 text-cyan-600" />
@@ -797,7 +797,7 @@ export default function AppointmentsPage() {
                 </Link>
                 <Link
                   href="/business/staff"
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-[var(--rz-gray-700)] hover:bg-[var(--rz-gray-050)]"
                   onClick={() => setMenuOpen(false)}
                 >
                   <Users className="h-4 w-4 text-cyan-600" />
@@ -805,7 +805,7 @@ export default function AppointmentsPage() {
                 </Link>
                 <Link
                   href="/business/settings"
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-[var(--rz-gray-700)] hover:bg-[var(--rz-gray-050)]"
                   onClick={() => setMenuOpen(false)}
                 >
                   <Settings className="h-4 w-4 text-cyan-600" />
@@ -879,10 +879,10 @@ export default function AppointmentsPage() {
                   const EventGlyph = walkIn ? Hand : recurring ? RefreshCw : locked ? Lock : User;
                   return (
                     <div className="relative flex h-full min-h-[2.25rem] flex-col px-1.5 pb-5 pt-1 text-left">
-                      <p className="line-clamp-2 text-[11px] font-bold leading-snug text-slate-900">
+                      <p className="line-clamp-2 text-[11px] font-bold leading-snug text-[var(--rz-navy)]">
                         {range} {primaryLabel}
                       </p>
-                      {service ? <p className="mt-0.5 truncate text-[10px] font-normal leading-tight text-slate-600">{service}</p> : null}
+                      {service ? <p className="mt-0.5 truncate text-[10px] font-normal leading-tight text-[var(--rz-gray-600)]">{service}</p> : null}
                       <EventGlyph
                         className="pointer-events-none absolute bottom-0.5 right-0.5 h-3 w-3 shrink-0 opacity-60"
                         aria-hidden
@@ -902,28 +902,28 @@ export default function AppointmentsPage() {
                   className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]"
                   aria-hidden
                 >
-                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                  <Loader2 className="h-8 w-8 animate-spin text-[var(--rz-gray-500)]" />
                 </div>
               )}
               {listRows.length === 0 ? (
-                <p className="py-16 text-center text-sm font-semibold text-slate-400">{L(language as Language, 'No appointments match filters.', 'Sin citas con estos filtros.')}</p>
+                <p className="py-16 text-center text-sm font-semibold text-[var(--rz-gray-500)]">{L(language as Language, 'No appointments match filters.', 'Sin citas con estos filtros.')}</p>
               ) : (
               <table className="w-full min-w-[880px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/90">
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Client', 'Cliente')}</th>
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Service', 'Servicio')}</th>
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <tr className="border-b border-[var(--rz-gray-100)] bg-[#f7f8fa]/90">
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">{L(language as Language, 'Client', 'Cliente')}</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">{L(language as Language, 'Service', 'Servicio')}</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">
                       {L(language as Language, 'Staff', 'Staff')}
                     </th>
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Date', 'Fecha')}</th>
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Time', 'Hora')}</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Status', 'Estado')}</th>
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Flags', 'Notas')}</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-slate-400">{L(language as Language, 'Actions', 'Acciones')}</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">{L(language as Language, 'Date', 'Fecha')}</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">{L(language as Language, 'Time', 'Hora')}</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">{L(language as Language, 'Status', 'Estado')}</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">{L(language as Language, 'Flags', 'Notas')}</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-black uppercase tracking-wider text-[var(--rz-gray-500)]">{L(language as Language, 'Actions', 'Acciones')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-[var(--rz-gray-050)]">
                   {groupedListRows.map((group) => {
                     const booking = group[0];
                     const isGroup = group.length > 1;
@@ -960,7 +960,7 @@ export default function AppointmentsPage() {
                         <tr 
                           className={clsx(
                             "transition-colors hover:bg-cyan-50/40 border-l-4",
-                            isGroup ? "bg-slate-50/50 border-l-cyan-500/50" : "border-l-transparent"
+                            isGroup ? "bg-[#f7f8fa]/50 border-l-cyan-500/50" : "border-l-transparent"
                           )}
                         >
                           <td className="px-4 py-3">
@@ -968,45 +968,45 @@ export default function AppointmentsPage() {
                               {isGroup && (
                                 <button 
                                   onClick={() => toggleGroup(groupKey)}
-                                  className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                                  className="p-1 hover:bg-[var(--rz-gray-200)] rounded text-[var(--rz-gray-500)] hover:text-[var(--rz-gray-600)] transition-colors"
                                 >
                                   {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 </button>
                               )}
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-xs font-black text-white">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--rz-gray-700)] to-[var(--rz-navy)] text-xs font-black text-white">
                                 {client.initial}
                               </div>
                               <div className="flex min-w-0 flex-col">
-                                <span className="font-bold text-slate-900">{client.title}</span>
+                                <span className="font-bold text-[var(--rz-navy)]">{client.title}</span>
                                 {client.subtitle ? (
-                                  <span className="truncate text-[10px] font-medium text-slate-500">{client.subtitle}</span>
+                                  <span className="truncate text-[10px] font-medium text-[var(--rz-gray-500)]">{client.subtitle}</span>
                                 ) : null}
                                 {isGroup ? (
-                                  <span className="text-[10px] font-bold uppercase text-slate-400">
+                                  <span className="text-[10px] font-bold uppercase text-[var(--rz-gray-500)]">
                                     {group.length} {L(language as Language, 'Services', 'Servicios')}
                                   </span>
                                 ) : null}
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-600">
+                          <td className="px-4 py-3 text-[var(--rz-gray-600)]">
                             <span className="inline-flex items-center gap-1.5 line-clamp-1">
-                              <Scissors className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                              <Scissors className="h-3.5 w-3.5 text-[var(--rz-gray-300)] shrink-0" />
                               {servicesText}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-600">
+                          <td className="px-4 py-3 text-[var(--rz-gray-600)]">
                             <span className="inline-flex items-center gap-1.5">
-                              <User className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                              <User className="h-3.5 w-3.5 text-[var(--rz-gray-300)] shrink-0" />
                               {staffText}
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            <span className="block text-sm font-semibold text-slate-800">
+                            <span className="block text-sm font-semibold text-[var(--rz-navy-800)]">
                               {formatDateOnly(language as Language, sortedGroup[0].date)}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-900">
+                          <td className="whitespace-nowrap px-4 py-3 font-bold text-[var(--rz-navy)]">
                             {groupTimeLabel(group)}
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -1029,7 +1029,7 @@ export default function AppointmentsPage() {
                                  anyPending ? L(language as Language, 'Pending', 'Pendiente') :
                                  anyRescheduled ? L(language as Language, 'Rescheduled', 'Reagendado') : 'Mixed'}
                               </div>
-                              <span className="text-[10px] font-black text-slate-900">${totalPrice.toFixed(2)}</span>
+                              <span className="text-[10px] font-black text-[var(--rz-navy)]">${totalPrice.toFixed(2)}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -1043,7 +1043,7 @@ export default function AppointmentsPage() {
                                 <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold text-violet-800">↻</span>
                               ) : null}
                               {anyLocked ? (
-                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">
+                                <span className="rounded-md bg-[var(--rz-gray-100)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--rz-gray-600)]">
                                   <Lock className="inline h-3 w-3" />
                                 </span>
                               ) : null}
@@ -1083,7 +1083,7 @@ export default function AppointmentsPage() {
                                     </button>
                                   )}
                                   {booking.status === 'Completed' && (
-                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{L(language as Language, 'Archived', 'Archivado')}</span>
+                                    <span className="text-[10px] font-black text-[var(--rz-gray-300)] uppercase tracking-widest">{L(language as Language, 'Archived', 'Archivado')}</span>
                                   )}
                                 </>
                               ) : (
@@ -1123,28 +1123,28 @@ export default function AppointmentsPage() {
                           );
                           const subClient = clientDisplay(lang, subBooking);
                           return (
-                          <tr key={subBooking.id} className="bg-slate-50/80 border-l-4 border-l-cyan-500 animate-in fade-in slide-in-from-left-1 duration-200">
+                          <tr key={subBooking.id} className="bg-[#f7f8fa]/80 border-l-4 border-l-cyan-500 animate-in fade-in slide-in-from-left-1 duration-200">
                             <td className="px-4 py-2 pl-10">
                               <div className="flex min-w-0 flex-col text-xs">
-                                <span className="font-semibold text-slate-700">{subClient.title}</span>
+                                <span className="font-semibold text-[var(--rz-gray-700)]">{subClient.title}</span>
                                 {subClient.subtitle ? (
-                                  <span className="truncate text-[10px] text-slate-400">{subClient.subtitle}</span>
+                                  <span className="truncate text-[10px] text-[var(--rz-gray-500)]">{subClient.subtitle}</span>
                                 ) : null}
                               </div>
                             </td>
-                            <td className="px-4 py-2 font-semibold text-slate-800 text-xs">
+                            <td className="px-4 py-2 font-semibold text-[var(--rz-navy-800)] text-xs">
                               {getServiceName(subBooking)}
                             </td>
-                            <td className="px-4 py-2 text-slate-600 text-xs">
+                            <td className="px-4 py-2 text-[var(--rz-gray-600)] text-xs">
                               {getStaffLabel(subBooking)}
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap text-xs">
-                              <span className="font-semibold text-slate-700">
+                              <span className="font-semibold text-[var(--rz-gray-700)]">
                                 {formatDateOnly(lang, sortedGroup[0].date)}
                               </span>
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap text-xs">
-                              <span className="font-bold text-slate-900">
+                              <span className="font-bold text-[var(--rz-navy)]">
                                 {formatTimeRange12(lang, slotStart, slotEnd)}
                               </span>
                             </td>
@@ -1159,10 +1159,10 @@ export default function AppointmentsPage() {
                                 >
                                   {rowStatusLabel(language as Language, subBooking)}
                                 </div>
-                                <span className="text-[10px] font-black text-slate-800">${subBooking.price.toFixed(2)}</span>
+                                <span className="text-[10px] font-black text-[var(--rz-navy-800)]">${subBooking.price.toFixed(2)}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-2 text-xs text-slate-400">—</td>
+                            <td className="px-4 py-2 text-xs text-[var(--rz-gray-500)]">—</td>
                              <td className="px-4 py-2 text-right">
                                <div className="flex justify-end gap-1">
                                  {subBooking.status === 'Pending' && (
@@ -1220,14 +1220,14 @@ export default function AppointmentsPage() {
 
 
           {scheduleView === 'calendar' ? (
-          <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-2 shadow-xl shadow-slate-900/30">
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--rz-gray-700)] bg-[var(--rz-navy)] px-2 py-2 shadow-xl shadow-[color:rgba(2,48,71,0.3)]">
             <button
               type="button"
               onClick={() => {
                 setSearchOpen((o) => !o);
                 setMenuOpen(false);
               }}
-              className="pointer-events-auto rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="pointer-events-auto rounded-full p-2 text-[var(--rz-gray-300)] hover:bg-[var(--rz-navy-800)] hover:text-white"
               aria-label="Search"
               aria-expanded={searchOpen}
             >
@@ -1235,14 +1235,14 @@ export default function AppointmentsPage() {
             </button>
             <Link
               href="/business/support"
-              className="pointer-events-auto rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="pointer-events-auto rounded-full p-2 text-[var(--rz-gray-300)] hover:bg-[var(--rz-navy-800)] hover:text-white"
               aria-label="Chat"
             >
               <MessageCircle className="h-4 w-4" />
             </Link>
             <Link
               href="/how-it-works"
-              className="pointer-events-auto rounded-full p-2 text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="pointer-events-auto rounded-full p-2 text-[var(--rz-gray-300)] hover:bg-[var(--rz-navy-800)] hover:text-white"
               aria-label="Tips"
             >
               <Sparkles className="h-4 w-4" />
@@ -1251,30 +1251,30 @@ export default function AppointmentsPage() {
           ) : null}
 
           {scheduleView === 'calendar' && searchOpen ? (
-            <div className="pointer-events-none absolute bottom-[4.25rem] left-1/2 z-30 w-[min(100%,22rem)] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+            <div className="pointer-events-none absolute bottom-[4.25rem] left-1/2 z-30 w-[min(100%,22rem)] -translate-x-1/2 rounded-2xl border border-[var(--rz-gray-200)] bg-white p-3 shadow-xl">
               <div className="pointer-events-auto">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--rz-gray-500)]" />
                 <input
                   autoFocus
                   placeholder={L(language as Language, 'Search client…', 'Buscar cliente…')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm font-semibold outline-none ring-cyan-500/20 focus:ring-2"
+                  className="w-full rounded-xl border border-[var(--rz-gray-200)] py-2.5 pl-9 pr-3 text-sm font-semibold outline-none ring-cyan-500/20 focus:ring-2"
                 />
               </div>
               {searchHits.length > 0 ? (
                 <ul className="mt-2 max-h-48 overflow-auto text-left text-xs">
                   {searchHits.map((b) => (
-                    <li key={b.id} className="border-b border-slate-50 py-2 last:border-0">
-                      <span className="font-bold text-slate-800">{b.customerName}</span>
-                      <span className="text-slate-500"> · {getServiceName(b)}</span>
-                      <div className="text-[10px] text-slate-400">{new Date(b.date).toLocaleString()}</div>
+                    <li key={b.id} className="border-b border-[var(--rz-gray-050)] py-2 last:border-0">
+                      <span className="font-bold text-[var(--rz-navy-800)]">{b.customerName}</span>
+                      <span className="text-[var(--rz-gray-500)]"> · {getServiceName(b)}</span>
+                      <div className="text-[10px] text-[var(--rz-gray-500)]">{new Date(b.date).toLocaleString()}</div>
                     </li>
                   ))}
                 </ul>
               ) : searchQuery.trim() ? (
-                <p className="mt-2 text-center text-[11px] text-slate-400">{L(language as Language, 'No matches', 'Sin resultados')}</p>
+                <p className="mt-2 text-center text-[11px] text-[var(--rz-gray-500)]">{L(language as Language, 'No matches', 'Sin resultados')}</p>
               ) : null}
               </div>
             </div>
@@ -1283,19 +1283,19 @@ export default function AppointmentsPage() {
       </div>
 
       {waitlistOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#023047]/50 p-4 backdrop-blur-sm">
           <div className="max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-[var(--rz-gray-100)] px-5 py-4">
               <div>
-                <h3 className="text-lg font-black text-slate-900">{L(language as Language, 'Waitlist', 'Lista de espera')}</h3>
-                <p className="text-xs font-semibold text-slate-500">
+                <h3 className="text-lg font-black text-[var(--rz-navy)]">{L(language as Language, 'Waitlist', 'Lista de espera')}</h3>
+                <p className="text-xs font-semibold text-[var(--rz-gray-500)]">
                   {waitlistCount} {L(language as Language, 'pending confirmation', 'pendientes de confirmar')}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setWaitlistOpen(false)}
-                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
+                className="rounded-xl p-2 text-[var(--rz-gray-500)] hover:bg-[var(--rz-gray-100)]"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />
@@ -1303,16 +1303,16 @@ export default function AppointmentsPage() {
             </div>
             <ul className="max-h-[60vh] overflow-y-auto px-2 py-2">
               {waitlistRows.length === 0 ? (
-                <li className="px-3 py-8 text-center text-sm text-slate-500">{L(language as Language, 'No one on the waitlist.', 'Lista vacía.')}</li>
+                <li className="px-3 py-8 text-center text-sm text-[var(--rz-gray-500)]">{L(language as Language, 'No one on the waitlist.', 'Lista vacía.')}</li>
               ) : (
                 waitlistRows.map((b) => (
                   <li key={b.id} className="flex items-start justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-cyan-50/50">
                     <div>
-                      <p className="text-sm font-bold text-slate-900">{b.customerName}</p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-sm font-bold text-[var(--rz-navy)]">{b.customerName}</p>
+                      <p className="text-[11px] text-[var(--rz-gray-500)]">
                         {getServiceName(b)} · {getStaffLabel(b)}
                       </p>
-                      <p className="text-[10px] font-medium text-slate-400">{new Date(b.date).toLocaleString()}</p>
+                      <p className="text-[10px] font-medium text-[var(--rz-gray-500)]">{new Date(b.date).toLocaleString()}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
                       {b.walkIn ? (
@@ -1346,17 +1346,17 @@ export default function AppointmentsPage() {
       ) : null}
 
       {cashConfirm ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#023047]/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100">
                 <Banknote className="h-5 w-5 text-amber-700" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">
+                <h3 className="text-lg font-black text-[var(--rz-navy)]">
                   {L(language, 'Confirm cash payment', 'Confirmar pago en efectivo')}
                 </h3>
-                <p className="mt-1 text-xs font-medium text-slate-500 leading-relaxed">
+                <p className="mt-1 text-xs font-medium text-[var(--rz-gray-500)] leading-relaxed">
                   {L(
                     language,
                     'Confirm that you received the full amount in cash. This records the payment and completes the appointment.',
@@ -1372,12 +1372,12 @@ export default function AppointmentsPage() {
                 15,
               );
               return (
-                <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs space-y-2">
-                  <div className="flex justify-between font-bold text-slate-500">
+                <div className="mb-5 rounded-xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] p-4 text-xs space-y-2">
+                  <div className="flex justify-between font-bold text-[var(--rz-gray-500)]">
                     <span>{L(language, 'Amount due', 'Monto a cobrar')}</span>
-                    <span className="font-black text-slate-900">${totals.totalPrice.toFixed(2)}</span>
+                    <span className="font-black text-[var(--rz-navy)]">${totals.totalPrice.toFixed(2)}</span>
                   </div>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-[var(--rz-gray-500)]">
                     {cashConfirm.bookings.length}{' '}
                     {L(language, 'service(s) in this booking', 'servicio(s) en esta reserva')}
                   </p>
@@ -1392,7 +1392,7 @@ export default function AppointmentsPage() {
                 type="button"
                 onClick={() => setCashConfirm(null)}
                 disabled={updatingId === 'cash-confirm'}
-                className="flex-1 rounded-xl border border-slate-200 py-3 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="flex-1 rounded-xl border border-[var(--rz-gray-200)] py-3 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-600)] hover:bg-[var(--rz-gray-050)] disabled:opacity-50"
               >
                 {L(language, 'Cancel', 'Cancelar')}
               </button>

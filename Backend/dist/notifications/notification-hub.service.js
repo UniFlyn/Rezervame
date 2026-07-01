@@ -51,7 +51,18 @@ async function notifyPlatformAdmins(prisma, input) {
     const to = cfg.adminNotifyEmail?.trim();
     if (!to || !cfg.notifyNewTicketEmail)
         return;
-    void (0, notification_delivery_service_1.sendEmail)(prisma, to, input.emailSubject || `[Rezervame Admin] ${input.title}`, `<p>${input.body}</p><p>Review in the Rezervame Admin panel.</p>`, input.body);
+    void (0, notification_delivery_service_1.sendPlatformEmail)(prisma, {
+        to,
+        template: 'generic-notification',
+        subject: input.emailSubject || `[Rezervame Admin] ${input.title}`,
+        model: {
+            recipientName: 'Admin',
+            title: input.title,
+            body: `${input.body} Review in the Rezervame Admin panel.`,
+            ctaUrl: 'https://rezervame-admin.web.app/admin/notifications',
+            ctaLabel: 'Open Admin',
+        },
+    });
 }
 async function notifyCustomerUser(prisma, user, input) {
     await createInAppNotification(prisma, {
@@ -62,7 +73,18 @@ async function notifyCustomerUser(prisma, user, input) {
         userId: user.id,
     });
     if (user.email?.trim()) {
-        void (0, notification_delivery_service_1.sendEmail)(prisma, user.email, input.emailSubject || `[Rezervame] ${input.title}`, `<p>${input.body}</p>`, input.body);
+        void (0, notification_delivery_service_1.sendPlatformEmail)(prisma, {
+            to: user.email,
+            template: input.emailTemplate || 'generic-notification',
+            subject: input.emailSubject || `[Rezervame] ${input.title}`,
+            model: {
+                recipientName: user.name || 'there',
+                userName: user.name || 'there',
+                title: input.title,
+                body: input.body,
+                ...(input.emailModel || {}),
+            },
+        });
     }
 }
 async function notifyBusinessAccount(prisma, business, input) {
@@ -78,7 +100,22 @@ async function notifyBusinessAccount(prisma, business, input) {
         role: client_1.Role.BUSINESS,
         userId: ownerUser?.id ?? null,
     });
-    void (0, notification_delivery_service_1.sendEmail)(prisma, email, input.emailSubject || `[Rezervame] ${input.title}`, `<p>Hi ${business.owner || business.name},</p><p>${input.body}</p>`, input.body);
+    if (input.sendEmail !== false) {
+        void (0, notification_delivery_service_1.sendPlatformEmail)(prisma, {
+            to: email,
+            template: input.emailTemplate || 'generic-notification',
+            subject: input.emailSubject || `[Rezervame] ${input.title}`,
+            model: {
+                recipientName: business.owner || business.name,
+                ownerName: business.owner || business.name,
+                businessName: business.name,
+                title: input.title,
+                body: input.body,
+                subject: input.emailSubject || `[Rezervame] ${input.title}`,
+                ...(input.emailModel || {}),
+            },
+        });
+    }
 }
 async function notifyRoleBroadcast(prisma, role, message, targetLabel) {
     const title = `Broadcast: ${targetLabel}`;

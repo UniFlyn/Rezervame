@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useI18n } from "../../components/I18nProvider";
-import { Search, Map as MapIcon, List, LayoutGrid, Star, Heart, Filter, FilterX, ChevronDown, Check, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   fetchPublicVenues,
@@ -13,32 +12,103 @@ import {
   type SearchVenueRow,
   type PublicCategory,
 } from "@/lib/venueSearch";
-import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { useAuth } from "@/components/AuthProvider";
 import { apiGet, apiDelete, apiPost } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
-import en from "../../../../shared/locales/en.json";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
 import { AppLoader } from "@/components/ui/AppLoader";
 import { Pagination } from "@/components/ui/pagination";
 import { PARTNER_BUSINESS_TYPES } from "@/lib/partnerBusinessTypes";
-import { userFacingError } from "@/lib/userFacingError";
 import { goToVenue } from "@/lib/goToVenue";
-import { StatePanel, statePanelVariantForMessage } from "@/components/ui/StatePanel";
+import { ResultsMap } from "@/components/venue/ResultsMap";
+import {
+  Button,
+  Chip,
+  Checkbox,
+  Radio,
+  IconButton,
+  Glyph,
+  BusinessListItem,
+  BusinessResultCard,
+  EmptyState,
+} from "@/ds";
+
+const RATING_OPTIONS = [
+  { v: 0, l: "Todas" },
+  { v: 4.5, l: "4.5+" },
+  { v: 4.0, l: "4.0+" },
+  { v: 3.5, l: "3.5+" },
+];
+
+const SORT_OPTIONS = [
+  { value: "recommended", label: "Recomendados" },
+  { value: "ratingHighLow", label: "Mejor valorados" },
+  { value: "distanceNearFar", label: "Más cercanos" },
+  { value: "priceLowHigh", label: "Precio: menor a mayor" },
+  { value: "priceHighLow", label: "Precio: mayor a menor" },
+];
+
+function useViewportWidth() {
+  const [vw, setVw] = useState<number>(typeof window !== "undefined" ? window.innerWidth : 1280);
+  useEffect(() => {
+    const onR = () => setVw(window.innerWidth);
+    window.addEventListener("resize", onR, { passive: true });
+    return () => window.removeEventListener("resize", onR);
+  }, []);
+  return vw;
+}
 
 function SearchContent() {
   const { t, language } = useI18n();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+  const { setMeta, clearMeta } = usePageHeaderMeta();
+
+  const vw = useViewportWidth();
+  const isDesktop = vw >= 1080;
+  const isWide = vw >= 1280;
+  const isTablet = vw >= 720 && vw < 1080;
+  const isMobile = vw < 720;
+
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [showMap, setShowMap] = useState(true);
+  const [sortBy, setSortBy] = useState("recommended");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedRatings, setSelectedRatings] = useState<number[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    searchParams.get("category") ? [searchParams.get("category")!] : [],
+  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
+
+  const [apiVenues, setApiVenues] = useState<ApiVenue[]>([]);
+  const [venuesLoading, setVenuesLoading] = useState(true);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [categories, setCategories] = useState<PublicCategory[]>([]);
+
+  const itemsPerPage = viewMode === "list" ? 10 : 15;
+  const legacyCategoryNameFromQuery = searchParams.get("category");
+  const categoryKeyFromQuery = searchParams.get("categoryKey");
+  const searchQuery = searchParams.get("q") || "";
+
+  const venues = useMemo(
+    () => apiVenues.map((v) => mapApiVenueToRow(v, language)),
+    [apiVenues, language],
+  );
 
   useEffect(() => {
     if (isLoggedIn) {
-      apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>("/mobile/favorites?limit=100", "USER")
+      apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>(
+        "/mobile/favorites?limit=100",
+        "USER",
+      )
         .then((res) => {
           const rows = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-          setFavorites(rows.map((f: { businessId?: string }) => f.businessId).filter(Boolean) as string[]);
+          setFavorites(rows.map((f) => f.businessId).filter(Boolean) as string[]);
         })
         .catch(() => {});
     } else {
@@ -46,9 +116,7 @@ function SearchContent() {
     }
   }, [isLoggedIn]);
 
-  const handleToggleFavorite = async (businessId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const toggleFavorite = async (businessId: string) => {
     if (!isLoggedIn) {
       setIsLoginModalOpen(true);
       return;
@@ -58,135 +126,88 @@ function SearchContent() {
       if (isFav) {
         await apiDelete(`/mobile/favorites/${businessId}`, "USER");
         setFavorites((prev) => prev.filter((id) => id !== businessId));
-        toastSuccess(t("venueFavRemovedTitle") || "Removed from favorites", t("venueFavRemovedBody") || "Removed from favorites");
       } else {
         await apiPost("/mobile/favorites", { businessId }, "USER");
         setFavorites((prev) => [...prev, businessId]);
-        toastSuccess(t("venueFavAddedTitle") || "Added to favorites", t("venueFavAddedBody") || "Added to favorites");
       }
-    } catch (err) {
-      toastError("Error", "Could not update favorites");
+    } catch {
+      toastError("Error", "No se pudieron actualizar los favoritos");
     }
   };
-  
-  // States
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [sortBy, setSortBy] = useState("ratingHighLow");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedRatings, setSelectedRatings] = useState<number[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    searchParams.get("category") ? [searchParams.get("category")!] : []
-  );
-  const [showMap, setShowMap] = useState(true);
-  const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
-  const [apiVenues, setApiVenues] = useState<ApiVenue[]>([]);
-  const [venuesLoading, setVenuesLoading] = useState(true);
-  const [venuesError, setVenuesError] = useState<string | null>(null);
-  const [reloadNonce, setReloadNonce] = useState(0);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const itemsPerPage = viewMode === "list" ? 10 : 15;
-  const categoryKeyFromQuery = searchParams.get("categoryKey");
-  const legacyCategoryNameFromQuery = searchParams.get("category");
-  const searchQuery = searchParams.get("q") || "";
-  const venues = useMemo(
-    () => apiVenues.map((v) => mapApiVenueToRow(v, language)),
-    [apiVenues, language],
-  );
 
   useEffect(() => {
     let cancelled = false;
     const run = (geo?: { lat: number; lng: number }) => {
       setVenuesLoading(true);
-      
-      // Map frontend selectedCategories to category keys if they are labels
-      // But for now, let's assume they are keys or labels that match.
-      // Actually, it's better to pass them as they are or as keys.
       const categoryParam =
         selectedCategories.length > 0
           ? categoryFilterParamFromSelection(selectedCategories)
           : categoryKeyFromQuery || legacyCategoryNameFromQuery || "";
-
       const filters = {
         page: currentPage,
         limit: itemsPerPage,
         category: categoryParam,
         search: searchQuery,
-        sortBy: sortBy,
+        sortBy,
         minRating: selectedRatings.length > 0 ? Math.min(...selectedRatings) : 0,
       };
-
       void fetchPublicVenues(15_000, geo, filters)
         .then((res) => {
           if (cancelled) return;
           setApiVenues(res.data);
           setTotalItems(res.total);
           setTotalPages(res.totalPages);
-          setVenuesError(null);
         })
-        .catch((e: unknown) => {
+        .catch(() => {
           if (cancelled) return;
           setApiVenues([]);
           setTotalItems(0);
           setTotalPages(1);
-          setVenuesError(userFacingError(e, t("stateLoadFailedBody")));
         })
         .finally(() => {
           if (!cancelled) setVenuesLoading(false);
         });
     };
-
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (p) => {
-          if (cancelled) return;
-          run({ lat: p.coords.latitude, lng: p.coords.longitude });
-        },
-        () => {
-          if (cancelled) return;
-          run();
-        },
+        (p) => !cancelled && run({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        () => !cancelled && run(),
         { enableHighAccuracy: false, maximumAge: 300_000, timeout: 12_000 },
       );
     } else {
       run();
     }
-
     return () => {
       cancelled = true;
     };
-  }, [currentPage, itemsPerPage, sortBy, categoryKeyFromQuery, legacyCategoryNameFromQuery, searchQuery, selectedCategories, selectedRatings, reloadNonce, t]);
-
-  const [categories, setCategories] = useState<PublicCategory[]>([]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    sortBy,
+    categoryKeyFromQuery,
+    legacyCategoryNameFromQuery,
+    searchQuery,
+    selectedCategories,
+    selectedRatings,
+  ]);
 
   useEffect(() => {
     void fetchPublicCategories().then(setCategories).catch(() => setCategories([]));
   }, []);
 
-  /** Service Type filter — 8 partner business types only (not raw legacy Category rows). */
   const partnerFilterOptions = useMemo(() => {
     const countByKey = new Map<string, number>();
-    for (const c of categories) {
-      countByKey.set(c.key, c.activeBusinessCount ?? 0);
-    }
-    return PARTNER_BUSINESS_TYPES.map((type) => {
-      const filterParam = type.categoryKeys.join(",");
-      const count = type.categoryKeys.reduce((sum, k) => sum + (countByKey.get(k) ?? 0), 0);
-      return {
-        id: type.id,
-        filterParam,
-        label: t(`${type.labelKey}Title`),
-        count,
-      };
-    });
+    for (const c of categories) countByKey.set(c.key, c.activeBusinessCount ?? 0);
+    return PARTNER_BUSINESS_TYPES.map((type) => ({
+      id: type.id,
+      filterParam: type.categoryKeys.join(","),
+      label: t(`${type.labelKey}Title`),
+      count: type.categoryKeys.reduce((sum, k) => sum + (countByKey.get(k) ?? 0), 0),
+    }));
   }, [categories, t]);
 
-  const activeVenue = useMemo(
-    () => venues.find((v) => v.businessId === activeMarkerId),
-    [venues, activeMarkerId],
-  );
-  /** Page title: honor `categoryKey` (e.g. from home tiles), not a stray default to hair. */
-  const searchResultsTitle = useMemo(() => {
+  const pageTitle = useMemo(() => {
+    if (searchQuery.trim()) return `Resultados para “${searchQuery.trim()}”`;
     if (legacyCategoryNameFromQuery) {
       const partnerMatch = PARTNER_BUSINESS_TYPES.find(
         (p) => p.categoryKeys.join(",") === legacyCategoryNameFromQuery,
@@ -197,63 +218,19 @@ function SearchContent() {
       if (cat) return language === "es" ? cat.labelEs || cat.labelEn : cat.labelEn;
       return legacyCategoryNameFromQuery;
     }
-    if (categoryKeyFromQuery) {
-        const cat = categories.find(c => c.key === categoryKeyFromQuery);
-        if (cat) return cat.labelEn;
-        return t(categoryKeyFromQuery as keyof typeof en);
-    }
-    return t("discoverPerfectService");
-  }, [legacyCategoryNameFromQuery, categoryKeyFromQuery, t, language, categories]);
+    return "Todos los negocios";
+  }, [searchQuery, legacyCategoryNameFromQuery, categories, language, t]);
 
-  const filteredAndSortedResults = venues;
+  const countLabel = `${totalItems} ${totalItems === 1 ? "resultado" : "resultados"}`;
 
-  const { setMeta, clearMeta } = usePageHeaderMeta();
   useEffect(() => {
-    setMeta({
-      title: searchResultsTitle,
-      subtitle: `${totalItems} ${t("searchResultCount")}`,
-    });
+    setMeta({ title: pageTitle, subtitle: countLabel });
     return () => clearMeta();
-  }, [searchResultsTitle, totalItems, t, setMeta, clearMeta]);
+  }, [pageTitle, countLabel, setMeta, clearMeta]);
 
-  const markerBounds = useMemo(() => {
-    const list = filteredAndSortedResults;
-    if (!list.length) return { minLat: 0, maxLat: 1, minLng: 0, maxLng: 1 };
-    let minLat = Infinity,
-      maxLat = -Infinity,
-      minLng = Infinity,
-      maxLng = -Infinity;
-    for (const r of list) {
-      minLat = Math.min(minLat, r.lat);
-      maxLat = Math.max(maxLat, r.lat);
-      minLng = Math.min(minLng, r.lng);
-      maxLng = Math.max(maxLng, r.lng);
-    }
-    if (minLat === maxLat) {
-      minLat -= 0.01;
-      maxLat += 0.01;
-    }
-    if (minLng === maxLng) {
-      minLng -= 0.01;
-      maxLng += 0.01;
-    }
-    return { minLat, maxLat, minLng, maxLng };
-  }, [filteredAndSortedResults]);
-
-  const paginatedResults = filteredAndSortedResults;
-
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedCategories, selectedRatings, sortBy, viewMode]);
-
-  const toggleRating = (r: number) => {
-    setSelectedRatings(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
-  };
-
-  const toggleCategory = (c: string) => {
-    setSelectedCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
-  };
 
   const hasActiveFilters =
     selectedCategories.length > 0 ||
@@ -265,402 +242,502 @@ function SearchContent() {
     setSelectedCategories([]);
     setSelectedRatings([]);
     setCurrentPage(1);
-    setVenuesError(null);
     router.push("/search");
   };
 
-  const retryVenuesLoad = () => {
-    setVenuesError(null);
-    setReloadNonce((n) => n + 1);
+  const activeFilterCount = selectedCategories.length + selectedRatings.length;
+
+  const showMapList = () => {
+    setShowMap(true);
+    setViewMode("list");
+  };
+  const hideMapGrid = () => {
+    setShowMap(false);
+    setViewMode("grid");
   };
 
-  const resultsStatePanel =
-    venuesError ? (
-      <StatePanel
-        variant={statePanelVariantForMessage(venuesError)}
-        title={t("searchErrorTitle")}
-        description={venuesError}
-        actions={[
-          { label: t("tryAgain"), onClick: retryVenuesLoad, primary: true },
-          ...(hasActiveFilters
-            ? [{ label: t("clearFilters"), onClick: clearAllFilters, icon: FilterX }]
-            : []),
-        ]}
-      />
-    ) : paginatedResults.length === 0 ? (
-      <StatePanel
-        variant="empty"
-        title={t("noVenuesMatch")}
-        description={t("searchEmptyHint")}
-        actions={
-          hasActiveFilters
-            ? [{ label: t("clearFilters"), onClick: clearAllFilters, primary: true, icon: FilterX }]
-            : undefined
-        }
-      />
-    ) : null;
+  const rowFor = (res: SearchVenueRow, i: number) => ({
+    key: `${res.businessId}-${i}`,
+    image: businessListingImageSrc(res),
+    name: res.name,
+    rating: res.rating || undefined,
+    reviews: res.reviews || undefined,
+    category: res.category,
+    location: res.locationLabel,
+    distance: res.distanceLabel,
+    services: res.serviceName ? [res.serviceName] : [],
+    hoursToday: res.todaySlotTimings,
+    priceFrom: res.price ? Math.round(res.price) : undefined,
+    badge: res.popular ? "Popular" : undefined,
+    favorite: favorites.includes(res.businessId),
+    onFavorite: () => toggleFavorite(res.businessId),
+    onClick: () => goToVenue(res.businessId),
+    onReserve: () => goToVenue(res.businessId),
+  });
+
+  // Filters ------------------------------------------------------------------
+  const FilterSection = ({ title, children, last }: { title: string; children: React.ReactNode; last?: boolean }) => (
+    <div style={{ padding: "18px 0", borderBottom: last ? "none" : "1px solid var(--border-subtle)" }}>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "var(--rz-gray-500)",
+          marginBottom: 14,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--rz-coral)" }} />
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+
+  const OrdenarPor = (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setSortOpen((o) => !o)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          width: "100%",
+          height: 42,
+          padding: "0 13px",
+          background: "var(--surface-card)",
+          border: `1px solid ${sortOpen ? "var(--rz-coral)" : "var(--border-subtle)"}`,
+          borderRadius: "var(--radius-md)",
+          cursor: "pointer",
+          fontFamily: "var(--font-sans)",
+          fontSize: 14,
+          fontWeight: 500,
+          color: "var(--rz-gray-900)",
+          boxShadow: sortOpen ? "0 0 0 3px var(--rz-coral-050)" : "none",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {(SORT_OPTIONS.find((o) => o.value === sortBy) || SORT_OPTIONS[0]).label}
+        </span>
+        <Glyph
+          name="chevronDown"
+          size={16}
+          style={{ color: "var(--rz-gray-400)", flex: "none", transform: sortOpen ? "rotate(180deg)" : "none" }}
+        />
+      </button>
+      {sortOpen && (
+        <>
+          <div onClick={() => setSortOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 30 }} />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: 0,
+              right: 0,
+              zIndex: 31,
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "var(--radius-md)",
+              boxShadow: "var(--shadow-lg)",
+              padding: 5,
+            }}
+          >
+            {SORT_OPTIONS.map((o) => {
+              const on = o.value === sortBy;
+              return (
+                <button
+                  key={o.value}
+                  onClick={() => {
+                    setSortBy(o.value);
+                    setSortOpen(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    width: "100%",
+                    padding: "8px 11px",
+                    border: "none",
+                    background: on ? "var(--rz-coral-050)" : "transparent",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 13.5,
+                    color: on ? "var(--rz-coral-700)" : "var(--rz-gray-700)",
+                    fontWeight: on ? 600 : 500,
+                  }}
+                >
+                  {o.label}
+                  {on && <Glyph name="check" size={15} style={{ color: "var(--rz-coral)", flex: "none" }} />}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const FiltersBody = (
+    <div>
+      <FilterSection title="Ordenar por">{OrdenarPor}</FilterSection>
+      <FilterSection title="Tipo de servicio">
+        <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+          {partnerFilterOptions.map((c) => (
+            <Checkbox
+              key={c.id}
+              label={c.label}
+              checked={selectedCategories.includes(c.filterParam)}
+              onChange={(v: boolean) =>
+                setSelectedCategories((prev) =>
+                  v ? [...prev, c.filterParam] : prev.filter((x) => x !== c.filterParam),
+                )
+              }
+            />
+          ))}
+        </div>
+      </FilterSection>
+      <FilterSection title="Calificación" last>
+        <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+          {RATING_OPTIONS.map((r) => (
+            <label
+              key={r.v}
+              onClick={() => setSelectedRatings(r.v ? [r.v] : [])}
+              style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+            >
+              <Radio checked={(selectedRatings[0] || 0) === r.v} onChange={() => setSelectedRatings(r.v ? [r.v] : [])} />
+              {r.v ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, color: "var(--rz-gray-700)" }}>
+                  <Glyph name="star" size={15} filled style={{ color: "var(--rz-gold)" }} />
+                  {r.l}
+                </span>
+              ) : (
+                <span style={{ fontSize: 15, color: "var(--rz-gray-700)" }}>{r.l}</span>
+              )}
+            </label>
+          ))}
+        </div>
+      </FilterSection>
+    </div>
+  );
+
+  const FiltersPanel = (
+    <aside
+      className="rz-scroll-thin"
+      style={{
+        width: 280,
+        flex: "none",
+        alignSelf: "flex-start",
+        position: "sticky",
+        top: 100,
+        background: "transparent",
+        padding: "6px 22px 14px 0",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 0 4px" }}>
+        <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--rz-navy)" }}>Filtros</h3>
+        {activeFilterCount > 0 && (
+          <button
+            onClick={clearAllFilters}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "var(--font-sans)",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--rz-coral)",
+            }}
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+      {FiltersBody}
+    </aside>
+  );
+
+  // View + map segmented control --------------------------------------------
+  const segBase: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 7,
+    height: 38,
+    padding: "0 16px",
+    border: "none",
+    borderRadius: "var(--radius-pill)",
+    cursor: "pointer",
+    fontFamily: "var(--font-sans)",
+    fontSize: 13,
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  };
+  const seg = (on: boolean): React.CSSProperties => ({
+    ...segBase,
+    background: on ? "var(--rz-navy)" : "transparent",
+    color: on ? "#fff" : "var(--rz-gray-600)",
+  });
+
+  const ViewMapControls = (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 2,
+        padding: 4,
+        background: "var(--rz-gray-100)",
+        borderRadius: "var(--radius-pill)",
+      }}
+    >
+      <button onClick={() => setViewMode("list")} style={seg(viewMode === "list")}>
+        <Glyph name="list" size={16} />
+        {!isMobile && "Lista"}
+      </button>
+      <button onClick={() => setViewMode("grid")} style={seg(viewMode === "grid")}>
+        <Glyph name="grid" size={16} />
+        {!isMobile && "Cuadrícula"}
+      </button>
+      {!isMobile && <span style={{ width: 1, height: 22, background: "var(--rz-gray-300)", margin: "0 4px", flex: "none" }} />}
+      {!isMobile && (
+        <button onClick={showMap ? hideMapGrid : showMapList} style={seg(showMap)}>
+          <Glyph name={showMap ? "close" : "mapPin"} size={16} />
+          {showMap ? "Ocultar mapa" : "Ver mapa"}
+        </button>
+      )}
+    </div>
+  );
+
+  const Toolbar = (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      {(isTablet || isMobile) && (
+        <Button variant="outline" size="sm" leftIcon="filter" onClick={() => setFiltersOpen(true)}>
+          Filtros{activeFilterCount ? ` (${activeFilterCount})` : ""}
+        </Button>
+      )}
+      <span style={{ flex: 1, minWidth: 0 }} />
+      {ViewMapControls}
+    </div>
+  );
+
+  const ChipRow = (activeFilterCount > 0 || searchQuery.trim()) && (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
+      {searchQuery.trim() && (
+        <Chip active uppercase={false} icon="close" onClick={() => router.push("/search")}>
+          “{searchQuery.trim()}”
+        </Chip>
+      )}
+      {selectedCategories.map((cf) => {
+        const opt = partnerFilterOptions.find((o) => o.filterParam === cf);
+        return (
+          <Chip
+            key={cf}
+            active
+            uppercase={false}
+            icon="close"
+            onClick={() => setSelectedCategories((prev) => prev.filter((x) => x !== cf))}
+          >
+            {opt?.label || cf}
+          </Chip>
+        );
+      })}
+      {selectedRatings[0] ? (
+        <Chip active uppercase={false} icon="close" onClick={() => setSelectedRatings([])}>
+          {selectedRatings[0]}+ estrellas
+        </Chip>
+      ) : null}
+      <button
+        onClick={clearAllFilters}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "var(--font-sans)",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--rz-gray-500)",
+          padding: "0 8px",
+        }}
+      >
+        Limpiar todo
+      </button>
+    </div>
+  );
+
+  const ResultsList =
+    viewMode === "grid" ? (
+      <div
+        style={{
+          display: "grid",
+          rowGap: 26,
+          columnGap: 16,
+          gridTemplateColumns: `repeat(${
+            isMobile ? 1 : isTablet ? 2 : isWide ? (showMap ? 3 : 4) : showMap ? 2 : 3
+          }, minmax(0,1fr))`,
+        }}
+      >
+        {venues.map((res, i) => {
+          const p = rowFor(res, i);
+          return <BusinessResultCard {...p} />;
+        })}
+      </div>
+    ) : (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {venues.map((res, i) => {
+          const p = rowFor(res, i);
+          return (
+            <BusinessListItem
+              {...p}
+              active={activeMarkerId === res.businessId}
+              onMouseEnter={() => setActiveMarkerId(res.businessId)}
+            />
+          );
+        })}
+      </div>
+    );
+
+  const Empty = (
+    <EmptyState
+      icon="search"
+      title="Ningún negocio coincide con tu búsqueda"
+      message="Prueba con otro servicio, categoría, ubicación o filtro."
+      actionLabel={hasActiveFilters ? "Borrar filtros" : undefined}
+      onAction={hasActiveFilters ? clearAllFilters : undefined}
+    />
+  );
 
   if (venuesLoading) {
     return <AppLoader label={t("loadingVenues")} variant="page" />;
   }
 
+  const PAGE_PAD = "clamp(24px, 3vw, 40px)";
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <div className="flex flex-1 relative">
-        {/* SIDEBAR FILTERS - Desktop */}
-        <aside className="hidden lg:block w-[300px] border-r border-slate-100 p-6 sticky top-[64px] h-[calc(100vh-64px)] overflow-y-auto no-scrollbar shrink-0">
-           <div className="mb-12">
-              <h4 className="font-black text-slate-900 text-[11px] uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-                <span className="w-2 h-2 bg-[#ff5a5f] rounded-full"></span>
-                {t('filterService')}
-              </h4>
-              <div className="space-y-4">
-                 {partnerFilterOptions.map((c) => {
-                    const isSel = selectedCategories.includes(c.filterParam);
-                    return (
-                    <label key={c.id} className="flex items-center gap-4 cursor-pointer group">
-                      <div 
-                        onClick={() => {
-                          if (isSel) setSelectedCategories(prev => prev.filter(x => x !== c.filterParam));
-                          else setSelectedCategories(prev => [...prev, c.filterParam]);
-                          setCurrentPage(1);
-                        }}
-                        className={`w-6 h-6 border-2 rounded-lg flex items-center justify-center transition-all duration-300 ${isSel ? 'bg-[#ff5a5f] border-[#ff5a5f] shadow-lg shadow-[#ff5a5f]/30' : 'border-slate-200 group-hover:border-[#ff5a5f]'}`}
-                      >
-                        {isSel && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
-                      </div>
-                      <span className={`text-sm font-bold transition-all duration-300 ${isSel ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>
-                        {c.label}
-                      </span>
-                    </label>
-                 );})}
+    <div style={{ background: "var(--rz-gray-050)", minHeight: "100vh" }}>
+      <div style={{ width: "100%", padding: `24px ${PAGE_PAD} 56px` }}>
+        <div style={{ display: "flex", gap: "clamp(32px, 2.6vw, 40px)", alignItems: "flex-start" }}>
+          {isDesktop && FiltersPanel}
+
+          <main style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ padding: "6px 0 8px" }}>{Toolbar}</div>
+            {ChipRow}
+            <div style={{ marginTop: 16 }}>{venues.length ? ResultsList : Empty}</div>
+
+            {totalPages > 1 && (
+              <div style={{ marginTop: 32, borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--border-subtle)" }}>
+                <Pagination
+                  page={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  pageSize={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                />
               </div>
-           </div>
+            )}
+          </main>
 
-           <div className="mb-12">
-              <h4 className="font-black text-slate-900 text-[11px] uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-                <span className="w-2 h-2 bg-amber-400 rounded-full"></span>
-                {t('filterRating')}
-              </h4>
-              <div className="space-y-5">
-                 {[5, 4, 3].map(r => (
-                   <label key={r} className="flex items-center gap-4 cursor-pointer group">
-                      <div 
-                        onClick={() => {
-                          const isSel = selectedRatings.includes(r);
-                          if (isSel) setSelectedRatings(prev => prev.filter(x => x !== r));
-                          else setSelectedRatings([r]); // Only one rating filter at a time for minRating logic
-                          setCurrentPage(1);
-                        }}
-                        className={`w-6 h-6 border-2 rounded-lg flex items-center justify-center transition-all duration-300 ${selectedRatings.includes(r) ? 'bg-amber-400 border-amber-400 shadow-lg shadow-amber-400/30' : 'border-slate-200 group-hover:border-amber-400'}`}
-                      >
-                        {selectedRatings.includes(r) && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {Array.from({length: 5}).map((_, i) => (
-                           <Star key={i} className={`w-3.5 h-3.5 ${i < r ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
-                        ))}
-                        <span className="text-sm font-black text-slate-600 ml-2">+{r}.0</span>
-                      </div>
-                   </label>
-                 ))}
+          {isWide && showMap && (
+            <div style={{ flex: "none", width: "clamp(400px, 31vw, 560px)", alignSelf: "flex-start", position: "sticky", top: 100 }}>
+              <div
+                style={{
+                  height: "calc(100vh - 148px)",
+                  minHeight: 560,
+                  borderRadius: "var(--radius-xl)",
+                  overflow: "hidden",
+                  border: "1px solid var(--border-subtle)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                <ResultsMap results={venues} activeId={activeMarkerId} setActiveId={setActiveMarkerId} onOpen={goToVenue} />
               </div>
-           </div>
+            </div>
+          )}
+        </div>
 
-        </aside>
-
-        {/* RESULTS SECTION */}
-        <main className="flex-1 p-5 md:p-8 overflow-y-auto h-[calc(100vh-64px)] no-scrollbar bg-slate-50/30 min-w-0">
-           <div className="max-w-5xl mx-auto w-full">
-              <div className="flex flex-col md:flex-row justify-end items-start md:items-center gap-4 mb-8">
-                 <div className="flex bg-white p-1 rounded-xl border border-slate-200">
-                    <button 
-                      onClick={() => setViewMode("list")}
-                      className={`flex items-center gap-3 px-6 py-2.5 rounded-2xl text-[11px] font-black transition-all duration-500 uppercase tracking-widest ${viewMode === 'list' ? 'bg-slate-900 text-white shadow-xl translate-y-[-2px]' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                        <List className="w-4 h-4" strokeWidth={3} /> {t('list')}
-                    </button>
-                    <button 
-                      onClick={() => setViewMode("grid")}
-                      className={`flex items-center gap-3 px-6 py-2.5 rounded-2xl text-[11px] font-black transition-all duration-500 uppercase tracking-widest ${viewMode === 'grid' ? 'bg-slate-900 text-white shadow-xl translate-y-[-2px]' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                        <LayoutGrid className="w-4 h-4" strokeWidth={3} /> {t('grid')}
-                    </button>
-                 </div>
-              </div>
-
-              {/* LIST VIEW */}
-              {viewMode === "list" && resultsStatePanel}
-
-              {viewMode === "list" && paginatedResults.length > 0 && !venuesError && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    {paginatedResults.map((res) => (
-                        <div
-                          key={res.businessId}
-                          role="link"
-                          tabIndex={0}
-                          onClick={() => goToVenue(res.businessId)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              goToVenue(res.businessId);
-                            }
-                          }}
-                          className="group flex min-h-[120px] cursor-pointer flex-row overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 transition-all duration-300 hover:shadow-lg"
-                        >
-                            <div className="relative w-36 sm:w-44 h-28 sm:h-32 overflow-hidden rounded-xl flex-shrink-0">
-                                <img 
-                                  src={businessListingImageSrc(res)} 
-                                  className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" 
-                                  alt={res.name}
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.onerror = null;
-                                    target.src = PLACEHOLDER_IMAGE_DATA_URI;
-                                  }}
-                                />
-                                {res.popular && (
-                                    <div className="absolute top-4 left-4 bg-[#ff5a5f] text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-lg">
-                                        {t('popular')}
-                                    </div>
-                                )}
-                                <button 
-                                  onClick={(e) => handleToggleFavorite(res.businessId, e)}
-                                  className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 hover:text-[#ff5a5f] transition-all shadow-lg hover:scale-110 z-10"
-                                >
-                                    <Heart className={`w-5 h-5 transition-colors duration-300 ${favorites.includes(res.businessId) ? 'fill-[#ff5a5f] text-[#ff5a5f]' : 'text-slate-900'}`} />
-                                </button>
-                            </div>
-                            <div className="flex flex-col justify-between flex-1 pl-4 py-1 min-w-0">
-                                <div>
-                                    <div className="flex justify-between items-start gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-[10px] font-bold text-[#ff5a5f] uppercase tracking-wide mb-1">{res.category}</p>
-                                            <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug group-hover:text-[#ff5a5f] transition-colors line-clamp-2">{res.name}</h3>
-                                        </div>
-                                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 shadow-sm">
-                                            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                                            <span className="text-sm font-black text-slate-900 leading-none">{res.rating}</span>
-                                            <span className="text-[11px] font-bold text-slate-400 border-l border-slate-200 pl-2 leading-none">({res.reviews})</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 mt-2">
-                                        <div className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-1.5 rounded-full border border-slate-100 tracking-tight max-w-full">
-                                            {res.locationLabel} • {res.distanceLabel}
-                                        </div>
-                                        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border tracking-tight max-w-full ${res.todaySlotTimings?.toLowerCase().includes('closed') ? 'bg-slate-50 text-slate-500 border-slate-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
-                                            <Clock className="w-3.5 h-3.5 shrink-0" /> {t('todaySlots')}: {res.todaySlotTimings || '—'}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-50">
-                                    <div className="flex flex-col">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{t('priceFrom')}</span>
-                                        <span className="font-extrabold text-lg text-slate-900">${res.price.toFixed(2)}</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        goToVenue(res.businessId);
-                                      }}
-                                      className="rounded-lg bg-[#ff5a5f] px-5 py-2 text-xs font-bold text-white transition hover:bg-[#e0454a]"
-                                    >
-                                        {t("bookBtn")}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-              )}
-
-              {/* GRID VIEW */}
-              {viewMode === "grid" && resultsStatePanel}
-
-              {viewMode === "grid" && paginatedResults.length > 0 && !venuesError && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8 animate-in fade-in zoom-in-95 duration-700">
-                    {paginatedResults.map((res) => (
-                        <div
-                          key={res.businessId}
-                          role="link"
-                          tabIndex={0}
-                          onClick={() => goToVenue(res.businessId)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              goToVenue(res.businessId);
-                            }
-                          }}
-                          className="group flex translate-y-0 cursor-pointer flex-col overflow-hidden rounded-[40px] border border-b-[6px] border-b-[#ff5a5f]/10 border-slate-100 bg-white transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-slate-200/50"
-                        >
-                            <div className="relative h-64 overflow-hidden">
-                                <img 
-                                  src={businessListingImageSrc(res)} 
-                                  className="w-full h-full object-cover group-hover:scale-110 transition duration-1000" 
-                                  alt={res.name}
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.onerror = null;
-                                    target.src = PLACEHOLDER_IMAGE_DATA_URI;
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                <button 
-                                  onClick={(e) => handleToggleFavorite(res.businessId, e)}
-                                  className="absolute top-6 right-6 w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-slate-900 hover:text-[#ff5a5f] transition-all shadow-lg z-10"
-                                >
-                                    <Heart className={`w-5 h-5 transition-colors duration-300 ${favorites.includes(res.businessId) ? 'fill-[#ff5a5f] text-[#ff5a5f]' : 'text-slate-900'}`} />
-                                </button>
-                                <div className="absolute bottom-6 left-6 flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-lg border border-white/20">
-                                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                    <span className="text-xs font-black text-slate-900">{res.rating}</span>
-                                </div>
-                            </div>
-                            <div className="p-8 flex flex-col flex-1">
-                                <p className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-widest mb-2">{res.category}</p>
-                                <h3 className="text-xl font-black text-slate-900 leading-tight mb-4 group-hover:text-[#ff5a5f] transition-colors line-clamp-2">{res.name}</h3>
-                                
-                                <div className={`mb-4 flex items-center gap-2 text-[10px] font-semibold normal-case tracking-tight px-3 py-1.5 rounded-xl w-fit max-w-full ${res.todaySlotTimings?.toLowerCase().includes('closed') ? 'bg-slate-50 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
-                                    <Clock size={12} className="shrink-0" /> {t('todaySlots')}: {res.todaySlotTimings || '—'}
-                                </div>
-                                
-                                <div className="mt-auto flex justify-between items-center pt-6 border-t border-slate-50">
-                                    <span className="font-black text-2xl text-slate-900">${res.price.toFixed(2)}</span>
-                                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg transition-all duration-500 group-hover:rotate-90 group-hover:bg-[#ff5a5f]">
-                                        <ChevronRight className="h-6 w-6" strokeWidth={3} />
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-              )}
-
-              {/* PAGINATION */}
-              {totalPages > 1 && (
-                <div className="mt-12 rounded-2xl border border-slate-100 overflow-hidden">
-                  <Pagination
-                    page={currentPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    pageSize={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                  />
-                </div>
-              )}
-           </div>
-        </main>
-
-        {/* MAP SECTION - Desktop */}
-        {showMap && (
-           <aside className="hidden xl:block w-[420px] sticky top-[64px] h-[calc(100vh-64px)] border-l border-slate-100 bg-slate-50 overflow-hidden group shrink-0">
-              <div className="absolute inset-0 bg-slate-200 overflow-hidden">
-                <iframe 
-                    width="100%" 
-                    height="100%" 
-                    className="grayscale-[0.4] brightness-[1.1] contrast-[1.1]"
-                    frameBorder="0" 
-                    scrolling="no" 
-                    marginHeight={0} 
-                    marginWidth={0} 
-                    src="https://www.openstreetmap.org/export/embed.html?bbox=-79.554%2C8.956%2C-79.516%2C8.986&layer=mapnik" 
-                ></iframe>
-                
-                <div className="absolute inset-0 pointer-events-none">
-                    {filteredAndSortedResults.map((res) => {
-                      const isActive = activeMarkerId === res.businessId;
-                      const { minLat, maxLat, minLng, maxLng } = markerBounds;
-                      const topPct =
-                        maxLat === minLat ? 50 : ((res.lat - minLat) / (maxLat - minLat)) * 70 + 15;
-                      const leftPct =
-                        maxLng === minLng ? 50 : ((res.lng - minLng) / (maxLng - minLng)) * 70 + 15;
-                      return (
-                        <div 
-                            key={res.businessId} 
-                            onClick={() => {
-                                setActiveMarkerId(res.businessId === activeMarkerId ? null : res.businessId);
-                            }}
-                            className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${
-                              isActive ? 'z-50 scale-110' : activeMarkerId != null ? 'z-20 opacity-70 scale-95' : 'z-10 opacity-95'
-                            }`}
-                            style={{ top: `${topPct}%`, left: `${leftPct}%` }}
-                        >
-                            <div className={`border-2 rounded-lg px-2.5 py-1 font-bold text-[11px] shadow-md transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${isActive ? 'bg-[#ff5a5f] border-white text-white ring-2 ring-white/90' : 'bg-white border-slate-300 text-slate-800'}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-[#ff5a5f]' : 'bg-[#ff5a5f]'}`}></span>
-                                ${res.price.toFixed(0)}
-                            </div>
-                            <div className={`w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] mx-auto -mt-px filter drop-shadow-lg ${isActive ? 'border-t-slate-900 opacity-100' : 'border-t-slate-300 opacity-60'}`}></div>
-                        </div>
-                      );
-                    })}
-                </div>
-
-                {activeVenue && (() => {
-                  const { minLat, maxLat, minLng, maxLng } = markerBounds;
-                  const topPct = maxLat === minLat ? 50 : ((activeVenue.lat - minLat) / (maxLat - minLat)) * 70 + 15;
-                  const leftPct = maxLng === minLng ? 50 : ((activeVenue.lng - minLng) / (maxLng - minLng)) * 70 + 15;
-                  return (
-                    <div
-                      className="absolute z-[60] pointer-events-none"
-                      style={{ top: `${Math.min(topPct + 8, 72)}%`, left: `${Math.min(Math.max(leftPct, 18), 82)}%`, transform: "translate(-50%, 0)" }}
-                    >
-                    <div className="pointer-events-auto w-[220px] bg-white rounded-xl p-3 shadow-xl border border-slate-200 flex flex-col gap-2 animate-in fade-in duration-200">
-                        <div className="w-full aspect-square max-h-[100px] rounded-lg overflow-hidden shrink-0">
-                            <img 
-                               src={businessListingImageSrc(activeVenue)} 
-                               className="w-full h-full object-cover" 
-                               alt={activeVenue.name}
-                               onError={(e) => {
-                                 const target = e.target as HTMLImageElement;
-                                 target.onerror = null;
-                                 target.src = PLACEHOLDER_IMAGE_DATA_URI;
-                               }}
-                             />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-[9px] font-bold text-[#ff5a5f] uppercase truncate">{activeVenue.category}</p>
-                            <h4 className="font-extrabold text-sm text-slate-900 line-clamp-2 leading-tight">{activeVenue.name}</h4>
-                            <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mt-1">
-                                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                                {activeVenue.rating} · ${activeVenue.price}
-                            </div>
-                            <button 
-                                type="button"
-                                onClick={() => goToVenue(activeVenue.businessId)}
-                                className="w-full bg-[#ff5a5f] text-white text-[10px] font-bold py-2 rounded-lg mt-2 hover:bg-[#e0454a]"
-                            >
-                                {t('viewDetails')}
-                            </button>
-                        </div>
-                    </div>
-                    </div>
-                  );
-                })()}
-              </div>
-              
-              <div className="absolute top-4 right-4 z-20 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowMap(!showMap)}
-                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 shadow-md hover:border-[#ff5a5f] hover:text-[#ff5a5f]"
-                  >
-                    <MapIcon className="w-4 h-4" />
-                    {showMap ? ("Hide map") : t("showMap")}
-                  </button>
-              </div>
-           </aside>
+        {!isWide && showMap && (
+          <div style={{ marginTop: 20, height: 480, borderRadius: "var(--radius-xl)", overflow: "hidden", border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-sm)" }}>
+            <ResultsMap results={venues} activeId={activeMarkerId} setActiveId={setActiveMarkerId} onOpen={goToVenue} />
+          </div>
         )}
       </div>
+
+      {isMobile && (
+        <button
+          onClick={() => (showMap ? hideMapGrid() : showMapList())}
+          style={{
+            position: "fixed",
+            bottom: 22,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 70,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            height: 48,
+            padding: "0 22px",
+            border: "none",
+            borderRadius: "var(--radius-pill)",
+            cursor: "pointer",
+            background: "var(--rz-navy)",
+            color: "#fff",
+            fontFamily: "var(--font-sans)",
+            fontSize: 14,
+            fontWeight: 600,
+            boxShadow: "0 10px 26px rgba(2,48,71,0.28)",
+          }}
+        >
+          <Glyph name={showMap ? "list" : "mapPin"} size={18} />
+          {showMap ? "Ver lista" : "Ver mapa"}
+        </button>
+      )}
+
+      {!isDesktop && filtersOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+          <div onClick={() => setFiltersOpen(false)} style={{ position: "absolute", inset: 0, background: "rgba(2,30,44,0.45)", backdropFilter: "blur(2px)" }} />
+          <div
+            style={{
+              position: "relative",
+              background: "var(--surface-card)",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              maxHeight: "86vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "var(--shadow-modal)",
+            }}
+          >
+            <div style={{ padding: "14px 22px 10px", borderBottom: "1px solid var(--border-subtle)" }}>
+              <div style={{ width: 44, height: 5, borderRadius: 999, background: "var(--rz-gray-200)", margin: "0 auto 12px" }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--rz-navy)" }}>Filtros</h3>
+                <IconButton icon="close" variant="ghost" round label="Cerrar" onClick={() => setFiltersOpen(false)} />
+              </div>
+            </div>
+            <div style={{ overflowY: "auto", padding: "0 22px" }}>{FiltersBody}</div>
+            <div style={{ display: "flex", gap: 12, padding: "14px 22px", borderTop: "1px solid var(--border-subtle)" }}>
+              <Button variant="ghost" fullWidth onClick={clearAllFilters}>
+                Limpiar
+              </Button>
+              <Button variant="primary" fullWidth onClick={() => setFiltersOpen(false)}>
+                Ver {totalItems} negocios
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function SearchPage() {
   return (
-    <Suspense
-      fallback={<AppLoader label="Loading venues…" variant="section" />}
-    >
+    <Suspense fallback={<AppLoader label="Cargando negocios…" variant="section" />}>
       <SearchContent />
     </Suspense>
   );

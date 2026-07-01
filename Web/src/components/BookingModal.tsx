@@ -1,23 +1,26 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   X,
   ChevronLeft,
-  ChevronRight,
   Star,
   Clock,
   Check,
   Info,
   Plus,
   CreditCard,
-  Wallet,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 import { useI18n } from "@/components/I18nProvider";
+import {
+  DateSelector,
+  TimeSlotSelector,
+  RecipientPicker,
+  RecipientBadge,
+  Button as DSButton,
+} from "@/ds";
 import { parseAvailability } from "@/lib/staffAvailability";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
 import {
@@ -76,15 +79,26 @@ interface BookingModalProps {
 }
 
 type Step =
-  | "SCHEDULE"
-  | "SUMMARY"
+  | "BUILDER"
   | "STAFF_LIST"
   | "PROFESSIONAL_DETAIL"
   | "CHECKOUT_PREVIEW"
   | "SERVICE_PICKER";
 
+type RecipientTarget = number | "all" | null;
+
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Local ISO date key ('YYYY-MM-DD') — the value contract for the DS DateSelector. */
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function parseISODate(s: string): Date {
+  const [y, m, d] = String(s).split("-").map((n) => parseInt(n, 10));
+  return new Date(y, (m || 1) - 1, d || 1);
 }
 
 function generateSlotsForDay(schedule: { day: string; hours: string }[] | undefined, day: Date): string[] {
@@ -222,12 +236,11 @@ function pickStaffForService(serviceId: string, team: VenueTeamRow[], day: Date)
 }
 
 export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServiceIds, venueData, promotions }: BookingModalProps) => {
-  const router = useRouter();
   const { t, language } = useI18n();
   const dateLocale = "en-US";
-  const [step, setStep] = useState<Step>("SCHEDULE");
-  const [dayOffset, setDayOffset] = useState(0);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [step, setStep] = useState<Step>("BUILDER");
+  const [recipientPickerFor, setRecipientPickerFor] = useState<RecipientTarget>(null);
+  const [selectedDateISO, setSelectedDateISO] = useState<string>(() => toISODate(startOfLocalDay(new Date())));
   const [selectedTime, setSelectedTime] = useState<string>("10:30 AM");
   const [selectedProfForDetail, setSelectedProfForDetail] = useState<VenueTeamRow | null>(null);
   const [activeCartIndexForChange, setActiveCartIndexForChange] = useState<number | null>(null);
@@ -246,7 +259,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     { id: "yappy", label: "Yappy", enabled: false },
     { id: "pay_at_venue", label: "Pay by visit", enabled: true },
   ]);
-  const [timePeriod, setTimePeriod] = useState<"all" | "morning" | "afternoon" | "evening">("all");
   const [serviceSearch, setServiceSearch] = useState("");
   const [isPaid, setIsPaid] = useState(false);
   const prevOpenRef = useRef(false);
@@ -263,10 +275,13 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     return "evening";
   };
 
-  const dayStrip = useMemo(() => {
-    const start = addDays(startOfLocalDay(new Date()), dayOffset);
-    return Array.from({ length: 8 }, (_, i) => addDays(start, i));
-  }, [dayOffset]);
+  const selectedDay = useMemo(() => startOfLocalDay(parseISODate(selectedDateISO)), [selectedDateISO]);
+
+  /** A venue day with zero generated slots is treated as closed (used to disable calendar days). */
+  const isDayClosed = useCallback(
+    (d: Date) => generateSlotsForDay(venueData.schedule, d).length === 0,
+    [venueData.schedule],
+  );
 
   useEffect(() => {
     if (!isOpen) {
@@ -284,9 +299,9 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         initial[idx] = picked ?? venueData.team[0]?.id ?? sid;
       });
       setAssignments(initial);
-      setStep("SCHEDULE");
-      setDayOffset(0);
-      setSelectedDayIndex(0);
+      setStep("BUILDER");
+      setRecipientPickerFor(null);
+      setSelectedDateISO(toISODate(defaultDay));
       setSelectedTime("10:30 AM");
       const initialMembers: Record<number, string | null> = {};
       selectedServiceIds.forEach((_, idx) => { initialMembers[idx] = null; });
@@ -319,8 +334,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       return;
     }
 
-    const start = addDays(startOfLocalDay(new Date()), dayOffset);
-    const day = addDays(start, selectedDayIndex);
+    const day = startOfLocalDay(parseISODate(selectedDateISO));
     setAssignments((prev) => {
       const next: Record<number, string> = { ...prev };
       let changed = false;
@@ -360,7 +374,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
 
       return changed ? next : prev;
     });
-  }, [isOpen, dayOffset, selectedDayIndex, selectedServiceIds, venueData.team]);
+  }, [isOpen, selectedDateISO, selectedServiceIds, venueData.team]);
 
   const getServicePrice = useCallback((svcId: string, basePrice: number) => {
     const promo = promotions?.find(p => p.serviceId === svcId);
@@ -378,6 +392,59 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       return { ...svc, finalPrice, cartIndex: index };
     }).filter(Boolean) as (VenueServiceRow & { finalPrice: number; cartIndex: number })[],
     [venueData.services, selectedServiceIds, getServicePrice],
+  );
+
+  const applyRecipient = useCallback(
+    (target: RecipientTarget, memberId: string | null) => {
+      if (target === null) return;
+      setServiceMemberMap((prev) => {
+        if (target === "all") {
+          const next = { ...prev };
+          selectedServiceIds.forEach((_, idx) => {
+            next[idx] = memberId;
+          });
+          return next;
+        }
+        return { ...prev, [target]: memberId };
+      });
+    },
+    [selectedServiceIds],
+  );
+
+  const handleAddRecipient = useCallback(
+    async (person: { name: string; email?: string }, target: RecipientTarget) => {
+      if (typeof window !== "undefined" && !localStorage.getItem("rezervame_token")) {
+        toastWarning("Sign in required", "Sign in to save people to your account.");
+        return;
+      }
+      try {
+        const created = await apiPost<{ id?: string }>(
+          "/mobile/family-members",
+          { name: person.name, email: person.email || undefined },
+          "USER",
+        );
+        const rows = await apiGet<Array<{ id: string; name: string }>>("/mobile/family-members", "USER");
+        const list = Array.isArray(rows) ? rows : [];
+        setFamilyGuests(list);
+        const newId =
+          created?.id || [...list].reverse().find((r) => r.name === person.name)?.id;
+        if (newId) applyRecipient(target, newId);
+        toastSuccess("Person added");
+      } catch (e) {
+        toastError("Could not add person", e instanceof Error ? e.message : "");
+      }
+    },
+    [applyRecipient],
+  );
+
+  const recipientName = useCallback(
+    (cartIndex: number): { name?: string; self: boolean } => {
+      const memId = serviceMemberMap[cartIndex];
+      if (!memId) return { self: true };
+      const fm = familyGuests.find((g) => g.id === memId);
+      return { name: fm?.name || (language === "en" ? "Family member" : "Familiar"), self: false };
+    },
+    [serviceMemberMap, familyGuests, language],
   );
 
   const subtotal = useMemo(
@@ -407,8 +474,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   );
 
   const autoApproval = venueData.appointmentApprovalMode === 'automatic';
-
-  const selectedDay = dayStrip[selectedDayIndex] ?? startOfLocalDay(new Date());
 
   useEffect(() => {
     const all = generateSlotsForDay(venueData.schedule, selectedDay);
@@ -552,7 +617,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     assignments,
     onBookingSuccess,
     onClose,
-    router,
     selectedDay,
     selectedServices,
     selectedTime,
@@ -567,12 +631,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     familyGuests,
     totalPrice,
   ]);
-
-  const monthTitle = useMemo(
-    () =>
-      new Intl.DateTimeFormat(dateLocale, { month: "long", year: "numeric" }).format(dayStrip[0] ?? new Date()),
-    [dateLocale, dayStrip],
-  );
 
   const staffChoiceList = useMemo(() => {
     const sid = activeCartIndexForChange !== null ? selectedServiceIds[activeCartIndexForChange] : null;
@@ -591,294 +649,293 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   if (!isOpen) return null;
 
   const handleCloseAttempt = () => {
-    if (step !== "SCHEDULE") {
+    if (step !== "BUILDER") {
       setIsDiscardModalOpen(true);
     } else {
       onClose();
     }
   };
 
-  const renderSchedule = () => {
+  const renderBuilder = () => {
     const allSlots = generateSlotsForDay(venueData.schedule, selectedDay);
-    const slots = allSlots.filter((time) => {
-      if (timePeriod === "all") return true;
-      const p = slotPeriod(time);
-      if (timePeriod === "morning") return p === "morning";
-      if (timePeriod === "afternoon") return p === "afternoon";
-      return p === "evening";
-    });
     const bookableCount = filterBookableTimeSlots(allSlots, selectedDay).length;
+    const hasBookable = bookableCount > 0;
+    const canContinue = hasBookable && selectedServices.length > 0;
     const periodLabels =
       language === "en"
-        ? { all: "All", morning: "Morning", afternoon: "Afternoon", evening: "Evening" }
-        : { all: "Todos", morning: "Mañana", afternoon: "Tarde", evening: "Noche" };
+        ? { morning: "Morning", afternoon: "Afternoon", evening: "Evening" }
+        : { morning: "Mañana", afternoon: "Tarde", evening: "Noche" };
+    const buckets: Record<"morning" | "afternoon" | "evening", { time: string; disabled: boolean }[]> = {
+      morning: [],
+      afternoon: [],
+      evening: [],
+    };
+    allSlots.forEach((time) => {
+      buckets[slotPeriod(time)].push({ time, disabled: isTimeSlotInPast(selectedDay, time) });
+    });
+    const slotGroups = (["morning", "afternoon", "evening"] as const)
+      .filter((p) => buckets[p].length > 0)
+      .map((p) => ({ label: periodLabels[p], slots: buckets[p] }));
+    const dateLabel = new Intl.DateTimeFormat(dateLocale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(selectedDay);
+    const multi = selectedServices.length > 1;
+    const sectionTitle = "mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-[var(--rz-gray-500)]";
+
     return (
-      <div className="flex flex-col items-center w-full">
-        <h2 className="text-xl font-black text-slate-900 mb-6 capitalize">{monthTitle}</h2>
-
-        {selectedServices.length > 0 ? (
-          <div className="mb-6 w-full rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              {"Selected services"}
-            </p>
-            {selectedServices.map((svc) => (
-              <p key={svc.cartIndex} className="text-sm font-bold text-slate-900">
-                {svc.name} · ${Number(svc.finalPrice).toFixed(2)}
+      <div className="grid items-start gap-8 lg:grid-cols-[1fr_380px]">
+        {/* LEFT — builder */}
+        <div className="min-w-0 space-y-9">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-[var(--rz-navy)]">
+              {language === "en" ? "Your booking" : "Tu reserva"}
+            </h1>
+            {venueData.name ? (
+              <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
+                {venueData.name}
               </p>
-            ))}
-            <button
-              type="button"
-              onClick={() => setStep("SERVICE_PICKER")}
-              className="mt-3 text-xs font-bold text-[#ff5a5f] hover:underline"
-            >
-              + {t("bookingAddAnotherService") || "Agregar otro servicio"}
-            </button>
+            ) : null}
           </div>
-        ) : null}
 
-        <div className="flex items-center gap-4 mb-10 w-full justify-center">
-          <button
-            type="button"
-            disabled={dayOffset <= 0}
-            onClick={() => {
-              setDayOffset((d) => Math.max(0, d - 7));
-              setSelectedDayIndex(0);
-            }}
-            className="p-2 text-slate-400 hover:text-slate-900 disabled:opacity-30"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-            {dayStrip.map((day, idx) => (
+          {/* Services */}
+          <section>
+            <h2 className={sectionTitle}>{language === "en" ? "Services" : "Servicios"}</h2>
+            <div className="space-y-3">
+              {selectedServices.length === 0 ? (
+                <div className="rounded-2xl border-2 border-dashed border-[var(--border-default)] bg-[var(--rz-gray-050)] p-6 text-center">
+                  <p className="text-sm font-bold text-[var(--rz-gray-500)]">
+                    {language === "en" ? "No services yet." : "Aún no hay servicios."}
+                  </p>
+                </div>
+              ) : (
+                selectedServices.map((svc) => {
+                  const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
+                  const r = recipientName(svc.cartIndex);
+                  return (
+                    <div
+                      key={`${svc.id}-${svc.cartIndex}`}
+                      className="rounded-2xl border border-[var(--border-subtle)] bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="truncate text-sm font-black tracking-tight text-[var(--rz-navy)]">{svc.name}</h4>
+                          {svc.time ? (
+                            <p className="mt-0.5 text-[11px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">{svc.time}</p>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {svc.finalPrice < svc.price && (
+                            <span className="text-[11px] font-bold text-[var(--rz-gray-500)] line-through">${Number(svc.price).toFixed(2)}</span>
+                          )}
+                          <span className="text-sm font-black text-[var(--rz-coral)]">${Number(svc.finalPrice).toFixed(2)}</span>
+                          <button
+                            type="button"
+                            aria-label="Remove"
+                            onClick={() => useVenueBookingCartStore.getState().removeService(venueData.id, svc.id)}
+                            className="p-1 text-[var(--rz-gray-300)] transition-colors hover:text-[var(--rz-coral)]"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveCartIndexForChange(svc.cartIndex);
+                            setStep("STAFF_LIST");
+                          }}
+                          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-2.5 py-1.5 text-left transition-colors hover:border-[var(--rz-coral)]"
+                        >
+                          {prof?.img ? (
+                            <img src={prof.img} alt="" className="h-5 w-5 shrink-0 rounded-md object-cover" />
+                          ) : null}
+                          <span className="text-[11px] font-bold text-[var(--rz-navy)]">{prof?.name || t("all")}</span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-coral)]">
+                            {language === "en" ? "Change" : "Cambiar"}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRecipientPickerFor(svc.cartIndex)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-2.5 py-1.5 transition-colors hover:border-[var(--rz-coral)]"
+                        >
+                          <RecipientBadge name={r.self ? undefined : r.name} self={r.self} size="sm" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-coral)]">
+                            {language === "en" ? "Change" : "Cambiar"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
               <button
                 type="button"
-                key={day.toISOString()}
-                onClick={() => setSelectedDayIndex(idx)}
-                className={`flex flex-col items-center justify-center min-w-[55px] h-[75px] rounded-2xl border-2 transition-all ${
-                  selectedDayIndex === idx
-                    ? "bg-[#ff5a5f] border-[#ff5a5f] text-white shadow-lg shadow-[#ff5a5f]/30"
-                    : "border-slate-100 text-slate-400 hover:border-slate-200"
-                }`}
+                onClick={() => setStep("SERVICE_PICKER")}
+                className="inline-flex items-center gap-2 text-[13px] font-bold text-[var(--rz-coral)] hover:underline"
               >
-                <span className="text-[10px] font-black uppercase tracking-widest">
-                  {new Intl.DateTimeFormat(dateLocale, { weekday: "short" }).format(day)}
-                </span>
-                <span className="text-xl font-black mt-1">{day.getDate()}</span>
+                <Plus size={16} /> {t("bookingAddAnotherService") || "Agregar otro servicio"}
               </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setDayOffset((d) => d + 7);
-              setSelectedDayIndex(0);
-            }}
-            className="p-2 text-slate-400 hover:text-slate-900"
-          >
-            <ChevronRight size={20} />
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={() => setRecipientPickerFor("all")}
+                className="text-[13px] font-semibold text-[var(--rz-gray-500)] underline-offset-2 hover:text-[var(--rz-navy)] hover:underline"
+              >
+                {language === "en" ? "Book for someone else" : "Reservar para otra persona"}
+              </button>
+            </div>
+          </section>
 
-        <div className="mb-4 flex w-full max-w-[400px] flex-wrap justify-center gap-2">
-          {(["all", "morning", "afternoon", "evening"] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setTimePeriod(p)}
-              className={`rounded-full px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide transition ${
-                timePeriod === p ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-              }`}
-            >
-              {periodLabels[p]}
-            </button>
-          ))}
-        </div>
+          {/* Date */}
+          <section>
+            <h2 className={sectionTitle}>{language === "en" ? "Select the date" : "Selecciona la fecha"}</h2>
+            <DateSelector
+              count={7}
+              value={selectedDateISO}
+              onChange={(iso: string) => setSelectedDateISO(iso)}
+              isDateDisabled={isDayClosed}
+            />
+          </section>
 
-        {slots.length === 0 ? (
-          <div className="text-center py-6 mb-10 w-full bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-            <p className="text-sm font-bold uppercase tracking-widest text-slate-400 m-0">
-              {allSlots.length === 0
-                ? ("Venue is closed on this day")
-                : bookableCount === 0
-                  ? ("No more times available today")
-                  : ("No slots in this period")}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-2 mb-10 w-full max-w-[400px] max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
-            {slots.map((time) => {
-              const past = isTimeSlotInPast(selectedDay, time);
-              return (
-                <button
-                  type="button"
-                  key={time}
-                  disabled={past}
-                  onClick={() => !past && setSelectedTime(time)}
-                  className={`py-2.5 rounded-2xl border-2 text-[10px] font-black transition-all ${
-                    past
-                      ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300 opacity-50"
-                      : selectedTime === time
-                        ? "border-[#ff5a5f] text-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
-                        : "border-slate-100 text-slate-700 hover:border-slate-200 hover:bg-slate-50/50"
-                  }`}
-                >
-                  {time}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-      <button
-        type="button"
-        onClick={() => setStep("SUMMARY")}
-        className="w-full bg-[#ff5a5f] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-[#ff5a5f]/20 hover:bg-[#e0484d] transition-all"
-      >
-        {t("bookingContinue")}
-      </button>
-    </div>
-    );
-  };
-
-  const renderSummary = () => (
-    <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
-      <button
-        type="button"
-        onClick={() => setStep("SCHEDULE")}
-        className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black text-[10px] uppercase tracking-widest mb-4"
-      >
-        <ChevronLeft size={16} /> {t("bookingBack") || "Back"}
-      </button>
-
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-xl font-black text-slate-900 m-0">{t("bookingSummaryTitle")}</h2>
-        <button
-          type="button"
-          onClick={() => {
-            onClose();
-            router.push("/profile?tab=family");
-          }}
-          className="rounded-full px-4 py-2 text-[10px] font-black border-2 border-dashed border-slate-300 bg-white text-slate-500 hover:border-[#ff5a5f] hover:text-[#ff5a5f] transition"
-        >
-          + {t("bookingAddFamilyMember") || "Add Family Member"}
-        </button>
-      </div>
-
-      <div className="space-y-4 max-h-[min(42vh,340px)] overflow-y-auto overflow-x-visible pr-3 pt-2 custom-scrollbar">
-        {serviceTimeRanges.map(({ svc, label }) => {
-          const staffId = assignments[svc.cartIndex];
-          const prof = venueData.team.find((m) => m.id === staffId);
-          const memberIdForSvc = serviceMemberMap[svc.cartIndex];
-
-          return (
-            <div key={`${svc.id}-${svc.cartIndex}`} className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 animate-in slide-in-from-bottom">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-[12px] font-black text-slate-900 truncate tracking-tight">{svc.name}</h4>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                   {svc.finalPrice < svc.price && (
-                     <span className="text-[10px] font-bold text-slate-400 line-through tracking-tight">${Number(svc.price).toFixed(2)}</span>
-                   )}
-                   <span className="text-[12px] font-black text-[#ff5a5f]">${Number(svc.finalPrice).toFixed(2)}</span>
-                   <button 
-                     onClick={() => {
-                        const storeApi = useVenueBookingCartStore.getState();
-                        storeApi.removeService(venueData.id, svc.id);
-                     }}
-                     className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                   >
-                     <X size={14} />
-                   </button>
-                </div>
+          {/* Time */}
+          <section>
+            <h2 className={sectionTitle}>{language === "en" ? "Select the time" : "Selecciona la hora"}</h2>
+            {slotGroups.length === 0 || !hasBookable ? (
+              <div className="rounded-2xl border-2 border-dashed border-[var(--border-default)] bg-[var(--rz-gray-050)] py-6 text-center">
+                <p className="m-0 text-sm font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
+                  {allSlots.length === 0
+                    ? language === "en" ? "Venue is closed on this day" : "El negocio está cerrado este día"
+                    : language === "en" ? "No more times available today" : "No hay más horarios disponibles hoy"}
+                </p>
               </div>
+            ) : (
+              <TimeSlotSelector
+                groups={slotGroups}
+                value={selectedTime}
+                onChange={(time: string) => setSelectedTime(time)}
+                columns={4}
+              />
+            )}
+          </section>
 
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="min-w-0">
-                  <p className="mb-1.5 text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                    {t("bookingProfessionalLabel").replace(/:$/, "")}
-                  </p>
-                  <button
-                    type="button"
-                    className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-2 text-left transition-colors hover:border-[#ff5a5f]/30"
-                    onClick={() => {
-                      setActiveCartIndexForChange(svc.cartIndex);
-                      setStep("STAFF_LIST");
-                    }}
-                  >
-                    <img src={prof?.img || ""} alt="" className="h-6 w-6 shrink-0 rounded-lg object-cover" />
-                    <span className="min-w-0 truncate text-[10px] font-bold text-slate-800">
-                      {prof?.name || t("all")}
-                    </span>
-                  </button>
-                </div>
+          {/* Sequence */}
+          {multi ? (
+            <section>
+              <h2 className={sectionTitle}>{language === "en" ? "Your sequence" : "Tu secuencia"}</h2>
+              <div className="space-y-2">
+                {serviceTimeRanges.map(({ svc, label }) => {
+                  const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
+                  return (
+                    <div
+                      key={`seq-${svc.id}-${svc.cartIndex}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-bold text-[var(--rz-navy)]">{svc.name}</p>
+                        {prof?.name ? (
+                          <p className="text-[11px] font-semibold text-[var(--rz-gray-500)]">{prof.name}</p>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 text-[12px] font-bold text-[var(--rz-gray-600)]">{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+        </div>
 
-                <div className="min-w-0">
-                  <label
-                    htmlFor={`booking-for-${svc.cartIndex}`}
-                    className="mb-1.5 block text-[9px] font-bold uppercase tracking-widest text-slate-400"
-                  >
-                    {t("bookingForWhom")}
-                  </label>
-                  <select
-                    id={`booking-for-${svc.cartIndex}`}
-                    value={memberIdForSvc ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setServiceMemberMap((prev) => ({
-                        ...prev,
-                        [svc.cartIndex]: v === "" ? null : v,
-                      }));
-                    }}
-                    className="w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white px-3 py-2 pr-8 text-[11px] font-bold text-slate-800 shadow-sm outline-none transition focus:border-[#ff5a5f] focus:ring-2 focus:ring-[#ff5a5f]/15"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 0.65rem center",
-                    }}
-                  >
-                    <option value="">{t("bookingForMe")}</option>
-                    {familyGuests.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        {/* RIGHT — sticky summary */}
+        <div className="lg:sticky lg:top-4">
+          <div className="rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-white p-5 shadow-[var(--shadow-card)]">
+            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.12em] text-[var(--rz-coral)]">
+              {language === "en" ? "Your booking" : "Tu reserva"}
+            </p>
+
+            <div className="space-y-2">
+              {serviceTimeRanges.map(({ svc, label }) => {
+                const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
+                const r = recipientName(svc.cartIndex);
+                return (
+                  <div key={`sum-${svc.id}-${svc.cartIndex}`} className="rounded-xl bg-[var(--rz-gray-050)] p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-bold text-[var(--rz-navy)]">{svc.name}</p>
+                        <div className="mt-1"><RecipientBadge name={r.self ? undefined : r.name} self={r.self} size="sm" /></div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--rz-gray-600)]">
+                          {prof?.name ? <span>{prof.name}</span> : null}
+                          <span>{label}</span>
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-[13px] font-black text-[var(--rz-navy)]">${Number(svc.finalPrice).toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="my-4 h-px bg-[var(--border-subtle)]" />
+
+            <div className="space-y-1.5 text-[13px]">
+              <div className="flex justify-between">
+                <span className="text-[var(--rz-gray-500)]">{language === "en" ? "Subtotal" : "Subtotal"}</span>
+                <span className="font-semibold text-[var(--rz-navy)]">${subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--rz-gray-500)]">
+                  {language === "en" ? `Service fee (${commissionPercent}%)` : `Cargo por servicio (${commissionPercent}%)`}
+                </span>
+                <span className="font-semibold text-[var(--rz-navy)]">${serviceFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--rz-gray-500)]">
+                  {language === "en" ? `Tax (${Number(venueData.taxPercentage) || 0}%)` : `Impuesto (${Number(venueData.taxPercentage) || 0}%)`}
+                </span>
+                <span className="font-semibold text-[var(--rz-navy)]">${taxAmount.toFixed(2)}</span>
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      <button
-        type="button"
-        onClick={() => setStep("SERVICE_PICKER")}
-        className="flex items-center gap-3 py-6 w-full text-slate-900 font-black text-xs uppercase tracking-widest border-t border-dashed border-slate-200 hover:text-[#ff5a5f] transition-colors group"
-      >
-        <Plus size={16} className="group-hover:scale-125 transition-transform" /> {t("bookingAddAnotherService") || "Add Another Service"}
-      </button>
+            <div className="my-4 h-px bg-[var(--border-subtle)]" />
 
-      <div className="pt-6 border-t border-slate-100">
-        <div className="flex justify-between items-end mb-2 gap-4 flex-wrap">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            Total: <span className="text-slate-900 font-black ml-1 text-sm">${totalPrice.toFixed(2)}</span>
-            <p className="mt-1 font-semibold normal-case text-slate-500">
-              {t("bookingPayAtVenue")}
+            <div className="flex items-baseline justify-between">
+              <span className="text-[15px] font-black text-[var(--rz-navy)]">Total</span>
+              <span className="text-2xl font-black text-[var(--rz-coral)]">${totalPrice.toFixed(2)}</span>
+            </div>
+
+            <p className="mt-2 text-[12px] font-semibold text-[var(--rz-gray-500)]">
+              {language === "en" ? "Free cancellation up to 60 min before." : "Cancelación gratuita hasta 60 min antes."}
+            </p>
+
+            <div className="mt-4">
+              <DSButton
+                variant="primary"
+                fullWidth
+                size="lg"
+                leftIcon="check"
+                disabled={!canContinue}
+                onClick={() => setStep("CHECKOUT_PREVIEW")}
+              >
+                {t("bookingContinue") || (language === "en" ? "Continue" : "Continuar")}
+              </DSButton>
+            </div>
+            <p className="mt-3 text-center text-[12px] leading-relaxed text-[var(--rz-gray-500)]">
+              {language === "en"
+                ? "You'll pay securely online. Funds are held until your service is completed."
+                : "Pagas de forma segura en línea. Los fondos se retienen hasta completar tu servicio."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setStep("CHECKOUT_PREVIEW")}
-            className="bg-[#ff5a5f] text-white px-10 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-[#ff5a5f]/20 hover:scale-105 active:scale-95 transition-all"
-          >
-            {t("bookingConfirm") || "Continue to Payment"}
-          </button>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderProfessionalDetail = () => {
     if (!selectedProfForDetail) return null;
@@ -887,10 +944,10 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       <div className="animate-in slide-in-from-right-8 duration-500">
         <button
           type="button"
-          onClick={() => setStep("SUMMARY")}
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black text-[10px] uppercase tracking-widest mb-8"
+          onClick={() => setStep("STAFF_LIST")}
+          className="flex items-center gap-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] font-black text-[10px] uppercase tracking-widest mb-8"
         >
-          <ChevronLeft size={16} /> {t("bookingBackSummary")}
+          <ChevronLeft size={16} /> {t("bookingBack")}
         </button>
 
         <div className="flex flex-col items-center text-center">
@@ -905,26 +962,26 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             </div>
           </div>
 
-          <h3 className="text-2xl font-black text-slate-900 mb-1">{p.name}</h3>
-          <p className="text-[#ff5a5f] text-[10px] font-black uppercase tracking-[0.2em] mb-6">{p.role}</p>
+          <h3 className="text-2xl font-black text-[var(--rz-navy)] mb-1">{p.name}</h3>
+          <p className="text-[#ff5757] text-[10px] font-black uppercase tracking-[0.2em] mb-6">{p.role}</p>
 
-          <div className="flex gap-8 mb-10 pb-8 border-b border-slate-100 w-full justify-center">
+          <div className="flex gap-8 mb-10 pb-8 border-b border-[var(--border-subtle)] w-full justify-center">
             <div>
-              <p className="text-lg font-black text-slate-900">{p.rating > 0 ? p.rating.toFixed(1) : "—"}</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Rating</p>
+              <p className="text-lg font-black text-[var(--rz-navy)]">{p.rating > 0 ? p.rating.toFixed(1) : "—"}</p>
+              <p className="text-[9px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">Rating</p>
             </div>
-            <div className="border-x border-slate-100 px-8">
-              <p className="text-lg font-black text-slate-900">{p.reviews > 0 ? `${p.reviews}+` : "—"}</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t("reviews")}</p>
+            <div className="border-x border-[var(--border-subtle)] px-8">
+              <p className="text-lg font-black text-[var(--rz-navy)]">{p.reviews > 0 ? `${p.reviews}+` : "—"}</p>
+              <p className="text-[9px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">{t("reviews")}</p>
             </div>
             <div>
-              <p className="text-lg font-black text-slate-900">—</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t("bookingExperienceYears")}</p>
+              <p className="text-lg font-black text-[var(--rz-navy)]">—</p>
+              <p className="text-[9px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">{t("bookingExperienceYears")}</p>
             </div>
           </div>
 
           <div className="w-full text-left">
-            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-6">
+            <h4 className="text-[10px] font-black text-[var(--rz-navy)] uppercase tracking-[0.2em] mb-6">
               {t("bookingCatalogHeading")}
             </h4>
             <div className="space-y-3">
@@ -933,10 +990,10 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                 .map((s) => (
                   <div
                     key={s.id}
-                    className="flex justify-between items-center p-4 rounded-2xl bg-slate-50 border-2 border-transparent hover:border-[#ff5a5f]/20 transition-all cursor-default"
+                    className="flex justify-between items-center p-4 rounded-2xl bg-[var(--rz-gray-050)] border-2 border-transparent hover:border-[#ff5757]/20 transition-all cursor-default"
                   >
-                    <span className="font-bold text-slate-700 text-sm">{s.name}</span>
-                    <Check size={16} className="text-[#ff5a5f]" />
+                    <span className="font-bold text-[var(--rz-gray-700)] text-sm">{s.name}</span>
+                    <Check size={16} className="text-[#ff5757]" />
                   </div>
                 ))}
             </div>
@@ -944,10 +1001,10 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
 
           <button
             type="button"
-            onClick={() => setStep("SUMMARY")}
-            className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.2em] shadow-2xl mt-12 hover:bg-slate-800 transition-all"
+            onClick={() => setStep("STAFF_LIST")}
+            className="w-full bg-[var(--rz-navy)] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.2em] shadow-2xl mt-12 hover:bg-[var(--rz-navy-800)] transition-all"
           >
-            {t("bookingBackSummary")}
+            {t("bookingBack")}
           </button>
         </div>
       </div>
@@ -959,8 +1016,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     const sid = selectedServices[activeCartIndexForChange]?.id;
     const svc = venueData.services.find((s) => s.id === sid);
     const availableStaff = venueData.team.filter((m) => {
-      const day = dayStrip[selectedDayIndex];
-      return staffOffersService(m, sid) && staffAvailableOnDay(m.availability, day);
+      return staffOffersService(m, sid) && staffAvailableOnDay(m.availability, selectedDay);
     });
 
     return (
@@ -968,17 +1024,17 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         <div className="mb-6">
           <button
             onClick={() => {
-              setStep("SUMMARY");
+              setStep("BUILDER");
               setActiveCartIndexForChange(null);
             }}
-            className="flex items-center gap-2 text-xs font-black text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-widest"
+            className="flex items-center gap-2 text-xs font-black text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] transition-colors uppercase tracking-widest"
           >
             <ChevronLeft size={16} /> {t("bookingBack")}
           </button>
-          <h2 className="text-2xl font-black text-slate-900 mt-4 tracking-tight">
+          <h2 className="text-2xl font-black text-[var(--rz-navy)] mt-4 tracking-tight">
             {t("bookingSelectProfessional")}
           </h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+          <p className="text-xs font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">
             {svc?.name}
           </p>
         </div>
@@ -991,13 +1047,13 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                   key={member.id}
                   onClick={() => {
                     setAssignments((prev) => ({ ...prev, [activeCartIndexForChange!]: member.id }));
-                    setStep("SUMMARY");
+                    setStep("BUILDER");
                     setActiveCartIndexForChange(null);
                   }}
                   className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
                     assignments[activeCartIndexForChange!] === member.id
-                      ? "border-[#ff5a5f] bg-[#ff5a5f]/5 shadow-sm"
-                      : "border-slate-100 bg-white hover:border-slate-200"
+                      ? "border-[#ff5757] bg-[#ff5757]/5 shadow-sm"
+                      : "border-[var(--border-subtle)] bg-white hover:border-[var(--border-default)]"
                   }`}
                 >
                   <div className="flex items-center gap-4">
@@ -1006,18 +1062,18 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                       <div className="absolute -top-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white" />
                     </div>
                     <div>
-                      <p className="font-black text-slate-900 text-sm group-hover:text-[#ff5a5f] transition-colors">
+                      <p className="font-black text-[var(--rz-navy)] text-sm group-hover:text-[#ff5757] transition-colors">
                         {member.name}
                       </p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{member.role}</p>
+                      <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">{member.role}</p>
                       <div className="flex items-center gap-1 mt-1">
                         <Star size={10} className="fill-amber-400 text-amber-400" />
-                        <span className="text-[10px] font-black text-slate-700">{member.rating > 0 ? member.rating : "—"}</span>
+                        <span className="text-[10px] font-black text-[var(--rz-gray-700)]">{member.rating > 0 ? member.rating : "—"}</span>
                       </div>
                     </div>
                   </div>
                   <div
-                    className="p-3 text-slate-300 ml-auto"
+                    className="p-3 text-[var(--rz-gray-300)] ml-auto"
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedProfForDetail(member);
@@ -1030,7 +1086,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
               );
             })
           ) : (
-            <p className="text-slate-400 text-sm font-bold p-4">No staff available for this slot.</p>
+            <p className="text-[var(--rz-gray-500)] text-sm font-bold p-4">No staff available for this slot.</p>
           )}
         </div>
       </div>
@@ -1041,11 +1097,11 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     const storeApi = useVenueBookingCartStore.getState();
     const handleAdd = (sid: string) => {
       if (selectedServiceIds.includes(sid)) {
-        setStep("SCHEDULE");
+        setStep("BUILDER");
         return;
       }
       storeApi.setCart(venueData.id, [...selectedServiceIds, sid]);
-      setStep("SCHEDULE");
+      setStep("BUILDER");
     };
 
     const q = serviceSearch.trim().toLowerCase();
@@ -1058,12 +1114,12 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         <div className="mb-8">
           <button
             type="button"
-            onClick={() => setStep("SCHEDULE")}
-            className="flex items-center gap-2 text-xs font-black text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-widest"
+            onClick={() => setStep("BUILDER")}
+            className="flex items-center gap-2 text-xs font-black text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] transition-colors uppercase tracking-widest"
           >
             <ChevronLeft size={16} /> {t("bookingBack")}
           </button>
-          <h2 className="text-2xl font-black text-slate-900 mt-4 tracking-tight">
+          <h2 className="text-2xl font-black text-[var(--rz-navy)] mt-4 tracking-tight">
             {t("bookingAddAnotherService") || "Add Another Service"}
           </h2>
           <input
@@ -1071,7 +1127,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             value={serviceSearch}
             onChange={(e) => setServiceSearch(e.target.value)}
             placeholder={"Search services…"}
-            className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium focus:border-[#ff5a5f] focus:outline-none"
+            className="mt-4 w-full rounded-xl border border-[var(--border-default)] px-4 py-3 text-sm font-medium focus:border-[#ff5757] focus:outline-none"
           />
         </div>
 
@@ -1080,15 +1136,15 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             <div
               key={s.id}
               onClick={() => handleAdd(s.id)}
-              className="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border-2 border-slate-100 hover:border-[#ff5a5f]/20 hover:bg-white transition-all cursor-pointer group"
+              className="flex items-center justify-between p-5 rounded-3xl bg-[var(--rz-gray-050)] border-2 border-[var(--border-subtle)] hover:border-[#ff5757]/20 hover:bg-white transition-all cursor-pointer group"
             >
               <div>
-                <h4 className="font-black text-slate-900 text-sm group-hover:text-[#ff5a5f] transition-colors">{s.name}</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                <h4 className="font-black text-[var(--rz-navy)] text-sm group-hover:text-[#ff5757] transition-colors">{s.name}</h4>
+                <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">
                   {s.time} • {getServicePrice(s.id, s.price) < s.price ? (
                     <>
                       <span className="line-through mr-1">${Number(s.price).toFixed(2)}</span>
-                      <span className="text-[#ff5a5f] font-black">${Number(getServicePrice(s.id, s.price)).toFixed(2)}</span>
+                      <span className="text-[#ff5757] font-black">${Number(getServicePrice(s.id, s.price)).toFixed(2)}</span>
                     </>
                   ) : (
                     `$${Number(s.price).toFixed(2)}`
@@ -1097,7 +1153,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
               </div>
               <button
                 type="button"
-                className="rounded-xl border-2 border-[#ff5a5f] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"
+                className="rounded-xl border-2 border-[#ff5757] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#ff5757] hover:bg-[#ff5757] hover:text-white transition-all"
               >
                 {selectedServiceIds.includes(s.id) ? ("Added") : ("Add")}
               </button>
@@ -1112,17 +1168,17 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     <div className="animate-in fade-in zoom-in-95 duration-500">
       <button
         type="button"
-        onClick={() => setStep("SUMMARY")}
-        className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black text-[10px] uppercase tracking-widest mb-8"
+        onClick={() => setStep("BUILDER")}
+        className="flex items-center gap-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] font-black text-[10px] uppercase tracking-widest mb-8"
       >
-        <ChevronLeft size={16} /> {t("bookingBackSummary") || "Back to Summary"}
+        <ChevronLeft size={16} /> {t("bookingBack") || "Back"}
       </button>
 
       <div className="mb-6">
-        <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">
+        <h2 className="text-2xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
           {t('checkoutPreview')}
         </h2>
-        <p className="text-slate-400 font-bold text-sm">
+        <p className="text-[var(--rz-gray-500)] font-bold text-sm">
           {"Review your booking details before submitting."}
         </p>
       </div>
@@ -1136,8 +1192,8 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             onClick={() => setCheckoutPayTab(tab.id)}
             className={`flex-1 rounded-xl border-2 py-3 text-[10px] font-black uppercase tracking-widest transition disabled:cursor-not-allowed disabled:opacity-40 ${
               checkoutPayTab === tab.id
-                ? "border-[#ff5a5f] bg-[#ff5a5f]/5 text-[#ff5a5f]"
-                : "border-slate-100 text-slate-400 hover:border-slate-200"
+                ? "border-[#ff5757] bg-[#ff5757]/5 text-[#ff5757]"
+                : "border-[var(--border-subtle)] text-[var(--rz-gray-500)] hover:border-[var(--border-default)]"
             }`}
           >
             {tab.label}
@@ -1150,7 +1206,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         </p>
       ) : null}
       {!autoApproval && checkoutPayTab === "pay_at_venue" ? (
-        <p className="mb-4 text-center text-[10px] font-bold text-slate-500">
+        <p className="mb-4 text-center text-[10px] font-bold text-[var(--rz-gray-500)]">
           Pay when you visit. The venue confirms payment after your appointment.
         </p>
       ) : null}
@@ -1161,7 +1217,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
-      <div className="bg-slate-50 rounded-[32px] border border-slate-100 p-6 sm:p-8 space-y-6">
+      <div className="bg-[var(--rz-gray-050)] rounded-[32px] border border-[var(--border-subtle)] p-6 sm:p-8 space-y-6">
         <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
           {selectedServices.map((svc) => {
             const staffId = assignments[svc.cartIndex];
@@ -1170,24 +1226,24 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             const memberName = memberId ? familyGuests.find(g => g.id === memberId)?.name : t("bookingForMe");
 
             return (
-              <div key={`${svc.id}-${svc.cartIndex}`} className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100/60 shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-100">
+              <div key={`${svc.id}-${svc.cartIndex}`} className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-[var(--border-subtle)] shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="w-12 h-12 rounded-xl bg-[var(--rz-gray-100)] overflow-hidden shrink-0 border border-[var(--border-subtle)]">
                   <img src={prof?.img || ""} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-0.5">
-                    <h4 className="text-[13px] font-black text-slate-900 truncate tracking-tight">{svc.name}</h4>
+                    <h4 className="text-[13px] font-black text-[var(--rz-navy)] truncate tracking-tight">{svc.name}</h4>
                     <div className="flex flex-col items-end">
                       {svc.finalPrice < svc.price && (
-                        <span className="text-[9px] font-bold text-slate-400 line-through tracking-tight">${Number(svc.price).toFixed(2)}</span>
+                        <span className="text-[9px] font-bold text-[var(--rz-gray-500)] line-through tracking-tight">${Number(svc.price).toFixed(2)}</span>
                       )}
-                      <span className="text-[12px] font-black text-[#ff5a5f] ml-2">${Number(svc.finalPrice).toFixed(2)}</span>
+                      <span className="text-[12px] font-black text-[#ff5757] ml-2">${Number(svc.finalPrice).toFixed(2)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-[9px] font-black text-[#ff5a5f] uppercase tracking-wider">{memberName}</p>
-                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{prof?.name || t('anyStaff')}</p>
+                    <p className="text-[9px] font-black text-[#ff5757] uppercase tracking-wider">{memberName}</p>
+                    <span className="w-1 h-1 rounded-full bg-[var(--rz-gray-300)]" />
+                    <p className="text-[9px] font-bold text-[var(--rz-gray-500)] uppercase tracking-wider">{prof?.name || t('anyStaff')}</p>
                   </div>
                 </div>
               </div>
@@ -1195,26 +1251,26 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           })}
         </div>
 
-        <div className="pt-4 border-t-2 border-dashed border-slate-200 space-y-3">
+        <div className="pt-4 border-t-2 border-dashed border-[var(--border-default)] space-y-3">
           <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{"Subtotal"}</span>
-            <span className="text-sm font-black text-slate-600">${subtotal.toFixed(2)}</span>
+            <span className="text-xs font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">{"Subtotal"}</span>
+            <span className="text-sm font-black text-[var(--rz-gray-600)]">${subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            <span className="text-xs font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">
               {`Service Fee (${commissionPercent}%)`}
             </span>
-            <span className="text-sm font-black text-slate-600">${serviceFee.toFixed(2)}</span>
+            <span className="text-sm font-black text-[var(--rz-gray-600)]">${serviceFee.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center pb-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            <span className="text-xs font-bold text-[var(--rz-gray-500)] uppercase tracking-widest">
               {`Tax (${Number(venueData.taxPercentage) || 0}%)`}
             </span>
-            <span className="text-sm font-black text-slate-600">${taxAmount.toFixed(2)}</span>
+            <span className="text-sm font-black text-[var(--rz-gray-600)]">${taxAmount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-            <span className="text-xs font-black text-slate-900 uppercase tracking-widest">{t('totalToPay')}</span>
-            <span className="text-2xl font-black text-[#ff5a5f]">${totalPrice.toFixed(2)}</span>
+          <div className="flex justify-between items-center pt-2 border-t border-[var(--border-subtle)]">
+            <span className="text-xs font-black text-[var(--rz-navy)] uppercase tracking-widest">{t('totalToPay')}</span>
+            <span className="text-2xl font-black text-[#ff5757]">${totalPrice.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -1254,54 +1310,100 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         </div>
       )}
 
-      <button
-        type="button"
+      <DSButton
+        variant="primary"
+        fullWidth
+        size="lg"
+        leftIcon={autoApproval ? "lock" : "check"}
+        loading={isProcessing}
         onClick={() => void submitBookings()}
-        disabled={isProcessing}
-        className="w-full bg-[#ff5a5f] text-white font-black py-5 rounded-[24px] text-xs uppercase tracking-[0.2em] shadow-2xl shadow-[#ff5a5f]/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60"
       >
         {isProcessing
           ? autoApproval
-            ? ("Processing payment...")
-            : ("Submitting...")
+            ? language === "en" ? "Processing payment…" : "Procesando pago…"
+            : language === "en" ? "Submitting…" : "Enviando…"
           : autoApproval
-            ? (`Confirm & Pay $${totalPrice.toFixed(2)}`)
-            : ("Submit Booking Request")}
-      </button>
+            ? `${language === "en" ? "Confirm & pay" : "Confirmar y pagar"} $${totalPrice.toFixed(2)}`
+            : language === "en" ? "Submit booking request" : "Enviar solicitud de reserva"}
+      </DSButton>
+      <p className="mt-3 text-center text-[11px] font-medium leading-relaxed text-[var(--rz-gray-500)]">
+        {language === "en"
+          ? "A temporary hold is placed for the amount. Funds are released to the business only after your service is completed."
+          : "Se realiza una retención temporal por el monto. Los fondos se liberan al negocio solo después de completar tu servicio."}
+      </p>
       </div>
       </div>
     </div>
   );
 
+  const topBack = () => {
+    if (step !== "BUILDER") {
+      setStep("BUILDER");
+      setActiveCartIndexForChange(null);
+    } else {
+      onClose();
+    }
+  };
+
   return (
     <>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-500">
-        <div className="bg-white rounded-[28px] sm:rounded-[40px] w-full max-w-[min(920px,96vw)] max-h-[min(92dvh,900px)] shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
-          <button
-            type="button"
-            onClick={handleCloseAttempt}
-            className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 text-slate-400 hover:text-slate-900 transition p-2 bg-white/90 rounded-2xl border border-slate-100 shadow-sm"
-          >
-            <X size={22} strokeWidth={2.5} />
-          </button>
-
-          <div className="overflow-y-auto flex-1 min-h-0 px-6 sm:px-10 pt-14 pb-8 sm:pb-10 custom-scrollbar">
-            {step === "SCHEDULE" && renderSchedule()}
-            {step === "SUMMARY" && renderSummary()}
-            {step === "STAFF_LIST" && renderStaffList()}
-            {step === "PROFESSIONAL_DETAIL" && renderProfessionalDetail()}
-            {step === "CHECKOUT_PREVIEW" && renderCheckoutPreview()}
-            {step === "SERVICE_PICKER" && renderServicePicker()}
+      <div className="fixed inset-0 z-[100] overflow-y-auto bg-[var(--rz-gray-050)] animate-in fade-in duration-300 custom-scrollbar">
+        <div className="sticky top-0 z-20 border-b border-[var(--border-subtle)] bg-white/90 backdrop-blur">
+          <div className="mx-auto flex max-w-[1140px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <button
+              type="button"
+              onClick={topBack}
+              className="inline-flex items-center gap-2 text-sm font-bold text-[var(--rz-gray-500)] transition hover:text-[var(--rz-navy)]"
+            >
+              <ChevronLeft size={18} /> {language === "en" ? "Back" : "Volver"}
+            </button>
+            <span className="min-w-0 flex-1 truncate text-center text-sm font-black text-[var(--rz-navy)]">
+              {venueData.name || ""}
+            </span>
+            <button
+              type="button"
+              onClick={handleCloseAttempt}
+              aria-label="Close"
+              className="p-2 text-[var(--rz-gray-500)] transition hover:text-[var(--rz-navy)]"
+            >
+              <X size={20} strokeWidth={2.5} />
+            </button>
           </div>
         </div>
+
+        <div className={`mx-auto px-4 py-6 sm:px-6 sm:py-10 ${step === "BUILDER" ? "max-w-[1140px]" : "max-w-[760px]"}`}>
+          {step === "BUILDER" && renderBuilder()}
+          {step === "STAFF_LIST" && renderStaffList()}
+          {step === "PROFESSIONAL_DETAIL" && renderProfessionalDetail()}
+          {step === "CHECKOUT_PREVIEW" && renderCheckoutPreview()}
+          {step === "SERVICE_PICKER" && renderServicePicker()}
+        </div>
       </div>
+
+      <RecipientPicker
+        open={recipientPickerFor !== null}
+        onClose={() => setRecipientPickerFor(null)}
+        people={familyGuests as unknown as { id: string; name: string }[]}
+        value={
+          recipientPickerFor === "all" || recipientPickerFor === null
+            ? "self"
+            : serviceMemberMap[recipientPickerFor] ?? "self"
+        }
+        onChange={(v: string) => applyRecipient(recipientPickerFor, v === "self" ? null : v)}
+        onAddPerson={(p: { name: string; email?: string }) => void handleAddRecipient(p, recipientPickerFor)}
+        selfName={language === "en" ? "For me" : "Para mí"}
+        selfSubtitle={language === "en" ? "Your account" : "Tu cuenta"}
+        title={language === "en" ? "Who is this booking for?" : "¿Para quién es esta reserva?"}
+        subtitle={language === "en" ? "Book for yourself, family or a friend." : "Reserva para ti, un familiar o un amigo."}
+      />
+
 
       {isDiscardModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xl p-4 animate-in fade-in duration-300">
           <div className="bg-white rounded-[40px] p-10 max-w-[450px] w-full text-center shadow-3xl animate-in zoom-in-95 duration-300">
             <div className="mb-8">
-              <h3 className="text-2xl font-black text-slate-900 mb-4">{t("bookingDiscardTitle")}</h3>
-              <p className="text-slate-400 font-bold leading-relaxed px-4">
+              <h3 className="text-2xl font-black text-[var(--rz-navy)] mb-4">{t("bookingDiscardTitle")}</h3>
+              <p className="text-[var(--rz-gray-500)] font-bold leading-relaxed px-4">
                 {t("bookingDiscardBody")}
               </p>
             </div>
@@ -1309,7 +1411,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
               <button
                 type="button"
                 onClick={() => setIsDiscardModalOpen(false)}
-                className="w-full bg-[#ff5a5f] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-[#ff5a5f]/20"
+                className="w-full bg-[#ff5757] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-[#ff5757]/20"
               >
                 {t("bookingContinueBooking")}
               </button>
@@ -1319,7 +1421,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                   setIsDiscardModalOpen(false);
                   onClose();
                 }}
-                className="w-full bg-white text-slate-900 font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.1em] border-2 border-slate-100 hover:bg-slate-50 transition-all"
+                className="w-full bg-white text-[var(--rz-navy)] font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.1em] border-2 border-[var(--border-subtle)] hover:bg-[var(--rz-gray-050)] transition-all"
               >
                 {t("bookingDiscardConfirm")}
               </button>

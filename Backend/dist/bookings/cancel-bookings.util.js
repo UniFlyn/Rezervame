@@ -106,11 +106,25 @@ async function cancelBookingsForCustomer(prisma, userId, bookingIds) {
     }
     const biz = cancellable[0].business;
     if (biz.notifyCancellationEmail && biz.email) {
-        void (0, notification_delivery_service_1.sendEmail)(prisma, biz.email, `[Rezervame] Booking cancelled`, `<p>A customer cancelled ${cancellable.length} booking(s) at ${biz.name}.</p>`);
+        void (0, notification_delivery_service_1.sendPlatformEmail)(prisma, {
+            to: biz.email,
+            template: 'booking-cancelled-business',
+            model: {
+                businessName: biz.name,
+                count: String(cancellable.length),
+            },
+        });
     }
     const userEmail = cancellable[0].user?.email;
     if (userEmail) {
-        void (0, notification_delivery_service_1.sendEmail)(prisma, userEmail, `[Rezervame] Your booking was cancelled`, `<p>Your cancellation at ${biz.name} was processed successfully.</p>`);
+        void (0, notification_delivery_service_1.sendPlatformEmail)(prisma, {
+            to: userEmail,
+            template: 'booking-cancelled-client',
+            model: {
+                businessName: biz.name,
+                customerName: cancellable[0].customerName || cancellable[0].user?.name,
+            },
+        });
     }
     return { cancelled: cancellable.length };
 }

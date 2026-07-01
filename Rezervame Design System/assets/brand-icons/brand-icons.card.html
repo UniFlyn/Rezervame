@@ -1,0 +1,40 @@
+<!-- @dsCard group="Brand" viewport="700x230" name="Payment & Social Logos" subtitle="Real brand marks — Visa/MC/Amex, Yappy" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: #fff; }
+  .row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .lbl { width: 100%; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rz-gray-400); margin: 12px 0 4px; }
+  .chip { display: flex; align-items: center; justify-content: center; height: 44px; min-width: 64px; padding: 0 10px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+  .chip img { display: block; }
+  .soc { width: 40px; height: 40px; border: 1.5px solid var(--rz-coral); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--rz-coral); }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { BrandIcon } = window.RezervameDesignSystem_4317c4;
+    function Demo() {
+      return (
+        <div className="row">
+          <span className="lbl">Métodos de pago</span>
+          <div className="chip"><BrandIcon name="PaymentMethodVisaSize48" size={40} /></div>
+          <div className="chip"><BrandIcon name="PaymentMethodMastercardSize48" size={40} /></div>
+          <div className="chip"><BrandIcon name="PaymentMethodAmexSize48" size={40} /></div>
+          <span className="lbl">Yappy</span>
+          <div className="chip"><img src="../logos/yappy-color.png" alt="Yappy" style={{ height: 36 }} /></div>
+          <div className="chip"><img src="../logos/yappy-icon.png" alt="Yappy icon" style={{ height: 26 }} /></div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

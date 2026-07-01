@@ -2,22 +2,23 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../../components/I18nProvider";
 import {
-  MapPin,
-  Star,
-  Clock,
-  Heart,
-  ChevronLeft,
-  Share2,
-  Info,
-  Check,
-  Phone,
-  Mail,
-  Instagram,
-  Youtube,
-  Twitter,
-  X,
-  Scissors,
-} from "lucide-react";
+  StickyBookingBar,
+  Tabs,
+  Chip,
+  Badge,
+  Rating,
+  Button,
+  IconButton,
+  ServiceCard,
+  StaffCard,
+  BusinessInfoPanel,
+  CategoryCard,
+  PortfolioGallery,
+  Glyph,
+  Modal,
+  Avatar,
+} from "@/ds";
+import { VenueMiniMap } from "@/components/venue/VenueMiniMap";
 import { BookingModal, type BookingModalVenueData } from "../../../components/BookingModal";
 import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from "@/lib/cancellationPolicy";
 import { usePathname, useRouter } from "next/navigation";
@@ -61,6 +62,8 @@ export type VenueState = {
   reviews: number;
   address: string;
   description: string;
+  lat?: number | null;
+  lng?: number | null;
   logoUrl: string;
   bannerUrl: string;
   images: string[];
@@ -119,6 +122,8 @@ function emptyVenue(venueId: string): VenueState {
     reviews: 0,
     address: "",
     description: "",
+    lat: null,
+    lng: null,
     logoUrl: '',
     bannerUrl: '',
     images: [PLACEHOLDER_IMAGE_DATA_URI],
@@ -162,6 +167,25 @@ async function withRetries<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   throw lastErr instanceof Error ? lastErr : new Error("Failed to load venue");
 }
 
+function resolveSocialHref(kind: "instagram" | "tiktok" | "youtube" | "x", raw: string): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  if (v.startsWith("http")) return v;
+  const handle = v.replace(/^@/, "").replace(/^\//, "");
+  switch (kind) {
+    case "instagram":
+      return `https://instagram.com/${handle}`;
+    case "tiktok":
+      return `https://www.tiktok.com/@${handle}`;
+    case "youtube":
+      return `https://youtube.com/${handle}`;
+    case "x":
+      return `https://x.com/${handle}`;
+    default:
+      return v;
+  }
+}
+
 export default function VenueDetailsPage({ businessId }: { businessId: string }) {
   const { t, language } = useI18n();
   const router = useRouter();
@@ -194,6 +218,29 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const [bestsellerMap, setBestsellerMap] = useState<Record<string, number>>({});
   const [promotionServiceIds, setPromotionServiceIds] = useState<Set<string>>(new Set());
   const [promotionData, setPromotionData] = useState<Array<{ serviceId: string; discountPercent: number; label?: string | null }>>([]);
+  const [vw, setVw] = useState<number>(typeof window !== "undefined" ? window.innerWidth : 1280);
+  const [teamExpanded, setTeamExpanded] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<"todas" | "comentario" | "5" | "4" | "3" | "2" | "1">("todas");
+  const [reviewsExpanded, setReviewsExpanded] = useState(false);
+  const [starMenuOpen, setStarMenuOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [toast, setToast] = useState("");
+  const [infoModal, setInfoModal] = useState<{ title: string; body: string } | null>(null);
+  const titleRef = React.useRef<HTMLDivElement | null>(null);
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
+  const toastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2200);
+  };
 
   const { setMeta, clearMeta } = usePageHeaderMeta();
 
@@ -235,6 +282,14 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     applyServiceAdd(serviceId);
   };
 
+  const toggleService = (serviceId: string) => {
+    if (selectedServices.includes(serviceId)) {
+      applyServiceRemove(serviceId);
+    } else {
+      onServiceBookClick(serviceId);
+    }
+  };
+
   const confirmCrossVenueReplace = () => {
     if (!crossVenuePendingServiceId) return;
     const next = [crossVenuePendingServiceId];
@@ -250,7 +305,10 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
       toastInfo(t("venueLoginToBookTitle"), t("venueLoginToBookBody"));
       return;
     }
-    if (selectedServices.length === 0) return;
+    if (selectedServices.length === 0) {
+      showToast(t("venueSelectServiceFirst") || "Selecciona un servicio primero");
+      return;
+    }
     setProfileStaff(null);
     setIsBookingModalOpen(true);
   };
@@ -259,17 +317,27 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     const url = window.location.href;
     const title = venueData.name;
     const text = `${t("venueShareText")} ${venueData.name} ${t("venueShareTextAt")} ${venueData.address}`;
+    const isTouch = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 
-    if (navigator.share) {
+    if (navigator.share && isTouch) {
       try {
         await navigator.share({ title, text, url });
       } catch (err) {
         // Ignored
       }
     } else {
-      await navigator.clipboard.writeText(url);
-      toastInfo(t("venueShareCopiedTitle"), t("venueShareCopiedBody"));
+      setShareOpen((o) => !o);
     }
+  };
+
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+    } catch (err) {
+      // Ignored
+    }
+    setShareOpen(false);
+    showToast(t("venueShareCopiedTitle") || "Enlace copiado");
   };
 
   const handleToggleFavorite = async () => {
@@ -496,6 +564,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           reviews: apiReviews,
           address: String((business as { location?: string }).location ?? ""),
           description: String((business as { description?: string }).description ?? ""),
+          lat: (() => {
+            const raw = (business as { latitude?: unknown; lat?: unknown }).latitude ?? (business as { lat?: unknown }).lat;
+            const n = Number(raw);
+            return Number.isFinite(n) && n !== 0 ? n : null;
+          })(),
+          lng: (() => {
+            const raw = (business as { longitude?: unknown; lng?: unknown }).longitude ?? (business as { lng?: unknown }).lng;
+            const n = Number(raw);
+            return Number.isFinite(n) && n !== 0 ? n : null;
+          })(),
           logoUrl,
           bannerUrl,
           images: imgs,
@@ -648,20 +726,20 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   const serviceFilters = useMemo(() => {
     const filters: Array<{ id: typeof activeServiceFilter; label: string }> = [
-      { id: "all", label: "All" },
+      { id: "all", label: t("venueServiceFilterAll") || "Todos" },
     ];
     const services = VENUE_DATA.services;
     if (services.some((s) => matchesAudience(s.tag, ["mujer", "woman", "women", "female", "femenin"]))) {
-      filters.push({ id: "women", label: "Women" });
+      filters.push({ id: "women", label: t("venueServiceFilterWomen") || "Mujeres" });
     }
     if (services.some((s) => matchesAudience(s.tag, ["hombre", "man", "men", "male", "masculin", "barber"]))) {
-      filters.push({ id: "men", label: "Men" });
+      filters.push({ id: "men", label: t("venueServiceFilterMen") || "Hombres" });
     }
     if (services.some((s) => matchesAudience(s.tag, ["niño", "nino", "kid", "child", "children"]))) {
-      filters.push({ id: "kids", label: "Children" });
+      filters.push({ id: "kids", label: t("venueServiceFilterKids") || "Niños" });
     }
     if (promotionServiceIds.size > 0) {
-      filters.push({ id: "promotions", label: t("venueServiceFilterPromotions") });
+      filters.push({ id: "promotions", label: t("venueServiceFilterPromotions") || "Promociones" });
     }
     return filters;
   }, [VENUE_DATA.services, language, promotionServiceIds, t]);
@@ -691,699 +769,734 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     setServicesExpanded(false);
   }, [activeServiceFilter]);
 
-  const scrollToSection = (tab: typeof activeTab) => {
-    setActiveTab(tab);
-    const el = document.getElementById(`venue-section-${tab}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const goToPortfolio = () => {
+    setActiveTab("portfolio");
+    setTimeout(() => {
+      contentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
   };
 
+  const openDirections = () => {
+    const query = VENUE_DATA.address || VENUE_DATA.name;
+    if (!query) return;
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank");
+  };
+
+  // ---- lightbox keyboard + body-scroll lock ----
+  const lbCount = portfolioImages.length;
+  const lbPrev = React.useCallback(
+    () => setPortfolioLightbox((i) => (i == null ? i : (i - 1 + lbCount) % lbCount)),
+    [lbCount],
+  );
+  const lbNext = React.useCallback(
+    () => setPortfolioLightbox((i) => (i == null ? i : (i + 1) % lbCount)),
+    [lbCount],
+  );
+  useEffect(() => {
+    if (portfolioLightbox == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPortfolioLightbox(null);
+      else if (e.key === "ArrowLeft") lbPrev();
+      else if (e.key === "ArrowRight") lbNext();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [portfolioLightbox, lbPrev, lbNext]);
+
+  // ---- responsive helpers (matching the design system venue layout) ----
+  const PAD = "clamp(24px, 3vw, 44px)";
+  const MAXW = 1760;
+  const stack = vw < 1000;
+  const thumbCols = vw < 640 ? 3 : 6;
+  const teamCols = vw < 560 ? 1 : vw < 880 ? 2 : vw < 1180 ? 3 : 4;
+
+  // ---- info panel derived data ----
+  const todayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
+  const todayHours =
+    VENUE_DATA.schedule.find((s) => s.day.toLowerCase() === todayName.toLowerCase())?.hours || "";
+  const socialsArr = [
+    VENUE_DATA.socials.instagram && { name: "instagram", href: resolveSocialHref("instagram", VENUE_DATA.socials.instagram) },
+    VENUE_DATA.socials.tiktok && { name: "tiktok", href: resolveSocialHref("tiktok", VENUE_DATA.socials.tiktok) },
+    VENUE_DATA.socials.youtube && { name: "youtube", href: resolveSocialHref("youtube", VENUE_DATA.socials.youtube) },
+    VENUE_DATA.socials.x && { name: "x", href: resolveSocialHref("x", VENUE_DATA.socials.x) },
+  ].filter(Boolean) as Array<{ name: string; href: string }>;
+
+  const infoLinks: string[] = [];
+  const infoLinkContent: Array<{ title: string; body: string }> = [];
+  if (VENUE_DATA.cancellationPolicyMessage) {
+    const cancelTitle = t("venueCancellationPolicyTitle") || "Política de pago y cancelación";
+    infoLinks.push(cancelTitle);
+    infoLinkContent.push({ title: cancelTitle, body: VENUE_DATA.cancellationPolicyMessage });
+  }
+
+  // ---- reviews derived data ----
+  const reviewDist: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  reviewRows.forEach((r) => {
+    const k = Math.min(5, Math.max(1, Math.round(r.rating)));
+    reviewDist[k] += 1;
+  });
+  const reviewTotal = VENUE_DATA.reviews || reviewRows.length;
+  const reviewAvg = VENUE_DATA.rating || 0;
+  let filteredReviews = reviewRows;
+  if (["5", "4", "3", "2", "1"].includes(reviewFilter)) {
+    filteredReviews = reviewRows.filter((r) => Math.round(r.rating) === Number(reviewFilter));
+  } else if (reviewFilter === "comentario") {
+    filteredReviews = reviewRows.filter((r) => r.comment && r.comment.trim());
+  }
+  const REVIEWS_LIMIT = 4;
+  const shownReviews = reviewsExpanded ? filteredReviews : filteredReviews.slice(0, REVIEWS_LIMIT);
+
+  const priceFor = (s: VenueService) => {
+    const promo = promotionData.find((p) => p.serviceId === s.id);
+    if (promo) {
+      const discounted = Number(s.price) * (1 - promo.discountPercent / 100);
+      return discounted.toFixed(2);
+    }
+    return Number(s.price).toFixed(2);
+  };
+
+  const SectionHead = ({ title, sub }: { title: string; sub?: string }) => (
+    <div style={{ textAlign: "center", maxWidth: 620, margin: "0 auto 28px" }}>
+      <h2 style={{ fontSize: 30 }}>{title}</h2>
+      {sub && <p style={{ fontSize: 15, color: "var(--rz-gray-500)", marginTop: 10, lineHeight: 1.5 }}>{sub}</p>}
+    </div>
+  );
+
   return (
-    <div className="relative min-h-screen bg-white">
+    <div style={{ background: "var(--surface-card)", position: "relative", minHeight: "100vh" }}>
       {venueLoading ? (
         <div
-          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-white/90 backdrop-blur-sm"
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(255,255,255,0.9)",
+            backdropFilter: "blur(4px)",
+          }}
           aria-busy="true"
           aria-live="polite"
         >
-          <div className="pointer-events-auto">
-            <AppLoader label={t("venueLoading")} variant="section" />
-          </div>
+          <AppLoader label={t("venueLoading")} variant="section" />
         </div>
       ) : null}
 
-      {/* Sticky cart bar — service count + book */}
-      <div
-        className="sticky z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-md sm:px-8"
-        style={{ top: "var(--app-header-height, 4.5rem)" }}
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <a
-            href="/search"
-            aria-label={language === "en" ? "Back to search" : "Volver a búsqueda"}
-            className="relative z-10 shrink-0 rounded-full p-2 transition-colors hover:bg-slate-100"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.href = "/search";
-            }}
-          >
-            <ChevronLeft size={20} className="text-slate-600" />
-          </a>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-extrabold text-slate-900 sm:text-base">{VENUE_DATA.name}</h2>
-            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-[#ff5a5f]">{VENUE_DATA.category}</p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {selectedServices.length > 0 && (
-            <div className="flex items-center gap-2 rounded-xl bg-slate-800 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-lg animate-in fade-in zoom-in duration-300">
-              <Check size={12} className="text-green-400" />
-              {selectedServices.length}{" "}
-              {selectedServices.length === 1 ? t("venueServiceSingular") : t("venueServicePlural")}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={openBookingModal}
-            disabled={selectedServices.length === 0}
-            className={`rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${
-              selectedServices.length > 0
-                ? "bg-[#ff5a5f] text-white shadow-lg shadow-[#ff5a5f]/20 hover:bg-[#e0454a]"
-                : "cursor-not-allowed bg-slate-200 text-slate-400"
-            }`}
-          >
-            {t("venueBookNow")}
-          </button>
-        </div>
-      </div>
-      {VENUE_DATA.cancellationPolicyMessage ? (
-        <p className="mx-auto mt-2 flex max-w-3xl items-center justify-end gap-2 px-4 text-right text-[10px] font-semibold text-slate-500 sm:px-0">
-          <Clock size={14} className="shrink-0 text-[#ff5a5f]" />
-          {VENUE_DATA.cancellationPolicyMessage}
-        </p>
-      ) : null}
+      <StickyBookingBar
+        name={VENUE_DATA.name}
+        location={VENUE_DATA.address}
+        avatar={VENUE_DATA.logoUrl || undefined}
+        watchRef={titleRef}
+        onReserve={openBookingModal}
+        ctaLabel={
+          selectedServices.length > 0
+            ? `${t("venueBookNow")} (${selectedServices.length})`
+            : t("venueBookNow")
+        }
+        style={{ top: "var(--app-header-height, 72px)" }}
+      />
 
-      {/* HERO SECTION */}
-      <section className="relative h-[550px] w-full overflow-hidden">
-          <img 
-            src={heroSrc} 
-            className="w-full h-full object-cover" 
+      <div style={{ maxWidth: MAXW, margin: "0 auto", padding: `28px ${PAD} 0` }}>
+        {/* Gallery */}
+        <div style={{ position: "relative", borderRadius: "var(--radius-lg)", overflow: "hidden", height: "clamp(230px, 36vw, 440px)" }}>
+          <img
+            src={heroSrc}
             alt={VENUE_DATA.name}
-            loading="eager"
-            decoding="async"
-            fetchPriority="high"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
             onError={(e) => {
               const el = e.currentTarget;
               if (el.src.startsWith("data:")) return;
               el.src = PLACEHOLDER_IMAGE_DATA_URI;
             }}
           />
-         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent"></div>
-         {VENUE_DATA.logoUrl ? (
-           <div className="absolute bottom-8 left-6 z-10 sm:bottom-12 sm:left-12">
-             <div className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl border-4 border-white bg-white p-1.5 shadow-2xl sm:h-24 sm:w-24 sm:rounded-3xl">
-               <img
-                 src={VENUE_DATA.logoUrl}
-                 alt={`${VENUE_DATA.name} logo`}
-                 className="h-full w-full rounded-xl object-contain sm:rounded-2xl"
-                 onError={(e) => {
-                   const el = e.currentTarget;
-                   if (el.src.startsWith('data:')) return;
-                   el.src = PLACEHOLDER_IMAGE_DATA_URI;
-                 }}
-               />
-             </div>
-           </div>
-         ) : null}
-         <div className="absolute bottom-8 right-6 z-10 flex justify-end gap-3 sm:bottom-12 sm:right-12">
-             <button onClick={handleShare} className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl hover:scale-110 transition-all text-slate-900"><Share2 size={20} /></button>
-             <button onClick={handleToggleFavorite} className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl hover:scale-110 transition-all text-slate-900">
-               <Heart size={20} className={isFavorite ? "fill-[#ff5a5f] text-[#ff5a5f]" : ""} />
-             </button>
-         </div>
-      </section>
-
-      {/* MAIN CONTENT */}
-      <div className="max-w-[1920px] mx-auto px-6 sm:px-10 lg:px-14 py-16 flex flex-col lg:flex-row gap-12">
-          
-          <main className="flex-1">
-              <div className="flex justify-between items-start mb-8">
-                  <div>
-                      <div className="flex items-center gap-3 mb-4">
-                        <span className="bg-[#ff5a5f]/5 text-[#ff5a5f] text-[10px] font-black px-3 py-1.5 rounded-full border border-[#ff5a5f]/10 uppercase tracking-widest">{t("venueNewOnPlatform")}</span>
-                        <div className="flex gap-1.5 items-center">
-                            <Share2 onClick={handleShare} className="w-5 h-5 text-slate-300 hover:text-[#ff5a5f] cursor-pointer" />
-                            <Heart onClick={handleToggleFavorite} className={`w-5 h-5 cursor-pointer hover:text-[#ff5a5f] ${isFavorite ? "fill-[#ff5a5f] text-[#ff5a5f]" : "text-slate-300"}`} />
-                        </div>
-                      </div>
-                      <h1 className="text-5xl font-black text-slate-900 tracking-tight mb-4">{VENUE_DATA.name}</h1>
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                             <div className="flex gap-1">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                    <Star
-                                      key={i}
-                                      className={`w-4 h-4 ${
-                                        i < Math.round(VENUE_DATA.rating)
-                                          ? "text-amber-400 fill-amber-400"
-                                          : "text-slate-200"
-                                      }`}
-                                    />
-                                ))}
-                             </div>
-                             <span className="text-sm font-black text-slate-900">
-                               {VENUE_DATA.rating > 0 ? VENUE_DATA.rating.toFixed(1) : "—"}
-                             </span>
-                             <span className="text-sm font-bold text-slate-400">
-                               ({VENUE_DATA.reviews} {t("reviews")})
-                             </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-400">
-                             <MapPin size={16} />
-                             <span className="text-sm font-bold">{VENUE_DATA.address}</span>
-                        </div>
-                      </div>
-                  </div>
-              </div>
-
-              <p className="text-slate-600 leading-relaxed font-normal mb-10 max-w-3xl">
-                  {VENUE_DATA.description}
-              </p>
-
-              {/* PORTFOLIO */}
-              {portfolioImages.length > 0 && (
-                <section className="mb-12">
-                  <div className="relative mb-3 overflow-hidden rounded-2xl">
-                    <img
-                      src={portfolioImages[0]}
-                      alt=""
-                      className="h-56 w-full object-cover md:h-72"
-                      onError={(e) => {
-                        const el = e.currentTarget;
-                        if (el.src.startsWith("data:")) return;
-                        el.src = PLACEHOLDER_IMAGE_DATA_URI;
-                      }}
-                    />
-                    {VENUE_DATA.logoUrl ? (
-                      <div className="absolute bottom-4 left-4 flex h-14 w-14 items-center justify-center rounded-xl border-2 border-white bg-white p-1 shadow-lg sm:h-16 sm:w-16">
-                        <img
-                          src={VENUE_DATA.logoUrl}
-                          alt=""
-                          className="h-full w-full rounded-lg object-contain"
-                        />
-                      </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => scrollToSection("portfolio")}
-                      className="absolute bottom-4 right-4 rounded-lg bg-white/95 px-4 py-2 text-xs font-bold text-slate-900 shadow-md hover:bg-white"
-                    >
-                      {"View all photos"}
-                    </button>
-                  </div>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {portfolioImages.slice(1, 6).map((src, i) => (
-                      <button
-                        key={`${src}-${i}`}
-                        type="button"
-                        onClick={() => setPortfolioLightbox(i + 1)}
-                        className="h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-100"
-                      >
-                        <img
-                          src={src}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            const el = e.currentTarget;
-                            if (el.src.startsWith("data:")) return;
-                            el.src = PLACEHOLDER_IMAGE_DATA_URI;
-                          }}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* TABS */}
-              <div
-                className="sticky z-30 mb-10 flex flex-wrap justify-center gap-2 border-b border-slate-100 bg-white pb-4 pt-3"
-                style={{ top: "calc(var(--app-header-height, 4.5rem) + 3.25rem)" }}
+          {portfolioImages.length > 0 && (
+            <div style={{ position: "absolute", right: 18, bottom: 18 }}>
+              <Button
+                variant="dark"
+                size="sm"
+                leftIcon="grid"
+                style={{ background: "rgba(2,30,44,0.78)", backdropFilter: "blur(6px)" }}
+                onClick={goToPortfolio}
               >
-                  {venueTabs.map((tab) => (
-                      <button
-                        type="button"
-                        key={tab.id}
-                        onClick={() => scrollToSection(tab.id)}
-                        className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                      >
-                          {tab.label}
-                      </button>
-                  ))}
+                {t("venueViewAllPhotos") || "Ver todas las fotos"}
+              </Button>
+            </div>
+          )}
+        </div>
+        {portfolioImages.length > 1 && (
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${thumbCols},1fr)`, gap: 12, marginTop: 12 }}>
+            {portfolioImages.slice(0, thumbCols).map((h, i) => (
+              <div
+                key={`${h}-${i}`}
+                style={{ height: vw < 640 ? 96 : 120, borderRadius: "var(--radius-md)", overflow: "hidden", cursor: "pointer" }}
+                onClick={() => setPortfolioLightbox(i)}
+              >
+                <img
+                  src={h}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    if (el.src.startsWith("data:")) return;
+                    el.src = PLACEHOLDER_IMAGE_DATA_URI;
+                  }}
+                />
               </div>
+            ))}
+          </div>
+        )}
 
-              {/* TAB CONTENT: SERVICIOS */}
-              {activeTab === "services" && (
-                <div id="venue-section-services" className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="text-center mb-10">
-                        <h2 className="text-2xl font-extrabold text-slate-900 mb-2">{t('ourServices')}</h2>
-                        <p className="text-slate-500 text-sm font-medium max-w-xl mx-auto">{t("venueServicesBlurb")}</p>
-                    </div>
-
-                    <div className="flex justify-center gap-4 mb-12">
-                        {serviceFilters.map((f) => (
-                            <button 
-                                type="button"
-                                key={f.id}
-                                onClick={() => setActiveServiceFilter(f.id)}
-                                className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${activeServiceFilter === f.id ? 'border-slate-900 bg-slate-900 text-white shadow-xl' : 'border-slate-100 text-slate-400 hover:border-slate-300'}`}
-                            >
-                                {f.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="mx-auto flex max-w-3xl flex-col gap-3">
-                        {visibleServices.map(s => {
-                          const promo = promotionData.find(p => p.serviceId === s.id);
-                          const discountedPrice = promo ? s.price * (1 - promo.discountPercent / 100) : null;
-                          const isBestseller = !promo && (bestsellerMap[s.id] ?? 0) > 0;
-                          const promoLabel = promo?.label?.trim() || (promo ? `${promo.discountPercent}% off` : null);
-                          return (
-                            <div
-                              key={s.id}
-                              className={`group flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5 transition ${
-                                promo
-                                  ? "border-[#ff5a5f]/20 bg-gradient-to-r from-rose-50/90 via-white to-white hover:border-[#ff5a5f]/35"
-                                  : "border-slate-100 bg-white hover:border-[#ff5a5f]/40"
-                              }`}
-                            >
-                                <div className="flex min-w-0 flex-1 items-center gap-4">
-                                    <div className={`h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 transition-colors ${
-                                      promo ? "border-[#ff5a5f]/25" : "border-slate-100 group-hover:border-[#ff5a5f]/30"
-                                    }`}>
-                                        {s.image ? (
-                                            <img src={s.image} alt={s.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                        ) : (
-                                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#ff5a5f]/10 to-[#ff5a5f]/5">
-                                                <Scissors size={20} className="text-[#ff5a5f]/50" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <h4 className="truncate text-sm font-extrabold text-slate-900 group-hover:text-[#ff5a5f]">{s.name}</h4>
-                                          {promoLabel ? (
-                                            <span className="shrink-0 rounded-md border border-[#ff5a5f]/20 bg-[#ff5a5f]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#ff5a5f]">
-                                              {promoLabel}
-                                            </span>
-                                          ) : null}
-                                          {isBestseller ? (
-                                            <span className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
-                                              Popular
-                                            </span>
-                                          ) : null}
-                                        </div>
-                                        <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{s.description}</p>
-                                        <p className="mt-1 text-[10px] font-semibold text-slate-400">{s.time} · Next: {getNextAvailableSlotLabel(VENUE_DATA.schedule, VENUE_DATA.team, s.id)}</p>
-                                    </div>
-                                </div>
-                                    <div className="flex shrink-0 flex-col items-end gap-2.5 pl-2">
-                                    <div className="text-right leading-tight">
-                                      {discountedPrice !== null && promo ? (
-                                        <>
-                                          <p className="text-lg font-extrabold tabular-nums text-[#ff5a5f]">${discountedPrice.toFixed(2)}</p>
-                                          <p className="text-xs font-medium tabular-nums text-slate-400 line-through">${Number(s.price).toFixed(2)}</p>
-                                          <p className="mt-0.5 text-[10px] font-semibold text-emerald-600">
-                                            {language === "en" ? "You save" : "Ahorras"} {promo.discountPercent}%
-                                          </p>
-                                        </>
-                                      ) : (
-                                        <p className="text-lg font-extrabold tabular-nums text-slate-900">${Number(s.price).toFixed(2)}</p>
-                                      )}
-                                    </div>
-                                    {selectedServices.filter((id) => id === s.id).length > 0 ? (
-                                      <div className="flex items-center gap-1 rounded-xl bg-slate-900 p-1 shadow-lg shadow-slate-900/20 animate-in fade-in zoom-in duration-300">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            applyServiceRemove(s.id);
-                                          }}
-                                          className="flex h-8 w-8 items-center justify-center rounded-lg text-lg font-black text-white transition-colors hover:bg-slate-800"
-                                          aria-label="Remove one"
-                                        >
-                                          -
-                                        </button>
-                                        <span className="w-5 select-none text-center text-[11px] font-black text-white">
-                                          {selectedServices.filter((id) => id === s.id).length}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onServiceBookClick(s.id);
-                                          }}
-                                          className="flex h-8 w-8 items-center justify-center rounded-lg text-lg font-black text-white transition-colors hover:bg-slate-800"
-                                          aria-label="Add one more"
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onServiceBookClick(s.id);
-                                        }}
-                                        className="rounded-lg border-2 border-[#ff5a5f] px-4 py-2 text-xs font-bold text-[#ff5a5f] transition hover:bg-[#ff5a5f] hover:text-white"
-                                      >
-                                        {t("bookBtn")}
-                                      </button>
-                                    )}
-                                </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-
-                    {hasMoreServices && !servicesExpanded ? (
-                      <div className="mt-16 text-center">
+        {/* Title + content / sidebar */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: stack ? "1fr" : "minmax(0,1fr) clamp(340px, 24vw, 400px)",
+            gap: stack ? 28 : "clamp(32px, 2.6vw, 48px)",
+            marginTop: 36,
+            alignItems: "start",
+          }}
+        >
+          <div>
+            <div ref={titleRef} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div>
+                <h1 style={{ fontSize: "clamp(28px, 4vw, 38px)" }}>{VENUE_DATA.name}</h1>
+                <div style={{ marginTop: 10 }}>
+                  <Rating value={reviewAvg} count={VENUE_DATA.reviews} />
+                </div>
+                {VENUE_DATA.address && (
+                  <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--rz-gray-500)", marginTop: 10 }}>
+                    <Glyph name="mapPin" size={15} /> {VENUE_DATA.address}
+                  </p>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {VENUE_DATA.reviews === 0 && (
+                  <Badge tone="coral" uppercase={false}>{t("venueNewOnPlatform")}</Badge>
+                )}
+                <IconButton
+                  variant="outlineNeutral"
+                  round
+                  label={isFavorite ? t("venueFavRemovedTitle") : t("venueFavAddedTitle")}
+                  icon={<Glyph name="heart" size={20} filled={isFavorite} style={{ color: isFavorite ? "var(--rz-coral)" : undefined }} />}
+                  onClick={handleToggleFavorite}
+                />
+                <div style={{ position: "relative" }}>
+                  <IconButton icon="share" variant="outlineNeutral" round label={t("venueShareText")} onClick={handleShare} />
+                  {shareOpen && (
+                    <>
+                      <div onClick={() => setShareOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 8px)",
+                          right: 0,
+                          zIndex: 61,
+                          width: 232,
+                          background: "var(--surface-card)",
+                          border: "1px solid var(--border-subtle)",
+                          borderRadius: "var(--radius-md)",
+                          boxShadow: "var(--shadow-lg)",
+                          padding: 6,
+                        }}
+                      >
                         <button
-                          type="button"
-                          onClick={() => setServicesExpanded(true)}
-                          className="group mx-auto flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.3em] text-slate-900 transition-colors hover:text-[#ff5a5f]"
+                          onClick={copyShareLink}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 11,
+                            width: "100%",
+                            padding: "10px 11px",
+                            border: "none",
+                            background: "transparent",
+                            borderRadius: "var(--radius-sm)",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            fontFamily: "var(--font-sans)",
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: "var(--rz-gray-700)",
+                          }}
                         >
-                          {t("venueSeeMorePlus")}{" "}
-                          <span className="text-2xl transition-transform group-hover:translate-x-2">+</span>
+                          <Glyph name="link" size={17} style={{ color: "var(--rz-coral)", flex: "none" }} />
+                          {t("venueCopyLink") || "Copiar enlace"}
                         </button>
                       </div>
-                    ) : null}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            {VENUE_DATA.description && (
+              <p style={{ fontSize: 15, color: "var(--rz-gray-700)", lineHeight: 1.6, marginTop: 18, maxWidth: 680 }}>
+                {VENUE_DATA.description}
+              </p>
+            )}
+
+            <div ref={contentRef} style={{ scrollMarginTop: 90 }}>
+              <div style={{ display: "flex", justifyContent: "center", marginTop: 30, marginBottom: 36 }}>
+                <Tabs
+                  value={activeTab}
+                  onChange={(v: typeof activeTab) => {
+                    setActiveTab(v);
+                    if (v === "portfolio") {
+                      setTimeout(() => contentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+                    }
+                  }}
+                  items={venueTabs.map((tb) => ({ label: tb.label, value: tb.id }))}
+                />
+              </div>
+
+              {activeTab === "services" && (
+                <div id="venue-section-services">
+                  <SectionHead title={t("ourServices")} sub={t("venueServicesBlurb")} />
+                  {serviceFilters.length > 1 && (
+                    <div style={{ display: "flex", justifyContent: "center", gap: 20, flexWrap: "wrap", marginBottom: 28 }}>
+                      {serviceFilters.map((f) => (
+                        <Chip key={f.id} active={activeServiceFilter === f.id} onClick={() => setActiveServiceFilter(f.id)} style={{ padding: "0 24px" }}>
+                          {f.label}
+                        </Chip>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {visibleServices.map((s) => {
+                      const selected = selectedServices.includes(s.id);
+                      return (
+                        <ServiceCard
+                          key={s.id}
+                          name={s.name}
+                          description={s.description}
+                          duration={s.time}
+                          price={priceFor(s)}
+                          selected={selected}
+                          actionLabel={selected ? t("venueAddedToBooking") : t("bookBtn")}
+                          onAction={() => toggleService(s.id)}
+                        />
+                      );
+                    })}
+                    {visibleServices.length === 0 && (
+                      <p style={{ textAlign: "center", padding: "32px 0", color: "var(--rz-gray-500)", fontSize: 14 }}>
+                        {t("venueNoServices") || "No hay servicios disponibles."}
+                      </p>
+                    )}
+                  </div>
+                  {hasMoreServices && (
+                    <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setServicesExpanded((e) => !e)}
+                        rightIcon={<Glyph name="chevronDown" size={16} style={{ transform: servicesExpanded ? "rotate(180deg)" : "none", transition: "transform var(--dur-base)" }} />}
+                      >
+                        {servicesExpanded ? (t("venueSeeLess") || "Ver menos") : `${t("venueSeeMore") || "Ver más"} (${filteredServices.length - SERVICES_PREVIEW_LIMIT})`}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* TAB CONTENT: PORTFOLIO */}
-              {activeTab === "portfolio" && portfolioImages.length > 0 && (
-                <div id="venue-section-portfolio" className="animate-in fade-in duration-500">
-                  <h2 className="mb-6 text-center text-2xl font-extrabold text-slate-900">
-                    {"Portfolio"}
-                  </h2>
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    {portfolioImages.map((src, i) => (
-                      <button
-                        key={`${src}-grid-${i}`}
-                        type="button"
-                        onClick={() => setPortfolioLightbox(i)}
-                        className="aspect-[4/3] overflow-hidden rounded-xl border border-slate-100"
-                      >
-                        <img
-                          src={src}
-                          alt=""
-                          className="h-full w-full object-cover transition hover:scale-105"
-                          onError={(e) => {
-                            const el = e.currentTarget;
-                            if (el.src.startsWith("data:")) return;
-                            el.src = PLACEHOLDER_IMAGE_DATA_URI;
-                          }}
+              {activeTab === "team" && (
+                <div id="venue-section-team">
+                  <SectionHead title={t("venueTeamSectionTitle")} sub={t("venueTeamIntro")} />
+                  {VENUE_DATA.team.length === 0 ? (
+                    <p style={{ textAlign: "center", padding: "32px 0", color: "var(--rz-gray-500)", fontSize: 14 }}>
+                      {t("venueNoTeam") || "No hay profesionales listados."}
+                    </p>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${teamCols},1fr)`, gap: 16 }}>
+                      {(teamExpanded ? VENUE_DATA.team : VENUE_DATA.team.slice(0, teamCols)).map((m) => (
+                        <StaffCard
+                          key={m.id}
+                          compact
+                          photo={m.img}
+                          name={m.name}
+                          role={m.role}
+                          rating={m.rating || undefined}
+                          reviews={m.reviews}
+                          bio={m.bio && m.bio !== "—" ? m.bio : undefined}
+                          stats={[
+                            { icon: "clock", value: m.years, label: t("venueStaffExp") },
+                            { icon: "users", value: m.clients, label: t("venueStaffClientsLabel") },
+                            { icon: "star", value: m.reviews, label: t("reviews") },
+                          ]}
+                          actionLabel={t("venueViewProfile")}
+                          onAction={() => setProfileStaff(m)}
                         />
-                      </button>
+                      ))}
+                    </div>
+                  )}
+                  {VENUE_DATA.team.length > teamCols && (
+                    <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setTeamExpanded((e) => !e)}
+                        rightIcon={<Glyph name="chevronDown" size={16} style={{ transform: teamExpanded ? "rotate(180deg)" : "none", transition: "transform var(--dur-base)" }} />}
+                      >
+                        {teamExpanded ? (t("venueSeeLess") || "Ver menos") : `${t("venueSeeMore") || "Ver más"} (${VENUE_DATA.team.length - teamCols})`}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "portfolio" && (
+                <div id="venue-section-portfolio">
+                  <SectionHead title="Portfolio" sub={t("venuePortfolioBlurb") || "Explora una galería de trabajos reales realizados por el negocio."} />
+                  {portfolioImages.length === 0 ? (
+                    <p style={{ textAlign: "center", padding: "32px 0", color: "var(--rz-gray-500)", fontSize: 14 }}>
+                      {t("venueNoPortfolio") || "No hay fotos disponibles."}
+                    </p>
+                  ) : (
+                    <PortfolioGallery
+                      columns={vw < 560 ? 2 : vw < 980 ? 3 : 4}
+                      images={portfolioImages.map((src) => ({ src }))}
+                      onOpen={(_img: unknown, i: number) => setPortfolioLightbox(i)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {activeTab === "reviews" && (
+                <div id="venue-section-reviews">
+                  <SectionHead title={t("venueReviewsCustomerTitle")} sub={t("venueReviewsBlurb") || "Conoce la experiencia de otros clientes antes de reservar."} />
+
+                  <div
+                    style={{
+                      maxWidth: 600,
+                      background: "var(--rz-gray-050)",
+                      border: "1px solid var(--border-subtle)",
+                      borderRadius: "var(--radius-lg)",
+                      padding: "clamp(18px,2.2vw,24px) clamp(20px,2.6vw,28px)",
+                      marginBottom: 24,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: "clamp(20px,3vw,32px)",
+                    }}
+                  >
+                    <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontFamily: "var(--font-sans)", fontSize: 44, fontWeight: 700, color: "var(--rz-navy)", lineHeight: 1, letterSpacing: "-0.5px" }}>
+                        {reviewAvg > 0 ? reviewAvg.toFixed(1) : "—"}
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
+                          {[0, 1, 2, 3, 4].map((i) => (
+                            <Glyph key={i} name="star" size={15} filled style={{ color: i < Math.round(reviewAvg) ? "var(--rz-gold)" : "var(--rz-gray-200)" }} />
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--rz-gray-600)", fontWeight: 600 }}>{reviewTotal} {t("reviews")}</div>
+                      </div>
+                    </div>
+                    <div style={{ alignSelf: "stretch", width: 1, background: "var(--border-subtle)" }} />
+                    <div style={{ flex: "1 1 260px", display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[5, 4, 3, 2, 1].map((star) => {
+                        const base = reviewRows.length || 1;
+                        const pct = Math.round((reviewDist[star] / base) * 100);
+                        return (
+                          <div key={star} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, width: 22, flex: "none", fontSize: 12, fontWeight: 600, color: "var(--rz-gray-700)" }}>
+                              {star}
+                              <Glyph name="star" size={11} filled style={{ color: "var(--rz-gold)" }} />
+                            </span>
+                            <div style={{ flex: 1, height: 6, background: "var(--rz-gray-200)", borderRadius: "var(--radius-pill)", overflow: "hidden" }}>
+                              <div style={{ width: `${pct}%`, height: "100%", background: "var(--rz-gold)", borderRadius: "var(--radius-pill)", transition: "width var(--dur-slow) var(--ease-out)" }} />
+                            </div>
+                            <span style={{ width: 32, flex: "none", textAlign: "right", fontSize: 11, fontWeight: 600, color: "var(--rz-gray-500)", fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 24 }}>
+                    {[
+                      { key: "todas" as const, label: t("venueReviewFilterAll") || "Todas" },
+                      { key: "comentario" as const, label: t("venueReviewFilterComment") || "Con comentario" },
+                    ].map((f) => (
+                      <Chip key={f.key} active={reviewFilter === f.key} uppercase={false} onClick={() => { setReviewFilter(f.key); setStarMenuOpen(false); }}>
+                        {f.label}
+                      </Chip>
+                    ))}
+                    {(() => {
+                      const STAR_OPTS = [
+                        { label: `5 ${t("stars") || "estrellas"}`, value: "5" as const },
+                        { label: `4 ${t("stars") || "estrellas"}`, value: "4" as const },
+                        { label: `3 ${t("stars") || "estrellas"}`, value: "3" as const },
+                        { label: `2 ${t("stars") || "estrellas"}`, value: "2" as const },
+                        { label: `1 ${t("star") || "estrella"}`, value: "1" as const },
+                      ];
+                      const isStar = ["5", "4", "3", "2", "1"].includes(reviewFilter);
+                      const current = STAR_OPTS.find((o) => o.value === reviewFilter);
+                      return (
+                        <div style={{ position: "relative" }}>
+                          <button
+                            onClick={() => setStarMenuOpen((o) => !o)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 7,
+                              height: 40,
+                              padding: "0 16px",
+                              fontFamily: "var(--font-sans)",
+                              fontSize: 13,
+                              fontWeight: 600,
+                              letterSpacing: "var(--ls-tight)",
+                              borderRadius: "var(--radius-pill)",
+                              cursor: "pointer",
+                              background: isStar ? "var(--rz-navy)" : "var(--surface-card)",
+                              color: isStar ? "#fff" : "var(--rz-gray-700)",
+                              border: isStar ? "1.5px solid var(--rz-navy)" : "1.5px solid var(--border-default)",
+                              transition: "all var(--dur-base)",
+                            }}
+                          >
+                            <Glyph name="star" size={14} filled style={{ color: isStar ? "var(--rz-gold)" : "var(--rz-gray-400)" }} />
+                            {current ? current.label : (t("venueReviewFilterStars") || "Filtrar por estrellas")}
+                            <Glyph name="chevronDown" size={15} style={{ transform: starMenuOpen ? "rotate(180deg)" : "none", transition: "transform var(--dur-base)", opacity: 0.85 }} />
+                          </button>
+                          {starMenuOpen && (
+                            <>
+                              <div onClick={() => setStarMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: "calc(100% + 6px)",
+                                  left: 0,
+                                  zIndex: 30,
+                                  minWidth: 170,
+                                  background: "var(--surface-card)",
+                                  border: "1px solid var(--border-subtle)",
+                                  borderRadius: "var(--radius-md)",
+                                  boxShadow: "var(--shadow-md)",
+                                  padding: 6,
+                                }}
+                              >
+                                {STAR_OPTS.map((o) => (
+                                  <button
+                                    key={o.value}
+                                    onClick={() => { setReviewFilter(o.value); setStarMenuOpen(false); }}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      gap: 10,
+                                      width: "100%",
+                                      padding: "9px 12px",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      textAlign: "left",
+                                      background: o.value === reviewFilter ? "var(--rz-coral-050)" : "transparent",
+                                      borderRadius: "var(--radius-sm)",
+                                      fontFamily: "var(--font-sans)",
+                                      fontSize: 14,
+                                      color: o.value === reviewFilter ? "var(--rz-coral-700)" : "var(--rz-gray-700)",
+                                      fontWeight: o.value === reviewFilter ? 600 : 400,
+                                    }}
+                                  >
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                      <Glyph name="star" size={13} filled style={{ color: "var(--rz-gold)" }} />
+                                      {o.label}
+                                    </span>
+                                    {o.value === reviewFilter && <Glyph name="check" size={15} />}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {shownReviews.map((r) => (
+                      <div
+                        key={r.id}
+                        style={{
+                          background: "var(--surface-card)",
+                          border: "1px solid var(--border-subtle)",
+                          borderRadius: "var(--radius-lg)",
+                          padding: "clamp(18px,2.4vw,24px)",
+                          boxShadow: "var(--shadow-xs)",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                          <Avatar name={r.customerName} size={48} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                              <div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--rz-navy)" }}>{r.customerName}</div>
+                                {r.date && <div style={{ fontSize: 13, color: "var(--rz-gray-500)", marginTop: 2 }}>{r.date}</div>}
+                              </div>
+                              <div style={{ display: "inline-flex", gap: 2, flex: "none" }}>
+                                {[0, 1, 2, 3, 4].map((i) => (
+                                  <Glyph key={i} name="star" size={15} filled style={{ color: i < r.rating ? "var(--rz-gold)" : "var(--rz-gray-200)" }} />
+                                ))}
+                              </div>
+                            </div>
+                            {r.comment && r.comment.trim() && (
+                              <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--rz-gray-700)", marginTop: 12 }}>{r.comment}</p>
+                            )}
+                            {r.reply && r.reply.trim() && (
+                              <div
+                                style={{
+                                  marginTop: 14,
+                                  padding: "12px 16px",
+                                  background: "var(--rz-gray-050)",
+                                  borderLeft: "3px solid var(--rz-coral)",
+                                  borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
+                                }}
+                              >
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--rz-navy)", letterSpacing: "var(--ls-wide)", textTransform: "uppercase" }}>
+                                  <Glyph name="shield" size={13} style={{ color: "var(--rz-coral)" }} />
+                                  {t("venueReviewReplyLabel") || "Respuesta del negocio"}
+                                </div>
+                                <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--rz-gray-600)", marginTop: 6 }}>{r.reply}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </div>
-              )}
 
-              {/* TAB CONTENT: EQUIPO */}
-              {activeTab === "team" && (
-                <div id="venue-section-team" className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="text-center mb-10">
-                        <h2 className="text-2xl font-extrabold text-slate-900 mb-2">{t("venueTeamSectionTitle")}</h2>
-                        <p className="text-slate-500 text-sm font-medium max-w-xl mx-auto">{t("venueTeamIntro")}</p>
+                  {filteredReviews.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "40px 0", color: "var(--rz-gray-500)", fontSize: 14 }}>
+                      {t("venueReviewsNone")}
                     </div>
+                  )}
 
-                    <div className="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory">
-                        {VENUE_DATA.team.map((member) => (
-                            <div
-                              key={member.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => setProfileStaff(member)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  setProfileStaff(member);
-                                }
-                              }}
-                              className="group w-[280px] shrink-0 snap-start bg-white rounded-2xl border border-slate-100 overflow-hidden hover:border-[#ff5a5f]/20 hover:shadow-lg transition-all duration-300 flex flex-col cursor-pointer text-left"
-                            >
-                                <div className="relative h-44 overflow-hidden rounded-t-2xl">
-                                    <img 
-                                      src={member.img} 
-                                      className="w-full h-full object-cover group-hover:scale-105 transition duration-700" 
-                                      alt={member.name}
-                                    />
-                                    <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/95 px-2.5 py-1 rounded-lg text-[11px] font-black text-slate-900 shadow-sm border border-slate-100">
-                                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                        {member.rating > 0 ? member.rating.toFixed(1) : "—"}
-                                    </div>
-                                </div>
-                                <div className="p-5 text-left flex flex-col flex-1">
-                                    <h4 className="text-lg font-extrabold text-slate-900 mb-1 group-hover:text-[#ff5a5f] transition-colors">{member.name}</h4>
-                                    <p className="text-[#ff5a5f] text-xs font-bold uppercase tracking-wide mb-2 line-clamp-2">{member.role}</p>
-                                    <p className="text-slate-600 text-sm leading-snug mb-4 flex-1 line-clamp-3">
-                                      {member.bio?.trim() && member.bio.trim() !== "—"
-                                        ? member.bio
-                                        : t("venueStaffProfileNoBio")}
-                                    </p>
-                                    <div className="flex gap-4 text-xs font-semibold text-slate-600 border-t border-slate-100 pt-3">
-                                        <span>{member.years} {t("venueStaffExp")}</span>
-                                        <span className="text-slate-300">|</span>
-                                        <span>{member.clients} {t("venueStaffClientsLabel")}</span>
-                                        <span className="text-slate-300">|</span>
-                                        <span>{member.reviews} {t("reviews")}</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setProfileStaff(member);
-                                      }}
-                                      className="mt-4 w-full py-3 rounded-xl border-2 border-slate-900 text-xs font-bold uppercase tracking-wide text-slate-900 hover:bg-slate-900 hover:text-white transition-colors"
-                                    >
-                                      {t("venueViewProfile")}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-              )}
-
-              {/* TAB CONTENT: RESEÑAS */}
-              {activeTab === "reviews" && (
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="flex justify-between items-center mb-12">
-                        <div>
-                            <h2 className="text-3xl font-black text-slate-900 mb-2">{t("venueReviewsCustomerTitle")}</h2>
-                            <div className="flex items-center gap-4">
-                                <div className="flex gap-1">
-                                    {Array.from({ length: 5 }).map((_, i) => (
-                                        <Star
-                                          key={i}
-                                          className={`w-5 h-5 ${
-                                            i < Math.round(VENUE_DATA.rating)
-                                              ? "text-amber-400 fill-amber-400"
-                                              : "text-slate-200"
-                                          }`}
-                                        />
-                                    ))}
-                                </div>
-                                <span className="text-lg font-black text-slate-900">
-                                  {VENUE_DATA.rating > 0 ? `${VENUE_DATA.rating.toFixed(1)} / 5.0` : "— / 5.0"}
-                                </span>
-                                <span className="text-sm font-bold text-slate-400">
-                                  {t("venueReviewsBasedOn")} {VENUE_DATA.reviews} {t("reviews")}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-8">
-                        {reviewRows.length === 0 ? (
-                          <p className="text-center text-sm font-semibold text-slate-500 py-8">
-                            {t("venueReviewsNone")}
-                          </p>
-                        ) : (
-                        reviewRows.map((rev) => (
-                            <div key={rev.id} className="bg-white p-8 rounded-[32px] border-2 border-slate-50 hover:shadow-xl transition-all duration-500">
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-[#ff5a5f]/10 text-[#ff5a5f] rounded-full flex items-center justify-center font-black text-sm">{rev.initials}</div>
-                                        <div>
-                                            <h4 className="font-black text-slate-900 tracking-tight">{rev.customerName}</h4>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{rev.date}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-0.5">
-                                        {Array.from({ length: Math.min(5, Math.max(0, rev.rating)) }).map((_, i) => (
-                                            <Star key={i} className="w-3 h-3 text-amber-400 fill-amber-400" />
-                                        ))}
-                                    </div>
-                                </div>
-                                {rev.comment && rev.comment.trim() && (
-                                  <p className="text-slate-600 font-medium leading-relaxed italic border-l-4 border-[#ff5a5f]/20 pl-6">&ldquo;{rev.comment}&rdquo;</p>
-                                )}
-                                {rev.reply && rev.reply.trim() && (
-                                  <div className="mt-6 ml-6 p-5 bg-slate-50 rounded-2xl border-l-4 border-slate-900 relative">
-                                    <div className="absolute -top-3 left-4 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded">
-                                      {t("venueReviewReplyLabel") || "Barber's Response"}
-                                    </div>
-                                    <p className="text-slate-700 text-sm font-semibold leading-relaxed">
-                                      {rev.reply}
-                                    </p>
-                                  </div>
-                                )}
-                            </div>
-                        ))
-                        )}
-                    </div>
-                </div>
-              )}
-
-              {/* TAB CONTENT: AMENIDADES */}
-              {activeTab === "amenities" && (
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-black text-slate-900 mb-4">{t("venueAmenitiesSectionTitle")}</h2>
-                        <p className="text-slate-400 text-sm font-bold max-w-xl mx-auto uppercase tracking-tighter">{t("venueAmenitiesBlurb")}</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                        {VENUE_DATA.amenities.length === 0 ? (
-                          <p className="col-span-full text-center text-sm text-slate-500 py-6">{t("venueNoAmenitiesListed")}</p>
-                        ) : (
-                        VENUE_DATA.amenities.map((amenity, i) => {
-                          const Icon = amenityLucideIcon(amenity.key);
-                          return (
-                            <div key={`${amenity.key}-${i}`} className="group bg-white p-4 rounded-xl border border-slate-100 hover:border-[#ff5a5f]/25 hover:shadow-md transition-all duration-300 text-center">
-                                <div className="w-11 h-11 bg-slate-50 rounded-xl flex items-center justify-center mx-auto mb-3 text-slate-700 group-hover:bg-[#ff5a5f]/10 group-hover:text-[#ff5a5f] transition-colors">
-                                    <Icon className="w-5 h-5" strokeWidth={1.75} />
-                                </div>
-                                <h4 className="font-black text-slate-900 text-xs mb-1 tracking-wide">{amenity.name}</h4>
-                                <p className="text-[10px] font-medium text-slate-500 leading-snug tracking-normal">{amenity.desc}</p>
-                            </div>
-                          );
-                        })
-                        )}
-                    </div>
-                </div>
-              )}
-          </main>
-
-          {/* SIDEBAR — unified map + info */}
-          <aside className="w-full lg:w-[400px] lg:sticky lg:top-24 lg:self-start">
-               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
-               <div className="flex min-h-[200px] flex-col items-center justify-center bg-slate-50 p-6 text-center border-b border-slate-100">
-                    <MapPin className="text-[#ff5a5f] mb-3" size={32} />
-                    <p className="text-sm font-bold text-slate-800">{VENUE_DATA.name}</p>
-                    <p className="mt-1 text-xs font-medium text-slate-500">{VENUE_DATA.address || t("venueLocationMissing")}</p>
-                    {VENUE_DATA.address ? (
-                      <a
-                        href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(VENUE_DATA.address)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-4 rounded-lg bg-[#ff5a5f] px-5 py-2 text-xs font-bold text-white hover:bg-[#e0454a]"
+                  {filteredReviews.length > REVIEWS_LIMIT && (
+                    <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setReviewsExpanded((e) => !e)}
+                        rightIcon={<Glyph name="chevronDown" size={16} style={{ transform: reviewsExpanded ? "rotate(180deg)" : "none", transition: "transform var(--dur-base)" }} />}
                       >
-                        {t("venueMapOpen")}
-                      </a>
-                    ) : null}
-               </div>
+                        {reviewsExpanded ? (t("venueSeeLess") || "Ver menos") : `${t("venueSeeMore") || "Ver más"} (${filteredReviews.length - REVIEWS_LIMIT})`}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
-               <div className="p-6">
-                   <h3 className="text-sm font-extrabold text-slate-900 mb-1">{"About us"}</h3>
-                   <p className="text-xs text-slate-600 leading-relaxed mb-5 line-clamp-4">{VENUE_DATA.description || "—"}</p>
-                   <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3 flex items-center gap-2">
-                       <Info size={16} className="text-[#ff5a5f]" />
-                       {t("venueInfoHeading")}
-                   </h3>
-                   
-                   <VenueDetailSections sections={VENUE_DATA.venueDetailSections ?? []} />
-                   <div className="space-y-5">
-                       <div>
-                           <p className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-wide mb-2">{t("venueHoursHeading")}</p>
-                           {VENUE_DATA.schedule.length === 0 ? (
-                             <p className="text-[13px] text-slate-500">{t("venueHoursPlaceholder")}</p>
-                           ) : (
-                             VENUE_DATA.schedule.map((s) => (
-                               <div key={s.day} className="flex justify-between items-center gap-3 py-2 border-b border-slate-100 last:border-0 text-[13px]">
-                                   <span className="font-semibold text-slate-600">{s.day}</span>
-                                   <span className="font-bold text-slate-900 whitespace-nowrap">{s.hours}</span>
-                               </div>
-                             ))
-                           )}
-                       </div>
+              {activeTab === "amenities" && (
+                <div id="venue-section-amenities">
+                  <SectionHead title={t("venueAmenitiesSectionTitle")} sub={t("venueAmenitiesBlurb")} />
+                  {VENUE_DATA.amenities.length === 0 ? (
+                    <p style={{ textAlign: "center", padding: "32px 0", color: "var(--rz-gray-500)", fontSize: 14 }}>
+                      {t("venueNoAmenitiesListed")}
+                    </p>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${vw < 560 ? 2 : vw < 880 ? 3 : 4}, 1fr)`, gap: 12 }}>
+                      {VENUE_DATA.amenities.map((a, i) => {
+                        const Icon = amenityLucideIcon(a.key);
+                        return (
+                          <div
+                            key={`${a.key}-${i}`}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 12,
+                              padding: "14px 16px",
+                              background: "var(--surface-card)",
+                              border: "1px solid var(--border-subtle)",
+                              borderRadius: "var(--radius-md)",
+                            }}
+                          >
+                            <span
+                              style={{
+                                flex: "none",
+                                width: 38,
+                                height: 38,
+                                borderRadius: "var(--radius-sm)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                background: "var(--rz-coral-050)",
+                                color: "var(--rz-coral)",
+                              }}
+                            >
+                              <Icon size={19} strokeWidth={2} />
+                            </span>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rz-navy)", lineHeight: 1.3 }}>{a.name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
-                       <div>
-                           <p className="text-[10px] font-black text-[#ff5a5f] uppercase tracking-wide mb-2">{t("contact")}</p>
-                           <div className="space-y-2.5">
-                                {VENUE_DATA.contactPhone ? (
-                                <div className="flex items-center gap-3 text-slate-700 transition-colors group">
-                                    <div className="w-9 h-9 bg-slate-50 rounded-lg flex items-center justify-center group-hover:bg-[#ff5a5f]/10 shrink-0"><Phone size={15} /></div>
-                                    <a href={`tel:${VENUE_DATA.contactPhone}`} className="text-[13px] font-semibold hover:text-[#ff5a5f]">{VENUE_DATA.contactPhone}</a>
-                                </div>
-                                ) : null}
-                                {VENUE_DATA.contactEmail ? (
-                                <div className="flex items-center gap-3 text-slate-700 transition-colors group">
-                                    <div className="w-9 h-9 bg-slate-50 rounded-lg flex items-center justify-center group-hover:bg-[#ff5a5f]/10 shrink-0"><Mail size={15} /></div>
-                                    <a href={`mailto:${VENUE_DATA.contactEmail}`} className="text-[13px] font-semibold break-all hover:text-[#ff5a5f]">{VENUE_DATA.contactEmail}</a>
-                                </div>
-                                ) : null}
-                                {!VENUE_DATA.contactPhone && !VENUE_DATA.contactEmail ? (
-                                  <p className="text-[13px] text-slate-500">{t("venueNoContactDetails")}</p>
-                                ) : null}
-                           </div>
-                       </div>
-                   </div>
+            {VENUE_DATA.venueDetailSections && VENUE_DATA.venueDetailSections.length > 0 && (
+              <div style={{ marginTop: 32 }}>
+                <VenueDetailSections sections={VENUE_DATA.venueDetailSections} />
+              </div>
+            )}
+          </div>
 
-                   <div className="mt-6 flex justify-center gap-2 border-t border-slate-100 pt-5">
-                       {VENUE_DATA.socials.instagram ? (
-                       <a href={VENUE_DATA.socials.instagram.startsWith("http") ? VENUE_DATA.socials.instagram : `https://instagram.com/${VENUE_DATA.socials.instagram.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"><Instagram size={20} /></a>
-                       ) : null}
-                       {VENUE_DATA.socials.tiktok ? (
-                       <a href={VENUE_DATA.socials.tiktok.startsWith("http") ? VENUE_DATA.socials.tiktok : `https://www.tiktok.com/@${VENUE_DATA.socials.tiktok.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] font-bold hover:bg-[#ff5a5f] hover:text-white transition-all">T</a>
-                       ) : null}
-                       {VENUE_DATA.socials.youtube ? (
-                       <a href={VENUE_DATA.socials.youtube.startsWith("http") ? VENUE_DATA.socials.youtube : `https://youtube.com/${VENUE_DATA.socials.youtube.replace(/^\//, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"><Youtube size={20} /></a>
-                       ) : null}
-                       {VENUE_DATA.socials.x ? (
-                       <a href={VENUE_DATA.socials.x.startsWith("http") ? VENUE_DATA.socials.x : `https://x.com/${VENUE_DATA.socials.x.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ff5a5f]/10 text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white transition-all"><Twitter size={20} /></a>
-                       ) : null}
-                   </div>
-               </div>
-               </div>
-          </aside>
+          {/* Sidebar */}
+          <BusinessInfoPanel
+            name={VENUE_DATA.name}
+            mapNode={
+              VENUE_DATA.lat != null && VENUE_DATA.lng != null ? (
+                <VenueMiniMap lat={VENUE_DATA.lat} lng={VENUE_DATA.lng} label={`Mapa de ${VENUE_DATA.name}`} />
+              ) : undefined
+            }
+            address={VENUE_DATA.address || undefined}
+            about={VENUE_DATA.description || undefined}
+            todayHours={todayHours || undefined}
+            weekHours={VENUE_DATA.schedule}
+            phone={VENUE_DATA.contactPhone || undefined}
+            email={VENUE_DATA.contactEmail || undefined}
+            socials={socialsArr}
+            links={infoLinks}
+            onLinkClick={(_label: string, i: number) => setInfoModal(infoLinkContent[i])}
+            onDirections={openDirections}
+          />
+        </div>
       </div>
 
-      {/* BOTTOM CATEGORY EXPLORATION */}
-      <section className="border-t border-slate-100 bg-slate-50/50 py-12">
-           <div className="max-w-[1920px] mx-auto px-6 lg:px-14">
-                <div className="text-center mb-10">
-                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">{t("venuePickCategoryTitle")}</h2>
-                    <p className="text-slate-500 text-sm font-medium">{t("venuePickCategorySub")}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-                    {browseCategories.length === 0 ? (
-                      <p className="col-span-full text-center text-sm text-slate-500 py-8">{t("venueCategoriesNone")}</p>
-                    ) : (
-                    browseCategories.map((cat) => {
-                      const title = cat.labelEn;
-                      const img = (cat.imageUrl || "").trim();
-                      return (
-                        <button
-                          type="button"
-                          key={cat.id}
-                          onClick={() => router.push(`/search?categoryKey=${encodeURIComponent(cat.key)}`)}
-                          className="group relative aspect-square rounded-[32px] overflow-hidden cursor-pointer shadow-xl hover:shadow-2xl transition-all duration-700 hover:scale-[1.03] text-left border-0 p-0 bg-slate-200"
-                        >
-                            {img ? (
-                            <img 
-                              src={img.startsWith("http") || img.startsWith("/") ? img : img} 
-                              className="w-full h-full object-cover transition duration-1000 group-hover:scale-125" 
-                              alt={title} 
-                            />
-                            ) : null}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-6">
-                                <h4 className="text-white text-sm font-black leading-tight mb-1 uppercase tracking-tighter group-hover:text-[#ff5a5f] transition-all line-clamp-2">{title}</h4>
-                                <p className="text-white/60 text-[8px] font-bold uppercase tracking-widest">{t("venueExplore")}</p>
-                            </div>
-                        </button>
-                      );
-                    })
-                    )}
-                </div>
-           </div>
-      </section>
-      <BookingModal 
+      {/* Categories */}
+      {browseCategories.length > 0 && (
+        <div style={{ background: "var(--rz-gray-050)", marginTop: 56, padding: `52px ${PAD}` }}>
+          <div style={{ maxWidth: MAXW, margin: "0 auto" }}>
+            <SectionHead title={t("venuePickCategoryTitle")} sub={t("venuePickCategorySub")} />
+            {vw >= 980 ? (
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(browseCategories.length, 6)},1fr)`, gap: vw < 1200 ? 10 : 14 }}>
+                {browseCategories.slice(0, 6).map((c) => (
+                  <CategoryCard
+                    key={c.id}
+                    image={(c.imageUrl || "").trim() || undefined}
+                    title={language === "es" ? c.labelEs || c.labelEn : c.labelEn}
+                    onClick={() => router.push(`/search?categoryKey=${encodeURIComponent(c.key)}`)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 10, scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}>
+                {browseCategories.map((c) => (
+                  <div key={c.id} style={{ flex: "none", width: vw < 600 ? 150 : 180, scrollSnapAlign: "start" }}>
+                    <CategoryCard
+                      image={(c.imageUrl || "").trim() || undefined}
+                      title={language === "es" ? c.labelEs || c.labelEn : c.labelEn}
+                      onClick={() => router.push(`/search?categoryKey=${encodeURIComponent(c.key)}`)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <BookingModal
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         onBookingSuccess={() => {
@@ -1395,198 +1508,202 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         promotions={promotionData}
       />
 
+      {/* Staff profile modal */}
       {profileStaff ? (
-        <div
-          className="fixed inset-0 z-[95] flex items-end justify-center sm:items-center p-4 animate-in fade-in duration-200"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="staff-profile-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-            aria-label={t("venueStaffProfileClose")}
-            onClick={() => setProfileStaff(null)}
-          />
-          <div className="relative z-10 flex max-h-[min(90dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[32px] border border-slate-100 bg-white shadow-2xl sm:rounded-[40px] animate-in zoom-in-95 duration-200">
-            <button
-              type="button"
-              onClick={() => setProfileStaff(null)}
-              className="absolute right-4 top-4 z-20 rounded-2xl border border-slate-100 bg-white/95 p-2 text-slate-500 shadow-sm hover:text-slate-900"
-              aria-label={t("venueStaffProfileClose")}
-            >
-              <X size={20} />
-            </button>
-            <div className="overflow-y-auto overscroll-contain">
-              <div className="relative h-56 w-full shrink-0 bg-slate-100 sm:h-64">
-                <img
-                  src={profileStaff.img}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-lg border border-white/80 bg-white/95 px-2.5 py-1 text-[11px] font-black text-slate-900 shadow-sm">
-                  <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                  {profileStaff.rating > 0 ? profileStaff.rating.toFixed(1) : "—"}
-                </div>
+        <Modal open onClose={() => setProfileStaff(null)} width={520}>
+          <div style={{ position: "relative" }}>
+            <div style={{ height: 220, background: "var(--rz-gray-100)", overflow: "hidden", borderRadius: "var(--radius-2xl) var(--radius-2xl) 0 0" }}>
+              <img src={profileStaff.img} alt={profileStaff.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </div>
+            <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+              <div>
+                <h3 style={{ fontSize: 24, fontWeight: 700, color: "var(--rz-navy)" }}>{profileStaff.name}</h3>
+                <p style={{ marginTop: 4, fontSize: 12, fontWeight: 700, letterSpacing: "var(--ls-wide)", textTransform: "uppercase", color: "var(--rz-coral)" }}>{profileStaff.role}</p>
+                {profileStaff.rating > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <Rating value={profileStaff.rating} count={profileStaff.reviews} layout="compact" />
+                  </div>
+                )}
               </div>
-              <div className="space-y-6 p-6 sm:p-8">
-                <div>
-                  <h3 id="staff-profile-title" className="text-2xl font-black text-slate-900">
-                    {profileStaff.name}
-                  </h3>
-                  <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#ff5a5f]">{profileStaff.role}</p>
-                </div>
-                <p className="text-sm font-medium leading-relaxed text-slate-600">
-                  {profileStaff.bio?.trim() && profileStaff.bio.trim() !== "—"
-                    ? profileStaff.bio
-                    : t("venueStaffProfileNoBio")}
+              <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--rz-gray-600)" }}>
+                {profileStaff.bio && profileStaff.bio.trim() !== "—" ? profileStaff.bio : t("venueStaffProfileNoBio")}
+              </p>
+              <div style={{ display: "flex", gap: 16, borderTop: "1px solid var(--border-subtle)", borderBottom: "1px solid var(--border-subtle)", padding: "14px 0", fontSize: 12, fontWeight: 600, color: "var(--rz-gray-600)" }}>
+                <span>{profileStaff.years} {t("venueStaffExp")}</span>
+                <span style={{ color: "var(--rz-gray-300)" }}>|</span>
+                <span>{profileStaff.clients} {t("venueStaffClientsLabel")}</span>
+                <span style={{ color: "var(--rz-gray-300)" }}>|</span>
+                <span>{profileStaff.reviews} {t("reviews")}</span>
+              </div>
+              <div>
+                <p style={{ marginBottom: 8, fontSize: 11, fontWeight: 700, letterSpacing: "var(--ls-eyebrow)", textTransform: "uppercase", color: "var(--rz-gray-500)" }}>
+                  {t("venueStaffProfileAvailabilityHeading")}
                 </p>
-                <div className="flex gap-4 border-y border-slate-100 py-4 text-[10px] font-bold text-slate-600">
-                  <span>
-                    {profileStaff.years} {t("venueStaffExp")}
-                  </span>
-                  <span className="text-slate-300">|</span>
-                  <span>
-                    {profileStaff.clients} {t("venueStaffClientsLabel")}
-                  </span>
-                  <span className="text-slate-300">|</span>
-                  <span>
-                    {profileStaff.reviews} {t("reviews")}
-                  </span>
-                </div>
-                <div>
-                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {t("venueStaffProfileAvailabilityHeading")}
-                  </p>
-                  <p className="text-sm font-semibold text-slate-700">
-                    {formatAvailabilityDisplay(profileStaff.availability)}
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {t("venueStaffProfileServicesHeading")}
-                  </p>
-                  <ul className="space-y-2">
-                    {servicesForMember(profileStaff, VENUE_DATA.services).map((svc) => (
-                      <li
-                        key={svc.id}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3"
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--rz-gray-700)" }}>{formatAvailabilityDisplay(profileStaff.availability)}</p>
+              </div>
+              <div>
+                <p style={{ marginBottom: 10, fontSize: 11, fontWeight: 700, letterSpacing: "var(--ls-eyebrow)", textTransform: "uppercase", color: "var(--rz-gray-500)" }}>
+                  {t("venueStaffProfileServicesHeading")}
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {servicesForMember(profileStaff, VENUE_DATA.services).map((svc) => (
+                    <div
+                      key={svc.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        padding: "12px 14px",
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid var(--border-subtle)",
+                        background: "var(--rz-gray-050)",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--rz-navy)" }}>{svc.name}</p>
+                        <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: "var(--ls-wide)", textTransform: "uppercase", color: "var(--rz-gray-500)" }}>
+                          {svc.time} · ${priceFor(svc)}
+                        </p>
+                      </div>
+                      <Button
+                        variant={selectedServices.includes(svc.id) ? "dark" : "outline"}
+                        size="sm"
+                        uppercase
+                        onClick={() => onServiceBookClick(svc.id)}
                       >
-                        <div>
-                          <p className="font-bold text-slate-900">{svc.name}</p>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                            {svc.time} · ${svc.price}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onServiceBookClick(svc.id)}
-                          className={`shrink-0 rounded-xl px-4 py-2 text-[9px] font-black uppercase tracking-widest transition-colors ${
-                            selectedServices.includes(svc.id)
-                              ? "bg-slate-900 text-white"
-                              : "border-2 border-[#ff5a5f] text-[#ff5a5f] hover:bg-[#ff5a5f] hover:text-white"
-                          }`}
-                        >
-                          {selectedServices.includes(svc.id) ? t("venueAddedToBooking") : t("bookBtn")}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {servicesForMember(profileStaff, VENUE_DATA.services).length === 0 ? (
-                    <p className="text-sm text-slate-500">{t("venueStaffProfileNoServices")}</p>
-                  ) : null}
+                        {selectedServices.includes(svc.id) ? t("venueAddedToBooking") : t("bookBtn")}
+                      </Button>
+                    </div>
+                  ))}
+                  {servicesForMember(profileStaff, VENUE_DATA.services).length === 0 && (
+                    <p style={{ fontSize: 14, color: "var(--rz-gray-500)" }}>{t("venueStaffProfileNoServices")}</p>
+                  )}
                 </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("services");
-                      setProfileStaff(null);
-                    }}
-                    className="flex-1 rounded-2xl border-2 border-slate-200 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-800 hover:border-slate-900"
-                  >
-                    {t("venueStaffProfileBrowseServices")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileStaff(null)}
-                    className="flex-1 rounded-2xl bg-slate-900 py-3.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-slate-800"
-                  >
-                    {t("venueStaffProfileClose")}
-                  </button>
-                </div>
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <Button variant="outline" fullWidth uppercase onClick={() => { setActiveTab("services"); setProfileStaff(null); }}>
+                  {t("venueStaffProfileBrowseServices")}
+                </Button>
+                <Button variant="dark" fullWidth uppercase onClick={() => setProfileStaff(null)}>
+                  {t("venueStaffProfileClose")}
+                </Button>
               </div>
             </div>
           </div>
-        </div>
+        </Modal>
       ) : null}
 
+      {/* Cross-venue replace confirmation */}
       {crossVenuePendingServiceId ? (
-        <div
-          className="fixed inset-0 z-[98] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md animate-in fade-in duration-200"
-          role="alertdialog"
-          aria-labelledby="cross-venue-title"
-          aria-describedby="cross-venue-desc"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 cursor-default"
-            aria-label={t("venueCrossBusinessCancel")}
-            onClick={() => setCrossVenuePendingServiceId(null)}
-          />
-          <div className="relative z-10 w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 id="cross-venue-title" className="text-xl font-black text-slate-900">
-              {t("venueCrossBusinessTitle")}
-            </h3>
-            <p id="cross-venue-desc" className="mt-4 text-sm font-semibold leading-relaxed text-slate-600">
-              {t("venueCrossBusinessBody")}
-            </p>
-            <div className="mt-8 flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => confirmCrossVenueReplace()}
-                className="w-full rounded-2xl bg-[#ff5a5f] py-4 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-[#ff5a5f]/25"
-              >
-                {t("venueCrossBusinessReplace")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setCrossVenuePendingServiceId(null)}
-                className="w-full rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900"
-              >
-                {t("venueCrossBusinessCancel")}
-              </button>
+        <Modal open onClose={() => setCrossVenuePendingServiceId(null)} width={440} showClose={false}>
+          <div style={{ padding: "clamp(26px,4vw,34px) clamp(24px,4vw,32px)" }}>
+            <h3 style={{ fontSize: 20, fontWeight: 700, color: "var(--rz-navy)" }}>{t("venueCrossBusinessTitle")}</h3>
+            <p style={{ marginTop: 12, fontSize: 14.5, lineHeight: 1.6, color: "var(--rz-gray-600)" }}>{t("venueCrossBusinessBody")}</p>
+            <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+              <Button variant="primary" fullWidth onClick={confirmCrossVenueReplace}>{t("venueCrossBusinessReplace")}</Button>
+              <Button variant="ghost" fullWidth onClick={() => setCrossVenuePendingServiceId(null)}>{t("venueCrossBusinessCancel")}</Button>
             </div>
           </div>
-        </div>
+        </Modal>
       ) : null}
 
-      {portfolioLightbox !== null && portfolioImages[portfolioLightbox] ? (
+      {/* Footer-link info modal */}
+      {infoModal && (
+        <Modal open onClose={() => setInfoModal(null)} width={460}>
+          <div style={{ padding: "clamp(26px,4vw,34px) clamp(24px,4vw,32px)" }}>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--rz-navy)", letterSpacing: "-0.3px" }}>{infoModal.title}</h2>
+            <p style={{ fontSize: 14.5, color: "var(--rz-gray-600)", lineHeight: 1.6, marginTop: 12 }}>{infoModal.body}</p>
+            <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
+              <Button variant="primary" onClick={() => setInfoModal(null)}>{t("gotIt") || "Entendido"}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Portfolio lightbox */}
+      {portfolioLightbox != null && portfolioImages[portfolioLightbox] && (
         <div
-          className="fixed inset-0 z-[96] flex items-center justify-center bg-black/80 p-4"
           role="dialog"
           aria-modal="true"
+          onClick={() => setPortfolioLightbox(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2147483000,
+            background: "rgba(8, 17, 26, 0.94)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            flexDirection: "column",
+          }}
         >
-          <button
-            type="button"
-            className="absolute inset-0"
-            aria-label={"Close"}
-            onClick={() => setPortfolioLightbox(null)}
-          />
-          <button
-            type="button"
-            onClick={() => setPortfolioLightbox(null)}
-            className="absolute right-4 top-4 z-10 rounded-full bg-white/90 p-2 text-slate-900"
-          >
-            <X size={22} />
-          </button>
-          <img
-            src={portfolioImages[portfolioLightbox]}
-            alt=""
-            className="relative z-10 max-h-[85vh] max-w-full rounded-xl object-contain"
-          />
+          <div style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "clamp(14px,2vw,22px) clamp(16px,3vw,28px)", color: "#fff" }}>
+            <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.9, fontVariantNumeric: "tabular-nums" }}>
+              {portfolioLightbox + 1} / {lbCount}
+            </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); setPortfolioLightbox(null); }}
+              aria-label="Cerrar"
+              style={{ width: 44, height: 44, borderRadius: "50%", border: "none", cursor: "pointer", background: "rgba(255,255,255,0.12)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <Glyph name="close" size={22} />
+            </button>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "clamp(8px,2vw,20px)", padding: "0 clamp(10px,2vw,24px)" }}>
+            {lbCount > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); lbPrev(); }}
+                aria-label="Anterior"
+                style={{ flex: "none", width: vw < 600 ? 44 : 52, height: vw < 600 ? 44 : 52, borderRadius: "50%", border: "none", cursor: "pointer", background: "rgba(255,255,255,0.12)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <Glyph name="chevronLeft" size={26} />
+              </button>
+            )}
+            <div style={{ flex: 1, maxWidth: "min(1100px, 92vw)", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => e.stopPropagation()}>
+              <img
+                key={portfolioLightbox}
+                src={portfolioImages[portfolioLightbox]}
+                alt=""
+                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "var(--radius-md)", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}
+              />
+            </div>
+            {lbCount > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); lbNext(); }}
+                aria-label="Siguiente"
+                style={{ flex: "none", width: vw < 600 ? 44 : 52, height: vw < 600 ? 44 : 52, borderRadius: "50%", border: "none", cursor: "pointer", background: "rgba(255,255,255,0.12)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <Glyph name="chevronRight" size={26} />
+              </button>
+            )}
+          </div>
         </div>
-      ) : null}
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 28,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            background: "var(--rz-navy)",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: "var(--radius-pill)",
+            boxShadow: "var(--shadow-lg)",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          <Glyph name="check" size={16} /> {toast}
+        </div>
+      )}
     </div>
   );
 }

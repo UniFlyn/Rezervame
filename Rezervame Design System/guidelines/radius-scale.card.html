@@ -1,0 +1,23 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Border Radius" subtitle="Soft, rounded, friendly" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 22px; background: #fff; display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .box { width: 72px; height: 72px; background: var(--rz-navy-050); border: 1.5px solid var(--rz-navy-100); }
+  .nm { font-size: 12px; font-weight: 700; color: var(--rz-navy); }
+  .lbl { font-size: 11px; color: var(--rz-gray-500); }
+</style>
+</head>
+<body>
+  <div class="col"><div class="box" style="border-radius:var(--radius-sm)"></div><div class="nm">sm</div><div class="lbl">8px · chips</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--radius-md)"></div><div class="nm">md</div><div class="lbl">12px · inputs/cards</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--radius-lg)"></div><div class="nm">lg</div><div class="lbl">16px · cards</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--radius-xl)"></div><div class="nm">xl</div><div class="lbl">20px · panels</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--radius-2xl)"></div><div class="nm">2xl</div><div class="lbl">28px · modals</div></div>
+  <div class="col"><div class="box" style="border-radius:var(--radius-pill)"></div><div class="nm">pill</div><div class="lbl">CTAs/tabs</div></div>
+</body>
+</html>

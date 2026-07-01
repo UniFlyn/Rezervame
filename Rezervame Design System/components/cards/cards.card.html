@@ -1,0 +1,83 @@
+<!-- @dsCard group="Components" viewport="760x1080" name="Cards" subtitle="Service, Staff, Business, List row, Category & Portfolio cards" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: var(--rz-gray-050); }
+  .stack { display: flex; flex-direction: column; gap: 22px; }
+  .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rz-gray-400); margin-bottom: -8px; }
+  .biz { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .staffrow { display: grid; grid-template-columns: 260px; gap: 16px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { ServiceCard, StaffCard, BusinessCard, BusinessResultCard, BusinessListItem, CategoryCard, PortfolioTile } = window.RezervameDesignSystem_4317c4;
+    const img = (id,w=400,h=400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=70`;
+    const cats = [
+      { id:'1521590832167-7bcbfaa6381f', t:'Servicios para el cabello' },
+      { id:'1570172619644-dfd03ed5d881', t:'Spa y bienestar' },
+      { id:'1487412947147-5cebf100ffc2', t:'Servicios de belleza' },
+      { id:'1604654894610-df63bc536371', t:'Depilación' },
+      { id:'1632345031435-8727f6897d53', t:'Cuidado de las uñas' },
+      { id:'1503951914875-452162b0f3f1', t:'Barbería' },
+    ];
+    function Demo() {
+      const [fav, setFav] = React.useState({0:true});
+      return (
+        <div className="stack">
+          <div className="lbl">Service card — keep approved (outline CTA fills red on hover)</div>
+          <ServiceCard selected name="Corte de cabello para mujer" description="Corte y peinado profesional adaptado a tus preferencias" duration="60 min" price="65" />
+          <ServiceCard name="Coloración de cabello" description="Servicio completo de color con productos de alta gama" duration="3-4 horas" price="120" />
+
+          <div className="lbl">Staff card — keep approved (carousel-ready)</div>
+          <div className="staffrow">
+            <StaffCard photo={img('1633332755192-727a05c4013d',300,300)} name="Mateo Ríos" role="Barbero & Grooming Expert" rating={4.9} reviews={128}
+              stats={[{icon:'user',value:'250+',label:'Clientes'},{icon:'checkCircle',value:'6+',label:'Años'},{icon:'star',value:'4.9',label:'Puntaje'}]}
+              bio="Especialista en cortes clásicos, fades modernos y afeitados con toalla caliente." />
+          </div>
+
+          <div className="lbl">Business / venue cards — Home: image-led discovery, optional badge</div>
+          <div className="biz">
+            <BusinessCard image={img('1560066984-138dadb4c035')} name="Luxe Hair Studio" rating={4.9} reviews={287} category="Cabello" location="Av. Balboa" badge="Nuevo" favorite={fav[0]} onFavorite={()=>setFav(f=>({...f,0:!f[0]}))} onClick={()=>{}} />
+            <BusinessCard image={img('1632345031435-8727f6897d53')} name="Nail Society" rating={4.8} reviews={142} category="Uñas" location="Costa del Este" favorite={fav[1]} onFavorite={()=>setFav(f=>({...f,1:!f[1]}))} onClick={()=>{}} />
+            <BusinessCard image={img('1570172619644-dfd03ed5d881')} name="Spa Wellness" rating={4.7} reviews={203} category="Spa" location="Punta Pacífica" favorite={fav[2]} onFavorite={()=>setFav(f=>({...f,2:!f[2]}))} onClick={()=>{}} />
+          </div>
+
+          <div className="lbl">Search-results grid card — denser &amp; comparison-focused (rating chip, meta line, availability)</div>
+          <div className="biz">
+            <BusinessResultCard image={img('1560066984-138dadb4c035')} name="Luxe Hair Studio" rating={4.9} reviews={287} category="Cabello" location="Av. Balboa" distance="2.3 km" services={['Corte de cabello','Coloración','Balayage']} hoursToday="09:00 AM – 06:00 PM" priceFrom={35} badge="Nuevo" favorite={fav[6]} onFavorite={()=>setFav(f=>({...f,6:!f[6]}))} onClick={()=>{}} />
+            <BusinessResultCard image={img('1632345031435-8727f6897d53')} name="Nail Society Soho" rating={4.8} reviews={142} category="Uñas" location="Costa del Este" distance="4.1 km" services={['Manicure','Pedicure']} hoursToday="10:00 AM – 07:00 PM" priceFrom={25} favorite={fav[7]} onFavorite={()=>setFav(f=>({...f,7:!f[7]}))} onClick={()=>{}} />
+            <BusinessResultCard image={img('1570172619644-dfd03ed5d881')} name="Spa Wellness Center" rating={4.7} reviews={203} category="Spa" location="Punta Pacífica" distance="3.0 km" services={['Masaje relajante','Facial','Aromaterapia']} hoursToday="09:00 AM – 08:00 PM" priceFrom={60} favorite={fav[8]} onFavorite={()=>setFav(f=>({...f,8:!f[8]}))} onClick={()=>{}} />
+          </div>
+
+          <div className="lbl">Business / venue list row — search-results default layout (compact, equal-height)</div>
+          <BusinessListItem image={img('1560066984-138dadb4c035',520,400)} name="Luxe Hair Studio" rating={4.9} reviews={287} category="Cabello" location="Av. Balboa" distance="2.3 km" services={['Corte de cabello','Coloración','Balayage','Keratina']} hoursToday="09:00 AM – 06:00 PM" priceFrom={35} badge="Nuevo" favorite={fav[3]} onFavorite={()=>setFav(f=>({...f,3:!f[3]}))} onClick={()=>{}} />
+          <BusinessListItem image={img('1503951914875-452162b0f3f1',520,400)} name="The Grooming Room" rating={4.9} reviews={98} category="Barbería" location="San Francisco" distance="1.8 km" services={['Corte clásico','Fade','Afeitado','Barba']} hoursToday="08:00 AM – 07:00 PM" priceFrom={20} active onClick={()=>{}} />
+
+          <div className="lbl">Category tiles — image-led, title only, compact</div>
+          <div className="cats">
+            {cats.map((c,i)=><CategoryCard key={i} image={img(c.id,300,380)} title={c.t} onClick={()=>{}} />)}
+          </div>
+
+          <div className="lbl">Portfolio tiles — image-first masonry items (hover to zoom)</div>
+          <div style={{ columnCount: 4, columnGap: 12 }}>
+            {['1560066984-138dadb4c035','1633332755192-727a05c4013d','1521590832167-7bcbfaa6381f','1503951914875-452162b0f3f1','1570172619644-dfd03ed5d881','1632345031435-8727f6897d53','1487412947147-5cebf100ffc2','1604654894610-df63bc536371'].map((id,i)=>(
+              <PortfolioTile key={i} src={img(id, 300, [380,300,460,320][i%4])} onClick={()=>{}} style={{ marginBottom: 12 }} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

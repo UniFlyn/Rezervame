@@ -1,0 +1,75 @@
+<!-- @dsCard group="Components" viewport="700x540" name="Map UI" subtitle="Map controls + preview card + three-state price markers & pins" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 28px; background: linear-gradient(135deg, #e9eef0 0%, #dde6ea 100%); }
+  .lbl { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rz-gray-500); margin-bottom: 14px; }
+  .row { display: flex; gap: 26px; align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { MapMarker, MapCard, MapControls } = window.RezervameDesignSystem_4317c4;
+    function Demo() {
+      const [showMap, setShowMap] = React.useState(true);
+      return (
+        <div>
+          <div className="lbl">Map controls — Ver mapa (active) · Ocultar mapa (outline)</div>
+          <div className="row" style={{ marginBottom: 28 }}>
+            <MapControls mapActive={showMap} onShowMap={() => setShowMap(true)} onHideMap={() => setShowMap(false)} />
+          </div>
+          <div className="lbl">Price markers — default / coral active / dimmed &nbsp;·&nbsp; pins &nbsp;·&nbsp; dot</div>
+          <div className="row" style={{ marginBottom: 28, alignItems: 'flex-start' }}>
+            <MapMarker variant="price" label="$65" />
+            <MapMarker variant="price" label="$120" active />
+            <MapMarker variant="price" label="$45" dimmed />
+            <MapMarker variant="pin" icon="scissors" />
+            <MapMarker variant="pin" icon="sparkles" active />
+            <MapMarker variant="dot" />
+          </div>
+          <div className="lbl">Mini map preview card — default &nbsp;·&nbsp; compact (map tooltip) &nbsp;·&nbsp; compact w/ long name (hover the name)</div>
+          <div className="row" style={{ alignItems: 'flex-start' }}>
+            <MapCard
+              image="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=400&h=300&q=72"
+              category="Cabello"
+              name="Luxe Hair Studio"
+              rating={4.9}
+              distance="0.8 km"
+              address="Av. Balboa, Ciudad de Panamá"
+            />
+            <MapCard
+              compact
+              image="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=400&h=300&q=72"
+              category="Cabello"
+              name="Luxe Hair Studio"
+              rating={4.9}
+              distance="0.8 km"
+              address="Av. Balboa"
+              width={260}
+            />
+            <MapCard
+              compact
+              image="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=400&h=300&q=72"
+              category="Bienestar"
+              name="Serenity Spa & Lounge Bella Vista"
+              rating={4.9}
+              distance="3.4 km"
+              address="Obarrio"
+              width={260}
+            />
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

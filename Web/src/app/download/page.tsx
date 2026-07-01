@@ -50,22 +50,22 @@ export default function DownloadPage() {
           ) : null}
         </div>
         ) : (
-          <p className="text-slate-500">Los enlaces de descarga estarán disponibles pronto.</p>
+          <p className="text-[var(--rz-gray-500)]">Los enlaces de descarga estarán disponibles pronto.</p>
         )}
 
-        <div className="mt-16 p-10 bg-slate-50 rounded-3xl border border-slate-100">
+        <div className="mt-16 p-10 bg-[var(--rz-gray-050)] rounded-3xl border border-[var(--rz-gray-100)]">
           <h3 className="text-2xl font-bold mb-4">¿Por qué usar la App?</h3>
           <ul className="text-left max-w-md mx-auto space-y-4">
             <li className="flex gap-3">
-              <span className="text-[#ff5a5f] font-bold">✓</span>
+              <span className="text-[#ff5757] font-bold">✓</span>
               <span>Notificaciones instantáneas de tus citas</span>
             </li>
             <li className="flex gap-3">
-              <span className="text-[#ff5a5f] font-bold">✓</span>
+              <span className="text-[#ff5757] font-bold">✓</span>
               <span>Gestión rápida de favoritos</span>
             </li>
             <li className="flex gap-3">
-              <span className="text-[#ff5a5f] font-bold">✓</span>
+              <span className="text-[#ff5757] font-bold">✓</span>
               <span>Ofertas exclusivas solo en la app</span>
             </li>
           </ul>

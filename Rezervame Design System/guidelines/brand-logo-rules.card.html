@@ -1,0 +1,27 @@
+<!-- @dsCard group="Brand" viewport="700x200" name="Logo — Variants & Rules" subtitle="Color, black & white; always lowercase" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: #fff; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  .cell { border: 1px solid var(--border-subtle); border-radius: 12px; height: 84px; display: flex; align-items: center; justify-content: center; }
+  .cell img { height: 24px; }
+  .cap { font-size: 11px; color: var(--rz-gray-500); text-align: center; margin-top: 6px; }
+  .rules { font-size: 12px; color: var(--rz-gray-600); line-height: 1.6; }
+  .rules b { color: var(--rz-navy); }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div><div class="cell" style="background:#fff"><img src="../assets/logos/rezervame-color.png" /></div><div class="cap">Full color · light bg</div></div>
+    <div><div class="cell" style="background:#fff"><img src="../assets/logos/rezervame-black.png" /></div><div class="cap">Black · mono</div></div>
+    <div><div class="cell" style="background:var(--rz-navy)"><img src="../assets/logos/rezervame-white.png" /></div><div class="cap">White · dark bg</div></div>
+  </div>
+  <div class="rules">
+    <b>Always lowercase</b> “rezervame”. &nbsp;•&nbsp; The wordmark uses <b>Cocogoose Pro</b> (logo only — never the UI font). &nbsp;•&nbsp; Keep clear space ≥ the height of the “e”. &nbsp;•&nbsp; Never recolor the coral, stretch, or add effects.
+  </div>
+</body>
+</html>

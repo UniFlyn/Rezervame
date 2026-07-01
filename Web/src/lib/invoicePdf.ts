@@ -41,11 +41,11 @@ export function generateAndDownloadInvoicePDF(data: InvoiceData) {
   
   /* Header */
   .header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 48px 56px; position: relative; overflow: hidden; }
-  .header::before { content: ''; position: absolute; top: -60px; right: -60px; width: 200px; height: 200px; background: rgba(255,90,95,0.15); border-radius: 50%; }
-  .header::after { content: ''; position: absolute; bottom: -40px; left: 200px; width: 140px; height: 140px; background: rgba(255,90,95,0.08); border-radius: 50%; }
+  .header::before { content: ''; position: absolute; top: -60px; right: -60px; width: 200px; height: 200px; background: rgba(255, 87, 87,0.15); border-radius: 50%; }
+  .header::after { content: ''; position: absolute; bottom: -40px; left: 200px; width: 140px; height: 140px; background: rgba(255, 87, 87,0.08); border-radius: 50%; }
   .header-inner { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1; }
   .brand { display: flex; align-items: center; gap: 14px; }
-  .brand-icon { width: 44px; height: 44px; background: #ff5a5f; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+  .brand-icon { width: 44px; height: 44px; background: #ff5757; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
   .brand-icon svg { width: 22px; height: 22px; fill: white; }
   .brand-name { font-size: 22px; font-weight: 900; color: white; letter-spacing: 2px; text-transform: uppercase; }
   .brand-tagline { font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 500; letter-spacing: 1px; margin-top: 2px; }
@@ -67,7 +67,7 @@ export function generateAndDownloadInvoicePDF(data: InvoiceData) {
   .meta-card-sub { font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px; }
 
   /* Divider */
-  .section-divider { height: 1px; background: linear-gradient(90deg, #ff5a5f22, #e2e8f0, transparent); margin: 32px 0; }
+  .section-divider { height: 1px; background: linear-gradient(90deg, #ff575722, #e2e8f0, transparent); margin: 32px 0; }
   
   /* Table */
   .services-heading { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; }
@@ -93,7 +93,7 @@ export function generateAndDownloadInvoicePDF(data: InvoiceData) {
   .total-value { font-size: 13px; color: #1e293b; font-weight: 700; }
   .total-divider { height: 1px; background: #e2e8f0; margin: 12px 0; }
   .grand-label { font-size: 13px; font-weight: 900; color: #1e293b; }
-  .grand-value { font-size: 20px; font-weight: 900; color: #ff5a5f; }
+  .grand-value { font-size: 20px; font-weight: 900; color: #ff5757; }
 
   /* Payment badge */
   .payment-info { margin-top: 32px; display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #bbf7d0; border-radius: 16px; padding: 16px 20px; }

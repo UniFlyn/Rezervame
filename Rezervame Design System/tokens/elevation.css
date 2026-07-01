@@ -1,0 +1,40 @@
+/* Rezervame — Radius, shadow & elevation tokens
+   Soft, rounded, friendly. Cards use medium radius + soft ambient shadow.
+   CTAs are fully rounded pills (search, hero buttons) or medium-rounded. */
+
+:root {
+  /* Border radius — buttons use a tight, consistent scale (sm 10 / md 12 / lg 14) */
+  --radius-xs: 6px;
+  --radius-btn-sm: 10px;  /* small button */
+  --radius-sm: 10px;      /* small button / chip inner */
+  --radius-md: 12px;     /* default button, inputs, service cards */
+  --radius-btn-lg: 14px;  /* large button */
+  --radius-lg: 16px;     /* cards, panels */
+  --radius-xl: 20px;     /* large cards, sidebar panel */
+  --radius-2xl: 28px;    /* modals, checkout shell */
+  --radius-pill: 999px;  /* search bar, tabs, chips, badges */
+  --radius-circle: 50%;
+
+  /* Elevation — soft, warm-neutral ambient shadows */
+  --shadow-xs: 0 1px 2px rgba(2, 48, 71, 0.06);
+  --shadow-sm: 0 1px 3px rgba(2, 48, 71, 0.08), 0 1px 2px rgba(2, 48, 71, 0.04);
+  --shadow-card: 0 4px 16px rgba(2, 48, 71, 0.08);
+  --shadow-md: 0 8px 24px rgba(2, 48, 71, 0.10);
+  --shadow-lg: 0 16px 40px rgba(2, 48, 71, 0.14);
+  --shadow-modal: 0 24px 64px rgba(2, 48, 71, 0.22);
+  /* Coral CTA shadow — subtle premium lift, NOT a red halo */
+  --shadow-coral: 0 4px 12px rgba(255, 87, 87, 0.14);        /* primary CTA resting */
+  --shadow-coral-hover: 0 6px 16px rgba(255, 87, 87, 0.18);  /* primary CTA hover */
+  --shadow-coral-press: 0 2px 6px rgba(255, 87, 87, 0.12);   /* pressed (reduced) */
+  --shadow-header: 0 1px 0 rgba(2, 48, 71, 0.06);
+
+  /* Hover lift transform reference */
+  --lift-hover: translateY(-2px);  /* @kind other */
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);   /* @kind other */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);       /* @kind other */
+  --dur-fast: 120ms;   /* @kind other */
+  --dur-base: 200ms;   /* @kind other */
+  --dur-slow: 320ms;   /* @kind other */
+}

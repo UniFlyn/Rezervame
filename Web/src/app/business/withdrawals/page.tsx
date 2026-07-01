@@ -136,12 +136,12 @@ export default function WithdrawalsPage() {
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-3xl font-black tracking-tighter text-gray-900 uppercase">Withdrawals</h2>
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Manage your business earnings</p>
+          <p className="text-sm font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">Manage your business earnings</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 to-slate-800 rounded-[32px] p-10 text-white shadow-2xl shadow-slate-200/50 relative overflow-hidden">
+        <div className="lg:col-span-2 bg-gradient-to-br from-[var(--rz-navy)] to-[var(--rz-navy-800)] rounded-[32px] p-10 text-white shadow-2xl shadow-[color:rgba(231,234,239,0.5)] relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <Wallet className="w-48 h-48" />
           </div>
@@ -150,7 +150,7 @@ export default function WithdrawalsPage() {
               <div>
                 <p className="text-white/40 font-black uppercase tracking-[0.2em] text-[9px] mb-4">Available Balance</p>
                 <h3 className="text-5xl font-black tracking-tighter text-emerald-400">${business?.balance?.toFixed(2) ?? '0.00'}</h3>
-                <p className="mt-2 text-xs font-semibold text-slate-500">
+                <p className="mt-2 text-xs font-semibold text-[var(--rz-gray-500)]">
                   Available after customer payments (platform commission deducted). Total revenue: ${business?.revenue?.toFixed(2) ?? '0.00'}
                 </p>
               </div>
@@ -175,10 +175,10 @@ export default function WithdrawalsPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-[32px] p-10 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col justify-center relative overflow-hidden group">
+        <div className="bg-white rounded-[32px] p-10 shadow-xl shadow-[color:rgba(231,234,239,0.5)] border border-[var(--rz-gray-100)] flex flex-col justify-center relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
 
-          <h3 className="text-lg font-black text-slate-800 mb-6 uppercase tracking-tight flex items-center">
+          <h3 className="text-lg font-black text-[var(--rz-navy-800)] mb-6 uppercase tracking-tight flex items-center">
             Withdraw Funds
           </h3>
 
@@ -193,16 +193,16 @@ export default function WithdrawalsPage() {
 
           <div className="space-y-6">
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+              <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest ml-1 mb-2 block">
                 Amount to Transfer
               </label>
               <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--rz-gray-500)] font-bold">$</span>
                 <input
                   type="number"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full pl-12 pr-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:outline-none focus:border-primary focus:bg-white text-xl font-bold transition-all placeholder:text-slate-200"
+                  className="w-full pl-12 pr-6 py-5 bg-[var(--rz-gray-050)] border-2 border-[var(--rz-gray-100)] rounded-2xl focus:outline-none focus:border-primary focus:bg-white text-xl font-bold transition-all placeholder:text-[var(--rz-gray-200)]"
                   placeholder="0.00"
                 />
               </div>
@@ -210,7 +210,7 @@ export default function WithdrawalsPage() {
             <button
               type="button"
               onClick={() => void handleWithdraw()}
-              className="w-full py-5 bg-slate-900 hover:bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-slate-200 flex items-center justify-center space-x-3 group"
+              className="w-full py-5 bg-[var(--rz-navy)] hover:bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-[color:var(--rz-gray-200)] flex items-center justify-center space-x-3 group"
             >
               <span>Request withdrawal</span>
               <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
@@ -222,15 +222,15 @@ export default function WithdrawalsPage() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <form
           onSubmit={(e) => void handleBankChangeRequest(e)}
-          className="rounded-[32px] border border-slate-100 bg-white p-10 shadow-xl shadow-slate-200/50"
+          className="rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-10 shadow-xl shadow-[color:rgba(231,234,239,0.5)]"
         >
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Building2 className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Bank Account Change</h3>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <h3 className="text-lg font-black uppercase tracking-tight text-[var(--rz-navy)]">Bank Account Change</h3>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
                 Request reviewed by the Rezervame team
               </p>
             </div>
@@ -242,29 +242,29 @@ export default function WithdrawalsPage() {
           )}
           <div className="space-y-4">
             <div>
-              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Bank</label>
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Bank</label>
               <input
                 required
                 value={bankForm.bankName}
                 onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
-                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
                 placeholder="Bank Name"
               />
             </div>
             <div>
-              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
                 Account Holder
               </label>
               <input
                 required
                 value={bankForm.accountHolder}
                 onChange={(e) => setBankForm({ ...bankForm, accountHolder: e.target.value })}
-                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
                   Last 4 Digits
                 </label>
                 <input
@@ -274,61 +274,61 @@ export default function WithdrawalsPage() {
                   onChange={(e) =>
                     setBankForm({ ...bankForm, accountLast4: e.target.value.replace(/\D/g, '').slice(0, 4) })
                   }
-                  className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                  className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">
                   Routing / IBAN (optional)
                 </label>
                 <input
                   value={bankForm.routingOrIban}
                   onChange={(e) => setBankForm({ ...bankForm, routingOrIban: e.target.value })}
-                  className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                  className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
             <div>
-              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Notes</label>
+              <label className="mb-2 ml-1 block text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Notes</label>
               <textarea
                 value={bankForm.notes}
                 onChange={(e) => setBankForm({ ...bankForm, notes: e.target.value })}
                 rows={3}
-                className="w-full rounded-2xl border-2 border-slate-100 bg-slate-50 px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
+                className="w-full rounded-2xl border-2 border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-6 py-4 font-bold transition-all focus:border-primary focus:bg-white focus:outline-none"
                 placeholder="Reason for change..."
               />
             </div>
             <button
               type="submit"
-              className="w-full rounded-2xl bg-slate-900 py-4 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-primary"
+              className="w-full rounded-2xl bg-[var(--rz-navy)] py-4 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-primary"
             >
               Send Request
             </button>
           </div>
         </form>
 
-        <div className="rounded-[32px] border border-slate-100 bg-white p-10 shadow-xl shadow-slate-200/50 flex flex-col justify-center">
-          <h3 className="mb-2 text-lg font-black uppercase tracking-tight text-slate-900">Requests</h3>
-          <p className="text-sm font-semibold text-slate-500 leading-relaxed">
+        <div className="rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-10 shadow-xl shadow-[color:rgba(231,234,239,0.5)] flex flex-col justify-center">
+          <h3 className="mb-2 text-lg font-black uppercase tracking-tight text-[var(--rz-navy)]">Requests</h3>
+          <p className="text-sm font-semibold text-[var(--rz-gray-500)] leading-relaxed">
             Bank account change history appears once the team processes your message. Use the form to
             send updated details.
           </p>
         </div>
       </div>
 
-      <div className="mt-12 overflow-hidden rounded-[40px] border border-slate-100 bg-white shadow-2xl shadow-slate-200/50 relative min-h-[400px]">
+      <div className="mt-12 overflow-hidden rounded-[40px] border border-[var(--rz-gray-100)] bg-white shadow-2xl shadow-[color:rgba(231,234,239,0.5)] relative min-h-[400px]">
         {withdrawalsLoading && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--rz-gray-500)]" />
           </div>
         )}
-        <div className="px-10 py-8 border-b border-slate-50 flex justify-between items-center bg-white">
+        <div className="px-10 py-8 border-b border-[var(--rz-gray-050)] flex justify-between items-center bg-white">
           <div>
-            <h3 className="font-black text-slate-800 uppercase tracking-tight text-xl">Withdrawal History</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">From your business account</p>
+            <h3 className="font-black text-[var(--rz-navy-800)] uppercase tracking-tight text-xl">Withdrawal History</h3>
+            <p className="text-[10px] font-bold text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mt-1">From your business account</p>
           </div>
           <div className="flex gap-2">
-            <div className="bg-slate-50 px-4 py-2 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100">
+            <div className="bg-[var(--rz-gray-050)] px-4 py-2 rounded-xl text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest border border-[var(--rz-gray-100)]">
               {totalItems} RECORDS
             </div>
           </div>
@@ -336,7 +336,7 @@ export default function WithdrawalsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+              <tr className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em]">
                 <th className="px-10 py-6">Withdrawal ID</th>
                 <th className="px-10 py-6">Date</th>
                 <th className="px-10 py-6">Amount</th>
@@ -344,24 +344,24 @@ export default function WithdrawalsPage() {
                 <th className="px-10 py-6">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-sm font-bold text-slate-600">
+            <tbody className="divide-y divide-[var(--rz-gray-050)] text-sm font-bold text-[var(--rz-gray-600)]">
               {withdrawals.map((w) => (
-                <tr key={w.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-10 py-6 font-mono text-[11px] text-slate-300 group-hover:text-slate-900 transition-colors">
+                <tr key={w.id} className="hover:bg-[#f7f8fa]/50 transition-colors group">
+                  <td className="px-10 py-6 font-mono text-[11px] text-[var(--rz-gray-300)] group-hover:text-[var(--rz-navy)] transition-colors">
                     {w.id.slice(0, 12).toUpperCase()}
                   </td>
-                  <td className="px-10 py-6 text-slate-500 font-bold whitespace-nowrap">
+                  <td className="px-10 py-6 text-[var(--rz-gray-500)] font-bold whitespace-nowrap">
                     {new Date(w.date).toLocaleString()}
                   </td>
-                  <td className="px-10 py-6 font-black text-slate-900 text-lg">${Number(w.amount).toFixed(2)}</td>
-                  <td className="px-10 py-6 text-slate-400 font-medium">${Number(w.balance).toFixed(2)}</td>
+                  <td className="px-10 py-6 font-black text-[var(--rz-navy)] text-lg">${Number(w.amount).toFixed(2)}</td>
+                  <td className="px-10 py-6 text-[var(--rz-gray-500)] font-medium">${Number(w.balance).toFixed(2)}</td>
                   <td className="px-10 py-6">
                     <span className={clsx(
                       "inline-flex items-center px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border",
                       w.status.toLowerCase() === 'pending' && "bg-amber-50 text-amber-600 border-amber-100",
                       w.status.toLowerCase() === 'completed' && "bg-emerald-50 text-emerald-600 border-emerald-100",
                       w.status.toLowerCase() === 'rejected' && "bg-rose-50 text-rose-600 border-rose-100",
-                      !['pending', 'completed', 'rejected'].includes(w.status.toLowerCase()) && "bg-slate-50 text-slate-500 border-slate-100"
+                      !['pending', 'completed', 'rejected'].includes(w.status.toLowerCase()) && "bg-[var(--rz-gray-050)] text-[var(--rz-gray-500)] border-[var(--rz-gray-100)]"
                     )}>
                       {w.status}
                     </span>
@@ -372,10 +372,10 @@ export default function WithdrawalsPage() {
                 <tr>
                   <td colSpan={5} className="px-10 py-20 text-center">
                     <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                        <Wallet className="w-6 h-6 text-slate-300" />
+                      <div className="w-16 h-16 bg-[var(--rz-gray-050)] rounded-full flex items-center justify-center mb-4 border border-[var(--rz-gray-100)]">
+                        <Wallet className="w-6 h-6 text-[var(--rz-gray-300)]" />
                       </div>
-                      <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
+                      <p className="text-[var(--rz-gray-500)] font-black uppercase tracking-widest text-[10px]">
                         No withdrawals yet
                       </p>
                     </div>

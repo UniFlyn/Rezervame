@@ -30,8 +30,8 @@ function formatTimeLine(iso: string | null | undefined, locale: string): string 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 py-0.5">
-      <span className="shrink-0 text-sm font-medium text-slate-500">{label}</span>
-      <span className="break-words text-right text-sm font-bold text-slate-900">{value}</span>
+      <span className="shrink-0 text-sm font-medium text-[var(--rz-gray-500)]">{label}</span>
+      <span className="break-words text-right text-sm font-bold text-[var(--rz-navy)]">{value}</span>
     </div>
   );
 }
@@ -119,38 +119,38 @@ export function BookingConfirmationView({
           <div className="mb-7 flex justify-center">
             <div className="relative flex h-[120px] w-[120px] items-center justify-center">
               <div
-                className="absolute inset-2 rounded-full bg-[#ff5a5f]/20 blur-lg"
+                className="absolute inset-2 rounded-full bg-[rgba(255,87,87,0.2)] blur-lg"
                 aria-hidden
               />
-              <div className="relative flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[#ff5a5f] shadow-[0_8px_24px_rgba(255,90,95,0.35)]">
+              <div className="relative flex h-[88px] w-[88px] items-center justify-center rounded-full bg-[var(--rz-coral)] shadow-[0_8px_24px_rgba(255,87,87,0.35)]">
                 <Check className="text-white" size={44} strokeWidth={3} />
               </div>
             </div>
           </div>
 
-          <h1 className="mb-3 text-center text-[26px] font-extrabold leading-tight tracking-tight text-slate-900">
+          <h1 className="mb-3 text-center text-[26px] font-extrabold leading-tight tracking-tight text-[var(--rz-navy)]">
             {title}
           </h1>
-          <p className="mb-9 text-center text-[15px] font-medium leading-relaxed text-slate-500">
+          <p className="mb-9 text-center text-[15px] font-medium leading-relaxed text-[var(--rz-gray-500)]">
             {subtitle}
           </p>
 
-          <div className="rounded-2xl border border-slate-100 bg-[#f8f8f8] px-5 py-[22px]">
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-5 py-[22px]">
             <div className="space-y-[18px]">
               <DetailRow
                 label={language === "en" ? "Beautician" : "Profesional"}
                 value={data.professional || "—"}
               />
-              <div className="h-px bg-slate-100" />
+              <div className="h-px bg-[var(--border-subtle)]" />
               <DetailRow
                 label={language === "en" ? "Service" : "Servicio"}
                 value={data.service || "—"}
               />
-              <div className="h-px bg-slate-100" />
+              <div className="h-px bg-[var(--border-subtle)]" />
               <DetailRow label={language === "en" ? "Date" : "Fecha"} value={dateLine} />
-              <div className="h-px bg-slate-100" />
+              <div className="h-px bg-[var(--border-subtle)]" />
               <DetailRow label={language === "en" ? "Time" : "Hora"} value={timeLine} />
-              <div className="h-px bg-slate-100" />
+              <div className="h-px bg-[var(--border-subtle)]" />
               <DetailRow
                 label={language === "en" ? "Book for" : "Reservar para"}
                 value={bookingFor}
@@ -166,21 +166,21 @@ export function BookingConfirmationView({
             <button
               type="button"
               onClick={onGoHome}
-              className="h-14 w-full rounded-xl bg-[#ff5a5f] text-[15px] font-extrabold text-white shadow-[0_6px_20px_rgba(255,90,95,0.3)] transition hover:bg-[#e0484d]"
+              className="h-14 w-full rounded-xl bg-[var(--rz-coral)] text-[15px] font-extrabold text-white shadow-[0_6px_20px_rgba(255,87,87,0.3)] transition hover:bg-[var(--action-primary-hover)]"
             >
               {language === "en" ? "Go to home" : "Ir al inicio"}
             </button>
           ) : (
             <Link
               href="/"
-              className="flex h-14 w-full items-center justify-center rounded-xl bg-[#ff5a5f] text-[15px] font-extrabold text-white shadow-[0_6px_20px_rgba(255,90,95,0.3)] transition hover:bg-[#e0484d]"
+              className="flex h-14 w-full items-center justify-center rounded-xl bg-[var(--rz-coral)] text-[15px] font-extrabold text-white shadow-[0_6px_20px_rgba(255,87,87,0.3)] transition hover:bg-[var(--action-primary-hover)]"
             >
               {language === "en" ? "Go to home" : "Ir al inicio"}
             </Link>
           )}
           <Link
             href={detailsHref}
-            className="flex h-[52px] w-full items-center justify-center text-[15px] font-extrabold text-slate-900 hover:text-[#ff5a5f]"
+            className="flex h-[52px] w-full items-center justify-center text-[15px] font-extrabold text-[var(--rz-navy)] hover:text-[var(--rz-coral)]"
           >
             {language === "en" ? "View booking details" : "Ver detalles de la reserva"}
           </Link>

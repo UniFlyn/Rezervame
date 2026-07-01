@@ -62,12 +62,12 @@ export default function BusinessClient({ params }: { params: { id: string } }) {
   }, [id]);
 
   return (
-    <div className="max-w-5xl mx-auto bg-white min-h-screen border-x border-slate-200">
-      <div className="h-72 bg-slate-200 relative">
+    <div className="max-w-5xl mx-auto bg-white min-h-screen border-x border-[var(--rz-gray-200)]">
+      <div className="h-72 bg-[var(--rz-gray-200)] relative">
         <img src={banner} alt="" className="w-full h-full object-cover" />
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/80 to-transparent p-6 text-white">
           <h1 className="text-4xl font-bold">{name}</h1>
-          <p className="mt-2 text-lg text-slate-200">{address || "—"}</p>
+          <p className="mt-2 text-lg text-[var(--rz-gray-200)]">{address || "—"}</p>
         </div>
       </div>
 
@@ -92,29 +92,29 @@ export default function BusinessClient({ params }: { params: { id: string } }) {
         <div className="md:col-span-2 space-y-8">
           <section>
             <h2 className="text-2xl font-bold mb-4">About us</h2>
-            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{description || "—"}</p>
+            <p className="text-[var(--rz-gray-600)] leading-relaxed whitespace-pre-wrap">{description || "—"}</p>
           </section>
 
           <section>
             <h2 className="text-2xl font-bold mb-4">Services</h2>
             {services.length === 0 ? (
-              <p className="text-slate-500 text-sm">No services listed yet.</p>
+              <p className="text-[var(--rz-gray-500)] text-sm">No services listed yet.</p>
             ) : (
               <div className="space-y-4">
                 {services.map((svc) => (
                   <div
                     key={svc.id}
-                    className="flex justify-between items-center p-4 border border-slate-200 rounded-lg hover:border-primary transition-colors"
+                    className="flex justify-between items-center p-4 border border-[var(--rz-gray-200)] rounded-lg hover:border-primary transition-colors"
                   >
                     <div>
                       <h4 className="font-bold text-lg">{svc.name}</h4>
-                      <p className="text-sm text-slate-500">
+                      <p className="text-sm text-[var(--rz-gray-500)]">
                         {svc.duration} min · {svc.category}
                       </p>
                     </div>
                     <div className="flex items-center space-x-4">
                       <span className="font-semibold text-lg">${Number(svc.price).toFixed(2)}</span>
-                      <span className="px-4 py-2 bg-slate-100 text-primary font-semibold rounded text-sm">Select</span>
+                      <span className="px-4 py-2 bg-[var(--rz-gray-100)] text-primary font-semibold rounded text-sm">Select</span>
                     </div>
                   </div>
                 ))}
@@ -123,9 +123,9 @@ export default function BusinessClient({ params }: { params: { id: string } }) {
           </section>
         </div>
 
-        <div className="border border-slate-200 rounded-xl p-6 h-fit sticky top-6 shadow-sm">
+        <div className="border border-[var(--rz-gray-200)] rounded-xl p-6 h-fit sticky top-6 shadow-sm">
           <h3 className="text-xl font-bold mb-6">Ready to book?</h3>
-          <p className="text-sm text-slate-600 mb-6">
+          <p className="text-sm text-[var(--rz-gray-600)] mb-6">
             Browse this business on the public venue page to complete a reservation.
           </p>
           <Link

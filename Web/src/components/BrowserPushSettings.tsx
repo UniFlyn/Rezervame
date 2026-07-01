@@ -104,7 +104,7 @@ export function BrowserPushSettings({
 
   if (!supported) {
     return (
-      <p className="text-xs font-bold text-slate-400">
+      <p className="text-xs font-bold text-[var(--rz-gray-500)]">
         {language === "en"
           ? "Browser push is not supported in this browser."
           : "Las notificaciones del navegador no son compatibles con este navegador."}
@@ -124,18 +124,18 @@ export function BrowserPushSettings({
 
   return (
     <div className="space-y-3">
-      <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 px-5 py-4 cursor-pointer">
+      <label className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--rz-gray-100)] bg-[#f7f8fa]/80 px-5 py-4 cursor-pointer">
         <div className="flex items-center gap-3">
           {enabled ? (
-            <Bell className="text-[#ff5a5f]" size={20} />
+            <Bell className="text-[#ff5757]" size={20} />
           ) : (
-            <BellOff className="text-slate-400" size={20} />
+            <BellOff className="text-[var(--rz-gray-500)]" size={20} />
           )}
           <div>
-            <span className="text-sm font-bold text-slate-800 block">
+            <span className="text-sm font-bold text-[var(--rz-navy-800)] block">
               {language === "en" ? "Browser push notifications" : "Notificaciones push del navegador"}
             </span>
-            <span className="text-[11px] font-semibold text-slate-400">
+            <span className="text-[11px] font-semibold text-[var(--rz-gray-500)]">
               {language === "en"
                 ? "Booking alerts even when this tab is closed"
                 : "Alertas de reservas aunque esta pestaña esté cerrada"}
@@ -143,13 +143,13 @@ export function BrowserPushSettings({
           </div>
         </div>
         {loading || busy ? (
-          <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+          <Loader2 className="h-5 w-5 animate-spin text-[var(--rz-gray-500)]" />
         ) : (
           <input
             type="checkbox"
             checked={!!enabled}
             onChange={() => void handleToggle()}
-            className="h-5 w-5 rounded border-slate-300 text-[#ff5a5f] focus:ring-[#ff5a5f]"
+            className="h-5 w-5 rounded border-[var(--rz-gray-300)] text-[#ff5757] focus:ring-[#ff5757]"
           />
         )}
       </label>
@@ -158,7 +158,7 @@ export function BrowserPushSettings({
           type="button"
           disabled={busy}
           onClick={() => void handleTest()}
-          className="text-xs font-black uppercase tracking-widest text-[#ff5a5f] hover:underline disabled:opacity-50"
+          className="text-xs font-black uppercase tracking-widest text-[#ff5757] hover:underline disabled:opacity-50"
         >
           {language === "en" ? "Send test notification" : "Enviar notificación de prueba"}
         </button>

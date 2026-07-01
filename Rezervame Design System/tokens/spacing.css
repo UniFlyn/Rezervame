@@ -1,0 +1,31 @@
+/* Rezervame — Spacing & layout tokens
+   Base unit: 4px. Generous, breathable rhythm to feel premium. */
+
+:root {
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --space-11: 80px;
+  --space-12: 96px;
+
+  /* Layout */
+  --container-max: 1280px;     /* desktop content width */
+  --container-narrow: 880px;
+  --gutter: 24px;              /* desktop gutter */
+  --gutter-mobile: 16px;
+  --header-height: 84px;
+
+  /* Responsive breakpoints (reference values) */
+  --bp-mobile: 480px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1024px;
+  --bp-wide: 1280px;
+}

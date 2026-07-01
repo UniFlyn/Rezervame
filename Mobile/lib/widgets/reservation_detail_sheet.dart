@@ -50,7 +50,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   bool _busy = false;
   _PaymentView _paymentView = _PaymentView.none;
   String _payMethod = 'pay_at_venue';
-  double _commissionPercent = 15;
+  double _platformCommissionPercent = 15;
   List<Map<String, dynamic>> _payMethods = [
     {'id': 'wompi', 'label': 'Card', 'enabled': false},
     {'id': 'yappy', 'label': 'Yappy', 'enabled': false},
@@ -63,8 +63,12 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   void initState() {
     super.initState();
     _res = Map<String, dynamic>.from(widget.reservation);
-    _loadPaymentConfig();
-    _loadGroup();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await _loadPaymentConfig();
+    await _loadGroup();
   }
 
   Future<void> _loadPaymentConfig() async {
@@ -77,19 +81,24 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
               .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
           _payMethods;
-      final selectable = selectablePaymentMethods(methods);
+      final visible = checkoutVisibleMethods(methods);
       setState(() {
-        _payMethods = selectable.isNotEmpty ? selectable : methods;
-        _commissionPercent = (cfg['defaultCommission'] as num?)?.toDouble() ?? 15;
+        _payMethods = visible.isNotEmpty ? visible : methods;
+        _platformCommissionPercent = (cfg['defaultCommission'] as num?)?.toDouble() ?? 15;
         _payMethod = pickDefaultPaymentMethodId(methods);
       });
     } catch (_) {}
   }
 
-  bool _methodEnabled(String id) {
-    final m = _payMethods.where((x) => '${x['id']}' == id).toList();
-    if (m.isEmpty) return true;
-    return isPaymentMethodSelectable(m.first);
+  IconData _paymentMethodIcon(String id) {
+    switch (normalizeCheckoutMethodId(id)) {
+      case 'yappy':
+        return Icons.account_balance_wallet_outlined;
+      case 'wompi':
+        return Icons.credit_card_rounded;
+      default:
+        return Icons.payments_outlined;
+    }
   }
 
   Future<void> _loadGroup() async {
@@ -103,7 +112,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
       if (mounted && group.isNotEmpty) {
         final locale = Localizations.localeOf(context).languageCode;
         setState(() {
-          _res = mapUserBookingGroup(group, locale: locale, commissionPercent: _commissionPercent);
+          _res = mapUserBookingGroup(group, locale: locale, commissionPercent: _platformCommissionPercent);
           _loading = false;
         });
       } else if (mounted) {
@@ -126,9 +135,13 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   String get _status => '${_res['status'] ?? ''}'.toLowerCase();
 
   double get _subtotal => (_res['subtotal'] as num?)?.toDouble() ?? 0;
+  double get _commissionAmount => (_res['commissionAmount'] as num?)?.toDouble() ?? 0;
+  double get _commissionPercent => (_res['commissionPercent'] as num?)?.toDouble() ?? _platformCommissionPercent;
   double get _taxAmount => (_res['taxAmount'] as num?)?.toDouble() ?? 0;
   double get _taxPercentValue => (_res['taxPercentage'] as num?)?.toDouble() ?? 0;
-  double get _total => (_res['totalPrice'] as num?)?.toDouble() ?? _subtotal + _taxAmount;
+  double get _total =>
+      (_res['totalPrice'] as num?)?.toDouble() ??
+      (_subtotal + _commissionAmount + _taxAmount);
 
   bool get _canCancelAll {
     if (_res['canCancelAny'] == true) return true;
@@ -256,7 +269,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
     }
     setState(() => _busy = true);
     try {
-      if (_payMethod != 'cash' && _payMethod != 'pay_at_venue') {
+      if (_payMethod != 'pay_at_venue') {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -274,7 +287,7 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
       setState(() => _paymentView = _PaymentView.done);
       await _loadGroup();
       widget.onChanged?.call();
-      if (mounted && (_payMethod == 'cash' || _payMethod == 'pay_at_venue')) {
+      if (mounted && _payMethod == 'pay_at_venue') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -616,6 +629,15 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
           ),
           const SizedBox(height: 16),
           _summaryRow(_isEn ? 'Services' : 'Servicios', '\$${_subtotal.toStringAsFixed(2)}'),
+          if (_commissionAmount > 0) ...[
+            const SizedBox(height: 8),
+            _summaryRow(
+              _isEn
+                  ? 'Service fee (${_commissionPercent.toStringAsFixed(0)}%)'
+                  : 'Tarifa de servicio (${_commissionPercent.toStringAsFixed(0)}%)',
+              '\$${_commissionAmount.toStringAsFixed(2)}',
+            ),
+          ],
           const SizedBox(height: 8),
           _summaryRow(
             _taxPercentValue > 0
@@ -746,57 +768,70 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
   }
 
   Widget _buildPaymentSelect() {
-    final tabs = ['card', 'yappy', 'cash'].where(_methodEnabled).toList();
+    if (_payMethods.isEmpty) {
+      return _infoBox(
+        _isEn ? 'Payment unavailable' : 'Pago no disponible',
+        _isEn
+            ? 'No payment methods are configured yet. Please try again later.'
+            : 'Aún no hay métodos de pago configurados. Inténtalo más tarde.',
+        AppColors.grey25,
+        AppColors.grey500,
+        center: true,
+      );
+    }
+
+    final activeId = normalizeCheckoutMethodId(_payMethod);
+    if (!isCheckoutMethodSelectable(activeId, _payMethods)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => _payMethod = pickDefaultPaymentMethodId(_payMethods));
+        }
+      });
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          children: tabs.map((id) {
-            final selected = _payMethod == id;
-            String label;
-            IconData icon;
-            switch (id) {
-              case 'yappy':
-                label = _isEn ? 'Yappy' : 'Yappy';
-                icon = Icons.account_balance_wallet_outlined;
-                break;
-              case 'cash':
-                label = _isEn ? 'Cash' : 'Efectivo';
-                icon = Icons.payments_outlined;
-                break;
-              default:
-                label = _isEn ? 'Card' : 'Tarjeta';
-                icon = Icons.credit_card_rounded;
-            }
+          children: _payMethods.asMap().entries.map((entry) {
+            final method = entry.value;
+            final id = '${method['id']}';
+            final selectable = isPaymentMethodSelectable(method);
+            final selected = activeId == id && selectable;
+            final label = '${method['label'] ?? ''}'.trim();
             return Expanded(
               child: Padding(
-                padding: EdgeInsets.only(right: id != tabs.last ? 8 : 0),
+                padding: EdgeInsets.only(right: entry.key != _payMethods.length - 1 ? 8 : 0),
                 child: InkWell(
-                  onTap: () => setState(() => _payMethod = id),
+                  onTap: selectable ? () => setState(() => _payMethod = id) : null,
                   borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected ? AppColors.primary500 : AppColors.grey100,
-                        width: selected ? 2 : 1,
-                      ),
-                      color: selected ? AppColors.primary50 : AppColors.white,
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(icon, color: AppColors.primary500, size: 22),
-                        const SizedBox(height: 4),
-                        Text(
-                          label,
-                          style: AppTypography.body100.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: selected ? AppColors.primary500 : AppColors.grey500,
-                            fontSize: 9,
-                          ),
+                  child: Opacity(
+                    opacity: selectable ? 1 : 0.45,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected ? AppColors.primary500 : AppColors.grey100,
+                          width: selected ? 2 : 1,
                         ),
-                      ],
+                        color: selected ? AppColors.primary50 : AppColors.white,
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(_paymentMethodIcon(id), color: AppColors.primary500, size: 22),
+                          const SizedBox(height: 4),
+                          Text(
+                            label.isNotEmpty ? label : id,
+                            textAlign: TextAlign.center,
+                            style: AppTypography.body100.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: selected ? AppColors.primary500 : AppColors.grey500,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -815,13 +850,13 @@ class _ReservationDetailSheetState extends State<_ReservationDetailSheet> {
             const Color(0xFF2563EB),
           ),
         ],
-        if (_payMethod == 'cash') ...[
+        if (_payMethod == 'pay_at_venue') ...[
           const SizedBox(height: 12),
           _infoBox(
-            _isEn ? 'Cash at venue' : 'Efectivo en el local',
+            _isEn ? 'Pay by visit' : 'Pago en el local',
             _isEn
-                ? 'Cash payment is collected at the venue when you arrive for your appointment.'
-                : 'El pago en efectivo se recoge en el local cuando llegues a tu cita.',
+                ? 'Payment is collected at the venue when you arrive for your appointment.'
+                : 'El pago se recoge en el local cuando llegues a tu cita.',
             const Color(0xFFFFFBEB),
             const Color(0xFFD97706),
           ),

@@ -46,7 +46,7 @@ function ConfirmationInner() {
 
   if (!data) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-white text-sm font-semibold text-slate-600">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white text-sm font-semibold text-[var(--rz-gray-600)]">
         Loading…
       </div>
     );
@@ -65,7 +65,7 @@ export default function BookingConfirmationPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-[100dvh] items-center justify-center bg-white text-sm font-semibold text-slate-600">
+        <div className="flex min-h-[100dvh] items-center justify-center bg-white text-sm font-semibold text-[var(--rz-gray-600)]">
           {language === "en" ? "Loading..." : "Cargando..."}
         </div>
       }

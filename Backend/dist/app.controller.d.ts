@@ -391,9 +391,9 @@ export declare class AppController {
         id: string;
         active: boolean;
         createdAt: Date;
+        title: string;
         body: string;
         price: number;
-        title: string;
         startAt: Date;
         imageKey: string | null;
         websiteUrl: string | null;
@@ -403,9 +403,9 @@ export declare class AppController {
         id: string;
         active: boolean;
         createdAt: Date;
+        title: string;
         body: string;
         price: number;
-        title: string;
         startAt: Date;
         imageKey: string | null;
         websiteUrl: string | null;
@@ -415,9 +415,9 @@ export declare class AppController {
         id: string;
         active: boolean;
         createdAt: Date;
+        title: string;
         body: string;
         price: number;
-        title: string;
         startAt: Date;
         imageKey: string | null;
         websiteUrl: string | null;
@@ -716,8 +716,8 @@ export declare class AppController {
         createdAt: Date;
         businessId: string;
         serviceId: string;
-        discountPercent: number;
         label: string | null;
+        discountPercent: number;
         startsAt: Date;
         endsAt: Date | null;
     }>;
@@ -747,7 +747,7 @@ export declare class AppController {
             price: number;
         }[];
     }[]>;
-    getAdminUsers(page?: string, limit?: string, search?: string, authorization?: string): Promise<{
+    getAdminUsers(page?: string, limit?: string, search?: string, status?: string, authorization?: string): Promise<{
         data: {
             id: string;
             name: string;
@@ -1088,10 +1088,30 @@ export declare class AppController {
     }): Promise<{
         ok: boolean;
         provider: string;
+        to: string;
+        from: string;
+        messageStream: string;
+        configSource: string;
         message: string;
         skipped?: boolean;
         error?: string;
         messageId?: string;
+    }>;
+    getAdminEmailRecent(authorization?: string): Promise<{
+        configured: boolean;
+        from: string | null;
+        replyTo: string | null;
+        messageStream: string | null;
+        configSource: string;
+        recent: {
+            id: string;
+            recipient: string;
+            subject: string | null;
+            status: string;
+            error: string | null;
+            meta: string | null;
+            createdAt: Date;
+        }[];
     }>;
     testAdminSms(authorization: string | undefined, body: {
         to?: string;
@@ -1137,10 +1157,10 @@ export declare class AppController {
         id: string;
         role: import(".prisma/client").$Enums.Role;
         createdAt: Date;
+        title: string;
         body: string;
         userId: string | null;
         type: string;
-        title: string;
         read: boolean;
     }[]>;
     markNotificationRead(id: string, authorization?: string): Promise<{
@@ -1585,8 +1605,8 @@ export declare class AppController {
                 createdAt: Date;
                 businessId: string;
                 serviceId: string;
-                discountPercent: number;
                 label: string | null;
+                discountPercent: number;
                 startsAt: Date;
                 endsAt: Date | null;
             }[];
@@ -1642,8 +1662,8 @@ export declare class AppController {
         createdAt: Date;
         businessId: string;
         serviceId: string;
-        discountPercent: number;
         label: string | null;
+        discountPercent: number;
         startsAt: Date;
         endsAt: Date | null;
     })[]>;
@@ -1668,8 +1688,8 @@ export declare class AppController {
         createdAt: Date;
         businessId: string;
         serviceId: string;
-        discountPercent: number;
         label: string | null;
+        discountPercent: number;
         startsAt: Date;
         endsAt: Date | null;
     }>;
@@ -1694,8 +1714,8 @@ export declare class AppController {
         createdAt: Date;
         businessId: string;
         serviceId: string;
-        discountPercent: number;
         label: string | null;
+        discountPercent: number;
         startsAt: Date;
         endsAt: Date | null;
     }>;
@@ -1759,7 +1779,6 @@ export declare class AppController {
                 phone: string | null;
                 address: string | null;
                 status: string;
-                password: string;
                 role: import(".prisma/client").$Enums.Role;
                 createdAt: Date;
                 avatar: string | null;
@@ -1803,12 +1822,12 @@ export declare class AppController {
                 status: string;
                 businessId: string;
                 date: Date;
-                taxAmount: number;
                 paymentMethod: string;
+                amount: number;
+                taxAmount: number;
                 bookingId: string | null;
                 customerEmail: string | null;
                 staffMember: string | null;
-                amount: number;
                 commissionAmount: number;
                 type: string;
             } | null;
@@ -1820,6 +1839,7 @@ export declare class AppController {
             serviceId: string | null;
             customerName: string;
             date: Date;
+            paymentMethod: string | null;
             price: number;
             userId: string;
             staffId: string | null;
@@ -1827,7 +1847,6 @@ export declare class AppController {
             transactionId: string | null;
             taxAmount: number;
             isReviewed: boolean;
-            paymentMethod: string | null;
             bookingGroupId: string | null;
             reminderSent24h: boolean;
             reminderSent1h: boolean;
@@ -1845,6 +1864,7 @@ export declare class AppController {
         serviceId: string | null;
         customerName: string;
         date: Date;
+        paymentMethod: string | null;
         price: number;
         userId: string;
         staffId: string | null;
@@ -1852,7 +1872,6 @@ export declare class AppController {
         transactionId: string | null;
         taxAmount: number;
         isReviewed: boolean;
-        paymentMethod: string | null;
         bookingGroupId: string | null;
         reminderSent24h: boolean;
         reminderSent1h: boolean;
@@ -1866,12 +1885,12 @@ export declare class AppController {
         status: string;
         businessId: string;
         date: Date;
-        taxAmount: number;
         paymentMethod: string;
+        amount: number;
+        taxAmount: number;
         bookingId: string | null;
         customerEmail: string | null;
         staffMember: string | null;
-        amount: number;
         commissionAmount: number;
         type: string;
     }>;
@@ -1885,6 +1904,7 @@ export declare class AppController {
         serviceId: string | null;
         customerName: string;
         date: Date;
+        paymentMethod: string | null;
         price: number;
         userId: string;
         staffId: string | null;
@@ -1892,7 +1912,6 @@ export declare class AppController {
         transactionId: string | null;
         taxAmount: number;
         isReviewed: boolean;
-        paymentMethod: string | null;
         bookingGroupId: string | null;
         reminderSent24h: boolean;
         reminderSent1h: boolean;
@@ -1905,6 +1924,7 @@ export declare class AppController {
         serviceId: string | null;
         customerName: string;
         date: Date;
+        paymentMethod: string | null;
         price: number;
         userId: string;
         staffId: string | null;
@@ -1912,7 +1932,6 @@ export declare class AppController {
         transactionId: string | null;
         taxAmount: number;
         isReviewed: boolean;
-        paymentMethod: string | null;
         bookingGroupId: string | null;
         reminderSent24h: boolean;
         reminderSent1h: boolean;
@@ -1924,6 +1943,7 @@ export declare class AppController {
             avatar: string | null;
             businessId: string;
             customerName: string;
+            serviceName: string;
             date: Date;
             userId: string;
             staffId: string | null;
@@ -1932,7 +1952,6 @@ export declare class AppController {
             staffRating: number | null;
             businessRating: number | null;
             comment: string;
-            serviceName: string;
             staffName: string;
             reply: string | null;
         }[];
@@ -1953,6 +1972,7 @@ export declare class AppController {
         avatar: string | null;
         businessId: string;
         customerName: string;
+        serviceName: string;
         date: Date;
         userId: string;
         staffId: string | null;
@@ -1961,7 +1981,6 @@ export declare class AppController {
         staffRating: number | null;
         businessRating: number | null;
         comment: string;
-        serviceName: string;
         staffName: string;
         reply: string | null;
     }>;
@@ -1984,6 +2003,7 @@ export declare class AppController {
         avatar: string | null;
         businessId: string;
         customerName: string;
+        serviceName: string;
         date: Date;
         userId: string;
         staffId: string | null;
@@ -1992,7 +2012,6 @@ export declare class AppController {
         staffRating: number | null;
         businessRating: number | null;
         comment: string;
-        serviceName: string;
         staffName: string;
         reply: string | null;
     }>;
@@ -2005,12 +2024,12 @@ export declare class AppController {
         status: string;
         businessId: string;
         date: Date;
-        taxAmount: number;
         paymentMethod: string;
+        amount: number;
+        taxAmount: number;
         bookingId: string | null;
         customerEmail: string | null;
         staffMember: string | null;
-        amount: number;
         commissionAmount: number;
         type: string;
     }[] | {
@@ -2020,12 +2039,12 @@ export declare class AppController {
             status: string;
             businessId: string;
             date: Date;
-            taxAmount: number;
             paymentMethod: string;
+            amount: number;
+            taxAmount: number;
             bookingId: string | null;
             customerEmail: string | null;
             staffMember: string | null;
-            amount: number;
             commissionAmount: number;
             type: string;
         }[];
@@ -2040,12 +2059,12 @@ export declare class AppController {
         status: string;
         businessId: string;
         date: Date;
-        taxAmount: number;
         paymentMethod: string;
+        amount: number;
+        taxAmount: number;
         bookingId: string | null;
         customerEmail: string | null;
         staffMember: string | null;
-        amount: number;
         commissionAmount: number;
         type: string;
     }>;
@@ -2523,6 +2542,7 @@ export declare class AppController {
         serviceId: string | null;
         customerName: string;
         date: Date;
+        paymentMethod: string | null;
         price: number;
         userId: string;
         staffId: string | null;
@@ -2530,7 +2550,6 @@ export declare class AppController {
         transactionId: string | null;
         taxAmount: number;
         isReviewed: boolean;
-        paymentMethod: string | null;
         bookingGroupId: string | null;
         reminderSent24h: boolean;
         reminderSent1h: boolean;
@@ -2543,6 +2562,7 @@ export declare class AppController {
         serviceId: string | null;
         customerName: string;
         date: Date;
+        paymentMethod: string | null;
         price: number;
         userId: string;
         staffId: string | null;
@@ -2550,7 +2570,6 @@ export declare class AppController {
         transactionId: string | null;
         taxAmount: number;
         isReviewed: boolean;
-        paymentMethod: string | null;
         bookingGroupId: string | null;
         reminderSent24h: boolean;
         reminderSent1h: boolean;
@@ -2571,6 +2590,7 @@ export declare class AppController {
         serviceId: string | null;
         customerName: string;
         date: Date;
+        paymentMethod: string | null;
         price: number;
         userId: string;
         staffId: string | null;
@@ -2578,7 +2598,6 @@ export declare class AppController {
         transactionId: string | null;
         taxAmount: number;
         isReviewed: boolean;
-        paymentMethod: string | null;
         bookingGroupId: string | null;
         reminderSent24h: boolean;
         reminderSent1h: boolean;

@@ -136,11 +136,11 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!mounted && merchantPublic) {
-    return <div className="min-h-screen bg-slate-50 flex flex-col">{children}</div>;
+    return <div className="min-h-screen bg-[var(--rz-gray-050)] flex flex-col">{children}</div>;
   }
 
   if (merchantPublic) {
-    return <div className="min-h-screen bg-slate-50 flex flex-col">{children}</div>;
+    return <div className="min-h-screen bg-[var(--rz-gray-050)] flex flex-col">{children}</div>;
   }
 
   if (!mounted || !businessSessionReady) {
@@ -149,11 +149,11 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
 
   if (!business) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-6 text-center">
-        <p className="text-sm font-semibold text-slate-600">Sign in to open the business panel.</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--rz-gray-050)] px-6 text-center">
+        <p className="text-sm font-semibold text-[var(--rz-gray-600)]">Sign in to open the business panel.</p>
         <a
           href="/business/login"
-          className="rounded-2xl bg-slate-900 px-8 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-primary"
+          className="rounded-2xl bg-[var(--rz-navy)] px-8 py-3 text-xs font-black uppercase tracking-widest text-white hover:bg-primary"
         >
           Go to sign in
         </a>

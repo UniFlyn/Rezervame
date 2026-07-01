@@ -78,24 +78,24 @@ export const LoginModal = () => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left Side: Brand/Image */}
-        <div className="hidden md:flex md:w-5/12 bg-slate-900 relative p-10 flex-col justify-between overflow-hidden">
+        <div className="hidden md:flex md:w-5/12 bg-[var(--rz-navy)] relative p-10 flex-col justify-between overflow-hidden">
           <div className="absolute inset-0 z-0">
             <img src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80" className="w-full h-full object-cover opacity-40" alt="Beauty Services" />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--rz-navy)] via-[rgba(2,48,71,0.4)] to-transparent"></div>
           </div>
           <div className="relative z-10">
             <span className="text-3xl font-black tracking-tighter text-white leading-none">
-              RE<span className="text-[#ff5a5f]">ZER</span>VAME
+              RE<span className="text-[#ff5757]">ZER</span>VAME
             </span>
-            <p className="text-slate-200 font-bold text-sm mt-4 leading-relaxed max-w-[220px]">
+            <p className="text-[var(--rz-gray-200)] font-bold text-sm mt-4 leading-relaxed max-w-[220px]">
               {t("signupSub")}
             </p>
           </div>
           <div className="relative z-10">
             <div className="flex -space-x-3 mb-4">
-              <img src="https://i.pravatar.cc/100?img=1" className="w-10 h-10 rounded-full border-2 border-slate-900" alt="User" />
-              <img src="https://i.pravatar.cc/100?img=2" className="w-10 h-10 rounded-full border-2 border-slate-900" alt="User" />
-              <img src="https://i.pravatar.cc/100?img=3" className="w-10 h-10 rounded-full border-2 border-slate-900" alt="User" />
+              <img src="https://i.pravatar.cc/100?img=1" className="w-10 h-10 rounded-full border-2 border-[var(--rz-navy)]" alt="User" />
+              <img src="https://i.pravatar.cc/100?img=2" className="w-10 h-10 rounded-full border-2 border-[var(--rz-navy)]" alt="User" />
+              <img src="https://i.pravatar.cc/100?img=3" className="w-10 h-10 rounded-full border-2 border-[var(--rz-navy)]" alt="User" />
             </div>
             <p className="text-white font-bold text-sm">Join over 10,000 users today</p>
           </div>
@@ -106,7 +106,7 @@ export const LoginModal = () => {
           <button
             type="button"
             onClick={closeModal}
-            className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition p-2 bg-slate-50 hover:bg-slate-100 rounded-full z-10"
+            className="absolute top-6 right-6 text-[var(--rz-gray-500)] hover:text-[var(--rz-gray-600)] transition p-2 bg-[var(--rz-gray-050)] hover:bg-[var(--rz-gray-100)] rounded-full z-10"
             aria-label="Close"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,19 +118,19 @@ export const LoginModal = () => {
             {step !== "SIGNUP" && (
               <div className="mb-8 text-center md:text-left">
                 <div className="md:hidden mb-6 text-center">
-                  <span className="text-3xl font-black tracking-tighter text-slate-900 leading-none">
-                    RE<span className="text-[#ff5a5f]">ZER</span>VAME
+                  <span className="text-3xl font-black tracking-tighter text-[var(--rz-navy)] leading-none">
+                    RE<span className="text-[#ff5757]">ZER</span>VAME
                   </span>
                 </div>
-                <h2 className="font-extrabold text-2xl text-slate-900">{t("authUnifiedTitle")}</h2>
-                <p className="text-slate-500 font-bold text-[11px] mt-2 uppercase tracking-widest">{t("authNeedAccount") || "Log in or sign up"}</p>
+                <h2 className="font-extrabold text-2xl text-[var(--rz-navy)]">{t("authUnifiedTitle")}</h2>
+                <p className="text-[var(--rz-gray-500)] font-bold text-[11px] mt-2 uppercase tracking-widest">{t("authNeedAccount") || "Log in or sign up"}</p>
               </div>
             )}
 
             {step === "EMAIL" && (
               <form onSubmit={onCheckEmail} className="w-full space-y-4">
                 <div className="space-y-1.5 w-full text-left">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">{t("email")}</label>
+                  <label className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase ml-1 tracking-widest">{t("email")}</label>
                   <input
                     type="email"
                     value={email}
@@ -138,17 +138,17 @@ export const LoginModal = () => {
                     autoComplete="email"
                     placeholder="name@example.com"
                     required
-                    className="w-full border border-slate-200 p-3.5 rounded-2xl focus:outline-none focus:border-[#ff5a5f] focus:ring-4 focus:ring-[#ff5a5f]/5 transition-all font-bold text-sm placeholder:text-slate-300"
+                    className="w-full border border-[var(--border-default)] p-3.5 rounded-2xl focus:outline-none focus:border-[#ff5757] focus:ring-4 focus:ring-[#ff5757]/5 transition-all font-bold text-sm placeholder:text-[var(--rz-gray-300)]"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={checking}
-                  className="w-full bg-[#ff5a5f] text-white font-black py-4 rounded-2xl hover:bg-[#e0484d] transition-all shadow-xl shadow-[#ff5a5f]/20 mt-2 disabled:opacity-60 text-xs uppercase tracking-widest"
+                  className="w-full bg-[#ff5757] text-white font-black py-4 rounded-2xl hover:bg-[#d83b3b] transition-all shadow-xl shadow-[#ff5757]/20 mt-2 disabled:opacity-60 text-xs uppercase tracking-widest"
                 >
                   {checking ? t("authChecking") : t("authContinue")}
                 </button>
-                <p className="text-[10px] text-slate-400 font-bold text-center pt-2 leading-relaxed">{t("termsAgree")}</p>
+                <p className="text-[10px] text-[var(--rz-gray-500)] font-bold text-center pt-2 leading-relaxed">{t("termsAgree")}</p>
               </form>
             )}
 
@@ -173,11 +173,11 @@ export const LoginModal = () => {
                   }
                 }}
               >
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center mb-2">
-                  <p className="text-sm font-bold text-slate-700 truncate">{email}</p>
+                <div className="bg-[var(--rz-gray-050)] border border-[var(--border-subtle)] rounded-xl p-3 flex justify-between items-center mb-2">
+                  <p className="text-sm font-bold text-[var(--rz-gray-700)] truncate">{email}</p>
                   <button
                     type="button"
-                    className="text-[10px] font-black uppercase tracking-widest text-[#ff5a5f] hover:underline whitespace-nowrap ml-4"
+                    className="text-[10px] font-black uppercase tracking-widest text-[#ff5757] hover:underline whitespace-nowrap ml-4"
                     onClick={() => setStep("EMAIL")}
                   >
                     {t("bookingChange")}
@@ -185,20 +185,20 @@ export const LoginModal = () => {
                 </div>
                 
                 <div className="space-y-1 w-full text-left">
-                  <label className="text-[11px] font-extrabold text-slate-500 uppercase ml-1 opacity-70">{t("password")}</label>
+                  <label className="text-[11px] font-extrabold text-[var(--rz-gray-500)] uppercase ml-1 opacity-70">{t("password")}</label>
                   <input
                     name="password"
                     type="password"
                     required
                     autoComplete="current-password"
-                    className="w-full border border-slate-200 p-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ff5a5f]/20 transition font-medium text-sm"
+                    className="w-full border border-[var(--border-default)] p-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#ff5757]/20 transition font-medium text-sm"
                   />
                 </div>
                 <div className="w-full text-right">
                   <Link
                     href="/customer-service"
                     onClick={closeModal}
-                    className="text-[11px] font-bold text-slate-500 hover:text-slate-900 transition underline"
+                    className="text-[11px] font-bold text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] transition underline"
                   >
                     {t("forgotPass")}
                   </Link>
@@ -206,7 +206,7 @@ export const LoginModal = () => {
                 <button
                   type="submit"
                   disabled={authSubmitting}
-                  className="w-full bg-[#ff5a5f] text-white font-extrabold py-3.5 rounded-full hover:bg-[#e0484d] transition shadow-sm mt-2 disabled:opacity-60"
+                  className="w-full bg-[#ff5757] text-white font-extrabold py-3.5 rounded-full hover:bg-[#d83b3b] transition shadow-sm mt-2 disabled:opacity-60"
                 >
                   {authSubmitting ? (t("authChecking") || "Signing in...") : t("btnSignIn")}
                 </button>
@@ -253,60 +253,60 @@ export const LoginModal = () => {
                 }}
               >
                 <div className="md:hidden mb-6 text-center">
-                  <span className="text-3xl font-black tracking-tighter text-slate-900 leading-none">
-                    RE<span className="text-[#ff5a5f]">ZER</span>VAME
+                  <span className="text-3xl font-black tracking-tighter text-[var(--rz-navy)] leading-none">
+                    RE<span className="text-[#ff5757]">ZER</span>VAME
                   </span>
                 </div>
                 <div className="mb-4 flex items-center justify-between">
                   <div className="min-w-0">
-                    <h3 className="font-black text-xl text-slate-900 tracking-tight">{t("authCreateAccount")}</h3>
-                    <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">
+                    <h3 className="font-black text-xl text-[var(--rz-navy)] tracking-tight">{t("authCreateAccount")}</h3>
+                    <p className="text-[10px] font-bold text-[var(--rz-gray-500)] truncate mt-0.5">
                       {email} 
                     </p>
                   </div>
-                  <button type="button" className="text-[9px] font-black uppercase tracking-widest text-[#ff5a5f] bg-[#ff5a5f]/5 px-3 py-1.5 rounded-xl ml-4 hover:bg-[#ff5a5f]/10 transition-colors" onClick={() => setStep("EMAIL")}>
+                  <button type="button" className="text-[9px] font-black uppercase tracking-widest text-[#ff5757] bg-[#ff5757]/5 px-3 py-1.5 rounded-xl ml-4 hover:bg-[#ff5757]/10 transition-colors" onClick={() => setStep("EMAIL")}>
                     {t("bookingChange")}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                   <div className="space-y-1 w-full text-left col-span-2">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">{t("fullName")}</label>
+                    <label className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase ml-1 tracking-widest">{t("fullName")}</label>
                     <input
                       name="name"
                       type="text"
                       required
                       autoComplete="name"
-                      className="w-full border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:border-[#ff5a5f] transition-all font-bold text-sm"
+                      className="w-full border border-[var(--border-default)] p-2.5 rounded-xl focus:outline-none focus:border-[#ff5757] transition-all font-bold text-sm"
                     />
                   </div>
                   <div className="space-y-1 w-full text-left col-span-2">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">{t("password")}</label>
+                    <label className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase ml-1 tracking-widest">{t("password")}</label>
                     <input
                       name="password"
                       type="password"
                       required
                       minLength={6}
                       autoComplete="new-password"
-                      className="w-full border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:border-[#ff5a5f] transition-all font-bold text-sm"
+                      className="w-full border border-[var(--border-default)] p-2.5 rounded-xl focus:outline-none focus:border-[#ff5757] transition-all font-bold text-sm"
                     />
                   </div>
                   <div className="space-y-1 w-full text-left col-span-2">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">{t("authAddress")}</label>
+                    <label className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase ml-1 tracking-widest">{t("authAddress")}</label>
                     <input
                       name="address"
                       type="text"
                       placeholder={t("authAddressPlaceholder")}
                       autoComplete="street-address"
-                      className="w-full border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:border-[#ff5a5f] transition-all font-bold text-sm placeholder:text-slate-300"
+                      className="w-full border border-[var(--border-default)] p-2.5 rounded-xl focus:outline-none focus:border-[#ff5757] transition-all font-bold text-sm placeholder:text-[var(--rz-gray-300)]"
                     />
                   </div>
                   <div className="space-y-1 text-left">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">{t("authGender")}</label>
+                    <label className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase ml-1 tracking-widest">{t("authGender")}</label>
                     <select
                       name="gender"
                       defaultValue="male"
-                      className="w-full border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:border-[#ff5a5f] font-bold text-sm bg-white"
+                      className="w-full border border-[var(--border-default)] p-2.5 rounded-xl focus:outline-none focus:border-[#ff5757] font-bold text-sm bg-white"
                     >
                       <option value="male">{t("genderMale")}</option>
                       <option value="female">{t("genderFemale")}</option>
@@ -314,13 +314,13 @@ export const LoginModal = () => {
                     </select>
                   </div>
                   <div className="space-y-1 text-left">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">{t("authAge")}</label>
+                    <label className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase ml-1 tracking-widest">{t("authAge")}</label>
                     <input
                       name="age"
                       type="number"
                       min={0}
                       max={130}
-                      className="w-full border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:border-[#ff5a5f] font-bold text-sm"
+                      className="w-full border border-[var(--border-default)] p-2.5 rounded-xl focus:outline-none focus:border-[#ff5757] font-bold text-sm"
                     />
                   </div>
                 </div>
@@ -328,16 +328,16 @@ export const LoginModal = () => {
                 <button
                   type="submit"
                   disabled={authSubmitting}
-                  className="w-full bg-[#ff5a5f] text-white font-black py-3.5 rounded-2xl hover:bg-[#e0484d] transition-all shadow-xl shadow-[#ff5a5f]/20 mt-5 text-[11px] uppercase tracking-widest disabled:opacity-60"
+                  className="w-full bg-[#ff5757] text-white font-black py-3.5 rounded-2xl hover:bg-[#d83b3b] transition-all shadow-xl shadow-[#ff5757]/20 mt-5 text-[11px] uppercase tracking-widest disabled:opacity-60"
                 >
                   {authSubmitting ? (t("authChecking") || "Creating...") : t("authCreateAccount")}
                 </button>
-                <p className="text-[10px] text-slate-400 font-bold leading-relaxed pt-3 text-center">{t("termsAgree")}</p>
+                <p className="text-[10px] text-[var(--rz-gray-500)] font-bold leading-relaxed pt-3 text-center">{t("termsAgree")}</p>
               </form>
             )}
 
             {step !== "SIGNUP" && (
-              <div className="mt-8 w-full pt-6 border-t border-slate-100 flex flex-col items-center gap-4">
+              <div className="mt-8 w-full pt-6 border-t border-[var(--border-subtle)] flex flex-col items-center gap-4">
                 <div className="flex gap-3 w-full">
                   <button
                     type="button"
@@ -356,7 +356,7 @@ export const LoginModal = () => {
                         setSocialLoading(false);
                       }
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 border border-slate-200 py-3 rounded-xl hover:bg-slate-50 transition font-bold text-[11px] disabled:opacity-60"
+                    className="flex-1 flex items-center justify-center gap-2 border border-[var(--border-default)] py-3 rounded-xl hover:bg-[var(--rz-gray-050)] transition font-bold text-[11px] disabled:opacity-60"
                   >
                     <img
                       src="https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-09-512.png"

@@ -13,8 +13,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BookingReminderService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma.service");
-const email_constants_1 = require("./email.constants");
-const email_service_1 = require("./email.service");
+const notification_delivery_service_1 = require("../notifications/notification-delivery.service");
+const system_integration_config_1 = require("../config/system-integration.config");
 const REMINDER_STATUSES = ['Approved', 'Paid', 'Rescheduled'];
 function bookingCode(id, date) {
     return `RZV-${date.getFullYear()}-${id.slice(0, 4).toUpperCase()}`;
@@ -31,13 +31,15 @@ function formatTime(date) {
     return date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
 }
 let BookingReminderService = BookingReminderService_1 = class BookingReminderService {
-    constructor(prisma, emailService) {
+    constructor(prisma) {
         this.prisma = prisma;
-        this.emailService = emailService;
         this.logger = new common_1.Logger(BookingReminderService_1.name);
     }
+    async isConfigured() {
+        return Boolean(await (0, system_integration_config_1.resolvePostmarkConfig)(this.prisma));
+    }
     async processDueReminders() {
-        if (!(await this.emailService.isConfigured())) {
+        if (!(await this.isConfigured())) {
             return { sent24h: 0, sent1h: 0, skipped: true };
         }
         const now = Date.now();
@@ -67,10 +69,10 @@ let BookingReminderService = BookingReminderService_1 = class BookingReminderSer
             if (!email)
                 continue;
             try {
-                await this.emailService.sendWithTemplate({
+                await (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
                     to: email,
-                    templateAlias: email_constants_1.POSTMARK_TEMPLATE.BOOKING_REMINDER_24H,
-                    templateModel: {
+                    template: 'booking-reminder-24h',
+                    model: {
                         customerName: b.customerName || b.user.name,
                         bookingCode: bookingCode(b.id, b.date),
                         businessName: b.business.name,
@@ -113,10 +115,10 @@ let BookingReminderService = BookingReminderService_1 = class BookingReminderSer
             if (!email)
                 continue;
             try {
-                await this.emailService.sendWithTemplate({
+                await (0, notification_delivery_service_1.sendPlatformEmail)(this.prisma, {
                     to: email,
-                    templateAlias: email_constants_1.POSTMARK_TEMPLATE.BOOKING_REMINDER_1H,
-                    templateModel: {
+                    template: 'booking-reminder-1h',
+                    model: {
                         customerName: b.customerName || b.user.name,
                         bookingCode: bookingCode(b.id, b.date),
                         businessName: b.business.name,
@@ -139,7 +141,6 @@ let BookingReminderService = BookingReminderService_1 = class BookingReminderSer
 exports.BookingReminderService = BookingReminderService;
 exports.BookingReminderService = BookingReminderService = BookingReminderService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        email_service_1.EmailService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
 ], BookingReminderService);
 //# sourceMappingURL=booking-reminder.service.js.map

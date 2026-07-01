@@ -64,14 +64,14 @@ function AuthGate({
 }) {
   const { t } = useI18n();
   return (
-    <div className="mx-auto max-w-lg rounded-[32px] border border-slate-100 bg-slate-50 p-10 text-center shadow-sm">
-      <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ff5a5f]/10 text-[#ff5a5f]">
+    <div className="mx-auto max-w-lg rounded-[32px] border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] p-10 text-center shadow-sm">
+      <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ff5757]/10 text-[#ff5757]">
         <MessageSquare size={32} />
       </div>
-      <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">
+      <h2 className="text-xl font-black uppercase tracking-tight text-[var(--rz-navy)]">
         {t("customerServiceSignInTitle") || "Sign in to get support"}
       </h2>
-      <p className="mt-3 text-sm font-bold leading-relaxed text-slate-500">
+      <p className="mt-3 text-sm font-bold leading-relaxed text-[var(--rz-gray-500)]">
         {t("customerServiceSignInBody") ||
           "Create a free account or sign in to open support tickets, attach screenshots, and track replies from our team."}
       </p>
@@ -79,7 +79,7 @@ function AuthGate({
         <button
           type="button"
           onClick={onSignIn}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-8 py-4 text-[11px] font-black uppercase tracking-widest text-white hover:bg-slate-800"
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--rz-navy)] px-8 py-4 text-[11px] font-black uppercase tracking-widest text-white hover:bg-[var(--rz-navy-800)]"
         >
           <LogIn size={16} />
           {t("authSignIn") || "Sign in"}
@@ -87,7 +87,7 @@ function AuthGate({
         <button
           type="button"
           onClick={onSignUp}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-[#ff5a5f] bg-white px-8 py-4 text-[11px] font-black uppercase tracking-widest text-[#ff5a5f] hover:bg-[#ff5a5f]/5"
+          className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-[#ff5757] bg-white px-8 py-4 text-[11px] font-black uppercase tracking-widest text-[#ff5757] hover:bg-[#ff5757]/5"
         >
           <UserPlus size={16} />
           {t("authSignUp") || "Sign up"}
@@ -242,7 +242,7 @@ export default function CustomerServicePage() {
 
   const ticketPanel = !isHydrated ? (
     <div className="flex justify-center py-16">
-      <Loader2 className="h-10 w-10 animate-spin text-slate-300" />
+      <Loader2 className="h-10 w-10 animate-spin text-[var(--rz-gray-300)]" />
     </div>
   ) : !isLoggedIn ? (
     <AuthGate onSignIn={() => openLogin()} onSignUp={() => openLogin()} />
@@ -250,7 +250,7 @@ export default function CustomerServicePage() {
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
       <div className="space-y-3 lg:col-span-1">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Your tickets</h2>
+          <h2 className="text-xs font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Your tickets</h2>
           <button
             type="button"
             onClick={() => {
@@ -260,19 +260,19 @@ export default function CustomerServicePage() {
                 setShowNew(true);
               }
             }}
-            className="inline-flex items-center gap-1 rounded-xl bg-[#ff5a5f] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white"
+            className="inline-flex items-center gap-1 rounded-xl bg-[#ff5757] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white"
           >
             <Plus className="h-3.5 w-3.5" /> New
           </button>
         </div>
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--rz-gray-500)]" />
           </div>
         ) : tickets.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-            <MessageSquare className="mx-auto h-10 w-10 text-slate-300" />
-            <p className="mt-4 text-sm font-bold text-slate-500">No tickets yet. Create one to get help.</p>
+          <div className="rounded-3xl border border-dashed border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] p-8 text-center">
+            <MessageSquare className="mx-auto h-10 w-10 text-[var(--rz-gray-300)]" />
+            <p className="mt-4 text-sm font-bold text-[var(--rz-gray-500)]">No tickets yet. Create one to get help.</p>
           </div>
         ) : (
           tickets.map((t) => (
@@ -282,12 +282,12 @@ export default function CustomerServicePage() {
               onClick={() => void openTicket(t.id)}
               className={clsx(
                 "w-full rounded-2xl border p-4 text-left transition",
-                selected?.id === t.id ? "border-[#ff5a5f] bg-[#ff5a5f]/5" : "border-slate-100 bg-white hover:border-slate-200",
+                selected?.id === t.id ? "border-[#ff5757] bg-[#ff5757]/5" : "border-[var(--rz-gray-100)] bg-white hover:border-[var(--rz-gray-200)]",
               )}
             >
-              <p className="font-mono text-[10px] font-bold text-slate-500">{t.ticketRef}</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{t.subject}</p>
-              <span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+              <p className="font-mono text-[10px] font-bold text-[var(--rz-gray-500)]">{t.ticketRef}</p>
+              <p className="mt-1 text-sm font-black text-[var(--rz-navy)]">{t.subject}</p>
+              <span className="mt-2 inline-block rounded-full bg-[var(--rz-gray-100)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--rz-gray-600)]">
                 {t.status.replace("_", " ")}
               </span>
             </button>
@@ -295,13 +295,13 @@ export default function CustomerServicePage() {
         )}
       </div>
 
-      <div className="min-h-[420px] rounded-3xl border border-slate-100 bg-white p-6 shadow-sm lg:col-span-2">
+      <div className="min-h-[420px] rounded-3xl border border-[var(--rz-gray-100)] bg-white p-6 shadow-sm lg:col-span-2">
         {selected ? (
           <div className="flex h-full flex-col">
-            <div className="border-b border-slate-100 pb-4">
-              <p className="font-mono text-xs font-bold text-slate-500">{selected.ticketRef}</p>
-              <h3 className="text-lg font-black text-slate-900">{selected.subject}</h3>
-              <p className="mt-1 text-[10px] font-bold uppercase text-slate-400">{selected.category}</p>
+            <div className="border-b border-[var(--rz-gray-100)] pb-4">
+              <p className="font-mono text-xs font-bold text-[var(--rz-gray-500)]">{selected.ticketRef}</p>
+              <h3 className="text-lg font-black text-[var(--rz-navy)]">{selected.subject}</h3>
+              <p className="mt-1 text-[10px] font-bold uppercase text-[var(--rz-gray-500)]">{selected.category}</p>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto py-4 max-h-[320px]">
               {(selected.messages ?? []).map((m) => (
@@ -309,7 +309,7 @@ export default function CustomerServicePage() {
                   key={m.id}
                   className={clsx(
                     "rounded-2xl p-4 text-sm",
-                    m.senderRole === "ADMIN" ? "bg-blue-50 text-blue-900" : "bg-slate-50 text-slate-800",
+                    m.senderRole === "ADMIN" ? "bg-blue-50 text-blue-900" : "bg-[var(--rz-gray-050)] text-[var(--rz-navy-800)]",
                   )}
                 >
                   <p className="text-[10px] font-black uppercase opacity-60">
@@ -322,9 +322,9 @@ export default function CustomerServicePage() {
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 border-t border-slate-100 pt-4">
+            <div className="flex gap-2 border-t border-[var(--rz-gray-100)] pt-4">
               <textarea
-                className="flex-1 rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-[#ff5a5f]"
+                className="flex-1 rounded-xl border border-[var(--rz-gray-200)] p-3 text-sm outline-none focus:border-[#ff5757]"
                 placeholder="Add a reply..."
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
@@ -334,14 +334,14 @@ export default function CustomerServicePage() {
                 type="button"
                 disabled={submitting || !reply.trim()}
                 onClick={() => void handleReply()}
-                className="self-end rounded-xl bg-slate-900 px-4 py-3 text-white disabled:opacity-50"
+                className="self-end rounded-xl bg-[var(--rz-navy)] px-4 py-3 text-white disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex h-full min-h-[360px] flex-col items-center justify-center text-slate-400">
+          <div className="flex h-full min-h-[360px] flex-col items-center justify-center text-[var(--rz-gray-500)]">
             <HelpCircle className="h-12 w-12" />
             <p className="mt-4 text-sm font-bold">Select a ticket or create a new one</p>
           </div>
@@ -362,15 +362,15 @@ export default function CustomerServicePage() {
       >
         <div className="mb-10">{ticketPanel}</div>
 
-        <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 mb-6">
+        <h2 className="text-2xl font-black uppercase tracking-tight text-[var(--rz-navy)] mb-6">
           {t("customerServiceFaq") || "Frequently asked questions"}
         </h2>
         {faqsLoading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-300" />
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--rz-gray-300)]" />
           </div>
         ) : faqs.length === 0 ? (
-          <p className="text-sm font-bold text-slate-500">
+          <p className="text-sm font-bold text-[var(--rz-gray-500)]">
             No FAQs published yet. Check back soon.
           </p>
         ) : (
@@ -378,9 +378,9 @@ export default function CustomerServicePage() {
             {faqs.map((faq) => (
               <details
                 key={faq.id}
-                className="group cursor-pointer rounded-2xl border border-slate-100 bg-white p-6 hover:border-[#ff5a5f] [&_summary::-webkit-details-marker]:hidden"
+                className="group cursor-pointer rounded-2xl border border-[var(--rz-gray-100)] bg-white p-6 hover:border-[#ff5757] [&_summary::-webkit-details-marker]:hidden"
               >
-                <summary className="flex items-center justify-between gap-4 font-black uppercase tracking-tight text-slate-800">
+                <summary className="flex items-center justify-between gap-4 font-black uppercase tracking-tight text-[var(--rz-navy-800)]">
                   <span>{faq.questionEn || faq.questionEs}</span>
                   <span className="shrink-0 transition duration-300 group-open:-rotate-180">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -392,7 +392,7 @@ export default function CustomerServicePage() {
                     </svg>
                   </span>
                 </summary>
-                <p className="mt-4 font-bold leading-relaxed text-slate-500 whitespace-pre-wrap">
+                <p className="mt-4 font-bold leading-relaxed text-[var(--rz-gray-500)] whitespace-pre-wrap">
                   {faq.answerEn || faq.answerEs}
                 </p>
               </details>
@@ -402,13 +402,13 @@ export default function CustomerServicePage() {
       </StaticPageLayout>
 
       {showNew && isLoggedIn ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#023047]/50 p-4">
           <form
             onSubmit={handleCreate}
             className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl"
           >
-            <h2 className="text-xl font-black uppercase text-slate-900">New support ticket</h2>
-            <p className="mt-1 text-sm font-bold text-slate-500">
+            <h2 className="text-xl font-black uppercase text-[var(--rz-navy)]">New support ticket</h2>
+            <p className="mt-1 text-sm font-bold text-[var(--rz-gray-500)]">
               Describe your issue and attach a screenshot if helpful.
             </p>
             <div className="mt-6 space-y-4">
@@ -417,12 +417,12 @@ export default function CustomerServicePage() {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Subject"
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold"
+                className="w-full rounded-xl border border-[var(--rz-gray-200)] px-4 py-3 text-sm font-bold"
               />
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold"
+                className="w-full rounded-xl border border-[var(--rz-gray-200)] px-4 py-3 text-sm font-bold"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -436,7 +436,7 @@ export default function CustomerServicePage() {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Describe your issue (min 8 characters)"
                 rows={5}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+                className="w-full rounded-xl border border-[var(--rz-gray-200)] px-4 py-3 text-sm"
               />
               <input
                 ref={fileRef}
@@ -448,7 +448,7 @@ export default function CustomerServicePage() {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-xs font-black uppercase text-slate-600"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--rz-gray-300)] py-3 text-xs font-black uppercase text-[var(--rz-gray-600)]"
               >
                 <Paperclip className="h-4 w-4" />
                 {screenshot ? "Screenshot attached" : "Attach screenshot"}
@@ -468,7 +468,7 @@ export default function CustomerServicePage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-xl bg-[#ff5a5f] px-6 py-2 text-xs font-black uppercase text-white disabled:opacity-50"
+                className="rounded-xl bg-[#ff5757] px-6 py-2 text-xs font-black uppercase text-white disabled:opacity-50"
               >
                 {submitting ? "Sending..." : "Submit ticket"}
               </button>
@@ -478,9 +478,9 @@ export default function CustomerServicePage() {
       ) : null}
 
       {showNew && !isLoggedIn && isHydrated ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#023047]/50 p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
-            <p className="text-sm font-bold text-slate-600">Sign in or sign up to create a support ticket.</p>
+            <p className="text-sm font-bold text-[var(--rz-gray-600)]">Sign in or sign up to create a support ticket.</p>
             <div className="mt-6 flex justify-center gap-3">
               <button
                 type="button"
@@ -488,7 +488,7 @@ export default function CustomerServicePage() {
                   setShowNew(false);
                   openLogin(() => setShowNew(true));
                 }}
-                className="rounded-xl bg-slate-900 px-6 py-3 text-xs font-black uppercase text-white"
+                className="rounded-xl bg-[var(--rz-navy)] px-6 py-3 text-xs font-black uppercase text-white"
               >
                 Continue
               </button>

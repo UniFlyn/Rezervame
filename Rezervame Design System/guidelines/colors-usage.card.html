@@ -1,0 +1,63 @@
+<!-- @dsCard group="Colors" viewport="700x440" name="Color Usage Rules" subtitle="When to use each color — CTAs, states, text, borders, surfaces, ratings" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { margin: 0; padding: 22px 24px; background: #fff; font-family: var(--font-sans); color: var(--rz-gray-700); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; }
+  .item { display: flex; gap: 12px; align-items: flex-start; }
+  .sw { width: 30px; height: 30px; border-radius: 8px; flex: none; border: 1px solid var(--border-subtle); }
+  .multi { display: flex; flex-direction: column; width: 30px; height: 30px; border-radius: 8px; overflow: hidden; flex: none; border: 1px solid var(--border-subtle); }
+  .multi span { flex: 1; }
+  .t { font-size: 12.5px; line-height: 1.35; }
+  .t b { color: var(--rz-navy); font-weight: 600; display: block; font-size: 13px; }
+  .hex { color: var(--rz-gray-500); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="item">
+      <div class="multi"><span style="background:#FF5757"></span><span style="background:#F04646"></span><span style="background:#D83B3B"></span></div>
+      <div class="t"><b>Primary CTA</b>Coral fill <span class="hex">#FF5757</span> → hover <span class="hex">#F04646</span> → pressed <span class="hex">#D83B3B</span>. White label.</div>
+    </div>
+    <div class="item">
+      <div class="multi"><span style="background:#023047"></span><span style="background:#fff;border-top:1px solid #FF5757"></span></div>
+      <div class="t"><b>Secondary CTA</b>Solid navy <span class="hex">#023047</span>, or coral outline on white. Lower emphasis than primary.</div>
+    </div>
+    <div class="item">
+      <div class="sw" style="background:#F04646"></div>
+      <div class="t"><b>Hover states</b>One step darker: coral → <span class="hex">#F04646</span>, navy → <span class="hex">#022A3D</span>. Never lighten on hover.</div>
+    </div>
+    <div class="item">
+      <div class="sw" style="background:#FFE3E3;border-color:#FF5757"></div>
+      <div class="t"><b>Active / selected</b>Coral border + coral-100 wash <span class="hex">#FFE3E3</span>, label <span class="hex">#D83B3B</span> (chips, slots, tabs).</div>
+    </div>
+    <div class="item">
+      <div class="multi"><span style="background:#023047"></span><span style="background:#4A4F5B"></span><span style="background:#878A93"></span></div>
+      <div class="t"><b>Text hierarchy</b>Headings navy <span class="hex">#023047</span> · body <span class="hex">#4A4F5B</span> · muted <span class="hex">#878A93</span> · links coral.</div>
+    </div>
+    <div class="item">
+      <div class="multi"><span style="background:#E7EAEF"></span><span style="background:#D7DBE2"></span></div>
+      <div class="t"><b>Borders</b>Hairlines <span class="hex">#E7EAEF</span> · inputs/cards <span class="hex">#D7DBE2</span> · active/focus coral.</div>
+    </div>
+    <div class="item">
+      <div class="multi"><span style="background:#F7F8FA"></span><span style="background:#fff"></span></div>
+      <div class="t"><b>Background surfaces</b>Page soft gray <span class="hex">#F7F8FA</span> · cards/modals white. Navy or coral for inverse/brand bands.</div>
+    </div>
+    <div class="item">
+      <div class="sw" style="background:#FDC700"></div>
+      <div class="t"><b>Rating stars</b>Gold <span class="hex">#FDC700</span> — stars, scores & review UI ONLY. Never a general accent.</div>
+    </div>
+    <div class="item">
+      <div class="multi"><span style="background:#1F9D5B"></span><span style="background:#B4690E"></span><span style="background:#D83B3B"></span></div>
+      <div class="t"><b>Error / success / warning</b>Success <span class="hex">#1F9D5B</span> · warning <span class="hex">#B4690E</span> · error <span class="hex">#D83B3B</span> · info <span class="hex">#1F6885</span>. Semantic states only.</div>
+    </div>
+    <div class="item">
+      <div class="sw" style="background:#011D2C"></div>
+      <div class="t"><b>Very dark surfaces</b>Navy-900 <span class="hex">#011D2C</span> for high-emphasis dark backgrounds only — not a replacement for #023047.</div>
+    </div>
+  </div>
+</body>
+</html>

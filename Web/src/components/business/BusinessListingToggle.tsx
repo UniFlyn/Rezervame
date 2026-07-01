@@ -37,14 +37,14 @@ export function BusinessListingToggle() {
   }
 
   return (
-    <div className="rounded-[32px] border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200/50 md:p-8">
+    <div className="rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-6 shadow-xl shadow-[color:rgba(231,234,239,0.5)] md:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Home & search</p>
-          <h3 className="mt-1 text-lg font-black uppercase tracking-tight text-slate-900">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Home & search</p>
+          <h3 className="mt-1 text-lg font-black uppercase tracking-tight text-[var(--rz-navy)]">
             Public visibility
           </h3>
-          <p className="mt-2 text-sm font-medium text-slate-500">
+          <p className="mt-2 text-sm font-medium text-[var(--rz-gray-500)]">
             When visible, customers can find and book you on the website and mobile app. When hidden, your
             storefront stays off discovery lists. Pending businesses are only visible to you until platform
             approval.
@@ -68,7 +68,7 @@ export function BusinessListingToggle() {
           <span
             className={clsx(
               'rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest',
-              visible ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600',
+              visible ? 'bg-emerald-50 text-emerald-700' : 'bg-[var(--rz-gray-100)] text-[var(--rz-gray-600)]',
             )}
           >
             {visible ? 'Visible' : 'Hidden'}
@@ -81,7 +81,7 @@ export function BusinessListingToggle() {
               'inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-widest transition',
               toggleDisabled && 'cursor-not-allowed opacity-50',
               visible
-                ? 'bg-slate-900 text-white hover:bg-slate-800'
+                ? 'bg-[var(--rz-navy)] text-white hover:bg-[var(--rz-navy-800)]'
                 : 'bg-primary text-white hover:opacity-90',
             )}
             aria-pressed={visible}

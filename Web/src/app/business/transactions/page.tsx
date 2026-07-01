@@ -39,7 +39,7 @@ function transactionTone(tx: Transaction) {
         icon: <ArrowDownLeft className="h-4 w-4" />,
         iconClass: "bg-orange-50 text-orange-600",
         labelClass: "text-orange-600",
-        amountClass: "text-slate-900",
+        amountClass: "text-[var(--rz-navy)]",
         sign: "-",
       };
 }
@@ -54,7 +54,7 @@ function FilterSelect({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-2">
+    <div className="flex items-center gap-2 rounded-2xl border border-[var(--rz-gray-100)] bg-[var(--rz-gray-050)] px-4 py-2">
       <select
         className="cursor-pointer bg-transparent text-[10px] font-black uppercase tracking-widest outline-none"
         value={value}
@@ -80,7 +80,7 @@ function TransactionCard({
     <button
       type="button"
       onClick={() => onOpen(transaction)}
-      className="group grid gap-4 rounded-3xl border border-slate-100 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-xl hover:shadow-slate-200/70 lg:grid-cols-[1.4fr_1.1fr_1fr_auto]"
+      className="group grid gap-4 rounded-3xl border border-[var(--rz-gray-100)] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--rz-gray-200)] hover:shadow-xl hover:shadow-[color:rgba(231,234,239,0.7)] lg:grid-cols-[1.4fr_1.1fr_1fr_auto]"
     >
       <div className="min-w-0">
         <div className="mb-3 flex items-center gap-2">
@@ -92,27 +92,27 @@ function TransactionCard({
           </span>
         </div>
 
-        <p className="truncate font-mono text-xs font-bold text-slate-500">{transaction.id}</p>
-        <p className="mt-1 truncate font-mono text-[11px] font-bold text-slate-400">{reference}</p>
+        <p className="truncate font-mono text-xs font-bold text-[var(--rz-gray-500)]">{transaction.id}</p>
+        <p className="mt-1 truncate font-mono text-[11px] font-bold text-[var(--rz-gray-500)]">{reference}</p>
       </div>
 
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer / staff</p>
-        <p className="mt-2 truncate text-sm font-black text-slate-800">
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Customer / staff</p>
+        <p className="mt-2 truncate text-sm font-black text-[var(--rz-navy-800)]">
           {transaction.customerEmail || "No customer attached"}
         </p>
-        <p className="mt-1 truncate text-xs font-bold text-slate-500">
+        <p className="mt-1 truncate text-xs font-bold text-[var(--rz-gray-500)]">
           {transaction.staffMember || "No staff assigned"}
         </p>
       </div>
 
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
-        <div className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-700">
-          <CalendarDays className="h-4 w-4 shrink-0 text-slate-300" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Date</p>
+        <div className="mt-2 flex items-center gap-2 text-sm font-bold text-[var(--rz-gray-700)]">
+          <CalendarDays className="h-4 w-4 shrink-0 text-[var(--rz-gray-300)]" />
           <span className="truncate">{new Date(transaction.date).toLocaleString()}</span>
         </div>
-        <span className="mt-3 inline-flex rounded-full bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
+        <span className="mt-3 inline-flex rounded-full bg-[var(--rz-gray-050)] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-600)]">
           {transaction.status}
         </span>
       </div>
@@ -121,7 +121,7 @@ function TransactionCard({
         <p className={clsx("text-2xl font-black", tone.amountClass)}>
           {tone.sign}${transaction.amount.toFixed(2)}
         </p>
-        <span className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white transition group-hover:bg-primary">
+        <span className="inline-flex items-center gap-2 rounded-2xl bg-[var(--rz-navy)] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white transition group-hover:bg-primary">
           <CreditCard className="h-3.5 w-3.5" />
           Details
         </span>
@@ -132,10 +132,10 @@ function TransactionCard({
 
 function EmptyTransactions() {
   return (
-    <div className="flex min-h-[300px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-      <CreditCard className="h-10 w-10 text-slate-300" />
-      <p className="mt-4 text-sm font-black text-slate-700">No transactions match these filters.</p>
-      <p className="mt-1 max-w-md text-xs font-semibold text-slate-400">
+    <div className="flex min-h-[300px] flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--rz-gray-200)] bg-[var(--rz-gray-050)] p-8 text-center">
+      <CreditCard className="h-10 w-10 text-[var(--rz-gray-300)]" />
+      <p className="mt-4 text-sm font-black text-[var(--rz-gray-700)]">No transactions match these filters.</p>
+      <p className="mt-1 max-w-md text-xs font-semibold text-[var(--rz-gray-500)]">
         Try a broader search, switch status, or clear type filters to see earnings and withdrawal activity.
       </p>
     </div>
@@ -161,17 +161,17 @@ function TransactionDetail({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[32px] border border-slate-100 bg-white p-8 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#023047]/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-8 shadow-2xl">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Transaction details</h3>
-            <p className="mt-1 truncate font-mono text-xs text-slate-400">{transaction.id}</p>
+            <h3 className="text-xl font-black uppercase tracking-tight text-[var(--rz-navy)]">Transaction details</h3>
+            <p className="mt-1 truncate font-mono text-xs text-[var(--rz-gray-500)]">{transaction.id}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl bg-slate-50 p-2 text-slate-400 hover:text-slate-900"
+            className="rounded-2xl bg-[var(--rz-gray-050)] p-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)]"
             aria-label="Close transaction details"
           >
             <X size={20} />
@@ -180,13 +180,13 @@ function TransactionDetail({
 
         <dl className="space-y-4 text-sm">
           {rows.map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-4 border-b border-slate-50 pb-3">
-              <dt className="font-black uppercase tracking-widest text-slate-400">{label}</dt>
-              <dd className="text-right font-bold text-slate-700">{value}</dd>
+            <div key={label} className="flex justify-between gap-4 border-b border-[var(--rz-gray-050)] pb-3">
+              <dt className="font-black uppercase tracking-widest text-[var(--rz-gray-500)]">{label}</dt>
+              <dd className="text-right font-bold text-[var(--rz-gray-700)]">{value}</dd>
             </div>
           ))}
           <div className="flex justify-between gap-4 pt-2">
-            <dt className="font-black uppercase tracking-widest text-slate-400">Amount</dt>
+            <dt className="font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Amount</dt>
             <dd className={clsx("text-lg font-black", tone.amountClass)}>
               {tone.sign}${transaction.amount.toFixed(2)}
             </dd>
@@ -196,7 +196,7 @@ function TransactionDetail({
         <button
           type="button"
           onClick={onClose}
-          className="mt-8 w-full rounded-2xl bg-slate-900 py-4 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary"
+          className="mt-8 w-full rounded-2xl bg-[var(--rz-navy)] py-4 text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary"
         >
           Close
         </button>
@@ -301,10 +301,10 @@ export default function TransactionsPage() {
         </FilterSelect>
       </BusinessFilterToolbar>
 
-      <div className="relative min-h-[400px] overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-xl shadow-slate-200/50">
+      <div className="relative min-h-[400px] overflow-hidden rounded-[32px] border border-[var(--rz-gray-100)] bg-white shadow-xl shadow-[color:rgba(231,234,239,0.5)]">
         {isLoading ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--rz-gray-500)]" />
           </div>
         ) : null}
 

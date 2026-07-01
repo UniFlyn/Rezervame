@@ -1,0 +1,84 @@
+/* Rezervame — base reset & document defaults
+   Applies the brand font and sensible defaults to every consuming page. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "ss02";
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: var(--fw-bold);
+  color: var(--text-strong);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--ls-tight);
+}
+
+p { margin: 0; }
+
+a {
+  color: var(--text-link);
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Reusable eyebrow / section label */
+.rz-eyebrow {
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Soft fade + slight rise — used by floating helpers like TruncatedReveal tooltips */
+@keyframes rz-reveal-in {
+  from { opacity: 0; transform: translateY(3px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Thin, subtle scrollbar for dedicated scroll areas (results lists, panels).
+   Only paints when content actually overflows. */
+.rz-scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rz-gray-200) transparent;
+}
+.rz-scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.rz-scroll-thin::-webkit-scrollbar-track { background: transparent; }
+.rz-scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--rz-gray-200);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.rz-scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--rz-gray-300);
+  background-clip: padding-box;
+}

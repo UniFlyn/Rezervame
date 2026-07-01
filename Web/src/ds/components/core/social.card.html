@@ -1,0 +1,89 @@
+<!-- @dsCard group="Components" viewport="700x680" name="Social Icons & Links" subtitle="Reusable brand icons, button variants, sizes & states" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 28px; background: var(--rz-gray-050); font-family: var(--font-sans); color: var(--rz-navy); }
+  .sec { margin-bottom: 26px; }
+  .lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rz-gray-400); margin-bottom: 12px; }
+  .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .swatch { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .cap { font-size: 11px; color: var(--rz-gray-500); }
+  .panel { padding: 18px 20px; border-radius: var(--radius-lg); }
+  .coral { background: var(--rz-coral); }
+  .light { background: var(--surface-card); border: 1px solid var(--border-subtle); }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script type="text/babel">
+    const { SocialIcon, SocialIconButton, SocialLinks } = window.RezervameDesignSystem_4317c4;
+    const NAMES = ['instagram', 'facebook', 'linkedin', 'x'];
+
+    function Demo() {
+      return (
+        <div>
+          <div className="sec">
+            <div className="lbl">Brand icons — SocialIcon</div>
+            <div className="row" style={{ color: 'var(--rz-navy)' }}>
+              {NAMES.map(n => (
+                <div className="swatch" key={n}>
+                  <SocialIcon name={n} size={28} />
+                  <span className="cap">{n}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="sec">
+            <div className="lbl">Sizes — 32 · 40 · 48</div>
+            <div className="row">
+              {[32, 40, 48].map(sz => (
+                <div className="swatch" key={sz}>
+                  <SocialIconButton name="instagram" variant="neutral" size={sz} />
+                  <span className="cap">{sz}px</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="sec">
+            <div className="lbl">Color variants</div>
+            <div className="row">
+              <div className="swatch"><div className="panel coral"><SocialLinks items={NAMES} variant="footer" /></div><span className="cap">footer</span></div>
+            </div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <div className="swatch"><div className="panel light"><SocialLinks items={NAMES} variant="neutral" /></div><span className="cap">neutral</span></div>
+              <div className="swatch"><div className="panel light"><SocialLinks items={NAMES} variant="coral" /></div><span className="cap">coral</span></div>
+              <div className="swatch"><div className="panel light"><SocialLinks items={NAMES} variant="dark" /></div><span className="cap">dark</span></div>
+            </div>
+          </div>
+
+          <div className="sec">
+            <div className="lbl">States — default · hover · disabled</div>
+            <div className="row">
+              <div className="swatch"><SocialIconButton name="facebook" variant="neutral" /><span className="cap">default</span></div>
+              <div className="swatch"><SocialIconButton name="facebook" variant="coral" /><span className="cap">hover me</span></div>
+              <div className="swatch"><SocialIconButton name="facebook" variant="neutral" disabled /><span className="cap">disabled</span></div>
+            </div>
+          </div>
+
+          <div className="sec" style={{ marginBottom: 0 }}>
+            <div className="lbl">In context — Footer (variant="footer")</div>
+            <div className="panel coral" style={{ display: 'inline-block' }}>
+              <SocialLinks items={NAMES} variant="footer" size={40} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+  </script>
+</body>
+</html>

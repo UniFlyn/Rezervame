@@ -34,12 +34,12 @@ export declare function finalizeBusinessBookingGroupPayment(prisma: PrismaServic
     status: string;
     businessId: string;
     date: Date;
-    taxAmount: number;
     paymentMethod: string;
+    amount: number;
+    taxAmount: number;
     bookingId: string | null;
     customerEmail: string | null;
     staffMember: string | null;
-    amount: number;
     commissionAmount: number;
     type: string;
 }>;

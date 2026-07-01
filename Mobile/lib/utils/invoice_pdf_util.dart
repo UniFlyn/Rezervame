@@ -15,8 +15,10 @@ Future<void> shareReservationInvoice({
   final ref = '${reservation['refNumber'] ?? ''}';
   final items = (reservation['items'] as List<dynamic>?) ?? [];
   final subtotal = (reservation['subtotal'] as num?)?.toDouble() ?? 0;
+  final commissionAmount = (reservation['commissionAmount'] as num?)?.toDouble() ?? 0;
   final taxAmount = (reservation['taxAmount'] as num?)?.toDouble() ?? 0;
-  final total = (reservation['totalPrice'] as num?)?.toDouble() ?? subtotal + taxAmount;
+  final total =
+      (reservation['totalPrice'] as num?)?.toDouble() ?? subtotal + commissionAmount + taxAmount;
   final taxPct = (reservation['taxPercentage'] as num?)?.toDouble() ?? 0;
   final isPaid = paymentStatus.toLowerCase() == 'paid';
 

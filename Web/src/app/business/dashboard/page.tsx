@@ -55,7 +55,7 @@ function KPI({
                 'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider',
                 up && 'bg-emerald-50 text-emerald-700',
                 down && 'bg-rose-50 text-rose-700',
-                !up && !down && 'bg-slate-100 text-slate-500',
+                !up && !down && 'bg-[var(--rz-gray-100)] text-[var(--rz-gray-500)]',
               )}
             >
               {up ? <ArrowUpRight className="h-3 w-3" /> : down ? <ArrowDownRight className="h-3 w-3" /> : null}
@@ -65,9 +65,9 @@ function KPI({
           )}
         </div>
         {monthCompare && (
-          <p className="mt-2 text-[10px] leading-snug text-slate-500">
-            <span className="font-bold text-slate-700">This month {monthCompare.current}</span>
-            <span className="mx-1 text-slate-300">·</span>
+          <p className="mt-2 text-[10px] leading-snug text-[var(--rz-gray-500)]">
+            <span className="font-bold text-[var(--rz-gray-700)]">This month {monthCompare.current}</span>
+            <span className="mx-1 text-[var(--rz-gray-300)]">·</span>
             <span>Prior month {monthCompare.previous}</span>
           </p>
         )}
@@ -99,7 +99,7 @@ export default function DashboardPage() {
 
   if (!business?.id) {
     return (
-      <div className="rounded-2xl border border-slate-100 bg-white p-12 text-center text-sm font-bold text-slate-500">
+      <div className="rounded-2xl border border-[var(--rz-gray-100)] bg-white p-12 text-center text-sm font-bold text-[var(--rz-gray-500)]">
         Preparing your workspace…
       </div>
     );
@@ -132,8 +132,8 @@ export default function DashboardPage() {
           <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">{business?.name}</p>
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Period</span>
-          <div className="flex rounded-2xl bg-slate-100 p-1.5" role="tablist" aria-label="Period">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--rz-gray-500)]">Period</span>
+          <div className="flex rounded-2xl bg-[var(--rz-gray-100)] p-1.5" role="tablist" aria-label="Period">
             {(['day', 'week', 'month'] as const).map((p) => (
               <button
                 key={p}
@@ -143,7 +143,7 @@ export default function DashboardPage() {
                 onClick={() => setPeriod(p)}
                 className={clsx(
                   'rounded-xl px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all',
-                  period === p ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-800',
+                  period === p ? 'bg-white text-[var(--rz-navy)] shadow-md' : 'text-[var(--rz-gray-500)] hover:text-[var(--rz-navy-800)]',
                 )}
               >
                 {p === 'day' ? 'Day' : p === 'week' ? 'Week' : 'Month'}
@@ -151,7 +151,7 @@ export default function DashboardPage() {
             ))}
           </div>
           {isFetching ? (
-            <span className="text-[10px] font-bold uppercase text-slate-400">Updating…</span>
+            <span className="text-[10px] font-bold uppercase text-[var(--rz-gray-500)]">Updating…</span>
           ) : null}
         </div>
       </div>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
 
       {!(error instanceof Error) &&
         ((isLoading || isPending) && !data ? (
-        <div className="rounded-2xl border border-slate-100 bg-white p-12 text-center text-sm font-bold text-slate-500">
+        <div className="rounded-2xl border border-[var(--rz-gray-100)] bg-white p-12 text-center text-sm font-bold text-[var(--rz-gray-500)]">
           Loading metrics…
         </div>
       ) : data ? (
@@ -225,9 +225,9 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/50 lg:col-span-2">
+            <div className="rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-8 shadow-xl shadow-[color:rgba(231,234,239,0.5)] lg:col-span-2">
               <div className="mb-6 flex items-center justify-between">
-                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800">Activity</h3>
+                <h3 className="text-lg font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Activity</h3>
                 <span className="rounded-full bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">
                   {periodLabel}
                 </span>
@@ -237,8 +237,8 @@ export default function DashboardPage() {
                   <AreaChart data={data.chart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorRevDash" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ff5a5f" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#ff5a5f" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#ff5757" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#ff5757" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -266,7 +266,7 @@ export default function DashboardPage() {
                     <Area
                       type="monotone"
                       dataKey="revenue"
-                      stroke="#ff5a5f"
+                      stroke="#ff5757"
                       strokeWidth={3}
                       fillOpacity={1}
                       fill="url(#colorRevDash)"
@@ -277,17 +277,17 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex flex-col gap-6">
-              <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/50">
-                <h3 className="mb-4 text-lg font-black uppercase tracking-tight text-slate-800">Top services</h3>
-                <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{periodLabel}</p>
+              <div className="rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-8 shadow-xl shadow-[color:rgba(231,234,239,0.5)]">
+                <h3 className="mb-4 text-lg font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Top services</h3>
+                <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">{periodLabel}</p>
                 <ul className="space-y-3">
                   {data.topServices.length === 0 ? (
-                    <li className="text-sm font-bold text-slate-400">No data for this period</li>
+                    <li className="text-sm font-bold text-[var(--rz-gray-500)]">No data for this period</li>
                   ) : (
                     data.topServices.map((row, i) => (
                       <li key={row.name} className="flex items-center justify-between text-sm">
-                        <span className="font-bold text-slate-700">
-                          <span className="mr-2 text-slate-300">{i + 1}.</span>
+                        <span className="font-bold text-[var(--rz-gray-700)]">
+                          <span className="mr-2 text-[var(--rz-gray-300)]">{i + 1}.</span>
                           {row.name}
                         </span>
                         <span className="font-black text-primary">{row.count}</span>
@@ -297,18 +297,18 @@ export default function DashboardPage() {
                 </ul>
               </div>
 
-              <div className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/50">
-                <h3 className="mb-6 text-lg font-black uppercase tracking-tight text-slate-800">Recent bookings</h3>
+              <div className="rounded-[32px] border border-[var(--rz-gray-100)] bg-white p-8 shadow-xl shadow-[color:rgba(231,234,239,0.5)]">
+                <h3 className="mb-6 text-lg font-black uppercase tracking-tight text-[var(--rz-navy-800)]">Recent bookings</h3>
                 <ul className="space-y-4">
                   {data.recentBookings.map((b) => (
                     <li key={b.id} className="group flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 font-black uppercase text-slate-400 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--rz-gray-050)] font-black uppercase text-[var(--rz-gray-500)] transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                           {b.customerName.charAt(0)}
                         </div>
                         <div>
-                          <p className="text-sm font-black text-slate-800">{b.customerName}</p>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                          <p className="text-sm font-black text-[var(--rz-navy-800)]">{b.customerName}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-gray-500)]">
                             {new Date(b.date).toLocaleDateString()}
                           </p>
                         </div>
@@ -318,7 +318,7 @@ export default function DashboardPage() {
                           'rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest',
                           b.status === 'Approved' && 'bg-emerald-50 text-emerald-600',
                           b.status === 'Pending' && 'bg-amber-50 text-amber-600',
-                          b.status !== 'Approved' && b.status !== 'Pending' && 'bg-slate-50 text-slate-500',
+                          b.status !== 'Approved' && b.status !== 'Pending' && 'bg-[var(--rz-gray-050)] text-[var(--rz-gray-500)]',
                         )}
                       >
                         {b.status}
@@ -331,7 +331,7 @@ export default function DashboardPage() {
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-slate-100 bg-white p-12 text-center text-sm font-bold text-slate-500">
+        <div className="rounded-2xl border border-[var(--rz-gray-100)] bg-white p-12 text-center text-sm font-bold text-[var(--rz-gray-500)]">
           No metrics available yet.
         </div>
       ))}
