@@ -8,7 +8,7 @@ import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { venueCardImageSrc, businessListingImageSrc, type SearchVenueRow } from "@/lib/venueSearch";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { InvoiceTable, InvoiceCard, EmptyState, NotificationItem } from "@/ds";
+import { InvoiceTable, InvoiceCard, EmptyState, NotificationItem, Tabs } from "@/ds";
 import { generateAndDownloadInvoicePDF } from "@/lib/invoicePdf";
 import { 
   Trash2, Edit2, Shield, User as UserIcon, 
@@ -770,7 +770,7 @@ function ProfileContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (activeTab !== "notifications") return;
+    if (!isHydrated || !isLoggedIn) return;
     let alive = true;
     setNotifLoading(true);
     apiGet<NotificationRow[]>("/notifications", "USER")
@@ -778,7 +778,7 @@ function ProfileContent() {
       .catch(() => { if (alive) setNotifList([]); })
       .finally(() => { if (alive) setNotifLoading(false); });
     return () => { alive = false; };
-  }, [activeTab]);
+  }, [isHydrated, isLoggedIn, refreshTrigger]);
 
   const markAllNotifRead = async () => {
     setNotifList((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -943,6 +943,58 @@ function ProfileContent() {
 
   const nextBooking = ongoingReservations[0] || null;
 
+  // Account header stats (spec: Reservas totales · Próximas citas · Favoritos)
+  const notifUnreadCount = notifList.filter((n) => !n.read).length;
+  const totalReservationsCount = historyTotal + ongoingReservations.length;
+  const profileStats = [
+    {
+      icon: <CheckCircle2 size={19} />,
+      value: totalReservationsCount,
+      label: language === "en" ? "Total reservations" : "Reservas totales",
+    },
+    {
+      icon: <Calendar size={19} />,
+      value: ongoingReservations.length,
+      label: language === "en" ? "Upcoming appointments" : "Próximas citas",
+    },
+    {
+      icon: <Heart size={19} />,
+      value: favoritesTotal,
+      label: language === "en" ? "Favorites" : "Favoritos",
+    },
+  ];
+
+  // Tab items for the DS segmented Tabs (with unread badge on Notifications).
+  const tabItems = menuItems.map((item) => ({
+    value: item.id,
+    label:
+      item.id === "notifications" && notifUnreadCount > 0 ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+          {item.label}
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 18,
+              height: 18,
+              padding: "0 5px",
+              borderRadius: 999,
+              background: "var(--rz-coral)",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+          >
+            {notifUnreadCount}
+          </span>
+        </span>
+      ) : (
+        item.label
+      ),
+  }));
+
   const handleAddFamily = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
@@ -987,11 +1039,11 @@ function ProfileContent() {
   };
 
   if (!isHydrated) {
-    return <PageLoader label="Loading your profile…" />;
+    return <PageLoader label={language === "en" ? "Loading your profile…" : "Cargando tu perfil…"} />;
   }
 
   if (isLoggedIn && !profileDataReady) {
-    return <PageLoader label="Loading your reservations…" />;
+    return <PageLoader label={language === "en" ? "Loading your reservations…" : "Cargando tus reservas…"} />;
   }
 
   if (!isLoggedIn) {
@@ -1010,63 +1062,65 @@ function ProfileContent() {
   }
 
   return (
-    <div className="bg-[var(--rz-gray-050)] flex h-screen overflow-hidden animate-in fade-in duration-700">
-      {/* Sidebar */}
-      <aside className="w-[320px] bg-white border-r border-[var(--border-default)] flex flex-col hidden lg:flex shadow-sm shrink-0">
-        <div className="p-8 flex flex-col items-center border-b border-[var(--border-subtle)]">
-          <div className="relative group mb-4">
-            <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-[var(--border-subtle)] shadow-sm bg-[var(--rz-gray-100)] flex items-center justify-center transform group-hover:rotate-3 transition-transform">
-              <img 
-                src={user?.avatar || PLACEHOLDER_IMAGE_DATA_URI} 
-                alt={user?.name || "User Profile"} 
-                className="w-full h-full object-cover"
-                onError={(e) => { 
+    <div className="min-h-screen bg-[var(--rz-gray-050)] animate-in fade-in duration-700">
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-8 sm:px-6 lg:py-10">
+        {/* Profile header */}
+        <div className="mb-6 rounded-3xl border border-[var(--border-subtle)] bg-white p-5 shadow-sm lg:p-7">
+          <div className="flex flex-wrap items-center gap-5">
+            <div
+              className="relative h-[76px] w-[76px] shrink-0 overflow-hidden rounded-full border border-[var(--border-subtle)] bg-[var(--rz-gray-100)]"
+              style={{ boxShadow: "0 0 0 4px rgba(255,87,87,0.15)" }}
+            >
+              <img
+                src={user?.avatar || PLACEHOLDER_IMAGE_DATA_URI}
+                alt={user?.name || "User"}
+                className="h-full w-full object-cover"
+                onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=ff5757&color=fff&size=128&bold=true`; 
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=ff5757&color=fff&size=128&bold=true`;
                 }}
               />
             </div>
-            <button className="absolute -bottom-1 -right-1 bg-[#ff5757] p-2 rounded-xl text-white shadow-lg opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110">
-              <Camera size={14} />
-            </button>
+            <div className="min-w-[200px] flex-1">
+              <h1 className="text-2xl font-black leading-tight text-[var(--rz-navy)] lg:text-3xl">{user?.name}</h1>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                {user?.email ? (
+                  <span className="inline-flex items-center gap-1.5 text-[13.5px] text-[var(--rz-gray-500)]">
+                    <Mail size={14} /> {user.email}
+                  </span>
+                ) : null}
+                {user?.phone?.trim() ? (
+                  <span className="inline-flex items-center gap-1.5 text-[13.5px] text-[var(--rz-gray-500)]">
+                    <Phone size={14} /> {user.phone}
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </div>
-          <h2 className="text-lg font-black text-[var(--rz-navy)]">{user?.name}</h2>
-          <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">{user?.phone?.trim() || "—"}</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            {profileStats.map((s, i) => (
+              <div key={i} className="flex min-w-[140px] flex-1 items-center gap-3 rounded-2xl bg-[var(--rz-gray-050)] px-4 py-3">
+                <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-white text-[var(--rz-coral)]">
+                  {s.icon}
+                </span>
+                <div>
+                  <div className="text-xl font-black leading-none text-[var(--rz-navy)]">{s.value}</div>
+                  <div className="mt-1 text-xs text-[var(--rz-gray-500)]">{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <nav className="flex-1 p-6 space-y-2 overflow-y-auto custom-scrollbar">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as Tab)}
-              className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-2xl font-bold transition-all ${
-                activeTab === item.id 
-                ? "bg-[#ff5757] text-white shadow-lg shadow-[#ff5757]/20 transform -translate-y-0.5" 
-                : "text-[var(--rz-gray-500)] hover:bg-[var(--rz-gray-050)] hover:text-[var(--rz-gray-700)]"
-              }`}
-            >
-              <span className={activeTab === item.id ? "text-white" : "text-[var(--rz-gray-500)]"}>
-                {item.icon}
-              </span>
-              <span className="text-sm">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-6 border-t border-[var(--border-subtle)]">
-          <button 
-            onClick={() => { logout(); router.push('/'); }}
-            className="w-full flex items-center justify-center space-x-3 px-4 py-3.5 rounded-2xl font-black text-[#ff5757] hover:bg-red-50 transition-all text-[11px] uppercase tracking-widest"
-          >
-            <LogOut size={16} />
-            <span>{"Log Out"}</span>
-          </button>
+        {/* Tabs */}
+        <div className="mb-6 overflow-x-auto pb-1">
+          <div className="min-w-max">
+            <Tabs value={activeTab} onChange={(v: string) => setActiveTab(v as Tab)} items={tabItems} />
+          </div>
         </div>
-      </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[var(--rz-gray-050)]">
-        <div className="max-w-[1000px] mx-auto w-full p-6 lg:p-12">
+        {/* Content */}
+        <div className="w-full">
           
           {/* TAB: BOOKINGS */}
           {activeTab === "bookings" && (
@@ -1074,16 +1128,16 @@ function ProfileContent() {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
                   <h1 className="text-3xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
-                    {"My Reservations"}
+                    {language === "en" ? "My Reservations" : "Mis reservas"}
                   </h1>
                   <p className="text-[var(--rz-gray-500)] font-bold text-sm">
-                    {"Manage your appointments and download your invoices"}
+                    {language === "en" ? "Manage your appointments and download your invoices" : "Gestiona tus citas y descarga tus facturas"}
                   </p>
                 </div>
               </div>
 
               <div className="mb-12 space-y-6">
-                <h3 className="text-xs font-black text-[var(--rz-gray-600)] uppercase tracking-widest mb-4">{"UPCOMING RESERVATIONS"}</h3>
+                <h3 className="text-xs font-black text-[var(--rz-gray-600)] uppercase tracking-widest mb-4">{language === "en" ? "UPCOMING RESERVATIONS" : "PRÓXIMAS RESERVAS"}</h3>
                 {ongoingReservations.length > 0 ? (
                   ongoingReservations.map((res) => (
                     <div key={res.id} className="bg-white border-2 border-[var(--border-subtle)] rounded-3xl p-6 md:p-8 text-[var(--rz-navy)] shadow-md flex flex-col md:flex-row justify-between items-center group cursor-pointer hover:shadow-lg transition-all relative overflow-hidden hover:border-[#ff5757]/20">
@@ -1101,12 +1155,12 @@ function ProfileContent() {
                             {/* Status Badge */}
                             {res.status === "pending" && (
                               <span className="bg-amber-50 text-amber-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                <Clock size={11} /> Awaiting Approval
+                                <Clock size={11} /> {language === "en" ? "Awaiting Approval" : "Esperando aprobación"}
                               </span>
                             )}
                             {res.status === "confirmed" && (
                               <span className="bg-green-50 text-green-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1.5">
-                                <CheckCircle size={11} /> Confirmed
+                                <CheckCircle size={11} /> {language === "en" ? "Confirmed" : "Confirmada"}
                               </span>
                             )}
                             {res.status === "paid" && (
@@ -1151,21 +1205,21 @@ function ProfileContent() {
                           }}
                           className="text-xs font-black uppercase tracking-widest bg-[#ff5757] text-white px-8 py-3 rounded-2xl hover:bg-[#d83b3b] transition-colors shadow-md"
                         >
-                          {"See Details"}
+                          {language === "en" ? "See Details" : "Ver detalles"}
                         </button>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm font-medium text-[var(--rz-gray-500)]">{"No upcoming reservations."}</p>
+                  <p className="text-sm font-medium text-[var(--rz-gray-500)]">{language === "en" ? "No upcoming reservations." : "No tienes próximas reservas."}</p>
                 )}
               </div>
 
               <div ref={historyRef}>
-                <h3 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest mb-6">{"APPOINTMENT HISTORY"}</h3>
+                <h3 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest mb-6">{language === "en" ? "APPOINTMENT HISTORY" : "HISTORIAL DE CITAS"}</h3>
                 <div className="space-y-6">
                   {historyReservations.length === 0 && (
-                    <p className="text-sm text-[var(--rz-gray-500)]">{"No past appointments yet."}</p>
+                    <p className="text-sm text-[var(--rz-gray-500)]">{language === "en" ? "No past appointments yet." : "Aún no tienes citas pasadas."}</p>
                   )}
                   {historyReservations.map((res) => (
                     <div key={res.id} className="bg-white border border-[var(--border-default)] rounded-[40px] p-8 flex flex-col md:flex-row justify-between items-center hover:shadow-2xl hover:shadow-[color:rgba(231,234,239,0.5)] transition duration-500 shadow-sm group">
@@ -1187,17 +1241,17 @@ function ProfileContent() {
                              <div className="flex items-center gap-2">
                                 {res.status === "completed" && (
                                   <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1.5">
-                                    <CheckCircle size={11} /> Completed
+                                    <CheckCircle size={11} /> {language === "en" ? "Completed" : "Completada"}
                                   </span>
                                 )}
                                 {res.status === "cancelled" && (
                                   <span className="bg-red-50 text-red-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-red-200 flex items-center gap-1.5">
-                                    <X size={11} /> Cancelled
+                                    <X size={11} /> {language === "en" ? "Cancelled" : "Cancelada"}
                                   </span>
                                 )}
                                 {(res.status === "confirmed" || res.status === "pending") && (
                                   <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                    <Clock size={11} /> {res.status === "pending" ? ("Pending") : ("Confirmed")}
+                                    <Clock size={11} /> {res.status === "pending" ? (language === "en" ? "Pending" : "Pendiente") : (language === "en" ? "Confirmed" : "Confirmada")}
                                   </span>
                                 )}
                              </div>
@@ -1221,7 +1275,7 @@ function ProfileContent() {
                               onClick={() => { setSelectedRes(res); setIsResModalOpen(true); setPaymentView("none"); }} 
                               className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] px-4 py-2 rounded-xl transition"
                             >
-                               {"Details"}
+                               {language === "en" ? "Details" : "Detalles"}
                             </button>
                             <button onClick={() => handleDownloadInvoice(res)} className="p-3 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] rounded-2xl transition">
                                <Download size={18} />
@@ -1231,14 +1285,14 @@ function ProfileContent() {
                                  onClick={() => { setSelectedRes(res); setIsReviewModalOpen(true); }}
                                  className="text-[10px] font-black text-amber-600 uppercase tracking-widest hover:bg-amber-100 bg-amber-50 px-4 py-2 rounded-xl transition border border-amber-100"
                                >
-                                  {"Rate"}
+                                  {language === "en" ? "Rate" : "Calificar"}
                                </button>
                              )}
                             <button 
                               onClick={() => { if (res.businessId) router.push(`/venue/${res.businessId}`); }}
                               className="text-xs font-black text-[#ff5757] uppercase tracking-widest hover:underline flex items-center gap-1 bg-[#ff5757]/5 px-6 py-3 rounded-2xl hover:bg-[#ff5757]/10 transition-all transform hover:-translate-y-1"
                             >
-                                {"Re-book"}
+                                {language === "en" ? "Re-book" : "Reservar de nuevo"}
                                 <ChevronRight size={14} />
                             </button>
                           </div>
@@ -1266,16 +1320,16 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
                <div className="flex justify-between items-center mb-8">
                  <div>
-                    <h2 className="text-2xl font-black text-[var(--rz-navy)]">{"Family & Friends"}</h2>
+                    <h2 className="text-2xl font-black text-[var(--rz-navy)]">{language === "en" ? "Family & Friends" : "Familia y amigos"}</h2>
                     <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">
-                      {"Manage appointments for your inner circle"}
+                      {language === "en" ? "Manage appointments for your inner circle" : "Gestiona las citas de tus seres queridos"}
                     </p>
                  </div>
                  <button 
                   onClick={() => { setEditingMember(null); setIsFamilyModalOpen(true); }}
                   className="bg-[#ff5757] text-white font-black px-6 py-3 rounded-2xl text-sm shadow-xl shadow-[#ff5757]/20 hover:bg-[#d83b3b] transition flex items-center gap-2 transform hover:-translate-y-1"
                  >
-                    <Plus size={18} /> Add Member
+                    <Plus size={18} /> {language === "en" ? "Add Member" : "Agregar persona"}
                  </button>
                </div>
                
@@ -1542,15 +1596,15 @@ function ProfileContent() {
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
                 <div>
                   <h1 className="text-3xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
-                    {"My Favorite Places"}
+                    {language === "en" ? "My Favorite Places" : "Mis lugares favoritos"}
                   </h1>
                   <p className="text-[var(--rz-gray-500)] font-bold text-sm">
-                    {"Your preferred locations in one place"}
+                    {language === "en" ? "Your preferred locations in one place" : "Tus lugares preferidos en un solo lugar"}
                   </p>
                 </div>
                 <div className="bg-white px-8 py-4 rounded-[28px] shadow-sm border border-[var(--border-subtle)] flex items-center gap-4">
                    <Heart className="text-[#ff5757]" size={24} fill="#ff5757" />
-                   <span className="font-black text-[var(--rz-navy)] text-sm uppercase tracking-widest">{favoritesTotal} Places</span>
+                   <span className="font-black text-[var(--rz-navy)] text-sm uppercase tracking-widest">{favoritesTotal} {language === "en" ? "Places" : "Lugares"}</span>
                 </div>
               </div>
 
@@ -1561,7 +1615,7 @@ function ProfileContent() {
                     type="search"
                     value={favoritesSearch}
                     onChange={(e) => setFavoritesSearch(e.target.value)}
-                    placeholder="Search favorites"
+                    placeholder={language === "en" ? "Search favorites" : "Buscar favoritos"}
                     className="w-full rounded-2xl border border-[var(--border-default)] bg-[var(--rz-gray-050)] py-3.5 pl-12 pr-4 text-sm font-semibold text-[var(--rz-navy)] outline-none focus:border-[#ff5757] focus:ring-2 focus:ring-[#ff5757]/20"
                   />
                 </div>
@@ -1681,9 +1735,9 @@ function ProfileContent() {
             <div className="animate-in fade-in duration-500">
                <div className="flex justify-between items-center mb-10">
                  <div>
-                    <h2 className="text-3xl font-black text-[var(--rz-navy)]">{"My Invoices"}</h2>
+                    <h2 className="text-3xl font-black text-[var(--rz-navy)]">{language === "en" ? "My Invoices" : "Mis facturas"}</h2>
                     <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">
-                      {"Payment history and tax receipts"}
+                      {language === "en" ? "Payment history and tax receipts" : "Historial de pagos y recibos"}
                     </p>
                  </div>
                  <div className="p-4 bg-white rounded-3xl border border-[var(--border-subtle)] shadow-sm flex items-center gap-3">
@@ -1909,7 +1963,7 @@ function ProfileContent() {
             </div>
           )}
         </div>
-      </main>
+      </div>
 
       {/* Reservation Detail Modal */}
       {isResModalOpen && selectedRes && (
@@ -1923,7 +1977,7 @@ function ProfileContent() {
                 className="flex items-center gap-2 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] font-bold transition text-sm"
               >
                 <ChevronLeft size={20} />
-                {"Back"}
+                {language === "en" ? "Back" : "Atrás"}
               </button>
               <div className="flex flex-col items-center">
                 <h2 className="text-sm font-black text-[var(--rz-navy)] uppercase tracking-widest">{selectedRes.venueName}</h2>
@@ -1963,7 +2017,7 @@ function ProfileContent() {
                                 <Calendar size={22} />
                              </div>
                              <div>
-                                <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Date & Time"}</p>
+                                <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{language === "en" ? "Date & Time" : "Fecha y hora"}</p>
                                 <p className="font-black text-[var(--rz-navy)] text-sm">{selectedRes.date} at {selectedRes.time}</p>
                              </div>
                           </div>
@@ -1973,7 +2027,7 @@ function ProfileContent() {
                        </div>
 
                        <div>
-                          <h4 className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-4">{"Service Details"}</h4>
+                          <h4 className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-4">{language === "en" ? "Service Details" : "Detalles del servicio"}</h4>
                           <div className="space-y-3.5">
                              {selectedRes.items.map((item) => (
                                <div key={item.id} className="flex justify-between items-center p-5 rounded-2xl bg-white border border-[var(--border-subtle)] hover:border-[#ff5757]/20 transition-all shadow-sm">
@@ -1993,13 +2047,13 @@ function ProfileContent() {
                                      {item.status === 'paid' && (
                                        <span className="text-[9px] font-black text-cyan-600 uppercase tracking-widest flex items-center gap-1">
                                          <CreditCard size={12} />
-                                         {"Paid"}
+                                         {language === "en" ? "Paid" : "Pagado"}
                                        </span>
                                      )}
                                      {item.status === 'cash_at_venue' && (
                                        <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1">
                                          <Banknote size={12} />
-                                         {"Pay at Venue"}
+                                         {language === "en" ? "Pay at Venue" : "Pagar en el local"}
                                        </span>
                                      )}
                                      {item.canCancel && (
@@ -2007,13 +2061,13 @@ function ProfileContent() {
                                          onClick={() => handleCancelReservation(item.id)}
                                          className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-red-100 transition"
                                        >
-                                          {"Cancel"}
+                                          {language === "en" ? "Cancel" : "Cancelar"}
                                        </button>
                                      )}
                                      {item.status === 'completed' && item.isReviewed && (
                                        <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
                                           <CheckCircle2 size={12} />
-                                          {"Reviewed"}
+                                          {language === "en" ? "Reviewed" : "Reseñado"}
                                        </span>
                                      )}
                                   </div>
@@ -2028,11 +2082,11 @@ function ProfileContent() {
                 {/* RIGHT: Summary & Payment */}
                 <div className="space-y-6">
                    <div className="bg-white rounded-[32px] border border-[var(--border-subtle)] p-6 md:p-8 shadow-sm">
-                      <h4 className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-5">{"Payment Summary"}</h4>
+                      <h4 className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-[0.2em] mb-5">{language === "en" ? "Payment Summary" : "Resumen de pago"}</h4>
                       
                       <div className="space-y-3.5">
                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-[var(--rz-gray-500)]">{"Services"}</span>
+                            <span className="font-bold text-[var(--rz-gray-500)]">{language === "en" ? "Services" : "Servicios"}</span>
                             <span className="font-black text-[var(--rz-gray-700)]">${selectedRes.subtotal.toFixed(2)}</span>
                          </div>
                          {selectedRes.commissionAmount > 0 && (
@@ -2052,7 +2106,7 @@ function ProfileContent() {
                             <span className="font-black text-[var(--rz-gray-700)]">${selectedRes.taxAmount.toFixed(2)}</span>
                          </div>
                          <div className="pt-3.5 mt-3.5 border-t border-[var(--border-subtle)] flex justify-between items-center">
-                            <span className="text-sm font-black text-[var(--rz-navy)]">{"Total"}</span>
+                            <span className="text-sm font-black text-[var(--rz-navy)]">{language === "en" ? "Total" : "Total"}</span>
                             <span className="text-2xl font-black text-[#ff5757]">${selectedRes.totalPrice.toFixed(2)}</span>
                          </div>
                       </div>
@@ -2060,15 +2114,15 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "confirmed" && (
                         <div className="mt-6 space-y-4">
                            <div className="p-4 bg-emerald-50/70 border border-emerald-100/80 rounded-2xl text-[10px] font-bold text-emerald-800">
-                              <p className="font-black uppercase tracking-widest mb-1">{"Approved"}</p>
-                              <p className="text-emerald-700/90 font-medium">{"Your booking is approved. Please pay online to confirm."}</p>
+                              <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Approved" : "Aprobada"}</p>
+                              <p className="text-emerald-700/90 font-medium">{language === "en" ? "Your booking is approved. Please pay online to confirm." : "Tu reserva fue aprobada. Paga en línea para confirmar."}</p>
                            </div>
                            <button 
                              type="button"
                              onClick={() => setPaymentView("review")}
                              className="w-full bg-[#ff5757] hover:bg-[#d83b3b] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5757]/15 transition-all transform active:scale-95"
                            >
-                             {"Review & Pay"}
+                             {language === "en" ? "Review & Pay" : "Revisar y pagar"}
                            </button>
                         </div>
                       )}
@@ -2076,8 +2130,8 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "rescheduled" && (
                         <div className="mt-6 space-y-4">
                            <div className="p-4 bg-amber-50/70 border border-amber-100/80 rounded-2xl text-[10px] font-bold text-amber-800">
-                              <p className="font-black uppercase tracking-widest mb-1">{"Reschedule Proposed"}</p>
-                              <p className="text-amber-700/90 font-medium">{"The venue has proposed a new time. Do you accept?"}</p>
+                              <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Reschedule Proposed" : "Reagenda propuesta"}</p>
+                              <p className="text-amber-700/90 font-medium">{language === "en" ? "The venue has proposed a new time. Do you accept?" : "El negocio propuso un nuevo horario. ¿Lo aceptas?"}</p>
                            </div>
                            <button 
                              onClick={handleAcceptReschedule}
@@ -2085,7 +2139,7 @@ function ProfileContent() {
                              className="w-full bg-[#ff5757] hover:bg-[#d83b3b] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5757]/15 transition-all flex items-center justify-center gap-2"
                            >
                              {payingLoading && <Loader2 className="animate-spin text-white" size={14} />}
-                             {"Accept New Time"}
+                             {language === "en" ? "Accept New Time" : "Aceptar nuevo horario"}
                            </button>
                         </div>
                       )}
@@ -2093,8 +2147,8 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "paid" && (
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-cyan-50/70 border border-cyan-100/80 rounded-2xl text-[10px] font-bold text-cyan-800">
-                               <p className="font-black uppercase tracking-widest mb-1">{"Payment Confirmed"}</p>
-                               <p className="text-cyan-700/90 font-medium">{"Your appointment is ready. Mark as completed after the service."}</p>
+                               <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Payment Confirmed" : "Pago confirmado"}</p>
+                               <p className="text-cyan-700/90 font-medium">{language === "en" ? "Your appointment is ready. Mark as completed after the service." : "Tu cita está lista. Márcala como completada después del servicio."}</p>
                             </div>
                             <button 
                               onClick={handleMarkCompletedGroup}
@@ -2102,7 +2156,7 @@ function ProfileContent() {
                               className="w-full bg-[var(--rz-navy-900)] hover:bg-[var(--rz-navy)] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
                             >
                               {payingLoading && <Loader2 className="animate-spin text-white" size={14} />}
-                              {"Mark as Completed"}
+                              {language === "en" ? "Mark as Completed" : "Marcar como completada"}
                             </button>
                          </div>
                        )}
@@ -2110,12 +2164,12 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "cash_at_venue" && (
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-[10px] font-bold text-amber-900">
-                               <p className="font-black uppercase tracking-widest mb-1">{"Pay at the venue"}</p>
+                               <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Pay at the venue" : "Paga en el local"}</p>
                                <p className="text-amber-800/90 font-medium leading-relaxed">
                                  {`Your booking is confirmed. Please bring $${selectedRes.totalPrice.toFixed(2)} in cash when you arrive.`}
                                </p>
                                <p className="text-amber-700/90 font-medium mt-2">
-                                  {"The venue will confirm your cash payment when you complete the service."}
+                                  {language === "en" ? "The venue will confirm your cash payment when you complete the service." : "El negocio confirmará tu pago en efectivo cuando completes el servicio."}
                                </p>
                             </div>
                          </div>
@@ -2124,14 +2178,14 @@ function ProfileContent() {
                        {selectedRes.status === "completed" && !selectedRes.isReviewed && (
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-blue-50/70 border border-blue-100/80 rounded-2xl text-[10px] font-bold text-blue-800 text-center">
-                               <p className="font-black uppercase tracking-widest mb-1">{"Service Completed"}</p>
-                               <p className="text-blue-700/90 font-medium">{"How was your experience today?"}</p>
+                               <p className="font-black uppercase tracking-widest mb-1">{language === "en" ? "Service Completed" : "Servicio completado"}</p>
+                               <p className="text-blue-700/90 font-medium">{language === "en" ? "How was your experience today?" : "¿Cómo estuvo tu experiencia hoy?"}</p>
                             </div>
                             <button 
                               onClick={() => { setIsResModalOpen(false); setIsReviewModalOpen(true); }}
                               className="w-full bg-[#ff5757] hover:bg-[#d83b3b] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl shadow-[#ff5757]/15 transition-all transform active:scale-95"
                             >
-                              {"Rate Experience"}
+                              {language === "en" ? "Rate Experience" : "Calificar experiencia"}
                             </button>
                          </div>
                        )}
@@ -2139,15 +2193,15 @@ function ProfileContent() {
                       {paymentView === "none" && selectedRes.status === "pending" && (
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-[var(--rz-gray-050)] border border-[var(--border-subtle)] rounded-2xl text-center">
-                               <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Waiting for Venue"}</p>
-                               <p className="text-[var(--rz-gray-500)] text-[10px] font-medium mt-2">{"You can cancel anytime before the venue accepts."}</p>
+                               <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{language === "en" ? "Waiting for Venue" : "Esperando al negocio"}</p>
+                               <p className="text-[var(--rz-gray-500)] text-[10px] font-medium mt-2">{language === "en" ? "You can cancel anytime before the venue accepts." : "Puedes cancelar en cualquier momento antes de que el negocio acepte."}</p>
                             </div>
                             <button
                               type="button"
                               onClick={() => void handleCancelAllInGroup(selectedRes)}
                               className="w-full bg-red-50 text-red-500 font-black py-4 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100"
                             >
-                               {"Cancel Reservation"}
+                               {language === "en" ? "Cancel Reservation" : "Cancelar reserva"}
                             </button>
                          </div>
                       )}
@@ -2155,8 +2209,8 @@ function ProfileContent() {
                       {paymentView === "review" && (
                          <div className="mt-6 space-y-4 animate-in fade-in slide-in-from-bottom-4">
                             <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] p-4 text-[10px] font-bold text-[var(--rz-gray-600)]">
-                              <p className="font-black uppercase tracking-widest text-[var(--rz-navy)] mb-2">{"Payment details"}</p>
-                              <p>{selectedRes.items.length} {"service(s)"} · {selectedRes.venueName}</p>
+                              <p className="font-black uppercase tracking-widest text-[var(--rz-navy)] mb-2">{language === "en" ? "Payment details" : "Detalles de pago"}</p>
+                              <p>{selectedRes.items.length} {language === "en" ? "service(s)" : "servicio(s)"} · {selectedRes.venueName}</p>
                               <p className="mt-1 text-[var(--rz-gray-500)]">{selectedRes.date} · {selectedRes.time}</p>
                             </div>
                             <div className="grid grid-cols-3 gap-3">
@@ -2196,7 +2250,7 @@ function ProfileContent() {
                               className="w-full bg-[var(--rz-navy-900)] hover:bg-[var(--rz-navy)] text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                {payingLoading ? <Loader2 className="animate-spin text-white" size={14} /> : <Shield size={14} />}
-                               {payingLoading ? ("Processing...") : (`Pay $${selectedRes.totalPrice.toFixed(2)}`)}
+                               {payingLoading ? (language === "en" ? "Processing..." : "Procesando...") : (language === "en" ? `Pay $${selectedRes.totalPrice.toFixed(2)}` : `Pagar $${selectedRes.totalPrice.toFixed(2)}`)}
                             </button>
 
                             <div className="flex gap-3">
@@ -2205,14 +2259,14 @@ function ProfileContent() {
                                   onClick={() => void handleCancelAllInGroup(selectedRes)}
                                   className="flex-1 bg-red-50 text-red-500 font-black py-3 rounded-xl text-[9px] uppercase tracking-widest hover:bg-red-100 transition border border-red-100/80"
                                 >
-                                   {"Cancel All"}
+                                   {language === "en" ? "Cancel All" : "Cancelar todo"}
                                 </button>
                               )}
                               <button 
                                 onClick={() => setPaymentView("none")}
                                 className="flex-1 bg-white border border-[var(--border-default)] text-[var(--rz-gray-500)] font-black py-3 rounded-xl text-[9px] uppercase tracking-widest hover:bg-[var(--rz-gray-050)] transition"
                               >
-                                 {"Back"}
+                                 {language === "en" ? "Back" : "Atrás"}
                               </button>
                             </div>
                          </div>
@@ -2222,12 +2276,12 @@ function ProfileContent() {
                          <div className="mt-6 space-y-4 animate-in zoom-in-95">
                             <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center">
                               <CheckCircle className="text-emerald-500 mx-auto mb-2" size={28} />
-                              <p className="font-black text-emerald-950 text-sm uppercase tracking-wide">{"Payment confirmed"}</p>
+                              <p className="font-black text-emerald-950 text-sm uppercase tracking-wide">{language === "en" ? "Payment confirmed" : "Pago confirmado"}</p>
                               <p className="mt-2 text-[11px] font-bold text-emerald-800">
                                 {`$${selectedRes.totalPrice.toFixed(2)} paid · Ref #${paidInvoice?.refNumber ?? selectedRes.refNumber}`}
                               </p>
                               <p className="mt-1 text-[10px] font-semibold text-emerald-700">
-                                {"All services in this reservation are now marked as paid."}
+                                {language === "en" ? "All services in this reservation are now marked as paid." : "Todos los servicios de esta reserva están marcados como pagados."}
                               </p>
                             </div>
                             <button 
@@ -2235,7 +2289,7 @@ function ProfileContent() {
                               onClick={() => { setIsResModalOpen(false); setPaymentView("none"); setActiveTab("invoices"); }}
                               className="w-full text-[10px] font-black text-emerald-700 uppercase tracking-widest underline decoration-2 underline-offset-4"
                             >
-                               {"View invoice"}
+                               {language === "en" ? "View invoice" : "Ver factura"}
                             </button>
                             <button
                               type="button"
@@ -2246,27 +2300,27 @@ function ProfileContent() {
                               }}
                               className="w-full bg-[var(--rz-navy-900)] text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest"
                             >
-                              {"Done"}
+                              {language === "en" ? "Done" : "Listo"}
                             </button>
                          </div>
                       )}
                    </div>
 
                    <div className="bg-[var(--rz-navy-900)] rounded-[32px] p-6 md:p-8 text-white shadow-xl shadow-[color:rgba(231,234,239,0.5)]">
-                      <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-5">{"Safety & Policy"}</h4>
+                      <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-5">{language === "en" ? "Safety & Policy" : "Seguridad y políticas"}</h4>
                       <div className="space-y-5 text-[11px]">
                          {selectedRes.status === 'cash_at_venue' ? (
                            <div className="flex gap-3.5">
                               <Banknote className="text-[#ff5757] flex-shrink-0" size={18} />
                               <p className="font-medium text-white/80 leading-relaxed">
-                                 {"Cash payment is collected at the venue when you arrive for your appointment."}
+                                 {language === "en" ? "Cash payment is collected at the venue when you arrive for your appointment." : "El pago en efectivo se realiza en el local cuando llegas a tu cita."}
                               </p>
                            </div>
                          ) : (
                            <div className="flex gap-3.5">
                               <Shield className="text-[#ff5757] flex-shrink-0" size={18} />
                               <p className="font-medium text-white/80 leading-relaxed">
-                                 {"Secure encrypted payments powered by Rezervame."}
+                                 {language === "en" ? "Secure encrypted payments powered by Rezervame." : "Pagos seguros y cifrados con tecnología de Rezervame."}
                               </p>
                            </div>
                          )}
@@ -2318,13 +2372,13 @@ function ProfileContent() {
           <div className="absolute inset-0 bg-[rgba(2,48,71,0.8)] backdrop-blur-md animate-in fade-in duration-500" onClick={() => setIsFamilyModalOpen(false)} />
           <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 duration-500">
              <div className="flex justify-between items-center mb-10">
-                <h3 className="text-2xl font-black text-[var(--rz-navy)]">{editingMember ? ("Edit Member") : ("New Member")}</h3>
+                <h3 className="text-2xl font-black text-[var(--rz-navy)]">{editingMember ? (language === "en" ? "Edit Member" : "Editar miembro") : (language === "en" ? "New Member" : "Nuevo miembro")}</h3>
                 <button onClick={() => setIsFamilyModalOpen(false)} className="p-3 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] rounded-2xl transition"><X size={20} /></button>
              </div>
              
              <form onSubmit={handleAddFamily} className="space-y-8">
                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{"Full Name"}</label>
+                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Full Name" : "Nombre completo"}</label>
                   <div className="relative group">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-300)] group-focus-within:text-[#ff5757] transition-colors">
                       <UserIcon size={18} />
@@ -2334,8 +2388,8 @@ function ProfileContent() {
                </div>
                <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{"Age"}</label>
-                    <input name="age" type="number" defaultValue={editingMember?.age} required placeholder="Years" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Age" : "Edad"}</label>
+                    <input name="age" type="number" defaultValue={editingMember?.age} required placeholder={language === "en" ? "Years" : "Años"} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
                  </div>
                  <div className="space-y-2">
                     <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">Gender</label>
@@ -2352,7 +2406,7 @@ function ProfileContent() {
                </div>
               <button type="submit" disabled={isSavingFamilyMember} className="w-full bg-[#ff5757] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5757]/25 hover:bg-[#d83b3b] transition-all text-xs uppercase tracking-widest mt-4 disabled:opacity-60 flex items-center justify-center gap-2">
                  {isSavingFamilyMember ? <Loader2 className="animate-spin" size={16} /> : null}
-                 {isSavingFamilyMember ? "Saving..." : (editingMember ? "Save Changes" : "Add Member")}
+                 {isSavingFamilyMember ? (language === "en" ? "Saving..." : "Guardando...") : (editingMember ? (language === "en" ? "Save Changes" : "Guardar cambios") : (language === "en" ? "Add Member" : "Agregar persona"))}
                </button>
              </form>
           </div>
@@ -2374,7 +2428,7 @@ function ProfileContent() {
                     <Star size={36} fill="currentColor" />
                  </div>
                  <h2 className="text-2xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
-                    {"Rate Your Experience"}
+                    {language === "en" ? "Rate Your Experience" : "Califica tu experiencia"}
                  </h2>
                  <p className="text-[var(--rz-gray-500)] font-bold text-xs uppercase tracking-widest">
                     {selectedRes?.venueName}
@@ -2384,7 +2438,7 @@ function ProfileContent() {
               <div className="space-y-10">
                  {/* Venue Rating */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block text-center">{"Common Venue Rating"}</label>
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block text-center">{language === "en" ? "Common Venue Rating" : "Calificación general del negocio"}</label>
                     <div className="flex justify-center gap-3">
                        {[1,2,3,4,5].map((star) => (
                          <button key={star} onClick={() => setBusinessRating(star)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${businessRating >= star ? "bg-[#ff5757]/10 text-[#ff5757] shadow-sm" : "bg-[var(--rz-gray-050)] text-[var(--rz-gray-300)]"}`}>
@@ -2398,7 +2452,7 @@ function ProfileContent() {
 
                  {/* Individual Services */}
                  <div className="space-y-8">
-                   <h4 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest text-center">{"Individual Service Ratings"}</h4>
+                   <h4 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest text-center">{language === "en" ? "Individual Service Ratings" : "Calificaciones por servicio"}</h4>
                    {selectedRes?.items.filter(i => i.status === 'completed' && !i.isReviewed).map((item) => (
                      <div key={item.id} className="p-6 bg-[var(--rz-gray-050)] rounded-3xl space-y-6">
                         <div>
@@ -2408,7 +2462,7 @@ function ProfileContent() {
 
                         <div className="space-y-6">
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Service Quality"}</p>
+                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{language === "en" ? "Service Quality" : "Calidad del servicio"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
@@ -2423,7 +2477,7 @@ function ProfileContent() {
                            </div>
 
                            <div className="space-y-3">
-                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{"Staff Rating"}</p>
+                              <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{language === "en" ? "Staff Rating" : "Calificación del personal"}</p>
                               <div className="flex gap-2">
                                 {[1,2,3,4,5].map((star) => (
                                   <button 
@@ -2442,11 +2496,11 @@ function ProfileContent() {
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block text-center">Review comment (shared)</label>
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest block text-center">{language === "en" ? "Review comment (shared)" : "Comentario de la reseña (compartido)"}</label>
                     <textarea 
                       value={reviewComment}
                       onChange={(e) => setReviewComment(e.target.value)}
-                      placeholder={"Tell us more about your visit..."}
+                      placeholder={language === "en" ? "Tell us more about your visit..." : "Cuéntanos más sobre tu visita..."}
                       className="w-full h-32 bg-[var(--rz-gray-050)] border-none rounded-3xl p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none"
                     />
                  </div>
@@ -2471,9 +2525,9 @@ function ProfileContent() {
                        setIsReviewModalOpen(false);
                        setRefreshTrigger(prev => prev + 1);
                        toastSuccess(
-                         "Review Submitted",
-                         "Thank you for your feedback!"
-                       );
+                        language === "en" ? "Review Submitted" : "Reseña enviada",
+                        language === "en" ? "Thank you for your feedback!" : "¡Gracias por tu opinión!"
+                      );
                      } catch (err) {
                        toastError("Error", err instanceof Error ? err.message : "");
                      } finally {
@@ -2484,7 +2538,7 @@ function ProfileContent() {
                    className="w-full bg-[var(--rz-navy)] text-white font-black py-5 rounded-[24px] text-sm uppercase tracking-[0.2em] shadow-2xl shadow-[color:rgba(2,48,71,0.2)] hover:bg-[#ff5757] transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                  >
                     {isSubmittingReview ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} strokeWidth={3} />}
-                    {isSubmittingReview ? ("Submitting...") : ("Submit All Ratings")}
+                    {isSubmittingReview ? (language === "en" ? "Submitting..." : "Enviando...") : (language === "en" ? "Submit All Ratings" : "Enviar todas las calificaciones")}
                  </button>
               </div>
            </div>
