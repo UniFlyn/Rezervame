@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, Suspense, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, Suspense, useRef } from "react";
 import { useI18n } from "../../components/I18nProvider";
 import { useAuth } from "../../components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -8,7 +8,7 @@ import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { venueCardImageSrc, businessListingImageSrc, type SearchVenueRow } from "@/lib/venueSearch";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { InvoiceTable, InvoiceCard, EmptyState, NotificationItem, Tabs } from "@/ds";
+import { InvoiceTable, InvoiceCard, EmptyState, NotificationItem, Tabs, Avatar, Chip, Badge, Button, RecipientBadge, BusinessResultCard } from "@/ds";
 import { generateAndDownloadInvoicePDF } from "@/lib/invoicePdf";
 import { 
   Trash2, Edit2, Shield, User as UserIcon, 
@@ -35,6 +35,7 @@ import {
 import {
   reservationStatusBadgeClass,
   reservationStatusLabel,
+  reservationStatusBadgeTone,
   type ReservationUiStatus,
 } from "@/lib/reservationStatus";
 import {
@@ -66,6 +67,48 @@ const NOTIF_FILTERS = [
   { id: "review" as const, en: "Reviews", es: "Reseñas" },
   { id: "business" as const, en: "Businesses", es: "Negocios" },
 ];
+
+const BOOKING_FILTERS = [
+  { value: "todas" as const, labelEs: "Todas", labelEn: "All" },
+  { value: "proximas" as const, labelEs: "Próximas", labelEn: "Upcoming" },
+  { value: "completadas" as const, labelEs: "Completadas", labelEn: "Completed" },
+  { value: "canceladas" as const, labelEs: "Canceladas", labelEn: "Cancelled" },
+];
+
+const UPCOMING_BOOKING_STATUSES = new Set<ReservationUiStatus>([
+  "pending",
+  "confirmed",
+  "paid",
+  "cash_at_venue",
+  "rescheduled",
+]);
+
+function isUpcomingReservation(res: Reservation) {
+  return UPCOMING_BOOKING_STATUSES.has(res.status);
+}
+
+function matchBookingFilter(res: Reservation, filter: (typeof BOOKING_FILTERS)[number]["value"]) {
+  if (filter === "todas") return true;
+  if (filter === "proximas") return isUpcomingReservation(res);
+  if (filter === "completadas") return res.status === "completed";
+  return res.status === "cancelled";
+}
+
+function matchBookingQuery(res: Reservation, query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  if (res.venueName.toLowerCase().includes(q)) return true;
+  if (res.serviceName.toLowerCase().includes(q)) return true;
+  return res.items.some((s) => s.name.toLowerCase().includes(q));
+}
+
+function recipientBadgeFor(res: Reservation, language: string) {
+  const prefix = language === "en" ? "Booking for" : "Reserva para";
+  if (!res.customerName) return <RecipientBadge prefix={prefix} self />;
+  const names = res.customerName.split(",").map((s) => s.trim()).filter(Boolean);
+  if (names.length > 1) return <RecipientBadge prefix={prefix} name={`${names.length} ${language === "en" ? "people" : "personas"}`} />;
+  return <RecipientBadge prefix={prefix} name={res.customerName} />;
+}
 
 function notifIconName(type: string): string {
   const t = String(type || "").toUpperCase();
@@ -333,6 +376,8 @@ function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("bookings");
+  const [bookingFilter, setBookingFilter] = useState<(typeof BOOKING_FILTERS)[number]["value"]>("todas");
+  const [bookingQuery, setBookingQuery] = useState("");
   const [notifList, setNotifList] = useState<NotificationRow[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifFilter, setNotifFilter] = useState<"all" | "booking" | "payment" | "review" | "business">("all");
@@ -930,15 +975,38 @@ function ProfileContent() {
 
   const menuItems = useMemo(
     () => [
-      { id: "bookings" as const, label: t("myReservationsMenu"), icon: <Calendar size={20} /> },
-      { id: "invoices" as const, label: t("invoicesMenu"), icon: <Download size={20} /> },
-      { id: "notifications" as const, label: language === "en" ? "Notifications" : "Notificaciones", icon: <Bell size={20} /> },
-      { id: "payments" as const, label: language === "en" ? "Payment methods" : "Métodos de pago", icon: <CreditCard size={20} /> },
-      { id: "family" as const, label: t("familyFriends"), icon: <Users size={20} /> },
-      { id: "favorites" as const, label: t("favoritesMenu"), icon: <Heart size={20} /> },
-      { id: "settings" as const, label: t("profileSettings"), icon: <UserIcon size={20} /> },
+      { id: "bookings" as const, label: t("myReservationsMenu") },
+      { id: "invoices" as const, label: t("invoicesMenu") },
+      { id: "favorites" as const, label: t("favoritesMenu") },
+      { id: "family" as const, label: t("familyFriends") },
+      { id: "payments" as const, label: language === "en" ? "Payment methods" : "Métodos de pago" },
+      { id: "notifications" as const, label: language === "en" ? "Notifications" : "Notificaciones" },
+      { id: "settings" as const, label: t("profileSettings") },
     ],
     [t, language],
+  );
+
+  const allReservations = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: Reservation[] = [];
+    for (const res of [...ongoingReservations, ...historyReservations]) {
+      if (seen.has(res.id)) continue;
+      seen.add(res.id);
+      merged.push(res);
+    }
+    return merged;
+  }, [ongoingReservations, historyReservations]);
+
+  const filteredReservations = useMemo(() => {
+    return allReservations.filter(
+      (res) => matchBookingFilter(res, bookingFilter) && matchBookingQuery(res, bookingQuery),
+    );
+  }, [allReservations, bookingFilter, bookingQuery]);
+
+  const bookingFilterCount = useCallback(
+    (filter: (typeof BOOKING_FILTERS)[number]["value"]) =>
+      allReservations.filter((res) => matchBookingFilter(res, filter)).length,
+    [allReservations],
   );
 
   const nextBooking = ongoingReservations[0] || null;
@@ -1067,20 +1135,7 @@ function ProfileContent() {
         {/* Profile header */}
         <div className="mb-6 rounded-3xl border border-[var(--border-subtle)] bg-white p-5 shadow-sm lg:p-7">
           <div className="flex flex-wrap items-center gap-5">
-            <div
-              className="relative h-[76px] w-[76px] shrink-0 overflow-hidden rounded-full border border-[var(--border-subtle)] bg-[var(--rz-gray-100)]"
-              style={{ boxShadow: "0 0 0 4px rgba(255,87,87,0.15)" }}
-            >
-              <img
-                src={user?.avatar || PLACEHOLDER_IMAGE_DATA_URI}
-                alt={user?.name || "User"}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=ff5757&color=fff&size=128&bold=true`;
-                }}
-              />
-            </div>
+            <Avatar src={user?.avatar} name={user?.name || "User"} size={76} ring />
             <div className="min-w-[200px] flex-1">
               <h1 className="text-2xl font-black leading-tight text-[var(--rz-navy)] lg:text-3xl">{user?.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
@@ -1122,196 +1177,130 @@ function ProfileContent() {
         {/* Content */}
         <div className="w-full">
           
-          {/* TAB: BOOKINGS */}
+          {/* TAB: BOOKINGS — spec: filter chips + search + DS reservation cards (no extra sections) */}
           {activeTab === "bookings" && (
             <div className="animate-in fade-in duration-500">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-                <div>
-                  <h1 className="text-3xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
-                    {language === "en" ? "My Reservations" : "Mis reservas"}
-                  </h1>
-                  <p className="text-[var(--rz-gray-500)] font-bold text-sm">
-                    {language === "en" ? "Manage your appointments and download your invoices" : "Gestiona tus citas y descarga tus facturas"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mb-12 space-y-6">
-                <h3 className="text-xs font-black text-[var(--rz-gray-600)] uppercase tracking-widest mb-4">{language === "en" ? "UPCOMING RESERVATIONS" : "PRÓXIMAS RESERVAS"}</h3>
-                {ongoingReservations.length > 0 ? (
-                  ongoingReservations.map((res) => (
-                    <div key={res.id} className="bg-white border-2 border-[var(--border-subtle)] rounded-3xl p-6 md:p-8 text-[var(--rz-navy)] shadow-md flex flex-col md:flex-row justify-between items-center group cursor-pointer hover:shadow-lg transition-all relative overflow-hidden hover:border-[#ff5757]/20">
-                      <div className="flex items-start gap-6 md:gap-8 relative z-10 w-full md:w-auto">
-                        <div className="w-20 h-20 bg-[#ff5757]/10 rounded-2xl flex flex-col items-center justify-center font-black border border-[#ff5757]/25 shrink-0 overflow-hidden">
-                          <img src={res.img} alt="" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start mb-1">
-                            <h4 className="font-black text-xl md:text-2xl leading-tight text-[var(--rz-navy)]">{res.serviceName}</h4>
-                            <span className="text-[10px] font-black text-[#ff5757] bg-[#ff5757]/5 px-3 py-1 rounded-lg border border-[#ff5757]/20">#{res.refNumber}</span>
-                          </div>
-                          <p className="text-sm font-bold text-[var(--rz-gray-600)] mt-1">{res.venueName} • {res.time}</p>
-                          <div className="flex flex-wrap items-center gap-3 mt-4">
-                            {/* Status Badge */}
-                            {res.status === "pending" && (
-                              <span className="bg-amber-50 text-amber-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                <Clock size={11} /> {language === "en" ? "Awaiting Approval" : "Esperando aprobación"}
-                              </span>
-                            )}
-                            {res.status === "confirmed" && (
-                              <span className="bg-green-50 text-green-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1.5">
-                                <CheckCircle size={11} /> {language === "en" ? "Confirmed" : "Confirmada"}
-                              </span>
-                            )}
-                            {res.status === "paid" && (
-                              <span className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-200 flex items-center gap-1.5">
-                                <CreditCard size={11} /> Paid
-                              </span>
-                            )}
-                            {res.status === "cash_at_venue" && (
-                              <span className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                <Banknote size={11} /> Pay at Venue
-                              </span>
-                            )}
-                            {res.status === "rescheduled" && (
-                              <span className="bg-amber-50 text-amber-600 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                <RefreshCcw size={11} /> Rescheduled
-                              </span>
-                            )}
-                            {res.customerName ? (
-                              <span className="bg-[var(--rz-gray-100)] text-[var(--rz-gray-600)] px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-[var(--border-default)]">
-                                For: <span className="normal-case tracking-normal">{res.customerName}</span>
-                              </span>
-                            ) : null}
-                            {res.staffName ? (
-                              <span className="bg-[var(--rz-gray-100)] text-[var(--rz-gray-600)] px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-[var(--border-default)]">
-                                Pro: <span className="normal-case tracking-normal">{res.staffName}</span>
-                              </span>
-                            ) : null}
-                            {res.phone && (
-                              <span className="flex items-center gap-2 text-[11px] font-bold text-[var(--rz-gray-500)] uppercase tracking-wide"><Phone size={14} className="text-[#ff5757]" /> {res.phone}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right mt-6 md:mt-0 relative z-10 w-full md:w-auto shrink-0">
-                        <div className="text-3xl md:text-4xl font-black text-[var(--rz-navy)] mb-3">{res.price}</div>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setSelectedRes(res);
-                            setPaymentView("none");
-                            setIsResModalOpen(true);
-                          }}
-                          className="text-xs font-black uppercase tracking-widest bg-[#ff5757] text-white px-8 py-3 rounded-2xl hover:bg-[#d83b3b] transition-colors shadow-md"
-                        >
-                          {language === "en" ? "See Details" : "Ver detalles"}
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm font-medium text-[var(--rz-gray-500)]">{language === "en" ? "No upcoming reservations." : "No tienes próximas reservas."}</p>
-                )}
-              </div>
-
-              <div ref={historyRef}>
-                <h3 className="text-xs font-black text-[var(--rz-gray-500)] uppercase tracking-widest mb-6">{language === "en" ? "APPOINTMENT HISTORY" : "HISTORIAL DE CITAS"}</h3>
-                <div className="space-y-6">
-                  {historyReservations.length === 0 && (
-                    <p className="text-sm text-[var(--rz-gray-500)]">{language === "en" ? "No past appointments yet." : "Aún no tienes citas pasadas."}</p>
-                  )}
-                  {historyReservations.map((res) => (
-                    <div key={res.id} className="bg-white border border-[var(--border-default)] rounded-[40px] p-8 flex flex-col md:flex-row justify-between items-center hover:shadow-2xl hover:shadow-[color:rgba(231,234,239,0.5)] transition duration-500 shadow-sm group">
-                      <div className="flex items-center space-x-8">
-                        <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-[var(--border-subtle)] relative shrink-0">
-                           <img 
-                             src={res.img} 
-                             alt={res.venueName} 
-                             className="w-full h-full object-cover group-hover:scale-110 transition duration-700" 
-                           />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <h4 className="font-black text-[var(--rz-navy)] text-xl group-hover:text-[#ff5757] transition-colors">{res.venueName}</h4>
-                            <span className="text-[9px] font-black text-[var(--rz-gray-500)] bg-[var(--rz-gray-050)] px-2 py-0.5 rounded border border-[var(--border-subtle)]">#{res.refNumber}</span>
-                          </div>
-                          <p className="text-base font-bold text-[var(--rz-gray-500)] mt-1">{res.serviceName} • {res.date}</p>
-                          <div className="flex flex-wrap items-center gap-2 mt-3">
-                             <div className="flex items-center gap-2">
-                                {res.status === "completed" && (
-                                  <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-green-200 flex items-center gap-1.5">
-                                    <CheckCircle size={11} /> {language === "en" ? "Completed" : "Completada"}
-                                  </span>
-                                )}
-                                {res.status === "cancelled" && (
-                                  <span className="bg-red-50 text-red-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-red-200 flex items-center gap-1.5">
-                                    <X size={11} /> {language === "en" ? "Cancelled" : "Cancelada"}
-                                  </span>
-                                )}
-                                {(res.status === "confirmed" || res.status === "pending") && (
-                                  <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5">
-                                    <Clock size={11} /> {res.status === "pending" ? (language === "en" ? "Pending" : "Pendiente") : (language === "en" ? "Confirmed" : "Confirmada")}
-                                  </span>
-                                )}
-                             </div>
-                             {res.customerName ? (
-                                <span className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase bg-[var(--rz-gray-050)] px-2 py-0.5 rounded border border-[var(--border-subtle)]">
-                                   For: <span className="normal-case">{res.customerName}</span>
-                                </span>
-                             ) : null}
-                             {res.staffName ? (
-                                <span className="text-[9px] font-black text-[var(--rz-gray-500)] uppercase bg-[var(--rz-gray-050)] px-2 py-0.5 rounded border border-[var(--border-subtle)]">
-                                   Pro: <span className="normal-case">{res.staffName}</span>
-                                </span>
-                             ) : null}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right flex flex-col items-end mt-4 md:mt-0">
-                         <div className="font-black text-[var(--rz-navy)] text-2xl mb-3">{res.price}</div>
-                         <div className="flex flex-wrap justify-end gap-3">
-                            <button 
-                              onClick={() => { setSelectedRes(res); setIsResModalOpen(true); setPaymentView("none"); }} 
-                              className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] px-4 py-2 rounded-xl transition"
-                            >
-                               {language === "en" ? "Details" : "Detalles"}
-                            </button>
-                            <button onClick={() => handleDownloadInvoice(res)} className="p-3 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] rounded-2xl transition">
-                               <Download size={18} />
-                            </button>
-                             {res.status === "completed" && !res.isReviewed && (
-                               <button 
-                                 onClick={() => { setSelectedRes(res); setIsReviewModalOpen(true); }}
-                                 className="text-[10px] font-black text-amber-600 uppercase tracking-widest hover:bg-amber-100 bg-amber-50 px-4 py-2 rounded-xl transition border border-amber-100"
-                               >
-                                  {language === "en" ? "Rate" : "Calificar"}
-                               </button>
-                             )}
-                            <button 
-                              onClick={() => { if (res.businessId) router.push(`/venue/${res.businessId}`); }}
-                              className="text-xs font-black text-[#ff5757] uppercase tracking-widest hover:underline flex items-center gap-1 bg-[#ff5757]/5 px-6 py-3 rounded-2xl hover:bg-[#ff5757]/10 transition-all transform hover:-translate-y-1"
-                            >
-                                {language === "en" ? "Re-book" : "Reservar de nuevo"}
-                                <ChevronRight size={14} />
-                            </button>
-                          </div>
-                       </div>
-                    </div>
+              <div className="mb-[18px] flex flex-wrap items-center gap-3">
+                <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+                  {BOOKING_FILTERS.map((f) => (
+                    <Chip
+                      key={f.value}
+                      active={bookingFilter === f.value}
+                      count={bookingFilterCount(f.value)}
+                      onClick={() => setBookingFilter(f.value)}
+                    >
+                      {language === "en" ? f.labelEn : f.labelEs}
+                    </Chip>
                   ))}
                 </div>
-                {historyTotalPages > 1 && (
-                  <div className="mt-10">
-                    <Pagination 
-                      page={historyPage} 
-                      totalPages={historyTotalPages} 
-                      totalItems={historyTotal} 
-                      pageSize={10} 
-                      onPageChange={setHistoryPage} 
+                <div className="min-w-[min(100%,300px)] flex-[0_1_340px]">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--rz-gray-400)]" size={16} />
+                    <input
+                      type="search"
+                      value={bookingQuery}
+                      onChange={(e) => setBookingQuery(e.target.value)}
+                      placeholder={language === "en" ? "Search by business or service" : "Buscar por negocio o servicio"}
+                      className="w-full rounded-xl border border-[var(--border-subtle)] bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-[var(--rz-navy)] outline-none focus:border-[var(--rz-coral)]"
                     />
                   </div>
-                )}
+                </div>
               </div>
+
+              {filteredReservations.length === 0 ? (
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-white px-6 py-12 text-center">
+                  <div className="mx-auto mb-3.5 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--rz-gray-100)] text-[var(--rz-gray-400)]">
+                    <Calendar size={26} />
+                  </div>
+                  <h4 className="text-[17px] font-bold text-[var(--rz-navy)]">
+                    {language === "en" ? "No reservations here" : "No hay reservas aquí"}
+                  </h4>
+                  <p className="mt-1.5 text-sm text-[var(--rz-gray-500)]">
+                    {language === "en" ? "Try another filter or search term." : "Prueba con otro filtro o término de búsqueda."}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3.5">
+                  {filteredReservations.map((res) => {
+                    const serviceLine = res.items.map((s) => s.name).join(" · ") || res.serviceName;
+                    const openDetails = () => {
+                      setSelectedRes(res);
+                      setPaymentView("none");
+                      setIsResModalOpen(true);
+                    };
+                    return (
+                      <div
+                        key={res.id}
+                        className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-white shadow-sm"
+                      >
+                        <div className="flex flex-wrap gap-4 p-4">
+                          <div className="h-[92px] w-[92px] shrink-0 overflow-hidden rounded-xl bg-[var(--rz-gray-100)]">
+                            <img src={res.img} alt="" className="h-full w-full object-cover" />
+                          </div>
+                          <div className="min-w-[200px] flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h4 className="text-[17px] font-bold leading-tight text-[var(--rz-navy)]">{res.venueName}</h4>
+                                <p className="mt-1 text-[13.5px] leading-snug text-[var(--rz-gray-600)]">{serviceLine}</p>
+                              </div>
+                              <Badge tone={reservationStatusBadgeTone(res.status)} dot>
+                                {reservationStatusLabel(res.status, language)}
+                              </Badge>
+                            </div>
+                            <div className="mt-2.5 flex flex-wrap items-center gap-4">
+                              <span className="inline-flex items-center gap-1.5 text-[13px] text-[var(--rz-gray-500)]">
+                                <Calendar size={14} /> {res.date} · {res.time}
+                              </span>
+                              <span className="text-[13px] font-bold text-[var(--rz-navy)]">{res.price}</span>
+                            </div>
+                            <div className="mt-2">{recipientBadgeFor(res, language)}</div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2.5 border-t border-[var(--border-subtle)] px-4 py-3">
+                          <Button variant="primary" size="sm" onClick={openDetails}>
+                            {language === "en" ? "View details" : "Ver detalles"}
+                          </Button>
+                          {(res.status === "completed" || res.status === "cancelled") && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (res.businessId) router.push(`/venue/${res.businessId}`);
+                              }}
+                            >
+                              {language === "en" ? "Book again" : "Reservar de nuevo"}
+                            </Button>
+                          )}
+                          {res.status === "completed" && !res.isReviewed && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedRes(res);
+                                setIsReviewModalOpen(true);
+                              }}
+                            >
+                              {language === "en" ? "Rate" : "Calificar"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {historyTotalPages > 1 && bookingFilter !== "proximas" && (
+                <div className="mt-8" ref={historyRef}>
+                  <Pagination
+                    page={historyPage}
+                    totalPages={historyTotalPages}
+                    totalItems={historyTotal}
+                    pageSize={10}
+                    onPageChange={setHistoryPage}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -1322,7 +1311,9 @@ function ProfileContent() {
                  <div>
                     <h2 className="text-2xl font-black text-[var(--rz-navy)]">{language === "en" ? "Family & Friends" : "Familia y amigos"}</h2>
                     <p className="text-[var(--rz-gray-500)] font-bold text-sm mt-1">
-                      {language === "en" ? "Manage appointments for your inner circle" : "Gestiona las citas de tus seres queridos"}
+                      {language === "en"
+                        ? "Manage the people you can book for."
+                        : "Administra a las personas para las que puedes reservar."}
                     </p>
                  </div>
                  <button 
@@ -1590,134 +1581,53 @@ function ProfileContent() {
             </div>
           )}
 
-          {/* TAB: FAVORITES */}
+          {/* TAB: FAVORITES — spec: BusinessResultCard grid only */}
           {activeTab === "favorites" && (
             <div className="animate-in fade-in duration-500">
-               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
-                <div>
-                  <h1 className="text-3xl font-black text-[var(--rz-navy)] mb-2 uppercase tracking-tight">
-                    {language === "en" ? "My Favorite Places" : "Mis lugares favoritos"}
-                  </h1>
-                  <p className="text-[var(--rz-gray-500)] font-bold text-sm">
-                    {language === "en" ? "Your preferred locations in one place" : "Tus lugares preferidos en un solo lugar"}
-                  </p>
-                </div>
-                <div className="bg-white px-8 py-4 rounded-[28px] shadow-sm border border-[var(--border-subtle)] flex items-center gap-4">
-                   <Heart className="text-[#ff5757]" size={24} fill="#ff5757" />
-                   <span className="font-black text-[var(--rz-navy)] text-sm uppercase tracking-widest">{favoritesTotal} {language === "en" ? "Places" : "Lugares"}</span>
-                </div>
-              </div>
-
-              <div className="mb-8 space-y-4">
-                <div className="relative max-w-xl">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-500)]" size={20} />
-                  <input
-                    type="search"
-                    value={favoritesSearch}
-                    onChange={(e) => setFavoritesSearch(e.target.value)}
-                    placeholder={language === "en" ? "Search favorites" : "Buscar favoritos"}
-                    className="w-full rounded-2xl border border-[var(--border-default)] bg-[var(--rz-gray-050)] py-3.5 pl-12 pr-4 text-sm font-semibold text-[var(--rz-navy)] outline-none focus:border-[#ff5757] focus:ring-2 focus:ring-[#ff5757]/20"
+              {favoritesList.length === 0 ? (
+                <div className="rounded-2xl border border-[var(--border-subtle)] bg-white">
+                  <EmptyState
+                    icon="heart"
+                    title={language === "en" ? "No favorite businesses yet." : "Aún no tienes negocios favoritos."}
+                    message={
+                      language === "en"
+                        ? "Save the businesses you love to book faster next time."
+                        : "Guarda los negocios que más te gustan para reservar más rápido la próxima vez."
+                    }
+                    actionLabel={language === "en" ? "Explore businesses" : "Explorar negocios"}
+                    onAction={() => router.push("/search")}
                   />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      { id: "all" as const, label: "All Service" },
-                      { id: "hair" as const, label: "Hair Cut" },
-                      { id: "facial" as const, label: "Facial" },
-                      { id: "wax" as const, label: "Waxing" },
-                    ] as const
-                  ).map((chip) => {
-                    const active = favoritesChip === chip.id;
+              ) : (
+                <div
+                  className="grid gap-4"
+                  style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
+                >
+                  {favoritesList.map((biz: any) => {
+                    const bId = biz.businessId || biz.business?.businessId;
+                    const src = businessListingImageSrc(biz.business || biz);
                     return (
-                      <button
-                        key={chip.id}
-                        type="button"
-                        onClick={() => setFavoritesChip(chip.id)}
-                        className={`rounded-full border px-5 py-2 text-xs font-bold transition ${
-                          active
-                            ? "border-[#ff5757] bg-[#ff5757] text-white"
-                            : "border-[var(--border-default)] bg-white text-[var(--rz-gray-600)] hover:border-[var(--border-default)]"
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
+                      <BusinessResultCard
+                        key={bId}
+                        image={src}
+                        name={biz.name || biz.business?.name || "—"}
+                        rating={biz.rating ?? biz.business?.rating}
+                        reviews={biz.reviewCount ?? biz.business?.reviewCount}
+                        category={biz.categoryKey || biz.business?.categoryKey}
+                        location={biz.locationLabel || biz.business?.address}
+                        services={biz.services || []}
+                        favorite
+                        onFavorite={() => bId && handleRemoveFavorite(bId)}
+                        onClick={() => bId && router.push(`/venue/${bId}`)}
+                        onReserve={() => bId && router.push(`/venue/${bId}`)}
+                        ctaLabel={language === "en" ? "Book" : "Reservar"}
+                      />
                     );
                   })}
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                {favoritesList.length === 0 ? (
-                  <div className="col-span-full">
-                    <EmptyState
-                      icon="heart"
-                      title={language === "en" ? "No favorites yet" : "Aún no hay favoritos"}
-                      message={
-                        language === "en"
-                          ? "Save businesses you love and find them here in one tap."
-                          : "Guarda los negocios que te gustan y encuéntralos aquí al instante."
-                      }
-                    />
-                  </div>
-                ) : filteredFavorites.length === 0 ? (
-                  <div className="col-span-full">
-                    <EmptyState
-                      icon="search"
-                      title={language === "en" ? "No matches" : "Sin resultados"}
-                      message={language === "en" ? "No favorites match your search." : "Ningún favorito coincide con tu búsqueda."}
-                    />
-                  </div>
-                ) : (
-                  filteredFavorites.map((biz: any) => {
-                    const bId = biz.businessId;
-                    const src = businessListingImageSrc(biz.business || biz);
-                    return (
-                      <div 
-                        key={bId}
-                        tabIndex={0}
-                        onClick={() => router.push(`/venue/${bId}`)}
-                        className="bg-white border border-[var(--border-default)] rounded-[48px] p-6 flex flex-col sm:flex-row gap-8 hover:shadow-2xl hover:shadow-[color:rgba(231,234,239,0.5)] transition duration-700 cursor-pointer group shadow-sm relative overflow-hidden"
-                      >
-                        <div className="w-full sm:w-40 h-40 rounded-[32px] overflow-hidden flex-shrink-0 relative border-2 border-white shadow-xl bg-[var(--rz-gray-100)]">
-                           <img 
-                             src={src} 
-                             alt={biz.name} 
-                             className="w-full h-full object-cover group-hover:scale-125 transition duration-1000" 
-                           />
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (bId) handleRemoveFavorite(bId);
-                            }}
-                            className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-3 rounded-2xl text-[#ff5757] shadow-lg transform hover:scale-110 transition border border-[var(--border-subtle)]"
-                          >
-                             <Heart size={20} fill="#ff5757" />
-                          </button>
-                        </div>
-                        <div className="flex flex-col justify-center py-2">
-                           <h3 className="text-2xl font-black text-[var(--rz-navy)] group-hover:text-[#ff5757] transition-colors mb-2">{biz.name}</h3>
-                           <div className="flex items-center gap-2 text-[var(--rz-gray-500)] font-bold text-sm mb-4">
-                              <MapPin size={16} />
-                              <span>{biz.locationLabel || "Location unavailable"}</span>
-                           </div>
-                           <div className="flex items-center gap-4">
-                              <div className="flex items-center bg-[#ff5757]/5 px-4 py-2 rounded-2xl border border-[#ff5757]/10">
-                                 <Star size={16} fill="#ff5757" className="text-[#ff5757] mr-2" />
-                                 <span className="font-black text-[#ff5757] text-sm">{biz.rating || "4.8"}</span>
-                              </div>
-                              <button className="text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] transition-colors">
-                                 <ChevronRight size={24} />
-                              </button>
-                           </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              )}
               {favoritesTotalPages > 1 && (
-                <div className="mt-10">
+                <div className="mt-8">
                   <Pagination
                     page={favoritesPage}
                     totalPages={favoritesTotalPages}

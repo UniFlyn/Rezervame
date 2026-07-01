@@ -30,6 +30,24 @@ export function reservationStatusLabel(
   return catalog[key] || status;
 }
 
+export function reservationStatusBadgeTone(status: ReservationUiStatus): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
+  switch (status) {
+    case 'completed':
+      return 'success';
+    case 'cancelled':
+      return 'error';
+    case 'pending':
+    case 'rescheduled':
+    case 'cash_at_venue':
+      return 'warning';
+    case 'confirmed':
+    case 'paid':
+      return 'info';
+    default:
+      return 'neutral';
+  }
+}
+
 export function reservationStatusBadgeClass(status: ReservationUiStatus): string {
   switch (status) {
     case 'confirmed':
