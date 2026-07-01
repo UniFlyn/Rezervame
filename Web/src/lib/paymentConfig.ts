@@ -99,3 +99,26 @@ export function selectablePaymentMethods(
 ): NormalizedPaymentMethod[] {
   return methods.filter(isPaymentMethodSelectable);
 }
+
+/**
+ * Customer-facing payment methods per the Rezervame spec (§9): card + Yappy only,
+ * never "pay at venue". Backend endpoints still accept pay_at_venue — this only
+ * shapes what the customer web offers.
+ */
+export function customerFacingPaymentMethods(
+  methods: NormalizedPaymentMethod[],
+): NormalizedPaymentMethod[] {
+  return methods.filter((m) => m.id !== "pay_at_venue");
+}
+
+/** Default customer payment tab: prefer card, then Yappy. Never pay-at-venue. */
+export function pickCustomerDefaultPaymentMethod(
+  methods: NormalizedPaymentMethod[],
+): Exclude<CheckoutPaymentId, "pay_at_venue"> {
+  const online = customerFacingPaymentMethods(methods);
+  const card = online.find((m) => m.id === "wompi");
+  if (card) return "wompi";
+  const yappy = online.find((m) => m.id === "yappy");
+  if (yappy) return "yappy";
+  return "wompi";
+}

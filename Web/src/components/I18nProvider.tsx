@@ -27,20 +27,25 @@ interface I18nContextType {
   setLanguage: (lang: Language) => void;
 }
 
+// Spanish-first (Panama market), matching the Rezervame design prototype.
+// A stored preference always wins, so users who pick English keep English.
 function readStoredLanguage(): Language {
-  if (typeof window === "undefined") return "en";
+  if (typeof window === "undefined") return "es";
   const raw = localStorage.getItem(STORAGE_KEY);
-  return raw === "es" ? "es" : "en";
+  return raw === "en" ? "en" : "es";
 }
 
 const I18nContext = createContext<I18nContextType>({
-  language: "en",
-  t: (key) => en[key as keyof Translations] ?? String(key),
+  language: "es",
+  t: (key) =>
+    (es as Record<string, string>)[key as string] ??
+    (en as Record<string, string>)[key as string] ??
+    String(key),
   setLanguage: () => {},
 });
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguageState] = useState<Language>("en");
+  const [language, setLanguageState] = useState<Language>("es");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

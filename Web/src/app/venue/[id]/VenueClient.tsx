@@ -212,6 +212,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [crossVenuePendingServiceId, setCrossVenuePendingServiceId] = useState<string | null>(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [preferredStaffId, setPreferredStaffId] = useState<string | undefined>(undefined);
   const [profileStaff, setProfileStaff] = useState<VenueTeam | null>(null);
   const [venueLoading, setVenueLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -298,17 +299,25 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     setCrossVenuePendingServiceId(null);
   };
 
-  const openBookingModal = () => {
+  const openBookingModal = () => openBookingFlow();
+
+  /**
+   * Spec §6/§7: every entry point opens the booking flow directly.
+   * - opts.addServiceId → preselect that service (service card "Reservar")
+   * - opts.staffId → prioritize that professional (staff "Ver disponibilidad")
+   * No cart gate: the main "Reservar" opens the flow ready to add services.
+   */
+  const openBookingFlow = (opts?: { addServiceId?: string; staffId?: string }) => {
     if (!isLoggedIn) {
-      setPendingAfterLogin(() => () => openBookingModal());
+      setPendingAfterLogin(() => () => openBookingFlow(opts));
       setIsLoginModalOpen(true);
       toastInfo(t("venueLoginToBookTitle"), t("venueLoginToBookBody"));
       return;
     }
-    if (selectedServices.length === 0) {
-      showToast(t("venueSelectServiceFirst") || "Selecciona un servicio primero");
-      return;
+    if (opts?.addServiceId && !selectedServices.includes(opts.addServiceId)) {
+      applyServiceAdd(opts.addServiceId);
     }
+    setPreferredStaffId(opts?.staffId);
     setProfileStaff(null);
     setIsBookingModalOpen(true);
   };
@@ -1076,8 +1085,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                           duration={s.time}
                           price={priceFor(s)}
                           selected={selected}
-                          actionLabel={selected ? t("venueAddedToBooking") : t("bookBtn")}
-                          onAction={() => toggleService(s.id)}
+                          actionLabel={t("bookBtn")}
+                          onAction={() => openBookingFlow({ addServiceId: s.id })}
                         />
                       );
                     })}
@@ -1125,8 +1134,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                             { icon: "users", value: m.clients, label: t("venueStaffClientsLabel") },
                             { icon: "star", value: m.reviews, label: t("reviews") },
                           ]}
-                          actionLabel={t("venueViewProfile")}
-                          onAction={() => setProfileStaff(m)}
+                          actionLabel={t("venueViewAvailability") || "Ver disponibilidad"}
+                          onAction={() => openBookingFlow({ staffId: m.id })}
                         />
                       ))}
                     </div>
@@ -1498,7 +1507,10 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
       <BookingModal
         isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
+        onClose={() => {
+          setIsBookingModalOpen(false);
+          setPreferredStaffId(undefined);
+        }}
         onBookingSuccess={() => {
           useVenueBookingCartStore.getState().clear();
           setSelectedServices([]);
@@ -1506,6 +1518,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         selectedServiceIds={selectedServices}
         venueData={VENUE_DATA as BookingModalVenueData}
         promotions={promotionData}
+        preferredStaffId={preferredStaffId}
       />
 
       {/* Staff profile modal */}
@@ -1567,12 +1580,12 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                         </p>
                       </div>
                       <Button
-                        variant={selectedServices.includes(svc.id) ? "dark" : "outline"}
+                        variant="outline"
                         size="sm"
                         uppercase
-                        onClick={() => onServiceBookClick(svc.id)}
+                        onClick={() => openBookingFlow({ addServiceId: svc.id, staffId: profileStaff.id })}
                       >
-                        {selectedServices.includes(svc.id) ? t("venueAddedToBooking") : t("bookBtn")}
+                        {t("bookBtn")}
                       </Button>
                     </div>
                   ))}
@@ -1582,11 +1595,11 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                 </div>
               </div>
               <div style={{ display: "flex", gap: 12 }}>
-                <Button variant="outline" fullWidth uppercase onClick={() => { setActiveTab("services"); setProfileStaff(null); }}>
-                  {t("venueStaffProfileBrowseServices")}
-                </Button>
-                <Button variant="dark" fullWidth uppercase onClick={() => setProfileStaff(null)}>
+                <Button variant="outline" fullWidth uppercase onClick={() => setProfileStaff(null)}>
                   {t("venueStaffProfileClose")}
+                </Button>
+                <Button variant="dark" fullWidth uppercase onClick={() => openBookingFlow({ staffId: profileStaff.id })}>
+                  {t("venueViewAvailability") || "Ver disponibilidad"}
                 </Button>
               </div>
             </div>

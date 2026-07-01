@@ -696,8 +696,45 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     const multi = selectedServices.length > 1;
     const sectionTitle = "mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-[var(--rz-gray-500)]";
 
+    const steps = [
+      { n: 1, label: language === "en" ? "Services" : "Servicios", done: selectedServices.length > 0 },
+      { n: 2, label: language === "en" ? "Date & time" : "Fecha y hora", done: selectedServices.length > 0 && !!selectedTime },
+      { n: 3, label: language === "en" ? "Professional" : "Profesional", done: selectedServices.length > 0 && selectedServices.every((s) => !!assignments[s.cartIndex]) },
+      { n: 4, label: language === "en" ? "Payment & confirmation" : "Pago y confirmación", done: false },
+    ];
+    const activeStep = steps.findIndex((s) => !s.done);
+
     return (
-      <div className="grid items-start gap-8 lg:grid-cols-[1fr_380px]">
+      <div className="space-y-8">
+        {/* Step tracker (spec §7: Servicios → Fecha y hora → Profesional → Pago y confirmación) */}
+        <div className="hidden items-center sm:flex">
+          {steps.map((s, i) => {
+            const state = s.done ? "done" : i === activeStep ? "active" : "todo";
+            return (
+              <div key={s.n} className={`flex items-center ${i < steps.length - 1 ? "flex-1" : "flex-none"}`}>
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-black ${
+                      state === "todo"
+                        ? "border border-[var(--border-default)] bg-white text-[var(--rz-gray-400)]"
+                        : "bg-[var(--rz-coral)] text-white"
+                    }`}
+                  >
+                    {s.done ? <Check size={14} /> : s.n}
+                  </span>
+                  <span className={`whitespace-nowrap text-[13px] font-bold ${state === "todo" ? "text-[var(--rz-gray-400)]" : "text-[var(--rz-navy)]"}`}>
+                    {s.label}
+                  </span>
+                </div>
+                {i < steps.length - 1 && (
+                  <span className={`mx-3 h-px flex-1 ${s.done ? "bg-[var(--rz-coral)]" : "bg-[var(--border-subtle)]"}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid items-start gap-8 lg:grid-cols-[1fr_380px]">
         {/* LEFT — builder */}
         <div className="min-w-0 space-y-9">
           <div>
@@ -1013,6 +1050,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                 : "Pagas de forma segura en línea. Los fondos se retienen hasta completar tu servicio."}
             </p>
           </div>
+        </div>
         </div>
       </div>
     );
