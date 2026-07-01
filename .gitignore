@@ -78,3 +78,6 @@ Requirments/
 
 # Backups
 backups/
+
+# Merged sub-path hosting build (rezervame-web.web.app/new)
+.deploy-web/

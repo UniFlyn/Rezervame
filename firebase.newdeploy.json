@@ -1,0 +1,64 @@
+{
+  "hosting": [
+    {
+      "target": "web",
+      "public": ".deploy-web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "**/_next/static/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public,max-age=31536000,immutable"
+            }
+          ]
+        }
+      ],
+      "cleanUrls": true,
+      "trailingSlash": false,
+      "rewrites": [
+        {
+          "source": "/new/admin/**",
+          "destination": "/new/admin/index.html"
+        },
+        {
+          "source": "/new/business/**",
+          "destination": "/new/business/default.html"
+        },
+        {
+          "source": "/new/venue/**",
+          "destination": "/new/venue/default.html"
+        },
+        {
+          "source": "/new/reservation/**",
+          "destination": "/new/reservation/default.html"
+        },
+        {
+          "source": "/new/**",
+          "destination": "/new/index.html"
+        },
+        {
+          "source": "/business/**",
+          "destination": "/business/default.html"
+        },
+        {
+          "source": "/venue/**",
+          "destination": "/venue/default.html"
+        },
+        {
+          "source": "/reservation/**",
+          "destination": "/reservation/default.html"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    }
+  ]
+}
