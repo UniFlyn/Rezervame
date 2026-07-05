@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from "react";
 import { useI18n } from "./I18nProvider";
 import { useAuth } from "./AuthProvider";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toastError } from "@/lib/toast";
 import { apiPost } from "@/lib/api";
@@ -13,7 +12,6 @@ export const LoginModal = () => {
   const { t, language, setLanguage } = useI18n();
   const { isLoginModalOpen, setIsLoginModalOpen, login, loginWithGoogle, register, setPendingAfterLogin, runPendingAfterLogin } = useAuth();
   const [socialLoading, setSocialLoading] = useState(false);
-  const router = useRouter();
 
   const [step, setStep] = useState<Step>("EMAIL");
   const [email, setEmail] = useState("");
@@ -36,8 +34,9 @@ export const LoginModal = () => {
 
   const finishSuccess = async () => {
     setIsLoginModalOpen(false);
-    if (!runPendingAfterLogin()) {
-      router.push("/profile");
+    const ranPending = runPendingAfterLogin();
+    if (!ranPending) {
+      // Stay on current page after login unless user explicitly signed in from header.
     }
   };
 

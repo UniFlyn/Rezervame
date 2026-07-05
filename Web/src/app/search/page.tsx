@@ -62,7 +62,7 @@ function SearchContent() {
   const { t, language } = useI18n();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+  const { isLoggedIn, openFavoritePrompt } = useAuth();
   const { setMeta, clearMeta } = usePageHeaderMeta();
 
   const vw = useViewportWidth();
@@ -117,22 +117,25 @@ function SearchContent() {
   }, [isLoggedIn]);
 
   const toggleFavorite = async (businessId: string) => {
+    const run = async () => {
+      const isFav = favorites.includes(businessId);
+      try {
+        if (isFav) {
+          await apiDelete(`/mobile/favorites/${businessId}`, "USER");
+          setFavorites((prev) => prev.filter((id) => id !== businessId));
+        } else {
+          await apiPost("/mobile/favorites", { businessId }, "USER");
+          setFavorites((prev) => [...prev, businessId]);
+        }
+      } catch {
+        toastError("Error", "No se pudieron actualizar los favoritos");
+      }
+    };
     if (!isLoggedIn) {
-      setIsLoginModalOpen(true);
+      openFavoritePrompt(() => void run());
       return;
     }
-    const isFav = favorites.includes(businessId);
-    try {
-      if (isFav) {
-        await apiDelete(`/mobile/favorites/${businessId}`, "USER");
-        setFavorites((prev) => prev.filter((id) => id !== businessId));
-      } else {
-        await apiPost("/mobile/favorites", { businessId }, "USER");
-        setFavorites((prev) => [...prev, businessId]);
-      }
-    } catch {
-      toastError("Error", "No se pudieron actualizar los favoritos");
-    }
+    await run();
   };
 
   useEffect(() => {

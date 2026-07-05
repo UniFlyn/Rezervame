@@ -35,22 +35,34 @@ export interface RegisterCustomerPayload {
 interface AuthContextType {
   isLoggedIn: boolean;
   isHydrated: boolean;
+  hasStoredSession: boolean;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
+  isFavoritePromptOpen: boolean;
+  openFavoritePrompt: (afterLogin?: () => void) => void;
+  closeFavoritePrompt: () => void;
+  openLoginFromFavoritePrompt: () => void;
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   register: (payload: RegisterCustomerPayload) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<boolean>;
+  whenHydrated: () => Promise<void>;
   /** One-shot action after successful login (e.g. continue adding a service on the venue page). */
   setPendingAfterLogin: (fn: (() => void) | null) => void;
   runPendingAfterLogin: () => boolean;
 }
 
+function readStoredUserToken(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(localStorage.getItem("rezervame_token"));
+}
+
 const AuthContext = createContext<AuthContextType>({
   isLoggedIn: false,
   isHydrated: false,
+  hasStoredSession: false,
   isLoginModalOpen: false,
   setIsLoginModalOpen: () => {},
   user: null,
@@ -61,14 +73,37 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: async () => false,
   setPendingAfterLogin: () => {},
   runPendingAfterLogin: () => false,
+  isFavoritePromptOpen: false,
+  openFavoritePrompt: () => {},
+  closeFavoritePrompt: () => {},
+  openLoginFromFavoritePrompt: () => {},
+  whenHydrated: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => readStoredUserToken());
+  const [hasStoredSession, setHasStoredSession] = useState<boolean>(() => readStoredUserToken());
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [isFavoritePromptOpen, setIsFavoritePromptOpen] = useState<boolean>(false);
   const [user, setUser] = useState<User | null>(null);
   const pendingAfterLoginRef = useRef<(() => void) | null>(null);
+  const favoritePendingRef = useRef<(() => void) | null>(null);
+  const hydratedResolversRef = useRef<Array<() => void>>([]);
+
+  const resolveHydrationWaiters = useCallback(() => {
+    const waiters = hydratedResolversRef.current;
+    hydratedResolversRef.current = [];
+    waiters.forEach((fn) => fn());
+  }, []);
+
+  const whenHydrated = useCallback((): Promise<void> => {
+    if (isHydrated) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      hydratedResolversRef.current.push(resolve);
+      window.setTimeout(resolve, 8000);
+    });
+  }, [isHydrated]);
 
   const setPendingAfterLogin = useCallback((fn: (() => void) | null) => {
     pendingAfterLoginRef.current = fn;
@@ -82,25 +117,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return true;
   }, []);
 
+  const openFavoritePrompt = useCallback((afterLogin?: () => void) => {
+    favoritePendingRef.current = afterLogin ?? null;
+    setIsFavoritePromptOpen(true);
+  }, []);
+
+  const closeFavoritePrompt = useCallback(() => {
+    favoritePendingRef.current = null;
+    setIsFavoritePromptOpen(false);
+  }, []);
+
+  const openLoginFromFavoritePrompt = useCallback(() => {
+    const pending = favoritePendingRef.current;
+    favoritePendingRef.current = null;
+    setIsFavoritePromptOpen(false);
+    if (pending) pendingAfterLoginRef.current = pending;
+    setIsLoginModalOpen(true);
+  }, []);
+
   const clearUserSession = useCallback(() => {
     pendingAfterLoginRef.current = null;
+    favoritePendingRef.current = null;
+    setIsFavoritePromptOpen(false);
     if (typeof window !== "undefined") {
       localStorage.removeItem("rezervame_token");
       clearSessionExpiry("USER");
     }
+    setHasStoredSession(false);
     setIsLoggedIn(false);
     setUser(null);
   }, []);
 
   const loadUserFromApi = useCallback(async (): Promise<boolean> => {
-    if (typeof window === "undefined" || !localStorage.getItem("rezervame_token")) {
+    const tokenPresent = readStoredUserToken();
+    setHasStoredSession(tokenPresent);
+
+    if (typeof window === "undefined" || !tokenPresent) {
       setUser(null);
       setIsLoggedIn(false);
       setIsHydrated(true);
+      resolveHydrationWaiters();
       return false;
     }
     if (isSessionExpired("USER")) {
       clearUserSession();
+      setIsHydrated(true);
+      resolveHydrationWaiters();
       return false;
     }
     try {
@@ -125,15 +187,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         age: row.age ?? null,
       });
       setIsLoggedIn(true);
+      setHasStoredSession(true);
       return true;
     } catch {
       clearUserSession();
-      setIsHydrated(true);
       return false;
     } finally {
       setIsHydrated(true);
+      resolveHydrationWaiters();
     }
-  }, [clearUserSession]);
+  }, [clearUserSession, resolveHydrationWaiters]);
 
   useEffect(() => {
     void loadUserFromApi();
@@ -165,6 +228,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem("rezervame_token", result.token);
         storeSessionExpiry("USER", result.sessionExpiresAt);
       }
+      setHasStoredSession(true);
+      setUser({
+        name: result.user.name,
+        email: result.user.email,
+        phone: "",
+        avatar: null,
+      });
+      setIsLoggedIn(true);
+      setIsHydrated(true);
       await loadUserFromApi();
     } catch (err) {
       throw new Error(userFacingError(err, "Invalid email or password."));
@@ -186,6 +258,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem("rezervame_token", result.token);
       storeSessionExpiry("USER", result.sessionExpiresAt);
     }
+    setHasStoredSession(true);
+    setUser({
+      name: result.user.name,
+      email: result.user.email,
+      phone: "",
+      avatar: null,
+    });
+    setIsLoggedIn(true);
+    setIsHydrated(true);
     await loadUserFromApi();
   };
 
@@ -209,6 +290,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem("rezervame_token", result.token);
       storeSessionExpiry("USER", result.sessionExpiresAt);
     }
+    setHasStoredSession(true);
+    setUser({
+      name: result.user.name,
+      email: result.user.email,
+      phone: "",
+      avatar: null,
+    });
+    setIsLoggedIn(true);
+    setIsHydrated(true);
     await loadUserFromApi();
   };
 
@@ -221,6 +311,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         isLoggedIn,
         isHydrated,
+        hasStoredSession,
         isLoginModalOpen,
         setIsLoginModalOpen,
         user,
@@ -229,8 +320,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         register,
         logout,
         refreshUser: loadUserFromApi,
+        whenHydrated,
         setPendingAfterLogin,
         runPendingAfterLogin,
+        isFavoritePromptOpen,
+        openFavoritePrompt,
+        closeFavoritePrompt,
+        openLoginFromFavoritePrompt,
       }}
     >
       {children}

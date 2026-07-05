@@ -45,7 +45,7 @@ const I18nContext = createContext<I18nContextType>({
 });
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguageState] = useState<Language>("es");
+  const [language, setLanguageState] = useState<Language>(() => readStoredLanguage());
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

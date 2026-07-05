@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { withPublicBasePath } from "@/lib/publicBasePath";
 
 export type AppLoaderProps = {
   /** Short user-facing label only — never pass API URLs or env hints. */
@@ -9,41 +10,98 @@ export type AppLoaderProps = {
   className?: string;
 };
 
+const LOGO_SRC = withPublicBasePath("/ds/logos/rezervame-color.png");
+
 export function AppLoader({ label, variant = "page", className = "" }: AppLoaderProps) {
   const rings = (
-    <div className="relative flex h-16 w-16 items-center justify-center" aria-hidden>
-      <span className="absolute inset-0 rounded-full border-2 border-[#ff5757]/15" />
-      <span className="absolute inset-1 rounded-full border-2 border-transparent border-t-[#ff5757] animate-spin [animation-duration:1.1s]" />
-      <span className="absolute inset-3 rounded-full border-2 border-transparent border-b-[#ff5757]/70 animate-spin [animation-duration:1.6s] [animation-direction:reverse]" />
-      <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#ff5757] to-[#d83b3b] shadow-lg shadow-[#ff5757]/30">
-        <span className="text-[9px] font-black tracking-tighter text-white">R</span>
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 80,
+        height: 80,
+      }}
+      aria-hidden
+    >
+      <span
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "50%",
+          border: "2px solid color-mix(in srgb, var(--rz-coral) 15%, transparent)",
+        }}
+      />
+      <span
+        className="rz-loader-ring"
+        style={{
+          position: "absolute",
+          inset: 4,
+          borderRadius: "50%",
+          border: "2px solid transparent",
+          borderTopColor: "var(--rz-coral)",
+        }}
+      />
+      <span
+        className="rz-loader-ring-reverse"
+        style={{
+          position: "absolute",
+          inset: 12,
+          borderRadius: "50%",
+          border: "2px solid transparent",
+          borderBottomColor: "color-mix(in srgb, var(--rz-coral) 70%, transparent)",
+        }}
+      />
+      <span
+        style={{
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 44,
+          height: 44,
+          overflow: "hidden",
+          borderRadius: "50%",
+          background: "#fff",
+          boxShadow: "0 8px 24px color-mix(in srgb, var(--rz-coral) 25%, transparent)",
+          border: "2px solid #fff",
+        }}
+      >
+        <img
+          src={LOGO_SRC}
+          alt=""
+          width={44}
+          height={44}
+          style={{ width: 36, height: 36, objectFit: "contain" }}
+          draggable={false}
+        />
       </span>
     </div>
   );
 
   const labelEl = label ? (
-    <p className="mt-5 text-sm font-semibold tracking-wide text-[var(--rz-gray-600)] animate-pulse">{label}</p>
+    <p style={{ marginTop: 20, fontSize: 14, fontWeight: 600, letterSpacing: "0.02em", color: "var(--rz-gray-600)" }}>
+      {label}
+    </p>
   ) : null;
 
   if (variant === "inline") {
     return (
       <span className={`inline-flex items-center gap-2 ${className}`} role="status" aria-live="polite">
-        <span className="relative h-5 w-5">
-          <span className="absolute inset-0 rounded-full border-2 border-[var(--rz-gray-200)]" />
-          <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#ff5757] animate-spin" />
-        </span>
-        {label ? <span className="text-xs font-semibold text-[var(--rz-gray-500)]">{label}</span> : null}
+        <span className="rz-loader-ring" style={{ display: "inline-block", width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--rz-gray-200)", borderTopColor: "var(--rz-coral)" }} />
+        {label ? <span style={{ fontSize: 12, fontWeight: 600, color: "var(--rz-gray-500)" }}>{label}</span> : null}
       </span>
     );
   }
 
-  const wrap =
+  const wrapStyle: React.CSSProperties =
     variant === "page"
-      ? "min-h-[50vh] w-full flex flex-col items-center justify-center px-6 py-20"
-      : "flex flex-col items-center justify-center py-16";
+      ? { minHeight: "50vh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px" }
+      : { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px 16px" };
 
   return (
-    <div className={`${wrap} ${className}`} role="status" aria-live="polite" aria-busy="true">
+    <div className={className} style={wrapStyle} role="status" aria-live="polite" aria-busy="true">
       {rings}
       {labelEl}
     </div>

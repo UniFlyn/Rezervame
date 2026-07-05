@@ -21,6 +21,7 @@ import {
   RecipientBadge,
   PersonBookingGroup,
   Button as DSButton,
+  Avatar,
 } from "@/ds";
 import { parseAvailability } from "@/lib/staffAvailability";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
@@ -265,6 +266,11 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   ]);
   const [serviceSearch, setServiceSearch] = useState("");
   const [isPaid, setIsPaid] = useState(false);
+
+  const preferredStaff = useMemo(
+    () => (preferredStaffId ? venueData.team.find((m) => m.id === preferredStaffId) : undefined),
+    [preferredStaffId, venueData.team],
+  );
   const prevOpenRef = useRef(false);
 
   const slotPeriod = (time: string): "morning" | "afternoon" | "evening" => {
@@ -733,6 +739,18 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             );
           })}
         </div>
+
+        {preferredStaff ? (
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-[var(--rz-coral)] bg-[var(--rz-coral-050)] px-4 py-3">
+            <Avatar src={preferredStaff.img} name={preferredStaff.name} size={38} />
+            <p className="text-[13.5px] leading-snug text-[var(--rz-navy)]">
+              <strong>
+                {t("bookingProSelectedPrefix")} {preferredStaff.name}.
+              </strong>{" "}
+              {t("bookingProSelectedSub")}
+            </p>
+          </div>
+        ) : null}
 
         <div className="grid items-start gap-8 lg:grid-cols-[1fr_380px]">
         {/* LEFT — builder */}

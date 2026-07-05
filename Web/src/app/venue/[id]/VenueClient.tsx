@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../../components/I18nProvider";
 import {
   StickyBookingBar,
@@ -191,7 +191,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const router = useRouter();
   const pathname = usePathname();
   const venueId = resolveVenueBusinessId(pathname, businessId);
-  const { isLoggedIn, setIsLoginModalOpen, setPendingAfterLogin } = useAuth();
+  const venueLoadGenRef = useRef(0);
+  const { isLoggedIn, isHydrated, setIsLoginModalOpen, setPendingAfterLogin, openFavoritePrompt, whenHydrated } = useAuth();
   const [venueData, setVenueData] = useState<VenueState>(() => emptyVenue(venueId || businessId));
   const [reviewRows, setReviewRows] = useState<
     Array<{
@@ -273,7 +274,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     useVenueBookingCartStore.getState().removeService(venueId, serviceId);
   };
 
-  const onServiceBookClick = (serviceId: string) => {
+  const onServiceBookClick = async (serviceId: string) => {
+    await whenHydrated();
     if (!isLoggedIn) {
       setPendingAfterLogin(() => () => applyServiceAdd(serviceId));
       setIsLoginModalOpen(true);
@@ -299,7 +301,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     setCrossVenuePendingServiceId(null);
   };
 
-  const openBookingModal = () => openBookingFlow();
+  const startBookingFlow = (opts?: { addServiceId?: string; staffId?: string }) => {
+    if (opts?.addServiceId && !selectedServices.includes(opts.addServiceId)) {
+      applyServiceAdd(opts.addServiceId);
+    }
+    setPreferredStaffId(opts?.staffId);
+    setProfileStaff(null);
+    setIsBookingModalOpen(true);
+  };
+
+  const openBookingModal = () => void openBookingFlow();
 
   /**
    * Spec §6/§7: every entry point opens the booking flow directly.
@@ -307,19 +318,15 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
    * - opts.staffId → prioritize that professional (staff "Ver disponibilidad")
    * No cart gate: the main "Reservar" opens the flow ready to add services.
    */
-  const openBookingFlow = (opts?: { addServiceId?: string; staffId?: string }) => {
+  const openBookingFlow = async (opts?: { addServiceId?: string; staffId?: string }) => {
+    await whenHydrated();
     if (!isLoggedIn) {
-      setPendingAfterLogin(() => () => openBookingFlow(opts));
+      setPendingAfterLogin(() => () => startBookingFlow(opts));
       setIsLoginModalOpen(true);
       toastInfo(t("venueLoginToBookTitle"), t("venueLoginToBookBody"));
       return;
     }
-    if (opts?.addServiceId && !selectedServices.includes(opts.addServiceId)) {
-      applyServiceAdd(opts.addServiceId);
-    }
-    setPreferredStaffId(opts?.staffId);
-    setProfileStaff(null);
-    setIsBookingModalOpen(true);
+    startBookingFlow(opts);
   };
 
   const handleShare = async () => {
@@ -350,23 +357,27 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   };
 
   const handleToggleFavorite = async () => {
+    await whenHydrated();
+    const run = async () => {
+      try {
+        if (isFavorite) {
+          await apiDelete(`/mobile/favorites/${venueId}`, "USER");
+          setIsFavorite(false);
+          toastSuccess(t("venueFavRemovedTitle"), t("venueFavRemovedBody"));
+        } else {
+          await apiPost("/mobile/favorites", { businessId: venueId }, "USER");
+          setIsFavorite(true);
+          toastSuccess(t("venueFavAddedTitle"), t("venueFavAddedBody"));
+        }
+      } catch (err) {
+        toastError(t("venueFavErrorTitle"), t("venueFavErrorBody"));
+      }
+    };
     if (!isLoggedIn) {
-      setIsLoginModalOpen(true);
+      openFavoritePrompt(() => void run());
       return;
     }
-    try {
-      if (isFavorite) {
-        await apiDelete(`/mobile/favorites/${venueId}`, "USER");
-        setIsFavorite(false);
-        toastSuccess(t("venueFavRemovedTitle"), t("venueFavRemovedBody"));
-      } else {
-        await apiPost("/mobile/favorites", { businessId: venueId }, "USER");
-        setIsFavorite(true);
-        toastSuccess(t("venueFavAddedTitle"), t("venueFavAddedBody"));
-      }
-    } catch (err) {
-      toastError(t("venueFavErrorTitle"), t("venueFavErrorBody"));
-    }
+    await run();
   };
 
   useEffect(() => {
@@ -377,6 +388,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   useEffect(() => {
     let cancelled = false;
+    const loadGen = ++venueLoadGenRef.current;
     const load = async () => {
       setVenueLoading(true);
       const base = emptyVenue(venueId);
@@ -389,29 +401,24 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         }
         const business = await withRetries(
           () => apiGet<Record<string, unknown> | null>(`/business/${venueId}`),
-          3,
+          2,
         );
         if (!business) {
-          if (!cancelled) {
+          if (!cancelled && venueLoadGenRef.current === loadGen) {
             setVenueData(base);
             setReviewRows([]);
             toastWarning(t("venueUnavailableTitle"), t("venueUnavailableBody"));
           }
           return;
         }
-        const [services, staff, reviews, favorites, bestsellers, promotions] = await Promise.all([
+        const [services, staff, reviews, bestsellers, promotions] = await Promise.all([
           withRetries(() => apiGet<unknown[]>(`/business/${venueId}/services`), 2).catch(() => [] as unknown[]),
           withRetries(() => apiGet<unknown[]>(`/business/${venueId}/staff`), 2).catch(() => [] as unknown[]),
           withRetries(() => apiGet<unknown[]>(`/business/${venueId}/reviews`), 2).catch(() => [] as unknown[]),
-          isLoggedIn
-            ? apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>(
-                `/mobile/favorites?limit=100`,
-                "USER",
-              ).catch(() => ({ data: [] }))
-            : Promise.resolve({ data: [] }),
           apiGet<Array<{ serviceId: string; bookingCount: number }>>(`/business/${venueId}/bestsellers`).catch(() => []),
           apiGet<Array<{ serviceId: string; discountPercent: number; label?: string | null }>>(`/business/${venueId}/promotions`).catch(() => []),
         ]);
+        if (cancelled || venueLoadGenRef.current !== loadGen) return;
         // Process bestsellers
         const bMap: Record<string, number> = {};
         if (Array.isArray(bestsellers)) bestsellers.forEach(b => { if (b.serviceId) bMap[b.serviceId] = b.bookingCount; });
@@ -424,14 +431,6 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         });
         setPromotionServiceIds(promoIds);
         setPromotionData(promoArr);
-        if (isLoggedIn) {
-          const favRows = Array.isArray(favorites)
-            ? favorites
-            : Array.isArray((favorites as { data?: { businessId?: string }[] })?.data)
-              ? (favorites as { data: { businessId?: string }[] }).data
-              : [];
-          setIsFavorite(favRows.some((f) => f.businessId === venueId));
-        }
         const b = business as {
           banner?: string;
           logo?: string;
@@ -697,7 +696,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           );
         }
       } finally {
-        if (!cancelled) setVenueLoading(false);
+        if (!cancelled && venueLoadGenRef.current === loadGen) setVenueLoading(false);
       }
     };
     void load();
@@ -705,6 +704,36 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
       cancelled = true;
     };
   }, [venueId, language]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !venueId) return;
+    let cancelled = false;
+    void apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>(
+      `/mobile/favorites?limit=100`,
+      "USER",
+    )
+      .then((favorites) => {
+        if (cancelled) return;
+        const favRows = Array.isArray(favorites)
+          ? favorites
+          : Array.isArray((favorites as { data?: { businessId?: string }[] })?.data)
+            ? (favorites as { data: { businessId?: string }[] }).data
+            : [];
+        setIsFavorite(favRows.some((f) => f.businessId === venueId));
+      })
+      .catch(() => {
+        if (!cancelled) setIsFavorite(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, venueId]);
+
+  useEffect(() => {
+    if (!venueLoading) return;
+    const timeout = window.setTimeout(() => setVenueLoading(false), 18000);
+    return () => window.clearTimeout(timeout);
+  }, [venueLoading]);
 
   const VENUE_DATA = venueData;
   const heroSrc = VENUE_DATA.bannerUrl || VENUE_DATA.images[0] || PLACEHOLDER_IMAGE_DATA_URI;
@@ -878,7 +907,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   return (
     <div style={{ background: "var(--surface-card)", position: "relative", minHeight: "100vh" }}>
-      {venueLoading ? (
+      {venueLoading && !isBookingModalOpen ? (
         <div
           style={{
             position: "absolute",

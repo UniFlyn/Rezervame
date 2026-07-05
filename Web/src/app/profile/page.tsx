@@ -420,8 +420,6 @@ function ProfileContent() {
   });
   const [profileDataReady, setProfileDataReady] = useState(false);
   const [favoritesList, setFavoritesList] = useState<unknown[]>([]);
-  const [favoritesSearch, setFavoritesSearch] = useState("");
-  const [favoritesChip, setFavoritesChip] = useState<"all" | "hair" | "facial" | "wax">("all");
   const [favoritesPage, setFavoritesPage] = useState(1);
   const [favoritesTotalPages, setFavoritesTotalPages] = useState(1);
   const [favoritesTotal, setFavoritesTotal] = useState(0);
@@ -881,9 +879,7 @@ function ProfileContent() {
             "USER",
           ),
           apiGet<{ data: unknown[]; total: number; totalPages: number }>(
-            `/mobile/favorites?page=${favoritesPage}&limit=12&search=${encodeURIComponent(favoritesSearch.trim())}${
-              favoritesChip !== "all" ? `&category=${favoritesChip}` : ""
-            }`,
+            `/mobile/favorites?page=${favoritesPage}&limit=12`,
             "USER",
           ).catch(() => ({ data: [], total: 0, totalPages: 1 })),
           apiGet<Array<{ id: string; name: string; age: number | null; gender: string; email: string | null }>>(
@@ -940,11 +936,7 @@ function ProfileContent() {
     return () => {
       cancelled = true;
     };
-  }, [isHydrated, isLoggedIn, language, refreshTrigger, historyPage, invoicesPage, favoritesPage, favoritesSearch, favoritesChip]);
-
-  useEffect(() => {
-    setFavoritesPage(1);
-  }, [favoritesSearch, favoritesChip]);
+  }, [isHydrated, isLoggedIn, language, refreshTrigger, historyPage, invoicesPage, favoritesPage]);
 
   const historyReservations = useMemo(
     () => groupAndMapBookings(bookPayload.history, language, defaultCommission),
@@ -979,8 +971,8 @@ function ProfileContent() {
       { id: "invoices" as const, label: t("invoicesMenu") },
       { id: "favorites" as const, label: t("favoritesMenu") },
       { id: "family" as const, label: t("familyFriends") },
-      { id: "payments" as const, label: language === "en" ? "Payment methods" : "Métodos de pago" },
-      { id: "notifications" as const, label: language === "en" ? "Notifications" : "Notificaciones" },
+      { id: "payments" as const, label: t("paymentMethodsMenu") },
+      { id: "notifications" as const, label: t("notificationsMenu") },
       { id: "settings" as const, label: t("profileSettings") },
     ],
     [t, language],
@@ -1018,17 +1010,17 @@ function ProfileContent() {
     {
       icon: <CheckCircle2 size={19} />,
       value: totalReservationsCount,
-      label: language === "en" ? "Total reservations" : "Reservas totales",
+      label: t("profileStatTotalReservations"),
     },
     {
       icon: <Calendar size={19} />,
       value: ongoingReservations.length,
-      label: language === "en" ? "Upcoming appointments" : "Próximas citas",
+      label: t("profileStatUpcoming"),
     },
     {
       icon: <Heart size={19} />,
       value: favoritesTotal,
-      label: language === "en" ? "Favorites" : "Favoritos",
+      label: t("profileStatFavorites"),
     },
   ];
 

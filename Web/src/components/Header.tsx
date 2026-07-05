@@ -17,17 +17,19 @@ interface NotificationRow {
   createdAt: string;
 }
 
-const LOGO_COLOR = "/ds/logos/rezervame-color.png";
+import { appPath } from "@/lib/publicBasePath";
 
-function relativeTime(dateStr: string): string {
+const LOGO_COLOR = appPath("/ds/logos/rezervame-color.png");
+
+function relativeTime(dateStr: string, t: (key: string) => string): string {
   const date = new Date(dateStr);
   const diffMins = Math.floor((Date.now() - date.getTime()) / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
-  if (diffMins < 1) return "Ahora";
-  if (diffMins < 60) return `Hace ${diffMins} min`;
-  if (diffHours < 24) return `Hace ${diffHours} h`;
-  return `Hace ${diffDays} d`;
+  if (diffMins < 1) return t("timeNow");
+  if (diffMins < 60) return t("timeMinutesAgo").replace("{n}", String(diffMins));
+  if (diffHours < 24) return t("timeHoursAgo").replace("{n}", String(diffHours));
+  return t("timeDaysAgo").replace("{n}", String(diffDays));
 }
 
 function iconForType(type: string): string {
@@ -47,7 +49,7 @@ function iconForType(type: string): string {
  */
 export const Header = () => {
   const { t } = useI18n();
-  const { isLoggedIn, user, setIsLoginModalOpen, isHydrated, logout } = useAuth();
+  const { isLoggedIn, user, setIsLoginModalOpen, isHydrated, hasStoredSession, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const { meta } = usePageHeaderMeta();
@@ -105,25 +107,25 @@ export const Header = () => {
       notifications.slice(0, 6).map((n) => ({
         icon: iconForType(n.type),
         title: n.title,
-        time: relativeTime(n.createdAt),
+        time: relativeTime(n.createdAt, t),
         unread: !n.read,
         onClick: () => void openNotification(n),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [notifications],
+    [notifications, t],
   );
 
   const accountMenu = useMemo(
     () => [
-      { label: "Mi cuenta", icon: "user", onClick: () => router.push("/profile") },
-      { label: "Mis reservas", icon: "calendar", onClick: () => router.push("/profile?tab=bookings") },
-      { label: "Favoritos", icon: "heart", onClick: () => router.push("/profile?tab=favorites") },
-      { label: "Métodos de pago", icon: "creditCard", onClick: () => router.push("/profile?tab=payments") },
-      { label: "Centro de ayuda", icon: "helpCircle", divider: true, onClick: () => router.push("/support") },
-      { label: "Configuración", icon: "settings", onClick: () => router.push("/profile?tab=settings") },
-      { label: "Cerrar sesión", icon: "logOut", danger: true, divider: true, onClick: () => { logout(); router.push("/"); } },
+      { label: t("myAccount"), icon: "user", onClick: () => router.push("/profile") },
+      { label: t("myReservationsMenu"), icon: "calendar", onClick: () => router.push("/profile?tab=bookings") },
+      { label: t("favoritesMenu"), icon: "heart", onClick: () => router.push("/profile?tab=favorites") },
+      { label: t("paymentMethodsMenu"), icon: "creditCard", onClick: () => router.push("/profile?tab=payments") },
+      { label: t("helpCenterMenu"), icon: "helpCircle", divider: true, onClick: () => router.push("/support") },
+      { label: t("profileSettings"), icon: "settings", onClick: () => router.push("/profile?tab=settings") },
+      { label: t("logout"), icon: "logOut", danger: true, divider: true, onClick: () => { logout(); router.push("/"); } },
     ],
-    [router, logout],
+    [router, logout, t],
   );
 
   if (pathname.startsWith("/business") || isBookingConfirmationPath(pathname)) return null;
@@ -139,7 +141,14 @@ export const Header = () => {
   const contextTitle = meta.title || undefined;
   const contextSubtitle = meta.subtitle || undefined;
 
-  if (isHydrated && isLoggedIn && user) {
+  const showLoggedInHeader = Boolean(isLoggedIn && user) || (!isHydrated && hasStoredSession);
+  const headerUser = user ?? {
+    name: t("myAccount"),
+    email: "",
+    avatar: undefined as string | undefined,
+  };
+
+  if (showLoggedInHeader) {
     return (
       <DSHeader
         logoSrc={LOGO_COLOR}
@@ -149,7 +158,7 @@ export const Header = () => {
         onLogoClick={() => router.push("/")}
         contextTitle={contextTitle}
         contextSubtitle={contextSubtitle}
-        user={{ name: user.name, email: user.email, avatar: user.avatar || undefined }}
+        user={{ name: headerUser.name, email: headerUser.email, avatar: headerUser.avatar || undefined }}
         onFavorites={() => router.push("/profile?tab=favorites")}
         accountMenu={accountMenu}
         notificationItems={notificationItems}

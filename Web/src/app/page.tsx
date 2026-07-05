@@ -1,8 +1,11 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Fragment, useEffect, useMemo, useState } from "react";
 import { useI18n } from "../components/I18nProvider";
 import { useAuth } from "../components/AuthProvider";
 import { useRouter } from "next/navigation";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { toastError } from "@/lib/toast";
+import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import {
   fetchPublicCategories,
   fetchPublicVenues,
@@ -15,7 +18,6 @@ import {
 } from "../lib/venueSearch";
 import { fetchSiteHeroConfig, type SiteHeroConfig } from "@/lib/siteHero";
 import { goToVenue } from "@/lib/goToVenue";
-import { HomeEventsSection } from "@/components/HomeEventsSection";
 import {
   CarouselSection,
   CategoryCard,
@@ -24,17 +26,20 @@ import {
 } from "@/ds";
 
 const CONTENT_MAX = "min(94vw, 1600px)";
-const HERO_CHIPS = ["Corte", "Uñas", "Masajes", "Facial", "Cejas", "Maquillaje"];
+const HERO_CHIP_KEYS = ["cut", "nails", "massage", "facial", "eyebrows", "makeup"] as const;
+/** Client-approved hero from the Rezervame customer-web kit (`assets/hero-banner.png`). */
+const CLIENT_HERO_BANNER = "/ds/hero-banner.png";
 
 export default function Home() {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const router = useRouter();
-  const { isLoggedIn, setIsLoginModalOpen } = useAuth();
+  const { isLoggedIn, openFavoritePrompt } = useAuth();
 
   const [apiVenues, setApiVenues] = useState<ApiVenue[]>([]);
   const [categories, setCategories] = useState<PublicCategory[]>([]);
   const [siteHero, setSiteHero] = useState<SiteHeroConfig | null>(null);
-  const [favorites, setFavorites] = useState<Record<string, boolean>>({});
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [recentVenues, setRecentVenues] = useState<SearchVenueRow[]>([]);
 
   useEffect(() => {
     fetchPublicVenues(20_000, undefined, { limit: 40, page: 1 })
@@ -53,17 +58,123 @@ export default function Home() {
     [apiVenues, language],
   );
 
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setFavoriteIds([]);
+      setRecentVenues([]);
+      return;
+    }
+    let cancelled = false;
+    const catalog = apiVenues.map((v) => mapApiVenueToRow(v, language));
+    void (async () => {
+      try {
+        const [favRes, bookingsRes] = await Promise.all([
+          apiGet<{ data?: { businessId?: string }[] } | { businessId?: string }[]>(
+            "/mobile/favorites?limit=100",
+            "USER",
+          ).catch(() => ({ data: [] })),
+          apiGet<{ ongoing?: unknown[]; history?: { data?: unknown[] } }>(
+            "/mobile/bookings?page=1&limit=20",
+            "USER",
+          ).catch(() => ({ ongoing: [], history: { data: [] } })),
+        ]);
+        if (cancelled) return;
+        const favRows = Array.isArray(favRes)
+          ? favRes
+          : Array.isArray(favRes?.data)
+            ? favRes.data
+            : [];
+        setFavoriteIds(
+          favRows
+            .map((f) => f.businessId)
+            .filter((id): id is string => Boolean(id)),
+        );
+
+        const bookingRows = [
+          ...(Array.isArray(bookingsRes?.ongoing) ? bookingsRes.ongoing : []),
+          ...(Array.isArray(bookingsRes?.history?.data) ? bookingsRes.history.data : []),
+        ];
+        const seen = new Set<string>();
+        const recent: SearchVenueRow[] = [];
+        for (const row of bookingRows) {
+          const b = row as {
+            businessId?: string;
+            business?: {
+              businessId?: string;
+              name?: string;
+              categoryKey?: string;
+              rating?: number | string;
+              reviewCount?: number;
+              bannerUrl?: string | null;
+              logoUrl?: string | null;
+              address?: string;
+            };
+          };
+          const businessId = b.business?.businessId || b.businessId;
+          if (!businessId || seen.has(businessId)) continue;
+          seen.add(businessId);
+          const fromCatalog = catalog.find((v) => v.businessId === businessId);
+          if (fromCatalog) {
+            recent.push(fromCatalog);
+          } else if (b.business?.name) {
+            recent.push({
+              id: businessId,
+              businessId,
+              name: b.business.name,
+              categoryKey: b.business.categoryKey || "",
+              category: b.business.categoryKey || "",
+              rating: Number(b.business.rating || 0),
+              reviews: Number(b.business.reviewCount || 0),
+              price: 0,
+              img: b.business.bannerUrl || b.business.logoUrl || PLACEHOLDER_IMAGE_DATA_URI,
+              lat: 0,
+              lng: 0,
+              popular: false,
+              locationLabel: b.business.address || "",
+              distanceLabel: "",
+            });
+          }
+          if (recent.length >= 8) break;
+        }
+        setRecentVenues(recent);
+      } catch {
+        if (!cancelled) {
+          setFavoriteIds([]);
+          setRecentVenues([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, apiVenues, language]);
+
   const goSearch = (params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
     router.push(qs ? `/search?${qs}` : "/search");
   };
 
+  const applyFavoriteToggle = async (id: string) => {
+    const isFav = favoriteIds.includes(id);
+    try {
+      if (isFav) {
+        await apiDelete(`/mobile/favorites/${id}`, "USER");
+        setFavoriteIds((prev) => prev.filter((x) => x !== id));
+      } else {
+        await apiPost("/mobile/favorites", { businessId: id }, "USER");
+        setFavoriteIds((prev) => [...prev, id]);
+      }
+    } catch {
+      toastError(t("venueFavErrorTitle"), t("venueFavErrorBody"));
+    }
+  };
+
   const toggleFav = (id: string) => {
     if (!isLoggedIn) {
-      setIsLoginModalOpen(true);
+      openFavoritePrompt(() => void applyFavoriteToggle(id));
       return;
     }
-    setFavorites((f) => ({ ...f, [id]: !f[id] }));
+    void applyFavoriteToggle(id);
   };
 
   const dedupe = (rows: SearchVenueRow[]) => {
@@ -84,23 +195,33 @@ export default function Home() {
     const byDistance = [...base].sort((a, b) => distance(a) - distance(b));
     const rotated = [...base.slice(6), ...base.slice(0, 6)];
     return [
-      { title: "Recomendados para ti", subtitle: "Elegidos según tus gustos", items: base.slice(0, 8), promoted: true },
-      { title: "Mejor valorados", subtitle: "Los favoritos de Panamá", items: byRating.slice(0, 8), promoted: false },
-      { title: "Nuevos en Rezervame", subtitle: "Recién llegados a la plataforma", items: rotated.slice(0, 8), promoted: false },
-      { title: "Cerca de mí", subtitle: "En tu zona", items: byDistance.slice(0, 8), promoted: false },
+      { title: t("homeSecRecommendedTitle"), subtitle: t("homeSecRecommendedSub"), items: base.slice(0, 8), promoted: true },
+      { title: t("homeSecTopRatedTitle"), subtitle: t("homeSecTopRatedSub"), items: byRating.slice(0, 8), promoted: false },
+      { title: t("homeSecNewTitle"), subtitle: t("homeSecNewSub"), items: rotated.slice(0, 8), promoted: false },
+      { title: t("homeSecNearTitle"), subtitle: t("homeSecNearSub"), items: byDistance.slice(0, 8), promoted: false },
     ].filter((s) => s.items.length > 0);
-  }, [venues]);
+  }, [venues, t]);
 
-  const heroImg =
-    siteHero?.enabled !== false && siteHero?.imageUrl ? siteHero.imageUrl : "/ds/hero-banner.png";
+  const hiwSteps = useMemo(
+    () => [
+      { icon: "search", title: t("step1"), text: t("step1Sub") },
+      { icon: "calendar", title: t("step2"), text: t("step2Sub") },
+      { icon: "checkCircle", title: t("howItWorksConfirmTitle"), text: t("howItWorksConfirmSub") },
+      { icon: "sparkles", title: t("step3"), text: t("step3Sub") },
+      { icon: "star", title: t("step4"), text: t("step4Sub") },
+    ],
+    [t],
+  );
+
+  const heroImg = CLIENT_HERO_BANNER;
   const heroTitle =
     siteHero?.enabled !== false && siteHero?.title
       ? siteHero.title
-      : "Reserva tu momento de belleza y bienestar en segundos.";
+      : t("homeHeroDefaultTitle");
   const heroSubtitle =
     siteHero?.enabled !== false && siteHero?.subtitle
       ? siteHero.subtitle
-      : "Encuentra salones, spas y expertos cerca de ti, compara opciones y agenda tu cita fácilmente.";
+      : t("homeHeroDefaultSubtitle");
 
   const renderBusiness = (v: SearchVenueRow, promoted: boolean, key: string) => (
     <BusinessCard
@@ -115,9 +236,9 @@ export default function Home() {
       services={v.serviceName ? [v.serviceName] : []}
       hoursToday={v.todaySlotTimings}
       priceFrom={v.price || undefined}
-      badge={promoted ? "Destacado" : undefined}
+      badge={promoted ? t("featuredServicesTitle") : undefined}
       badgeTone="coral"
-      favorite={!!favorites[v.businessId]}
+      favorite={favoriteIds.includes(v.businessId)}
       onFavorite={() => toggleFav(v.businessId)}
       onClick={() => goToVenue(v.businessId)}
       onReserve={() => goToVenue(v.businessId)}
@@ -195,14 +316,14 @@ export default function Home() {
                 textShadow: "0 1px 12px rgba(2,18,28,0.4)",
               }}
             >
-              Servicios destacados
+              {t("homeFeaturedServices")}
             </p>
             <div style={{ display: "flex", gap: 20, marginTop: 22, flexWrap: "wrap", justifyContent: "center" }}>
-              {HERO_CHIPS.map((c) => (
+              {HERO_CHIP_KEYS.map((key) => (
                 <button
-                  key={c}
+                  key={key}
                   type="button"
-                  onClick={() => goSearch({ q: c })}
+                  onClick={() => goSearch({ q: t(key) })}
                   style={{
                     width: 132,
                     padding: "11px 0",
@@ -232,7 +353,7 @@ export default function Home() {
                     e.currentTarget.style.transform = "none";
                   }}
                 >
-                  {c}
+                  {t(key)}
                 </button>
               ))}
             </div>
@@ -244,8 +365,8 @@ export default function Home() {
       {categories.length > 0 && (
         <div style={{ width: CONTENT_MAX, margin: "0 auto", padding: "52px 0 0" }}>
           <CarouselSection
-            title="Explora por categoría"
-            subtitle="Descubre el servicio perfecto para ti"
+            title={t("homeExploreCategoryTitle")}
+            subtitle={t("homeExploreCategorySub")}
             align="center"
             arrows={false}
             cardWidth={224}
@@ -274,25 +395,51 @@ export default function Home() {
           gap: 72,
         }}
       >
-        {sections.map((sec, si) => (
-          <CarouselSection
-            key={`sec-${si}`}
-            title={sec.title}
-            linkLabel="Ver todos los negocios"
-            onLink={() => goSearch({ q: sec.title })}
-            cardWidth={336}
-            gap={18}
-          >
-            {sec.items.map((v, i) => renderBusiness(v, sec.promoted, `${si}-${v.businessId}-${i}`))}
-          </CarouselSection>
-        ))}
+        {sections.map((sec, si) => {
+          const sectionEl = (
+            <CarouselSection
+              key={`sec-${si}`}
+              title={sec.title}
+              linkLabel={t("viewAll")}
+              onLink={() => goSearch({ q: sec.title })}
+              cardWidth={336}
+              gap={18}
+            >
+              {sec.items.map((v, i) => renderBusiness(v, sec.promoted, `${si}-${v.businessId}-${i}`))}
+            </CarouselSection>
+          );
 
-        <HomeEventsSection />
+          if (sec.promoted && isLoggedIn && recentVenues.length > 0) {
+            return (
+              <Fragment key={`grp-${si}`}>
+                {sectionEl}
+                <CarouselSection
+                  title={t("homeSecBookAgainTitle")}
+                  subtitle={t("homeSecBookAgainSub")}
+                  linkLabel={t("homeSecBookAgainLink")}
+                  onLink={() => router.push("/profile?tab=bookings")}
+                  cardWidth={336}
+                  gap={18}
+                >
+                  {recentVenues.map((v, i) => renderBusiness(v, false, `recent-${v.businessId}-${i}`))}
+                </CarouselSection>
+              </Fragment>
+            );
+          }
+
+          return sectionEl;
+        })}
       </div>
 
       {/* How it works */}
-      <div style={{ marginTop: 56 }}>
-        <HowItWorks variant="soft" contentMax={CONTENT_MAX} />
+      <div id="how-it-works" style={{ marginTop: 56 }}>
+        <HowItWorks
+          variant="soft"
+          contentMax={CONTENT_MAX}
+          title={t("howItWorks")}
+          subtitle={t("howItWorksSub")}
+          steps={hiwSteps}
+        />
       </div>
     </div>
   );

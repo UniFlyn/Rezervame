@@ -6,6 +6,7 @@ import { AuthProvider } from "../components/AuthProvider";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import { LoginModal } from "../components/LoginModal";
+import { FavoritePrompt } from "../components/FavoritePrompt";
 import { AppToaster } from "../components/AppToaster";
 import { WebPushManager } from "../components/WebPushManager";
 import { MaintenanceGate } from "../components/MaintenanceGate";
@@ -35,6 +36,7 @@ export default function RootLayout({
                 </main>
                 <Footer />
                 <LoginModal />
+                <FavoritePrompt />
                 <AppToaster />
                 <WebPushManager />
               </div>
