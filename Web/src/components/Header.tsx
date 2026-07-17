@@ -128,7 +128,7 @@ export const Header = () => {
     [router, logout, t],
   );
 
-  if (pathname.startsWith("/business") || isBookingConfirmationPath(pathname)) return null;
+  if (pathname.startsWith("/business") || isBookingConfirmationPath(pathname) || meta.hideHeader) return null;
 
   const onSearch = (q: { service?: string; location?: string }) => {
     const params = new URLSearchParams();
@@ -151,6 +151,7 @@ export const Header = () => {
   if (showLoggedInHeader) {
     return (
       <DSHeader
+        key={pathname}
         logoSrc={LOGO_COLOR}
         sticky
         showSearch={showSearch}
@@ -170,14 +171,19 @@ export const Header = () => {
 
   return (
     <DSHeader
+      key={pathname}
       variant="home"
       logoSrc={LOGO_COLOR}
       sticky
       showSearch={showSearch}
       onSearch={onSearch}
       onLogoClick={() => router.push("/")}
+      contextTitle={contextTitle}
+      contextSubtitle={contextSubtitle}
       loginLabel={t("btnSignIn")}
       onLogin={() => setIsLoginModalOpen(true)}
+      joinLabel={t("btnJoinBusiness")}
+      onJoinBusiness={() => router.push("/business/join")}
     />
   );
 };

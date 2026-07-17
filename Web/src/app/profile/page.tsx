@@ -40,8 +40,8 @@ import {
 } from "@/lib/reservationStatus";
 import {
   normalizePublicPaymentConfig,
-  pickDefaultPaymentMethod,
-  selectablePaymentMethods,
+  customerFacingPaymentMethods,
+  pickCustomerDefaultPaymentMethod,
 } from "@/lib/paymentConfig";
 import {
   canCustomerCancelBooking,
@@ -85,6 +85,37 @@ const UPCOMING_BOOKING_STATUSES = new Set<ReservationUiStatus>([
 
 function isUpcomingReservation(res: Reservation) {
   return UPCOMING_BOOKING_STATUSES.has(res.status);
+}
+
+function canModifyReservation(res: Reservation) {
+  if (!isUpcomingReservation(res)) return false;
+  const apptRaw = res.items.find((i) => i.appointmentAt)?.appointmentAt;
+  if (!apptRaw) return true;
+  const appt = new Date(apptRaw);
+  if (Number.isNaN(appt.getTime())) return true;
+  return Date.now() < appt.getTime() - 60 * 60 * 1000;
+}
+
+function shareReservationLink(res: Reservation) {
+  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/reservation/${res.id}`;
+  if (typeof navigator !== "undefined" && navigator.share) {
+    void navigator.share({ title: res.venueName, text: `Mi reserva en ${res.venueName}`, url });
+    return;
+  }
+  if (typeof navigator !== "undefined" && navigator.clipboard) {
+    void navigator.clipboard.writeText(url);
+    toastSuccess("Enlace copiado", "El enlace de tu reserva se copió al portapapeles.");
+  }
+}
+
+function openReservationCalendar(res: Reservation) {
+  const title = encodeURIComponent(`${res.venueName} — ${res.serviceName}`);
+  const details = encodeURIComponent(`Reserva Rezervame #${res.refNumber}`);
+  const location = encodeURIComponent(res.address || res.venueName);
+  window.open(
+    `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`,
+    "_blank",
+  );
 }
 
 function matchBookingFilter(res: Reservation, filter: (typeof BOOKING_FILTERS)[number]["value"]) {
@@ -445,7 +476,7 @@ function ProfileContent() {
 
   // Payment flow state
   const [paymentView, setPaymentView] = useState<"none" | "review" | "done">("none");
-  const [payMethod, setPayMethod] = useState<"wompi" | "yappy" | "pay_at_venue">("pay_at_venue");
+  const [payMethod, setPayMethod] = useState<"wompi" | "yappy">("wompi");
   const [payingLoading, setPayingLoading] = useState(false);
   const [isSavingFamilyMember, setIsSavingFamilyMember] = useState(false);
   const [paidInvoice, setPaidInvoice] = useState<{ id: string; refNumber: string } | null>(null);
@@ -459,7 +490,6 @@ function ProfileContent() {
   >([
     { id: "wompi", label: "Card", enabled: false, configured: false },
     { id: "yappy", label: "Yappy", enabled: false, configured: false },
-    { id: "pay_at_venue", label: "Pay by visit", enabled: true, configured: true },
   ]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
@@ -468,14 +498,10 @@ function ProfileContent() {
       .then((raw) => {
         const cfg = normalizePublicPaymentConfig(raw);
         setDefaultCommission(cfg.defaultCommission);
-        const selectable = selectablePaymentMethods(cfg.methods);
-        const visible = cfg.methods.filter((m) => m.enabled);
-        if (visible.length > 0) {
-          setPaymentMethods(visible);
-          setPayMethod(pickDefaultPaymentMethod(cfg.methods));
-        } else if (selectable.length > 0) {
+        const selectable = customerFacingPaymentMethods(cfg.methods);
+        if (selectable.length > 0) {
           setPaymentMethods(selectable);
-          setPayMethod(pickDefaultPaymentMethod(cfg.methods));
+          setPayMethod(pickCustomerDefaultPaymentMethod(cfg.methods));
         }
       })
       .catch(() => {});
@@ -646,41 +672,35 @@ function ProfileContent() {
         return;
       }
 
-      const method =
-        payMethod === "wompi"
-          ? "Wompi"
-          : payMethod === "yappy"
-            ? "Yappy"
-            : "Pay by visit";
+      const method = payMethod === "wompi" ? "Wompi" : "Yappy";
 
-      if (payMethod !== "pay_at_venue") {
-        toastWarning(
-          "Card & Yappy",
-          "Online payment is not available yet. Choose pay by visit or try again later.",
+      try {
+        await apiPost(
+          "/mobile/bookings/pay-group",
+          { bookingIds: payableIds, paymentMethod: method },
+          "USER",
         );
-        setPayingLoading(false);
-        return;
+        setRecentlyPaidGroupId(res.id);
+        setPaidInvoice({ id: res.id, refNumber: res.refNumber });
+        setSelectedRes({
+          ...res,
+          status: "paid",
+          paymentMethod: method,
+          items: res.items.map((i) =>
+            payableIds.includes(i.id) ? { ...i, status: "paid" as ReservationUiStatus } : i,
+          ),
+        });
+        setPaymentView("done");
+        setRefreshTrigger((prev) => prev + 1);
+        toastSuccess("Pago exitoso", "Tu pago se procesó correctamente.");
+      } catch (err) {
+        toastError(
+          "Pago en línea",
+          err instanceof Error
+            ? err.message
+            : "El pago en línea no está disponible en este momento. Inténtalo de nuevo más tarde.",
+        );
       }
-
-      const paidUiStatus = "cash_at_venue";
-      setRecentlyPaidGroupId(res.id);
-      setPaidInvoice({ id: res.id, refNumber: res.refNumber });
-      setSelectedRes({
-        ...res,
-        status: paidUiStatus,
-        paymentMethod: method,
-        items: res.items.map((i) =>
-          payableIds.includes(i.id) ? { ...i, status: paidUiStatus } : i,
-        ),
-      });
-      setPaymentView("done");
-      setRefreshTrigger((prev) => prev + 1);
-      toastSuccess(
-        payMethod === "pay_at_venue" ? "Booking confirmed" : "Payment Successful!",
-        payMethod === "pay_at_venue"
-          ? `Please bring $${res.totalPrice.toFixed(2)} when you visit for your appointment.`
-          : "Invoice added to your history.",
-      );
     } catch (err) {
       toastError(
         "Payment failed",
@@ -1252,6 +1272,36 @@ function ProfileContent() {
                           <Button variant="primary" size="sm" onClick={openDetails}>
                             {language === "en" ? "View details" : "Ver detalles"}
                           </Button>
+                          {isUpcomingReservation(res) && (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => openReservationCalendar(res)}>
+                                {language === "en" ? "Calendar" : "Calendario"}
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => shareReservationLink(res)}>
+                                {language === "en" ? "Share" : "Compartir"}
+                              </Button>
+                              {canModifyReservation(res) && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (res.businessId) router.push(`/venue/${res.businessId}`);
+                                    }}
+                                  >
+                                    {t("rescheduleAction")}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => void handleCancelAllInGroup(res)}
+                                  >
+                                    {language === "en" ? "Cancel" : "Cancelar"}
+                                  </Button>
+                                </>
+                              )}
+                            </>
+                          )}
                           {(res.status === "completed" || res.status === "cancelled") && (
                             <Button
                               variant="outline"
@@ -1329,18 +1379,19 @@ function ProfileContent() {
                    onAction={() => setIsFamilyModalOpen(true)}
                  />
                ) : (
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="flex flex-col gap-3">
                     {familyMembers.map((member) => (
-                      <div key={member.id} className="bg-white p-6 rounded-[32px] border border-[var(--border-default)] shadow-sm flex justify-between items-center group hover:shadow-xl hover:shadow-[color:rgba(231,234,239,0.5)] transition duration-500">
-                        <div className="flex items-center gap-5">
-                           <div className="w-16 h-16 bg-[var(--rz-gray-100)] rounded-[20px] flex items-center justify-center text-[#ff5757] font-black text-2xl border-2 border-white shadow-sm group-hover:bg-[#ff5757] group-hover:text-white transition-colors duration-500">
+                      <div key={member.id} className="bg-white px-4 py-3.5 rounded-2xl border border-[var(--border-subtle)] shadow-sm flex justify-between items-center gap-4">
+                        <div className="flex items-center gap-4 min-w-0">
+                           <div className="w-12 h-12 bg-[var(--rz-gray-100)] rounded-xl flex items-center justify-center text-[var(--rz-coral)] font-bold text-lg shrink-0">
                              {member.name.charAt(0)}
                            </div>
-                           <div>
-                              <h4 className="font-black text-[var(--rz-navy)] text-lg group-hover:text-[#ff5757] transition-colors">{member.name}</h4>
-                              <p className="text-xs font-bold text-[var(--rz-gray-500)] mt-1 uppercase tracking-widest">
-                                {member.age} {language === "es" ? "años" : "years"} • {member.gender}
-                                {member.email ? ` • ${member.email}` : ""}
+                           <div className="min-w-0">
+                              <h4 className="font-bold text-[var(--rz-navy)] text-base truncate">{member.name}</h4>
+                              <p className="text-xs font-medium text-[var(--rz-gray-500)] mt-0.5 truncate">
+                                {member.gender || (language === "es" ? "Familiar" : "Family")}
+                                {member.email ? ` · ${member.email}` : ""}
+                                {member.age ? ` · ${member.age} ${language === "es" ? "años" : "years"}` : ""}
                               </p>
                            </div>
                         </div>
@@ -1379,6 +1430,13 @@ function ProfileContent() {
                     ))}
                  </div>
                )}
+               {familyMembers.length > 0 && (
+                 <p className="mt-4 text-xs text-[var(--rz-gray-500)]">
+                   {language === "en"
+                     ? "Only you can see this list."
+                     : "Solo tú puedes ver esta lista."}
+                 </p>
+               )}
             </div>
           )}
 
@@ -1396,7 +1454,7 @@ function ProfileContent() {
                   </button>
                 </div>
 
-                <div className="bg-white rounded-[40px] p-10 border border-[var(--border-default)] shadow-sm space-y-10">
+                <div className="bg-white rounded-3xl p-6 border border-[var(--border-subtle)] shadow-sm space-y-8">
                   <div className="flex items-center gap-8 pb-10 border-b border-[var(--border-subtle)]">
                      <div className="relative group" onClick={() => fileInputRef.current?.click()}>
                         <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-[var(--border-subtle)] shadow-lg">
@@ -2096,7 +2154,7 @@ function ProfileContent() {
                          <div className="mt-6 space-y-4">
                             <div className="p-4 bg-[var(--rz-gray-050)] border border-[var(--border-subtle)] rounded-2xl text-center">
                                <p className="text-[10px] font-black text-[var(--rz-gray-500)] uppercase tracking-widest">{language === "en" ? "Waiting for Venue" : "Esperando al negocio"}</p>
-                               <p className="text-[var(--rz-gray-500)] text-[10px] font-medium mt-2">{language === "en" ? "You can cancel anytime before the venue accepts." : "Puedes cancelar en cualquier momento antes de que el negocio acepte."}</p>
+                               <p className="text-[var(--rz-gray-500)] text-[10px] font-medium mt-2">{t("cancelPolicyText")}</p>
                             </div>
                             <button
                               type="button"
@@ -2121,7 +2179,7 @@ function ProfileContent() {
                                   key={m.id}
                                   type="button"
                                   disabled={!m.configured}
-                                  onClick={() => setPayMethod(m.id as "wompi" | "yappy" | "pay_at_venue")}
+                                  onClick={() => setPayMethod(m.id as "wompi" | "yappy")}
                                   className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                                     payMethod === m.id ? "border-[#ff5757] bg-[#ff5757]/5" : "border-[var(--border-subtle)] hover:border-[var(--border-default)]"
                                   }`}
@@ -2294,22 +2352,49 @@ function ProfileContent() {
                     <input name="age" type="number" defaultValue={editingMember?.age} required placeholder={language === "en" ? "Years" : "Años"} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
                  </div>
                  <div className="space-y-2">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">Gender</label>
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Gender" : "Género"}</label>
                     <select name="gender" defaultValue={editingMember?.gender || "Male"} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all appearance-none cursor-pointer">
-                       <option value="Male">Male</option>
-                       <option value="Female">Female</option>
-                       <option value="Other">Other</option>
+                       <option value="Male">{language === "en" ? "Male" : "Masculino"}</option>
+                       <option value="Female">{language === "en" ? "Female" : "Femenino"}</option>
+                       <option value="Other">{language === "en" ? "Other" : "Otro"}</option>
                     </select>
                  </div>
                </div>
                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">Email (optional)</label>
-                  <input name="email" type="email" defaultValue={editingMember?.email ?? ""} placeholder="email@example.com" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
+                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Relationship" : "Relación"}</label>
+                  <select name="relationship" defaultValue={(editingMember as any)?.relationship || ""} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all appearance-none cursor-pointer">
+                    <option value="">{language === "en" ? "Select relationship" : "Seleccionar relación"}</option>
+                    <option value="spouse">{language === "en" ? "Spouse / Partner" : "Cónyuge / Pareja"}</option>
+                    <option value="child">{language === "en" ? "Child" : "Hijo/a"}</option>
+                    <option value="parent">{language === "en" ? "Parent" : "Padre / Madre"}</option>
+                    <option value="sibling">{language === "en" ? "Sibling" : "Hermano/a"}</option>
+                    <option value="friend">{language === "en" ? "Friend" : "Amigo/a"}</option>
+                    <option value="other">{language === "en" ? "Other" : "Otro"}</option>
+                  </select>
                </div>
-              <button type="submit" disabled={isSavingFamilyMember} className="w-full bg-[#ff5757] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5757]/25 hover:bg-[#d83b3b] transition-all text-xs uppercase tracking-widest mt-4 disabled:opacity-60 flex items-center justify-center gap-2">
-                 {isSavingFamilyMember ? <Loader2 className="animate-spin" size={16} /> : null}
-                 {isSavingFamilyMember ? (language === "en" ? "Saving..." : "Guardando...") : (editingMember ? (language === "en" ? "Save Changes" : "Guardar cambios") : (language === "en" ? "Add Member" : "Agregar persona"))}
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Phone" : "Teléfono"}</label>
+                    <input name="phone" type="tel" defaultValue={(editingMember as any)?.phone ?? ""} placeholder="+507 6000 0000" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Email (optional)" : "Email (opcional)"}</label>
+                    <input name="email" type="email" defaultValue={editingMember?.email ?? ""} placeholder="email@example.com" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
+                 </div>
+               </div>
+               <div className="space-y-2">
+                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Notes (optional)" : "Notas (opcional)"}</label>
+                  <textarea name="notes" defaultValue={(editingMember as any)?.notes ?? ""} rows={2} placeholder={language === "en" ? "Allergies, preferences, etc." : "Alergias, preferencias, etc."} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)] resize-none" />
+               </div>
+              <div className="flex gap-3">
+               <button type="button" onClick={() => setIsFamilyModalOpen(false)} className="flex-1 bg-[var(--rz-gray-050)] text-[var(--rz-gray-600)] font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-[var(--rz-gray-100)] transition-all border border-[var(--border-default)]">
+                 {language === "en" ? "Cancel" : "Cancelar"}
                </button>
+               <button type="submit" disabled={isSavingFamilyMember} className="flex-1 bg-[#ff5757] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5757]/25 hover:bg-[#d83b3b] transition-all text-xs uppercase tracking-widest disabled:opacity-60 flex items-center justify-center gap-2">
+                  {isSavingFamilyMember ? <Loader2 className="animate-spin" size={16} /> : null}
+                  {isSavingFamilyMember ? (language === "en" ? "Saving..." : "Guardando...") : (editingMember ? (language === "en" ? "Save Changes" : "Guardar cambios") : (language === "en" ? "Add Member" : "Agregar persona"))}
+               </button>
+              </div>
              </form>
           </div>
         </div>

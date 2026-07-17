@@ -103,11 +103,11 @@ export function Header({
         <div style={{ flex: 1 }} />
         {ContextTitle}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
+          {onJoinBusiness && (
+            <Button variant="outline" onClick={onJoinBusiness}>{joinLabel}</Button>
+          )}
           {onLogin && (
             <Button variant="primary" onClick={onLogin}>{loginLabel}</Button>
-          )}
-          {onJoinBusiness && (
-            <Button variant="primary" onClick={onJoinBusiness}>{joinLabel}</Button>
           )}
         </div>
       </header>
@@ -134,7 +134,7 @@ export function Header({
           label="Notificaciones"
           onClick={() => { if (hasNotifPanel) { setNotifOpen((o) => !o); setAcctOpen(false); } else if (onNotifications) onNotifications(); }}
         />
-        <IconButton icon="heart" variant="ghost" round label="Favoritos" onClick={onFavorites} />
+        <IconButton icon="heart" variant="ghost" round label="Favoritos" onClick={() => { setNotifOpen(false); setAcctOpen(false); if (onFavorites) onFavorites(); }} />
         {user && (
           <>
             <span style={{ width: 1, height: 34, background: 'var(--border-subtle)', margin: '0 10px' }} />

@@ -12,7 +12,7 @@ export function normalizeCancellationPolicy(
   const allowed = business?.cancellationAllowed !== false;
   const raw = business?.cancellationHoursBefore;
   const hoursBefore =
-    typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 24;
+    typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 1;
   return { allowed, hoursBefore };
 }
 
@@ -27,8 +27,14 @@ export function formatCancellationPolicyMessage(
   }
   if (policy.hoursBefore <= 0) {
     return lang === "es"
-      ? "Puedes cancelar en cualquier momento antes de tu cita."
-      : "You may cancel anytime before your appointment.";
+      ? "Puedes cancelar o reagendar tu reserva sin costo hasta 60 minutos antes de la hora programada."
+      : "You may cancel or reschedule at no cost up to 60 minutes before your appointment.";
+  }
+  const minutes = policy.hoursBefore * 60;
+  if (minutes <= 60) {
+    return lang === "es"
+      ? "Puedes cancelar o reagendar tu reserva sin costo hasta 60 minutos antes de la hora programada."
+      : "You may cancel or reschedule at no cost up to 60 minutes before your appointment.";
   }
   return lang === "es"
     ? `Las cancelaciones deben hacerse ${policy.hoursBefore}h antes de tu cita.`
@@ -94,8 +100,8 @@ export function policyMessageForBooking(
   const status = String(input.status || "").toLowerCase();
   if (status === "pending" && !input.transactionId) {
     return lang === "es"
-      ? "Puedes cancelar antes de que el negocio acepte tu reserva."
-      : "You may cancel before the venue accepts your booking.";
+      ? "Puedes cancelar o reagendar tu reserva sin costo hasta 60 minutos antes de la hora programada."
+      : "You may cancel or reschedule at no cost up to 60 minutes before your appointment.";
   }
   return formatCancellationPolicyMessage(normalizeCancellationPolicy(input.business), lang);
 }

@@ -27,7 +27,7 @@ import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { amenityLucideIcon } from "@/lib/amenityIcons";
 import { AppLoader } from "@/components/ui/AppLoader";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
-import { fetchPublicCategories, serviceCardImageSrc, type PublicCategory } from "@/lib/venueSearch";
+import { fetchPublicCategories, serviceCardImageSrc, categoryLabelFromKey, type PublicCategory } from "@/lib/venueSearch";
 import { normalizePublicImageUrl } from "@/lib/s3Assets";
 import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { userFacingError } from "@/lib/userFacingError";
@@ -36,7 +36,45 @@ import { formatAvailabilityDisplay, formatStaffStatValue, parseAvailability } fr
 import { getNextAvailableSlotLabel } from "@/lib/bookingSlots";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
-import { VenueDetailSections, type VenueDetailSection } from "@/components/venue/VenueDetailSections";
+import type { VenueDetailSection } from "@/components/venue/VenueDetailSections";
+
+function inferServiceAudienceTag(name: string, category: string): string {
+  const text = `${name} ${category}`.toLowerCase();
+  const parts: string[] = ["all"];
+  if (/\b(niño|niña|nino|nina|kid|kids|child|children|infantil)\b/.test(text)) {
+    parts.push("niño", "kid", "children");
+  }
+  if (/\b(hombre|hombres|man|men|male|masculin|barber|barba|barbería|barberia)\b/.test(text)) {
+    parts.push("hombre", "men", "barber");
+  }
+  if (/\b(mujer|mujeres|woman|women|female|femenin|uñas|manicur|pedicur|cejas|pestañas)\b/.test(text)) {
+    parts.push("mujer", "women", "female");
+  }
+  return parts.join(" ");
+}
+
+const SERVICE_NAME_ES: Record<string, string> = {
+  "Classic Cut": "Corte clásico",
+  HairColor: "Coloración",
+  HairCut: "Corte de cabello",
+  "Hair Cut": "Corte de cabello",
+  "Hair Color": "Coloración",
+  "Hair Service": "Servicios para el cabello",
+  "Beauty Service": "Servicios de belleza",
+};
+
+function localizeServiceName(name: string, lang: "en" | "es"): string {
+  if (lang !== "es") return name;
+  return SERVICE_NAME_ES[name] || name;
+}
+
+function localizeCategoryLabel(raw: string, lang: "en" | "es"): string {
+  if (!raw || raw === "—") return raw;
+  return raw
+    .split(/[·,]/)
+    .map((part) => categoryLabelFromKey(part.trim(), lang) || part.trim())
+    .join(" · ");
+}
 
 type VenueService = { id: string; name: string; description: string; time: string; price: number; image?: string | null; tag: string };
 type VenueTeam = {
@@ -245,6 +283,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   };
 
   const { setMeta, clearMeta } = usePageHeaderMeta();
+  const [stickyBarVisible, setStickyBarVisible] = useState(false);
 
   const cartBusinessId = useVenueBookingCartStore((s) => s.businessId);
   const cartServiceIds = useVenueBookingCartStore((s) => s.serviceIds);
@@ -567,7 +606,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           ...base,
           id: String((business as { id?: string }).id ?? venueId),
           name: String((business as { name?: string }).name ?? "—"),
-          category: String((business as { category?: string }).category ?? "—"),
+          category: localizeCategoryLabel(String((business as { category?: string }).category ?? "—"), language),
           rating: apiRating,
           reviews: apiReviews,
           address: String((business as { location?: string }).location ?? ""),
@@ -588,14 +627,15 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           amenities,
           services: svcList.map((s: any) => {
             const row = s as { id: string; name: string; category: string; duration: number; price: number; imageUrl?: string | null };
+            const categoryKey = String(row.category || "");
             return {
               id: String(row.id),
-              name: row.name,
-              description: row.category || "—",
+              name: localizeServiceName(row.name, language),
+              description: categoryKey ? categoryLabelFromKey(categoryKey, language) : "—",
               time: `${row.duration} min`,
               price: row.price,
               image: serviceCardImageSrc(row.imageUrl, imgs, String(row.id)),
-              tag: "all",
+              tag: inferServiceAudienceTag(row.name, categoryKey),
             };
           }),
           team: staffList.map((m: any) => {
@@ -741,16 +781,16 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   useEffect(() => {
     if (!VENUE_DATA.name || VENUE_DATA.name === "—") return;
-    setMeta({ title: VENUE_DATA.name, subtitle: VENUE_DATA.category });
+    setMeta({ title: VENUE_DATA.name, subtitle: VENUE_DATA.category, hideHeader: stickyBarVisible });
     return () => clearMeta();
-  }, [VENUE_DATA.name, VENUE_DATA.category, setMeta, clearMeta]);
+  }, [VENUE_DATA.name, VENUE_DATA.category, stickyBarVisible, setMeta, clearMeta]);
 
   const venueTabs = useMemo(
     () =>
       [
         { id: "services" as const, label: t("venueServicios") },
         { id: "team" as const, label: t("venueEquipo") },
-        { id: "portfolio" as const, label: "Portfolio" },
+        { id: "portfolio" as const, label: t("venuePortfolio") },
         { id: "reviews" as const, label: t("venueReseñas") },
         { id: "amenities" as const, label: t("venueAmenidades") },
       ] as const,
@@ -900,7 +940,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   const SectionHead = ({ title, sub }: { title: string; sub?: string }) => (
     <div style={{ textAlign: "center", maxWidth: 620, margin: "0 auto 28px" }}>
-      <h2 style={{ fontSize: 30 }}>{title}</h2>
+      <h2 style={{ fontSize: 30, fontWeight: 700 }}>{title}</h2>
       {sub && <p style={{ fontSize: 15, color: "var(--rz-gray-500)", marginTop: 10, lineHeight: 1.5 }}>{sub}</p>}
     </div>
   );
@@ -932,12 +972,12 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         avatar={VENUE_DATA.logoUrl || undefined}
         watchRef={titleRef}
         onReserve={openBookingModal}
+        onVisibilityChange={setStickyBarVisible}
         ctaLabel={
           selectedServices.length > 0
             ? `${t("venueBookNow")} (${selectedServices.length})`
             : t("venueBookNow")
         }
-        style={{ top: "var(--app-header-height, 72px)" }}
       />
 
       <div style={{ maxWidth: MAXW, margin: "0 auto", padding: `28px ${PAD} 0` }}>
@@ -1003,7 +1043,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
           <div>
             <div ref={titleRef} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <div>
-                <h1 style={{ fontSize: "clamp(28px, 4vw, 38px)" }}>{VENUE_DATA.name}</h1>
+                <h1 style={{ fontSize: "clamp(28px, 4vw, 38px)", fontWeight: 700 }}>{VENUE_DATA.name}</h1>
+                <p style={{ fontSize: 15, fontWeight: 600, color: "var(--rz-gray-500)", marginTop: 8 }}>{VENUE_DATA.category}</p>
                 <div style={{ marginTop: 10 }}>
                   <Rating value={reviewAvg} count={VENUE_DATA.reviews} />
                 </div>
@@ -1071,11 +1112,6 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                 </div>
               </div>
             </div>
-            {VENUE_DATA.description && (
-              <p style={{ fontSize: 15, color: "var(--rz-gray-700)", lineHeight: 1.6, marginTop: 18, maxWidth: 680 }}>
-                {VENUE_DATA.description}
-              </p>
-            )}
 
             <div ref={contentRef} style={{ scrollMarginTop: 90 }}>
               <div style={{ display: "flex", justifyContent: "center", marginTop: 30, marginBottom: 36 }}>
@@ -1147,7 +1183,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                       {t("venueNoTeam") || "No hay profesionales listados."}
                     </p>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${teamCols},1fr)`, gap: 16 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${teamCols},1fr)`, gap: 16, alignItems: "stretch" }}>
                       {(teamExpanded ? VENUE_DATA.team : VENUE_DATA.team.slice(0, teamCols)).map((m) => (
                         <StaffCard
                           key={m.id}
@@ -1472,11 +1508,6 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               )}
             </div>
 
-            {VENUE_DATA.venueDetailSections && VENUE_DATA.venueDetailSections.length > 0 && (
-              <div style={{ marginTop: 32 }}>
-                <VenueDetailSections sections={VENUE_DATA.venueDetailSections} />
-              </div>
-            )}
           </div>
 
           {/* Sidebar */}
@@ -1488,7 +1519,6 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               ) : undefined
             }
             address={VENUE_DATA.address || undefined}
-            about={VENUE_DATA.description || undefined}
             todayHours={todayHours || undefined}
             weekHours={VENUE_DATA.schedule}
             phone={VENUE_DATA.contactPhone || undefined}

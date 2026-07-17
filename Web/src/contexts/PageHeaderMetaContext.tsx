@@ -5,6 +5,7 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 export type PageHeaderMeta = {
   title?: string;
   subtitle?: string;
+  hideHeader?: boolean;
 };
 
 type Ctx = {
@@ -19,12 +20,12 @@ export function PageHeaderMetaProvider({ children }: { children: React.ReactNode
   const [meta, setMetaState] = useState<PageHeaderMeta>({});
   const setMeta = useCallback((m: PageHeaderMeta) => {
     setMetaState((prev) =>
-      prev.title === m.title && prev.subtitle === m.subtitle ? prev : m,
+      prev.title === m.title && prev.subtitle === m.subtitle && prev.hideHeader === m.hideHeader ? prev : m,
     );
   }, []);
   const clearMeta = useCallback(() => {
     setMetaState((prev) =>
-      prev.title === undefined && prev.subtitle === undefined ? prev : {},
+      prev.title === undefined && prev.subtitle === undefined && prev.hideHeader === undefined ? prev : {},
     );
   }, []);
 

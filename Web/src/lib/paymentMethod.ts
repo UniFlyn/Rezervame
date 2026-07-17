@@ -58,7 +58,6 @@ export function mapBookingItemUiStatus(item: {
   if (st === 'paid') return 'paid';
   if (st === 'approved' || st === 'confirmed') {
     if (item?.transactionId) return 'paid';
-    if (cash) return 'cash_at_venue';
     return 'confirmed';
   }
   return 'pending';

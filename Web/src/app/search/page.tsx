@@ -72,8 +72,8 @@ function SearchContent() {
   const isMobile = vw < 720;
 
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [showMap, setShowMap] = useState(true);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
+  const [showMap, setShowMap] = useState(false);
   const [sortBy, setSortBy] = useState("recommended");
   const [sortOpen, setSortOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -511,7 +511,7 @@ function SearchContent() {
       {!isMobile && (
         <button onClick={showMap ? hideMapGrid : showMapList} style={seg(showMap)}>
           <Glyph name={showMap ? "close" : "mapPin"} size={16} />
-          {showMap ? "Ocultar mapa" : "Ver mapa"}
+          {showMap ? "Ocultar mapa" : "Mostrar mapa"}
         </button>
       )}
     </div>
@@ -529,49 +529,7 @@ function SearchContent() {
     </div>
   );
 
-  const ChipRow = (activeFilterCount > 0 || searchQuery.trim()) && (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
-      {searchQuery.trim() && (
-        <Chip active uppercase={false} icon="close" onClick={() => router.push("/search")}>
-          “{searchQuery.trim()}”
-        </Chip>
-      )}
-      {selectedCategories.map((cf) => {
-        const opt = partnerFilterOptions.find((o) => o.filterParam === cf);
-        return (
-          <Chip
-            key={cf}
-            active
-            uppercase={false}
-            icon="close"
-            onClick={() => setSelectedCategories((prev) => prev.filter((x) => x !== cf))}
-          >
-            {opt?.label || cf}
-          </Chip>
-        );
-      })}
-      {selectedRatings[0] ? (
-        <Chip active uppercase={false} icon="close" onClick={() => setSelectedRatings([])}>
-          {selectedRatings[0]}+ estrellas
-        </Chip>
-      ) : null}
-      <button
-        onClick={clearAllFilters}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontFamily: "var(--font-sans)",
-          fontSize: 13,
-          fontWeight: 600,
-          color: "var(--rz-gray-500)",
-          padding: "0 8px",
-        }}
-      >
-        Limpiar todo
-      </button>
-    </div>
-  );
+  const ChipRow = null;
 
   const ResultsList =
     viewMode === "grid" ? (

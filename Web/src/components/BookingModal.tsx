@@ -258,6 +258,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
   const [serviceMemberMap, setServiceMemberMap] = useState<Record<number, string | null>>({});
   const [checkoutPayTab, setCheckoutPayTab] = useState<"wompi" | "yappy">("wompi");
   const [holdModalOpen, setHoldModalOpen] = useState(false);
+  const [cancelPolicyOpen, setCancelPolicyOpen] = useState(false);
   const [payMethods, setPayMethods] = useState<
     { id: "wompi" | "yappy"; label: string; enabled: boolean }[]
   >([
@@ -678,7 +679,11 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
     const allSlots = generateSlotsForDay(venueData.schedule, selectedDay);
     const bookableCount = filterBookableTimeSlots(allSlots, selectedDay).length;
     const hasBookable = bookableCount > 0;
-    const canContinue = hasBookable && selectedServices.length > 0;
+    const canContinue =
+      hasBookable &&
+      selectedServices.length > 0 &&
+      !!selectedTime &&
+      selectedServices.every((s) => !!assignments[s.cartIndex]);
     const periodLabels =
       language === "en"
         ? { morning: "Morning", afternoon: "Afternoon", evening: "Evening" }
@@ -778,8 +783,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                 </div>
               ) : (
                 selectedServices.map((svc) => {
-                  const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
-                  const r = recipientName(svc.cartIndex);
                   return (
                     <div
                       key={`${svc.id}-${svc.cartIndex}`}
@@ -806,36 +809,6 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                             <X size={15} />
                           </button>
                         </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveCartIndexForChange(svc.cartIndex);
-                            setStep("STAFF_LIST");
-                          }}
-                          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-2.5 py-1.5 text-left transition-colors hover:border-[var(--rz-coral)]"
-                        >
-                          {prof?.img ? (
-                            <img src={prof.img} alt="" className="h-5 w-5 shrink-0 rounded-md object-cover" />
-                          ) : null}
-                          <span className="text-[11px] font-bold text-[var(--rz-navy)]">{prof?.name || t("all")}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-coral)]">
-                            {language === "en" ? "Change" : "Cambiar"}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setRecipientPickerFor(svc.cartIndex)}
-                          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-2.5 py-1.5 transition-colors hover:border-[var(--rz-coral)]"
-                        >
-                          <RecipientBadge name={r.self ? undefined : r.name} self={r.self} size="sm" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-coral)]">
-                            {language === "en" ? "Change" : "Cambiar"}
-                          </span>
-                        </button>
                       </div>
                     </div>
                   );
@@ -893,6 +866,49 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
             )}
           </section>
 
+          {selectedTime && selectedServices.length > 0 && (
+            <section>
+              <h2 className={sectionTitle}>
+                {language === "en" ? "Assign a professional per service" : "Asigna un profesional por servicio"}
+              </h2>
+              <div className="space-y-3">
+                {selectedServices.map((svc) => {
+                  const prof = venueData.team.find((m) => m.id === assignments[svc.cartIndex]);
+                  const r = recipientName(svc.cartIndex);
+                  return (
+                    <div
+                      key={`pro-${svc.id}-${svc.cartIndex}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border-subtle)] bg-white p-4"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-[var(--rz-navy)]">{svc.name}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <RecipientBadge name={r.self ? undefined : r.name} self={r.self} size="sm" />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveCartIndexForChange(svc.cartIndex);
+                          setStep("STAFF_LIST");
+                        }}
+                        className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--rz-gray-050)] px-3 py-2 transition-colors hover:border-[var(--rz-coral)]"
+                      >
+                        {prof?.img ? (
+                          <img src={prof.img} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover" />
+                        ) : null}
+                        <span className="text-[12px] font-bold text-[var(--rz-navy)]">{prof?.name || t("all")}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--rz-coral)]">
+                          {language === "en" ? "Change" : "Cambiar"}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Sequence */}
           {multi ? (
             <section>
@@ -921,7 +937,7 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
         </div>
 
         {/* RIGHT — sticky summary */}
-        <div className="lg:sticky lg:top-4">
+        <div className="lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           <div className="rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-white p-5 shadow-[var(--shadow-card)]">
             <p className="mb-3 text-[11px] font-black uppercase tracking-[0.12em] text-[var(--rz-coral)]">
               {language === "en" ? "Your booking" : "Tu reserva"}
@@ -1041,7 +1057,14 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                 </p>
               </div>
               <div className="flex items-start gap-2">
-                <Info size={14} className="mt-0.5 shrink-0 text-[var(--rz-gray-400)]" />
+                <button
+                  type="button"
+                  onClick={() => setCancelPolicyOpen(true)}
+                  className="mt-0.5 shrink-0 text-[var(--rz-gray-400)] hover:text-[var(--rz-coral)]"
+                  aria-label={language === "en" ? "Cancellation policy" : "Política de cancelación"}
+                >
+                  <Info size={14} />
+                </button>
                 <p className="text-[12px] font-semibold text-[var(--rz-gray-500)]">
                   {language === "en"
                     ? `Late-cancellation fee · up to ${cancelFeePct}% of total`
@@ -1479,8 +1502,8 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] overflow-y-auto bg-[var(--rz-gray-050)] animate-in fade-in duration-300 custom-scrollbar">
-        <div className="sticky top-0 z-20 border-b border-[var(--border-subtle)] bg-white/90 backdrop-blur">
+      <div className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-[var(--rz-gray-050)] animate-in fade-in duration-300">
+        <div className="shrink-0 border-b border-[var(--border-subtle)] bg-white/90 backdrop-blur">
           <div className="mx-auto flex max-w-[1140px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
             <button
               type="button"
@@ -1503,12 +1526,14 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
           </div>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
         <div className={`mx-auto px-4 py-6 sm:px-6 sm:py-10 ${step === "BUILDER" ? "max-w-[1140px]" : "max-w-[760px]"}`}>
           {step === "BUILDER" && renderBuilder()}
           {step === "STAFF_LIST" && renderStaffList()}
           {step === "PROFESSIONAL_DETAIL" && renderProfessionalDetail()}
           {step === "CHECKOUT_PREVIEW" && renderCheckoutPreview()}
           {step === "SERVICE_PICKER" && renderServicePicker()}
+        </div>
         </div>
       </div>
 
@@ -1569,6 +1594,35 @@ export const BookingModal = ({ isOpen, onClose, onBookingSuccess, selectedServic
                 {language === "en" ? "Back" : "Volver"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {cancelPolicyOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setCancelPolicyOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-4 text-xl font-black text-[var(--rz-navy)]">
+              {language === "en" ? "Avoid cancellation charges" : "Evita cargos por cancelación"}
+            </h3>
+            <p className="text-sm leading-relaxed text-[var(--rz-gray-600)]">{t("cancelPolicyText")}</p>
+            <p className="mt-3 text-sm leading-relaxed text-[var(--rz-gray-500)]">
+              {language === "en"
+                ? `If you cancel or reschedule outside the free window, a fee of up to ${cancelFeePct}% of the total may apply.`
+                : `Si cancelas o reagendas fuera del plazo gratuito, puede aplicarse un cargo de hasta ${cancelFeePct}% del total.`}
+            </p>
+            <button
+              type="button"
+              onClick={() => setCancelPolicyOpen(false)}
+              className="mt-6 w-full rounded-2xl bg-[var(--rz-coral)] py-3 text-sm font-bold text-white"
+            >
+              {language === "en" ? "Got it" : "Entendido"}
+            </button>
           </div>
         </div>
       )}

@@ -15,7 +15,7 @@ export function StaffCard({
   const circle = compact ? 32 : 38;
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column',
+      display: 'flex', flexDirection: 'column', height: '100%',
       background: 'var(--surface-card)',
       border: '1px solid var(--border-subtle)',
       borderRadius: 'var(--radius-lg)',

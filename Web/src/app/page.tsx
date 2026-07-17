@@ -286,6 +286,7 @@ export default function Home() {
               style={{
                 color: "#fff",
                 fontSize: 50,
+                fontWeight: 700,
                 lineHeight: 1.14,
                 letterSpacing: "-0.8px",
                 maxWidth: 1000,

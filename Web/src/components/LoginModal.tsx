@@ -83,9 +83,7 @@ export const LoginModal = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--rz-navy)] via-[rgba(2,48,71,0.4)] to-transparent"></div>
           </div>
           <div className="relative z-10">
-            <span className="text-3xl font-black tracking-tighter text-white leading-none">
-              RE<span className="text-[#ff5757]">ZER</span>VAME
-            </span>
+            <img src="/ds/logos/rezervame-white.png" alt="Rezervame" className="h-8" />
             <p className="text-[var(--rz-gray-200)] font-bold text-sm mt-4 leading-relaxed max-w-[220px]">
               {t("signupSub")}
             </p>
@@ -96,7 +94,9 @@ export const LoginModal = () => {
               <img src="https://i.pravatar.cc/100?img=2" className="w-10 h-10 rounded-full border-2 border-[var(--rz-navy)]" alt="User" />
               <img src="https://i.pravatar.cc/100?img=3" className="w-10 h-10 rounded-full border-2 border-[var(--rz-navy)]" alt="User" />
             </div>
-            <p className="text-white font-bold text-sm">Join over 10,000 users today</p>
+            <p className="text-white font-bold text-sm">
+              {language === "en" ? "Join thousands of users today" : "Únete a miles de usuarios hoy"}
+            </p>
           </div>
         </div>
 
@@ -147,7 +147,17 @@ export const LoginModal = () => {
                 >
                   {checking ? t("authChecking") : t("authContinue")}
                 </button>
-                <p className="text-[10px] text-[var(--rz-gray-500)] font-bold text-center pt-2 leading-relaxed">{t("termsAgree")}</p>
+                <p className="text-[10px] text-[var(--rz-gray-500)] font-bold text-center pt-2 leading-relaxed">
+                  {language === "en" ? "By signing up, you agree to the " : "Al registrarte, aceptas los "}
+                  <Link href="/terms" onClick={closeModal} className="underline hover:text-[var(--rz-navy)] transition">
+                    {language === "en" ? "Terms of Service" : "Términos de servicio"}
+                  </Link>
+                  {language === "en" ? " and " : " y la "}
+                  <Link href="/privacy" onClick={closeModal} className="underline hover:text-[var(--rz-navy)] transition">
+                    {language === "en" ? "Privacy Policy" : "Política de privacidad"}
+                  </Link>
+                  {language === "en" ? " of REZERVAME." : " de REZERVAME."}
+                </p>
               </form>
             )}
 
@@ -331,7 +341,17 @@ export const LoginModal = () => {
                 >
                   {authSubmitting ? (t("authChecking") || "Creating...") : t("authCreateAccount")}
                 </button>
-                <p className="text-[10px] text-[var(--rz-gray-500)] font-bold leading-relaxed pt-3 text-center">{t("termsAgree")}</p>
+                <p className="text-[10px] text-[var(--rz-gray-500)] font-bold leading-relaxed pt-3 text-center">
+                  {language === "en" ? "By signing up, you agree to the " : "Al registrarte, aceptas los "}
+                  <Link href="/terms" onClick={closeModal} className="underline hover:text-[var(--rz-navy)] transition">
+                    {language === "en" ? "Terms of Service" : "Términos de servicio"}
+                  </Link>
+                  {language === "en" ? " and " : " y la "}
+                  <Link href="/privacy" onClick={closeModal} className="underline hover:text-[var(--rz-navy)] transition">
+                    {language === "en" ? "Privacy Policy" : "Política de privacidad"}
+                  </Link>
+                  {language === "en" ? " of REZERVAME." : " de REZERVAME."}
+                </p>
               </form>
             )}
 
@@ -365,6 +385,12 @@ export const LoginModal = () => {
                     <span className="hidden sm:inline">{socialLoading ? "..." : t("contGoogle")}</span>
                   </button>
                 </div>
+                <p className="text-center text-[10px] font-bold text-[var(--rz-gray-400)] pt-1">
+                  {language === "en" ? "Need help? " : "¿Necesitas ayuda? "}
+                  <Link href="/customer-service" onClick={closeModal} className="underline hover:text-[var(--rz-navy)] transition">
+                    {language === "en" ? "Contact support" : "Contactar soporte"}
+                  </Link>
+                </p>
               </div>
             )}
           </div>

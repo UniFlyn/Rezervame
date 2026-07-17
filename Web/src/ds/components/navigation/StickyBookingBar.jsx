@@ -19,6 +19,7 @@ export function StickyBookingBar({
   ctaLabel = 'Reservar Ahora', onReserve,
   visible: visibleProp, watchRef,
   static: isStatic = false,
+  onVisibilityChange,
   style,
 }) {
   const [autoVisible, setAutoVisible] = React.useState(false);
@@ -36,6 +37,10 @@ export function StickyBookingBar({
   }, [visibleProp, watchRef, isStatic]);
 
   const visible = visibleProp != null ? visibleProp : autoVisible;
+
+  React.useEffect(() => {
+    if (onVisibilityChange) onVisibilityChange(visible);
+  }, [visible, onVisibilityChange]);
 
   return (
     <div

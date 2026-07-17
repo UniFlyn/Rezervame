@@ -38,7 +38,7 @@ export function HowItWorks({
     }}>
       <div style={{ width: contentMax, maxWidth: '100%', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: compact ? 28 : 44 }}>
-          <h2 style={{ fontSize: 30, lineHeight: 1.15 }}>{title}</h2>
+          <h2 style={{ fontSize: 30, lineHeight: 1.15, fontWeight: 700 }}>{title}</h2>
           {subtitle && <p style={{ fontSize: 15, color: 'var(--rz-gray-500)', marginTop: 8 }}>{subtitle}</p>}
         </div>
 

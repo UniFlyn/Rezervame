@@ -151,7 +151,7 @@ export function BusinessCard({
           variant="outline"
           size="sm"
           fullWidth
-          style={{ marginTop: 4, fontSize: 14.5 }}
+          style={{ marginTop: 'auto', fontSize: 14.5 }}
           onClick={(e) => { e.stopPropagation(); (onReserve || onClick) && (onReserve || onClick)(); }}
         >{ctaLabel}</Button>
       </div>

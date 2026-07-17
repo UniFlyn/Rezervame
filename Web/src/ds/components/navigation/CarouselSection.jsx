@@ -118,14 +118,14 @@ export function CarouselSection({
       {/* Header */}
       {centered ? (
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <h2 style={{ fontSize: 30, lineHeight: 1.15 }}>{title}</h2>
+          <h2 style={{ fontSize: 30, lineHeight: 1.15, fontWeight: 700 }}>{title}</h2>
           {subtitle && <p style={{ fontSize: 15, color: 'var(--rz-gray-500)', marginTop: 8 }}>{subtitle}</p>}
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
           <div style={{ minWidth: 0 }}>
             {subtitle && <div className="rz-eyebrow" style={{ marginBottom: 6 }}>{subtitle}</div>}
-            <h2 style={{ fontSize: 26, lineHeight: 1.15 }}>{title}</h2>
+            <h2 style={{ fontSize: 26, lineHeight: 1.15, fontWeight: 700 }}>{title}</h2>
           </div>
           {onLink && (
             <button
