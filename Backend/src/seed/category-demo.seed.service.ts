@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma.service';
 import { allocateMerchantNumber } from '../merchant-number.util';
 import { businessDiscoveryWhere } from '../business/business-listing.util';
 
+const MASSAGE_CATEGORY_IMAGE =
+  'https://rezervame-assets-abs.s3.ap-southeast-2.amazonaws.com/uploads/defaults/categories/Massage.jpg';
+
 const DEFAULT_HOURS = JSON.stringify([
   { day: 'Monday', hours: '09:00 AM - 06:00 PM' },
   { day: 'Tuesday', hours: '09:00 AM - 06:00 PM' },
@@ -165,9 +168,8 @@ const CATEGORY_DEMOS: CategoryDemo[] = [
     description: 'Masajes terapéuticos, relajantes y deportivos en ambiente tranquilo.',
     lat: 8.9945,
     lng: -79.5128,
-    bannerUrl:
-      'https://rezervame-assets-abs.s3.ap-southeast-2.amazonaws.com/uploads/defaults/categories/massage.jpg',
-    logoUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=400&fit=crop',
+    bannerUrl: MASSAGE_CATEGORY_IMAGE,
+    logoUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=1600&fit=crop',
     services: [
       { name: 'Masaje relajante', category: 'massage', duration: 60, price: 55 },
       { name: 'Masaje de tejido profundo', category: 'massage', duration: 60, price: 65 },
@@ -277,6 +279,47 @@ export class CategoryDemoSeedService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Fix S3 case mismatch: lowercase massage.jpg → Massage.jpg */
+  private async repairBrokenMassageImages(): Promise<number> {
+    const broken = '/defaults/categories/massage.jpg';
+    const fixed = '/defaults/categories/Massage.jpg';
+    let updated = 0;
+
+    const categories = await this.prisma.category.findMany({
+      where: { imageUrl: { contains: broken } },
+    });
+    for (const c of categories) {
+      await this.prisma.category.update({
+        where: { id: c.id },
+        data: { imageUrl: (c.imageUrl || '').replace(broken, fixed) },
+      });
+      updated += 1;
+    }
+
+    const businesses = await this.prisma.business.findMany({
+      select: { id: true, bannerUrl: true, logoUrl: true, images: true },
+    });
+    for (const b of businesses) {
+      const hasBroken =
+        b.bannerUrl?.includes(broken) ||
+        b.logoUrl?.includes(broken) ||
+        (b.images ?? []).some((u) => u.includes(broken));
+      if (!hasBroken) continue;
+      const images = (b.images ?? []).map((u) => (u.includes(broken) ? u.replace(broken, fixed) : u));
+      await this.prisma.business.update({
+        where: { id: b.id },
+        data: {
+          bannerUrl: b.bannerUrl?.includes(broken) ? b.bannerUrl.replace(broken, fixed) : b.bannerUrl,
+          logoUrl: b.logoUrl?.includes(broken) ? b.logoUrl.replace(broken, fixed) : b.logoUrl,
+          images,
+        },
+      });
+      updated += 1;
+    }
+
+    return updated;
+  }
+
   private async ensureAudienceServicesForAllBusinesses(): Promise<{ businessesUpdated: number; servicesAdded: number }> {
     const businesses = await this.prisma.business.findMany({
       where: businessDiscoveryWhere,
@@ -324,21 +367,21 @@ export class CategoryDemoSeedService {
     demoServicesAdded: number;
     audienceBusinessesUpdated: number;
     audienceServicesAdded: number;
+    imagesRepaired: number;
     servicesAdded: number;
   }> {
     let demoServicesAdded = 0;
 
     await this.prisma.category.upsert({
       where: { key: 'massage' },
-      update: { active: true, labelEn: 'Massage', labelEs: 'Masaje', sortOrder: 55 },
+      update: { active: true, labelEn: 'Massage', labelEs: 'Masaje', sortOrder: 55, imageUrl: MASSAGE_CATEGORY_IMAGE },
       create: {
         key: 'massage',
         labelEn: 'Massage',
         labelEs: 'Masaje',
         sortOrder: 55,
         active: true,
-        imageUrl:
-          'https://rezervame-assets-abs.s3.ap-southeast-2.amazonaws.com/uploads/defaults/categories/massage.jpg',
+        imageUrl: MASSAGE_CATEGORY_IMAGE,
       },
     });
     await this.prisma.category.upsert({
@@ -419,12 +462,14 @@ export class CategoryDemoSeedService {
     }
 
     const audience = await this.ensureAudienceServicesForAllBusinesses();
+    const imagesRepaired = await this.repairBrokenMassageImages();
 
     return {
       demoBusinesses: CATEGORY_DEMOS.length,
       demoServicesAdded,
       audienceBusinessesUpdated: audience.businessesUpdated,
       audienceServicesAdded: audience.servicesAdded,
+      imagesRepaired,
       servicesAdded: demoServicesAdded + audience.servicesAdded,
     };
   }

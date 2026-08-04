@@ -28,6 +28,10 @@ export function normalizePublicImageUrl(url: string | null | undefined): string 
   if (s.includes("rezervame-assets-yourname")) {
     s = s.replace(/rezervame-assets-yourname/g, s3Assets.bucket);
   }
+  // S3 keys are case-sensitive; lowercase massage.jpg was never uploaded.
+  if (s.includes("/defaults/categories/massage.jpg")) {
+    s = s.replace("/defaults/categories/massage.jpg", "/defaults/categories/Massage.jpg");
+  }
   return s;
 }
 
