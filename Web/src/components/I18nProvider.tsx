@@ -15,6 +15,8 @@ export type Language = "en" | "es";
 type Translations = typeof en;
 
 const STORAGE_KEY = "rezervame_language";
+/** Set when the user explicitly picks a language in Profile → Configuración. */
+const EXPLICIT_KEY = "rezervame_language_explicit";
 
 const catalogs: Record<Language, Record<string, string>> = {
   en: en as Record<string, string>,
@@ -27,10 +29,10 @@ interface I18nContextType {
   setLanguage: (lang: Language) => void;
 }
 
-// Spanish-first (Panama market), matching the Rezervame design prototype.
-// A stored preference always wins, so users who pick English keep English.
+// Spanish-first (Panama market). English only after an explicit user choice.
 function readStoredLanguage(): Language {
   if (typeof window === "undefined") return "es";
+  if (localStorage.getItem(EXPLICIT_KEY) !== "1") return "es";
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw === "en" ? "en" : "es";
 }
@@ -45,11 +47,17 @@ const I18nContext = createContext<I18nContextType>({
 });
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguageState] = useState<Language>(() => readStoredLanguage());
+  const [language, setLanguageState] = useState<Language>("es");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setLanguageState(readStoredLanguage());
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(EXPLICIT_KEY) !== "1") {
+      localStorage.removeItem(STORAGE_KEY);
+      setLanguageState("es");
+    } else {
+      setLanguageState(readStoredLanguage());
+    }
     setReady(true);
   }, []);
 
@@ -62,14 +70,17 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
     setLanguageState(lang);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, lang);
+      localStorage.setItem(EXPLICIT_KEY, "1");
     }
   }, []);
 
   const t = useCallback(
     (key: keyof Translations | string) => {
       const catalog = catalogs[language];
-      const enCatalog = catalogs.en;
-      return catalog[key] ?? enCatalog[key] ?? String(key);
+      const hit = catalog[key];
+      if (hit) return hit;
+      if (language === "es") return String(key);
+      return catalogs.en[key] ?? String(key);
     },
     [language],
   );

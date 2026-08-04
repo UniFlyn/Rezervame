@@ -81,8 +81,9 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => readStoredUserToken());
-  const [hasStoredSession, setHasStoredSession] = useState<boolean>(() => readStoredUserToken());
+  // Always false on first render so static export HTML matches client hydration.
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [hasStoredSession, setHasStoredSession] = useState<boolean>(false);
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [isFavoritePromptOpen, setIsFavoritePromptOpen] = useState<boolean>(false);

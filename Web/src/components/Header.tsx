@@ -141,7 +141,7 @@ export const Header = () => {
   const contextTitle = meta.title || undefined;
   const contextSubtitle = meta.subtitle || undefined;
 
-  const showLoggedInHeader = Boolean(isLoggedIn && user) || (!isHydrated && hasStoredSession);
+  const showLoggedInHeader = isHydrated && Boolean(isLoggedIn && user);
   const headerUser = user ?? {
     name: t("myAccount"),
     email: "",

@@ -49,8 +49,9 @@ const SORT_OPTIONS = [
 ];
 
 function useViewportWidth() {
-  const [vw, setVw] = useState<number>(typeof window !== "undefined" ? window.innerWidth : 1280);
+  const [vw, setVw] = useState(1280);
   useEffect(() => {
+    setVw(window.innerWidth);
     const onR = () => setVw(window.innerWidth);
     window.addEventListener("resize", onR, { passive: true });
     return () => window.removeEventListener("resize", onR);

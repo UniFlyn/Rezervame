@@ -21,7 +21,7 @@ import {
 import { VenueMiniMap } from "@/components/venue/VenueMiniMap";
 import { BookingModal, type BookingModalVenueData } from "../../../components/BookingModal";
 import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from "@/lib/cancellationPolicy";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { resolveVenueBusinessId } from "@/lib/resolveVenueBusinessId";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { amenityLucideIcon } from "@/lib/amenityIcons";
@@ -36,6 +36,15 @@ import { formatAvailabilityDisplay, formatStaffStatValue, parseAvailability } fr
 import { getNextAvailableSlotLabel } from "@/lib/bookingSlots";
 import { usePageHeaderMeta } from "@/contexts/PageHeaderMetaContext";
 import { useVenueBookingCartStore } from "@/store/venueBookingCartStore";
+import { dateLocaleFor } from "@/lib/locale";
+import {
+  defaultWeekSchedule,
+  hoursForWeekdayIndex,
+  localizeHoursLabel,
+  localizeSchedule,
+  weekdayLabel,
+} from "@/lib/scheduleLocale";
+import { localizeServiceName, localizeStaffRole } from "@/lib/serviceLabels";
 import type { VenueDetailSection } from "@/components/venue/VenueDetailSections";
 
 function inferServiceAudienceTag(name: string, category: string): string {
@@ -51,21 +60,6 @@ function inferServiceAudienceTag(name: string, category: string): string {
     parts.push("mujer", "women", "female");
   }
   return parts.join(" ");
-}
-
-const SERVICE_NAME_ES: Record<string, string> = {
-  "Classic Cut": "Corte clásico",
-  HairColor: "Coloración",
-  HairCut: "Corte de cabello",
-  "Hair Cut": "Corte de cabello",
-  "Hair Color": "Coloración",
-  "Hair Service": "Servicios para el cabello",
-  "Beauty Service": "Servicios de belleza",
-};
-
-function localizeServiceName(name: string, lang: "en" | "es"): string {
-  if (lang !== "es") return name;
-  return SERVICE_NAME_ES[name] || name;
 }
 
 function localizeCategoryLabel(raw: string, lang: "en" | "es"): string {
@@ -227,6 +221,7 @@ function resolveSocialHref(kind: "instagram" | "tiktok" | "youtube" | "x", raw: 
 export default function VenueDetailsPage({ businessId }: { businessId: string }) {
   const { t, language } = useI18n();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const pathname = usePathname();
   const venueId = resolveVenueBusinessId(pathname, businessId);
   const venueLoadGenRef = useRef(0);
@@ -252,13 +247,15 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const [crossVenuePendingServiceId, setCrossVenuePendingServiceId] = useState<string | null>(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [preferredStaffId, setPreferredStaffId] = useState<string | undefined>(undefined);
+  const [bookingInitialDate, setBookingInitialDate] = useState<string | undefined>(undefined);
+  const [bookingInitialTime, setBookingInitialTime] = useState<string | undefined>(undefined);
   const [profileStaff, setProfileStaff] = useState<VenueTeam | null>(null);
   const [venueLoading, setVenueLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [bestsellerMap, setBestsellerMap] = useState<Record<string, number>>({});
   const [promotionServiceIds, setPromotionServiceIds] = useState<Set<string>>(new Set());
   const [promotionData, setPromotionData] = useState<Array<{ serviceId: string; discountPercent: number; label?: string | null }>>([]);
-  const [vw, setVw] = useState<number>(typeof window !== "undefined" ? window.innerWidth : 1280);
+  const [vw, setVw] = useState(1280);
   const [teamExpanded, setTeamExpanded] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<"todas" | "comentario" | "5" | "4" | "3" | "2" | "1">("todas");
   const [reviewsExpanded, setReviewsExpanded] = useState(false);
@@ -271,6 +268,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const toastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    setVw(window.innerWidth);
     const onResize = () => setVw(window.innerWidth);
     window.addEventListener("resize", onResize, { passive: true });
     return () => window.removeEventListener("resize", onResize);
@@ -295,6 +293,20 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
       setSelectedServices([]);
     }
   }, [venueId, cartBusinessId, cartServiceIds]);
+
+  const rebookHandledRef = useRef(false);
+  useEffect(() => {
+    if (venueLoading || rebookHandledRef.current) return;
+    const rebook = searchParams.get("rebook");
+    const servicesParam = searchParams.get("services");
+    if (rebook !== "1" || !servicesParam) return;
+    rebookHandledRef.current = true;
+    const ids = servicesParam.split(",").map((s) => s.trim()).filter(Boolean);
+    const date = searchParams.get("date") || undefined;
+    const time = searchParams.get("time") || undefined;
+    void openBookingFlow({ addServiceIds: ids, initialDateISO: date, initialTime: time });
+    router.replace(pathname, { scroll: false });
+  }, [venueLoading, searchParams, pathname, router]);
 
   const applyServiceAdd = (serviceId: string) => {
     const storeApi = useVenueBookingCartStore.getState();
@@ -340,11 +352,17 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     setCrossVenuePendingServiceId(null);
   };
 
-  const startBookingFlow = (opts?: { addServiceId?: string; staffId?: string }) => {
-    if (opts?.addServiceId && !selectedServices.includes(opts.addServiceId)) {
+  const startBookingFlow = (opts?: { addServiceId?: string; addServiceIds?: string[]; staffId?: string; initialDateISO?: string; initialTime?: string }) => {
+    if (opts?.addServiceIds?.length) {
+      opts.addServiceIds.forEach((id) => {
+        if (!selectedServices.includes(id)) applyServiceAdd(id);
+      });
+    } else if (opts?.addServiceId && !selectedServices.includes(opts.addServiceId)) {
       applyServiceAdd(opts.addServiceId);
     }
     setPreferredStaffId(opts?.staffId);
+    if (opts?.initialDateISO) setBookingInitialDate(opts.initialDateISO);
+    if (opts?.initialTime) setBookingInitialTime(opts.initialTime);
     setProfileStaff(null);
     setIsBookingModalOpen(true);
   };
@@ -357,7 +375,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
    * - opts.staffId → prioritize that professional (staff "Ver disponibilidad")
    * No cart gate: the main "Reservar" opens the flow ready to add services.
    */
-  const openBookingFlow = async (opts?: { addServiceId?: string; staffId?: string }) => {
+  const openBookingFlow = async (opts?: { addServiceId?: string; addServiceIds?: string[]; staffId?: string; initialDateISO?: string; initialTime?: string }) => {
     await whenHydrated();
     if (!isLoggedIn) {
       setPendingAfterLogin(() => () => startBookingFlow(opts));
@@ -541,11 +559,12 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
         // Group reviews by user and date to show as a single "visit"
         const groupedReviews: Record<string, any> = {};
+        const dateLocale = dateLocaleFor(language);
         revList.forEach((r: any) => {
           const d = new Date(r.date);
           const dateKey = Number.isNaN(d.getTime())
             ? "invalid"
-            : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+            : d.toLocaleDateString(dateLocale, { year: "numeric", month: "short", day: "numeric" });
           
           // Use userId if available, otherwise fallback to customerName
           const groupKey = `${r.userId || r.customerName}_${dateKey}`;
@@ -557,7 +576,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               ratingCount: 1,
               comments: r.comment && r.comment.trim() ? [r.comment.trim()] : [],
               reply: r.reply,
-              formattedDate: dateKey === "invalid" ? "" : d.toLocaleDateString("en-US", {
+              formattedDate: dateKey === "invalid" ? "" : d.toLocaleDateString(dateLocale, {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -631,7 +650,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             return {
               id: String(row.id),
               name: localizeServiceName(row.name, language),
-              description: categoryKey ? categoryLabelFromKey(categoryKey, language) : "—",
+              description: "",
               time: `${row.duration} min`,
               price: row.price,
               image: serviceCardImageSrc(row.imageUrl, imgs, String(row.id)),
@@ -645,7 +664,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             return {
               id: String(row.id),
               name: row.name,
-              role: row.role,
+              role: localizeStaffRole(String(row.role || ""), language),
               rating: Number(row.rating) || 0,
               reviews: Number(row.reviews) || 0,
               clients: formatStaffStatValue(row.clients),
@@ -682,15 +701,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             } catch (e) {
               console.error("Error parsing workingHours JSON:", e);
             }
-            return [
-              { day: "Monday", hours: "9:00 AM - 6:00 PM" },
-              { day: "Tuesday", hours: "9:00 AM - 6:00 PM" },
-              { day: "Wednesday", hours: "9:00 AM - 6:00 PM" },
-              { day: "Thursday", hours: "9:00 AM - 6:00 PM" },
-              { day: "Friday", hours: "9:00 AM - 6:00 PM" },
-              { day: "Saturday", hours: "10:00 AM - 4:00 PM" },
-              { day: "Sunday", hours: "Closed" },
-            ];
+            return defaultWeekSchedule(language);
           })(),
           socials: {
             instagram: (b.socialInstagram || "").trim(),
@@ -716,13 +727,13 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             Number((business as { cancellationHoursBefore?: number }).cancellationHoursBefore ?? 24) || 24,
           venueDetailSections,
           cancellationPolicyMessage:
-            language === "es"
+            (language === "es"
               ? (business as { cancellationPolicyMessageEs?: string }).cancellationPolicyMessageEs
-              : (business as { cancellationPolicyMessageEn?: string }).cancellationPolicyMessageEn ||
-                formatCancellationPolicyMessage(
-                  normalizeCancellationPolicy(business as { cancellationAllowed?: boolean; cancellationHoursBefore?: number }),
-                  "en",
-                ),
+              : (business as { cancellationPolicyMessageEn?: string }).cancellationPolicyMessageEn) ||
+            formatCancellationPolicyMessage(
+              normalizeCancellationPolicy(business as { cancellationAllowed?: boolean; cancellationHoursBefore?: number }),
+              language === "es" ? "es" : "en",
+            ),
         });
       } catch (err: unknown) {
           if (!cancelled) {
@@ -781,9 +792,9 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   useEffect(() => {
     if (!VENUE_DATA.name || VENUE_DATA.name === "—") return;
-    setMeta({ title: VENUE_DATA.name, subtitle: VENUE_DATA.category, hideHeader: stickyBarVisible });
+    setMeta({ title: VENUE_DATA.name, subtitle: VENUE_DATA.category, hideHeader: false });
     return () => clearMeta();
-  }, [VENUE_DATA.name, VENUE_DATA.category, stickyBarVisible, setMeta, clearMeta]);
+  }, [VENUE_DATA.name, VENUE_DATA.category, setMeta, clearMeta]);
 
   const venueTabs = useMemo(
     () =>
@@ -894,9 +905,13 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const teamCols = vw < 560 ? 1 : vw < 880 ? 2 : vw < 1180 ? 3 : 4;
 
   // ---- info panel derived data ----
-  const todayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
-  const todayHours =
-    VENUE_DATA.schedule.find((s) => s.day.toLowerCase() === todayName.toLowerCase())?.hours || "";
+  const todayIdx = new Date().getDay();
+  const todayLabel = weekdayLabel(todayIdx, language === "es" ? "es" : "en");
+  const todayHours = localizeHoursLabel(
+    hoursForWeekdayIndex(VENUE_DATA.schedule, todayIdx),
+    language === "es" ? "es" : "en",
+  );
+  const weekHours = localizeSchedule(VENUE_DATA.schedule, language === "es" ? "es" : "en");
   const socialsArr = [
     VENUE_DATA.socials.instagram && { name: "instagram", href: resolveSocialHref("instagram", VENUE_DATA.socials.instagram) },
     VENUE_DATA.socials.tiktok && { name: "tiktok", href: resolveSocialHref("tiktok", VENUE_DATA.socials.tiktok) },
@@ -1044,13 +1059,17 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             <div ref={titleRef} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <div>
                 <h1 style={{ fontSize: "clamp(28px, 4vw, 38px)", fontWeight: 700 }}>{VENUE_DATA.name}</h1>
-                <p style={{ fontSize: 15, fontWeight: 600, color: "var(--rz-gray-500)", marginTop: 8 }}>{VENUE_DATA.category}</p>
                 <div style={{ marginTop: 10 }}>
                   <Rating value={reviewAvg} count={VENUE_DATA.reviews} />
                 </div>
                 {VENUE_DATA.address && (
                   <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "var(--rz-gray-500)", marginTop: 10 }}>
                     <Glyph name="mapPin" size={15} /> {VENUE_DATA.address}
+                  </p>
+                )}
+                {VENUE_DATA.description && (
+                  <p style={{ fontSize: 15, color: "var(--rz-gray-600)", lineHeight: 1.55, marginTop: 14, maxWidth: 640 }}>
+                    {VENUE_DATA.description}
                   </p>
                 )}
               </div>
@@ -1066,7 +1085,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                   onClick={handleToggleFavorite}
                 />
                 <div style={{ position: "relative" }}>
-                  <IconButton icon="share" variant="outlineNeutral" round label={t("venueShareText")} onClick={handleShare} />
+                  <IconButton icon="share" variant="outlineNeutral" round label={t("venueShareButton")} onClick={handleShare} />
                   {shareOpen && (
                     <>
                       <div onClick={() => setShareOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
@@ -1191,8 +1210,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                           photo={m.img}
                           name={m.name}
                           role={m.role}
-                          rating={m.rating || undefined}
-                          reviews={m.reviews}
+                          rating={m.rating || 0}
+                          reviews={m.reviews || 0}
                           bio={m.bio && m.bio !== "—" ? m.bio : undefined}
                           stats={[
                             { icon: "clock", value: m.years, label: t("venueStaffExp") },
@@ -1221,7 +1240,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
               {activeTab === "portfolio" && (
                 <div id="venue-section-portfolio">
-                  <SectionHead title="Portfolio" sub={t("venuePortfolioBlurb") || "Explora una galería de trabajos reales realizados por el negocio."} />
+                  <SectionHead title={t("venuePortfolio")} sub={t("venuePortfolioBlurb") || "Explora una galería de trabajos reales realizados por el negocio."} />
                   {portfolioImages.length === 0 ? (
                     <p style={{ textAlign: "center", padding: "32px 0", color: "var(--rz-gray-500)", fontSize: 14 }}>
                       {t("venueNoPortfolio") || "No hay fotos disponibles."}
@@ -1515,12 +1534,19 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
             name={VENUE_DATA.name}
             mapNode={
               VENUE_DATA.lat != null && VENUE_DATA.lng != null ? (
-                <VenueMiniMap lat={VENUE_DATA.lat} lng={VENUE_DATA.lng} label={`Mapa de ${VENUE_DATA.name}`} />
+                <VenueMiniMap
+                  lat={VENUE_DATA.lat}
+                  lng={VENUE_DATA.lng}
+                  label={`Mapa de ${VENUE_DATA.name}`}
+                  language={language === "es" ? "es" : "en"}
+                />
               ) : undefined
             }
             address={VENUE_DATA.address || undefined}
+            about={VENUE_DATA.description || undefined}
+            todayLabel={todayLabel}
             todayHours={todayHours || undefined}
-            weekHours={VENUE_DATA.schedule}
+            weekHours={weekHours}
             phone={VENUE_DATA.contactPhone || undefined}
             email={VENUE_DATA.contactEmail || undefined}
             socials={socialsArr}
@@ -1569,6 +1595,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         onClose={() => {
           setIsBookingModalOpen(false);
           setPreferredStaffId(undefined);
+          setBookingInitialDate(undefined);
+          setBookingInitialTime(undefined);
         }}
         onBookingSuccess={() => {
           useVenueBookingCartStore.getState().clear();
@@ -1578,6 +1606,8 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
         venueData={VENUE_DATA as BookingModalVenueData}
         promotions={promotionData}
         preferredStaffId={preferredStaffId}
+        initialDateISO={bookingInitialDate}
+        initialTime={bookingInitialTime}
       />
 
       {/* Staff profile modal */}
@@ -1611,7 +1641,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
                 <p style={{ marginBottom: 8, fontSize: 11, fontWeight: 700, letterSpacing: "var(--ls-eyebrow)", textTransform: "uppercase", color: "var(--rz-gray-500)" }}>
                   {t("venueStaffProfileAvailabilityHeading")}
                 </p>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--rz-gray-700)" }}>{formatAvailabilityDisplay(profileStaff.availability)}</p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--rz-gray-700)" }}>{formatAvailabilityDisplay(profileStaff.availability, language === "es" ? "es" : "en")}</p>
               </div>
               <div>
                 <p style={{ marginBottom: 10, fontSize: 11, fontWeight: 700, letterSpacing: "var(--ls-eyebrow)", textTransform: "uppercase", color: "var(--rz-gray-500)" }}>
