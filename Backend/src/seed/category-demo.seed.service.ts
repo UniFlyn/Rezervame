@@ -224,12 +224,13 @@ const AUDIENCE_SERVICES_BY_CATEGORY: Record<string, DemoService[]> = {
   estetica: [
     { name: 'Limpieza facial profunda', category: 'estetica', duration: 60, price: 55 },
     { name: 'Depilación con cera', category: 'estetica', duration: 45, price: 35 },
-    { name: 'Tratamiento anti-edad', category: 'estetica', duration: 75, price: 90 },
+    { name: 'Tratamiento anti-edad mujer', category: 'estetica', duration: 75, price: 90 },
     { name: 'Masaje relajante mujer', category: 'estetica', duration: 50, price: 48 },
   ],
   yoga: [
     { name: 'Yoga Vinyasa', category: 'yoga', duration: 60, price: 20 },
     { name: 'Yoga para hombres', category: 'yoga', duration: 60, price: 20 },
+    { name: 'Yoga para mujeres', category: 'yoga', duration: 60, price: 20 },
     { name: 'Pilates mat', category: 'yoga', duration: 55, price: 22 },
     { name: 'Yoga para niños', category: 'yoga', duration: 45, price: 16 },
   ],

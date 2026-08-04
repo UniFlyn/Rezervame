@@ -50,20 +50,34 @@ import type { VenueDetailSection } from "@/components/venue/VenueDetailSections"
 
 function inferServiceAudienceTag(name: string, category: string): string {
   const text = `${name} ${category}`.toLowerCase();
+  const cat = category.toLowerCase();
   const parts: string[] = ["all"];
   const isKids = /\b(niño|niña|nino|nina|kid|kids|child|children|infantil)\b/.test(text);
-  const isMen = /\b(hombre|hombres|man|men|male|masculin|barber|barba|barbería|barberia|afeitado|beard|fade)\b/.test(text);
+  const isMen = /\b(hombre|hombres|man|men|male|masculin|barber|barba|barbería|barberia|afeitado|beard|fade|deportivo)\b/.test(text);
   const isWomen =
-    /\b(mujer|mujeres|woman|women|female|femenin|ladies|lady|uñas|manicur|pedicur|cejas|pestañas|balayage|highlights|keratin|tinte|color|peinado|blow|secado|beauty)\b/.test(text) ||
-    category.toLowerCase().includes("beauty");
+    /\b(mujer|mujeres|woman|women|female|femenin|ladies|lady|uñas|manicur|pedicur|cejas|pestañas|balayage|highlights|keratin|tinte|color|peinado|blow|secado|beauty|facial|hydra|masaje|peeling|depilaci|estética|estetica|maquillaje|prenatal)\b/.test(text) ||
+    /\b(beauty|estetica|nailcare|nail)\b/.test(cat);
 
   if (isKids) parts.push("niño", "kid", "children");
   if (isMen) parts.push("hombre", "men", "barber");
   if (isWomen) parts.push("mujer", "women", "female");
 
   // Unisex cuts/styles appear in both men and women filters when not kid-specific.
-  if (!isKids && !isMen && !isWomen && /\b(haircut|cut|corte|style|estilo|hair)\b/.test(text)) {
+  if (!isKids && !isMen && !isWomen && /\b(haircut|cut|corte|style|estilo|hair|classic)\b/.test(text)) {
     parts.push("hombre", "men", "mujer", "women");
+  }
+
+  // Category-based defaults for businesses whose services lack gender keywords.
+  if (!isKids && !isMen && !isWomen) {
+    if (/\bbarber\b/.test(cat)) {
+      parts.push("hombre", "men", "barber");
+    } else if (/\b(beauty|estetica|nail)\b/.test(cat)) {
+      parts.push("mujer", "women", "female");
+    } else if (/\b(spa|massage)\b/.test(cat)) {
+      parts.push("hombre", "men", "mujer", "women");
+    } else if (/\byoga\b/.test(cat)) {
+      parts.push("hombre", "men", "mujer", "women");
+    }
   }
 
   return parts.join(" ");
