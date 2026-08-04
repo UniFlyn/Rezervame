@@ -1,6 +1,7 @@
 import { Controller, Get, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from './prisma.service';
+import { getFirebaseAdminStatus } from './auth/firebase-auth.util';
 import { isS3Configured } from './storage/s3.config';
 
 function sanitizeDbError(err: unknown): string {
@@ -32,6 +33,7 @@ export class HealthController {
       postgres: 'unknown',
       redis: process.env.REDIS_URL ? 'configured' : 'not_configured',
       s3: isS3Configured() ? 'ok' : 'not_configured',
+      firebaseAdmin: getFirebaseAdminStatus(),
     };
 
     let postgresDetail: string | undefined;

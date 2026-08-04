@@ -1335,7 +1335,7 @@ export class AppController {
     if (!idToken) throw new BadRequestException('idToken is required');
     const firebaseUser = await verifyFirebaseIdToken(idToken);
     if (!firebaseUser) {
-      throw new BadRequestException('Invalid or expired Google sign-in. Check Firebase server credentials.');
+      throw new BadRequestException('Invalid or expired Google sign-in. Please try again.');
     }
     let user = await this.prisma.user.findUnique({ where: { email: firebaseUser.email } });
     if (!user) {
