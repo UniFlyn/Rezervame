@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { allocateMerchantNumber } from '../merchant-number.util';
+import { businessDiscoveryWhere } from '../business/business-listing.util';
 
 const DEFAULT_HOURS = JSON.stringify([
   { day: 'Monday', hours: '09:00 AM - 06:00 PM' },
@@ -176,14 +177,98 @@ const CATEGORY_DEMOS: CategoryDemo[] = [
   },
 ];
 
-const LUXE_EXTRA_SERVICES: DemoService[] = [
-  { name: 'Corte clásico para hombre', category: 'hairService', duration: 35, price: 35 },
-  { name: 'Afeitado y arreglo de barba', category: 'hairService', duration: 30, price: 22 },
-  { name: 'Peinado para mujer', category: 'hairService', duration: 40, price: 38 },
-  { name: 'Tratamiento de keratina', category: 'hairService', duration: 90, price: 120 },
-  { name: 'Corte para niño', category: 'hairService', duration: 30, price: 25 },
-  { name: 'Peinado infantil', category: 'hairService', duration: 35, price: 28 },
-];
+/** Extra services so venue tabs (Hombres / Mujeres / Niños) have items for every business type. */
+const AUDIENCE_SERVICES_BY_CATEGORY: Record<string, DemoService[]> = {
+  hairService: [
+    { name: 'Corte clásico para hombre', category: 'hairService', duration: 35, price: 35 },
+    { name: 'Afeitado y arreglo de barba', category: 'hairService', duration: 30, price: 22 },
+    { name: 'Peinado para mujer', category: 'hairService', duration: 40, price: 38 },
+    { name: 'Balayage', category: 'hairService', duration: 60, price: 95 },
+    { name: 'Highlights', category: 'hairService', duration: 90, price: 120 },
+    { name: 'Corte para niño', category: 'hairService', duration: 30, price: 25 },
+    { name: 'Peinado infantil', category: 'hairService', duration: 35, price: 28 },
+    { name: 'Corte y peinado para niña', category: 'hairService', duration: 40, price: 30 },
+  ],
+  barber: [
+    { name: 'Corte clásico para hombre', category: 'barber', duration: 30, price: 18 },
+    { name: 'Fade & Beard Trim', category: 'barber', duration: 45, price: 25 },
+    { name: 'Afeitado tradicional', category: 'barber', duration: 25, price: 15 },
+    { name: 'Corte para niño', category: 'barber', duration: 25, price: 14 },
+  ],
+  spaService: [
+    { name: 'Masaje relajante', category: 'spaService', duration: 60, price: 65 },
+    { name: 'Masaje deportivo hombre', category: 'spaService', duration: 50, price: 70 },
+    { name: 'Facial hidratante mujer', category: 'spaService', duration: 45, price: 55 },
+    { name: 'Deep Tissue Massage', category: 'spaService', duration: 60, price: 85 },
+    { name: 'HydraFacial', category: 'spaService', duration: 45, price: 120 },
+    { name: 'Tratamiento spa para niños', category: 'spaService', duration: 40, price: 45 },
+  ],
+  massage: [
+    { name: 'Masaje relajante', category: 'massage', duration: 60, price: 55 },
+    { name: 'Masaje de tejido profundo', category: 'massage', duration: 60, price: 65 },
+    { name: 'Masaje deportivo hombre', category: 'massage', duration: 50, price: 58 },
+    { name: 'Masaje prenatal mujer', category: 'massage', duration: 55, price: 62 },
+  ],
+  nailCare: [
+    { name: 'Manicure clásica', category: 'nailCare', duration: 40, price: 22 },
+    { name: 'Pedicure spa', category: 'nailCare', duration: 55, price: 32 },
+    { name: 'Uñas en gel', category: 'nailCare', duration: 75, price: 45 },
+    { name: 'Manicure para niña', category: 'nailCare', duration: 30, price: 16 },
+  ],
+  beautyService: [
+    { name: 'Maquillaje social', category: 'beautyService', duration: 60, price: 55 },
+    { name: 'Diseño de cejas', category: 'beautyService', duration: 30, price: 18 },
+    { name: 'Extensiones de pestañas', category: 'beautyService', duration: 90, price: 75 },
+    { name: 'Peinado para mujer', category: 'beautyService', duration: 45, price: 40 },
+  ],
+  estetica: [
+    { name: 'Limpieza facial profunda', category: 'estetica', duration: 60, price: 55 },
+    { name: 'Depilación con cera', category: 'estetica', duration: 45, price: 35 },
+    { name: 'Tratamiento anti-edad', category: 'estetica', duration: 75, price: 90 },
+    { name: 'Masaje relajante mujer', category: 'estetica', duration: 50, price: 48 },
+  ],
+  yoga: [
+    { name: 'Yoga Vinyasa', category: 'yoga', duration: 60, price: 20 },
+    { name: 'Yoga para hombres', category: 'yoga', duration: 60, price: 20 },
+    { name: 'Pilates mat', category: 'yoga', duration: 55, price: 22 },
+    { name: 'Yoga para niños', category: 'yoga', duration: 45, price: 16 },
+  ],
+  tattoo: [
+    { name: 'Consulta de diseño', category: 'tattoo', duration: 30, price: 0 },
+    { name: 'Tatuaje pequeño', category: 'tattoo', duration: 60, price: 80 },
+    { name: 'Tatuaje mediano', category: 'tattoo', duration: 120, price: 180 },
+    { name: 'Retoque de tatuaje', category: 'tattoo', duration: 45, price: 50 },
+  ],
+  dermatology: [
+    { name: 'Consulta dermatológica', category: 'dermatology', duration: 30, price: 65 },
+    { name: 'Peeling químico', category: 'dermatology', duration: 45, price: 95 },
+    { name: 'Tratamiento de acné', category: 'dermatology', duration: 40, price: 75 },
+    { name: 'Revisión de lunares', category: 'dermatology', duration: 25, price: 50 },
+  ],
+};
+
+function primaryCategoryKey(categoryKeys: string[]): string {
+  const keys = (categoryKeys ?? []).filter(Boolean);
+  if (keys.length === 0) return 'hairService';
+  return keys[0];
+}
+
+function audiencePackForBusiness(categoryKeys: string[]): DemoService[] {
+  const seen = new Set<string>();
+  const merged: DemoService[] = [];
+  for (const key of categoryKeys.length > 0 ? categoryKeys : ['hairService']) {
+    const pack = AUDIENCE_SERVICES_BY_CATEGORY[key];
+    if (!pack) continue;
+    for (const svc of pack) {
+      const id = svc.name.trim().toLowerCase();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      merged.push({ ...svc, category: key });
+    }
+  }
+  if (merged.length > 0) return merged;
+  return AUDIENCE_SERVICES_BY_CATEGORY.hairService ?? [];
+}
 
 @Injectable()
 export class CategoryDemoSeedService {
@@ -191,8 +276,56 @@ export class CategoryDemoSeedService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async run(): Promise<{ businesses: number; services: number; luxeServices: number }> {
+  private async ensureAudienceServicesForAllBusinesses(): Promise<{ businessesUpdated: number; servicesAdded: number }> {
+    const businesses = await this.prisma.business.findMany({
+      where: businessDiscoveryWhere,
+      select: { id: true, name: true, categoryKeys: true },
+    });
+
+    let businessesUpdated = 0;
     let servicesAdded = 0;
+
+    for (const business of businesses) {
+      const pack = audiencePackForBusiness(business.categoryKeys ?? []);
+      let addedForBusiness = 0;
+
+      for (const svc of pack) {
+        const categoryKey = primaryCategoryKey(business.categoryKeys ?? []);
+        const found = await this.prisma.service.findFirst({
+          where: { businessId: business.id, name: svc.name },
+        });
+        if (!found) {
+          await this.prisma.service.create({
+            data: {
+              name: svc.name,
+              price: svc.price,
+              duration: svc.duration,
+              category: svc.category || categoryKey,
+              businessId: business.id,
+            },
+          });
+          addedForBusiness += 1;
+          servicesAdded += 1;
+        }
+      }
+
+      if (addedForBusiness > 0) {
+        businessesUpdated += 1;
+        this.logger.log(`Audience services +${addedForBusiness} → ${business.name}`);
+      }
+    }
+
+    return { businessesUpdated, servicesAdded };
+  }
+
+  async run(): Promise<{
+    demoBusinesses: number;
+    demoServicesAdded: number;
+    audienceBusinessesUpdated: number;
+    audienceServicesAdded: number;
+    servicesAdded: number;
+  }> {
+    let demoServicesAdded = 0;
 
     await this.prisma.category.upsert({
       where: { key: 'massage' },
@@ -262,7 +395,7 @@ export class CategoryDemoSeedService {
         });
         if (!found) {
           await this.prisma.service.create({ data: { ...svc, businessId: business.id } });
-          servicesAdded += 1;
+          demoServicesAdded += 1;
         }
       }
 
@@ -284,23 +417,14 @@ export class CategoryDemoSeedService {
       this.logger.log(`Seeded category demo: ${demo.key} → ${business.name}`);
     }
 
-    let luxeServices = 0;
-    const luxe = await this.prisma.business.findFirst({
-      where: { OR: [{ email: 'owner@rezervame.com' }, { name: 'Luxe Hair Studio' }] },
-    });
-    if (luxe) {
-      for (const svc of LUXE_EXTRA_SERVICES) {
-        const found = await this.prisma.service.findFirst({
-          where: { businessId: luxe.id, name: svc.name },
-        });
-        if (!found) {
-          await this.prisma.service.create({ data: { ...svc, businessId: luxe.id } });
-          luxeServices += 1;
-          servicesAdded += 1;
-        }
-      }
-    }
+    const audience = await this.ensureAudienceServicesForAllBusinesses();
 
-    return { businesses: CATEGORY_DEMOS.length, services: servicesAdded, luxeServices };
+    return {
+      demoBusinesses: CATEGORY_DEMOS.length,
+      demoServicesAdded,
+      audienceBusinessesUpdated: audience.businessesUpdated,
+      audienceServicesAdded: audience.servicesAdded,
+      servicesAdded: demoServicesAdded + audience.servicesAdded,
+    };
   }
 }
