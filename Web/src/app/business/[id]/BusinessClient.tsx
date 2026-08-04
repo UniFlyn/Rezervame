@@ -7,6 +7,7 @@ import { toastError, toastWarning } from "@/lib/toast";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { StatePanel, statePanelVariantForMessage } from "@/components/ui/StatePanel";
 import { userFacingError } from "@/lib/userFacingError";
+import { appPath } from "@/lib/publicBasePath";
 
 type ServiceRow = { id: string; name: string; duration: number; price: number; category: string };
 
@@ -129,7 +130,7 @@ export default function BusinessClient({ params }: { params: { id: string } }) {
             Browse this business on the public venue page to complete a reservation.
           </p>
           <Link
-            href={`/venue/${id}`}
+            href={appPath(`/venue/${id}`)}
             className="block w-full text-center py-3 bg-primary text-white font-bold rounded-lg hover:bg-primary-dark transition-colors shadow"
           >
             View venue & book

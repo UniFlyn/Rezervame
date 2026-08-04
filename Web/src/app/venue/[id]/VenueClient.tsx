@@ -291,8 +291,9 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
 
   useEffect(() => {
     if (!routeReady) return;
-    setVenueId(resolveVenueBusinessId(pathname, businessId));
-  }, [routeReady, pathname, businessId]);
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    setVenueId(resolveVenueBusinessId(pathname, businessId, search));
+  }, [routeReady, pathname, businessId, searchParams]);
 
   useEffect(() => {
     setVw(window.innerWidth);
@@ -769,10 +770,17 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
               prev.id === venueId && prev.name !== "—" ? prev : base,
             );
           setReviewRows([]);
-          toastError(
-            t("venueLoadFailedTitle"),
-            userFacingError(err, t("venueLoadFailedBody")),
-          );
+          const msg = userFacingError(err, t("venueLoadFailedBody")).toLowerCase();
+          const unavailable =
+            msg.includes("404") ||
+            msg.includes("not found") ||
+            msg.includes("not visible") ||
+            msg.includes("no encontr");
+          if (unavailable) {
+            toastWarning(t("venueUnavailableTitle"), t("venueUnavailableBody"));
+          } else {
+            toastError(t("venueLoadFailedTitle"), userFacingError(err, t("venueLoadFailedBody")));
+          }
         }
       } finally {
         if (!cancelled && venueLoadGenRef.current === loadGen) setVenueLoading(false);

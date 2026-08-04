@@ -8,7 +8,8 @@ import { toastError, toastInfo, toastSuccess, toastWarning } from "@/lib/toast";
 import { PLACEHOLDER_IMAGE_DATA_URI } from "@/lib/placeholderImage";
 import { venueCardImageSrc, businessListingImageSrc, type SearchVenueRow } from "@/lib/venueSearch";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { InvoiceTable, InvoiceCard, EmptyState, NotificationItem, Tabs, Avatar, Chip, Badge, Button, RecipientBadge, BusinessResultCard } from "@/ds";
+import { InvoiceTable, InvoiceCard, EmptyState, NotificationItem, Tabs, Avatar, Chip, Badge, Button, RecipientBadge, BusinessResultCard, PersonCard, AddPersonModal, RELATIONSHIPS, Glyph } from "@/ds";
+import { RescheduleModal, type RescheduleReservation } from "@/components/RescheduleModal";
 import { generateAndDownloadInvoicePDF } from "@/lib/invoicePdf";
 import { 
   Trash2, Edit2, Shield, User as UserIcon, 
@@ -48,6 +49,8 @@ import {
   policyMessageForBooking,
   normalizeCancellationPolicy,
 } from "@/lib/cancellationPolicy";
+import { dateLocaleFor } from "@/lib/locale";
+import { goToVenue } from "@/lib/goToVenue";
 
 type Tab = "bookings" | "family" | "settings" | "favorites" | "invoices" | "notifications" | "payments";
 
@@ -192,9 +195,12 @@ function notifRelativeTime(dateStr: string, lang: string): string {
 interface FamilyMember {
   id: string;
   name: string;
-  age: number;
-  gender: string;
+  age?: number;
+  gender?: string;
   email?: string | null;
+  relationship?: string;
+  phone?: string;
+  notes?: string;
 }
 
 interface Reservation {
@@ -222,6 +228,7 @@ interface Reservation {
   items: { 
     id: string; 
     name: string; 
+    serviceId?: string;
     price: string; 
     customerName?: string; 
     staffName?: string;
@@ -261,16 +268,17 @@ function mapUserBookingGroup(
     refNumber = String(Math.abs(hash % 90000) + 10000);
   }
 
+  const dateLocale = dateLocaleFor(language === "es" ? "es" : "en");
   const dateStr = Number.isNaN(d.getTime())
     ? "—"
-    : d.toLocaleDateString("en-US", {
+    : d.toLocaleDateString(dateLocale, {
         year: "numeric",
         month: "long",
         day: "numeric",
       });
   const timeStr = formatBookingTimeRange(
     group.map((row) => row.date as string | Date),
-    "en-US",
+    dateLocale,
   );
 
   const totals = computeBookingTotals(
@@ -310,7 +318,8 @@ function mapUserBookingGroup(
 
     return {
         id: item.id,
-        name: item.service?.name || "Service",
+        name: item.service?.name || (language === "es" ? "Servicio" : "Service"),
+        serviceId: item.serviceId || item.service?.id,
         price: Number(item.price || 0).toFixed(2),
         customerName: forName,
         staffName: proName,
@@ -344,7 +353,9 @@ function mapUserBookingGroup(
     id: b.id,
     refNumber,
     venueName: b.business?.name || "—",
-    serviceName: group.length > 1 ? `${group.length} Services` : (b.service?.name || "Service"),
+    serviceName: group.length > 1
+      ? (language === "es" ? `${group.length} servicios` : `${group.length} Services`)
+      : (b.service?.name || (language === "es" ? "Servicio" : "Service")),
     customerName: forNames.length > 0 ? forNames.join(", ") : undefined,
     staffName: proNames.length > 0 ? proNames.join(", ") : undefined,
     date: dateStr,
@@ -415,6 +426,7 @@ function ProfileContent() {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState<RescheduleReservation | null>(null);
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
   const [isResModalOpen, setIsResModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -510,11 +522,11 @@ function ProfileContent() {
   useEffect(() => {
     const payment = searchParams.get("payment");
     if (payment === "success") {
-      toastSuccess("Payment received", "Your card payment was processed successfully.");
+      toastSuccess(t("toastPaymentReceived"), t("toastPaymentReceivedBody"));
       setRefreshTrigger((prev) => prev + 1);
       router.replace("/profile");
     } else if (payment === "cancelled") {
-      toastWarning("Payment cancelled", "You can complete payment when ready.");
+      toastWarning(t("toastPaymentCancelledToast"), t("toastPaymentCancelledBody"));
       router.replace("/profile");
     }
   }, [searchParams, router]);
@@ -556,7 +568,7 @@ function ProfileContent() {
     try {
       await apiPatch("/auth/user-session", payload, "USER");
       await refreshUser();
-      toastSuccess("Profile updated successfully!");
+      toastSuccess(t("toastProfileUpdated"));
     } catch (err: any) {
       toastError(err.message || ("Failed to update profile."));
     } finally {
@@ -572,7 +584,7 @@ function ProfileContent() {
     const confirmPassword = formData.get("confirmPassword");
     
     if (newPassword !== confirmPassword) {
-      toastWarning("Passwords do not match.");
+      toastWarning(t("toastPasswordMismatch"));
       return;
     }
 
@@ -588,10 +600,10 @@ function ProfileContent() {
     setIsUpdatingPassword(true);
     try {
       await apiPatch("/auth/user-password", { currentPassword, newPassword }, "USER");
-      toastSuccess("Password updated successfully!");
+      toastSuccess(t("toastPasswordUpdated"));
       e.currentTarget.reset();
     } catch (err: any) {
-      toastError(err.message || ("Failed to update password. Check your current password."));
+      toastError(err.message || t("toastFailedUpdatePassword"));
     } finally {
       setIsUpdatingPassword(false);
     }
@@ -600,26 +612,20 @@ function ProfileContent() {
   const doCancelReservation = async (id: string) => {
     try {
       await apiPatch(`/mobile/bookings/${id}/cancel`, {}, "USER");
-      toastSuccess(
-        "Cancelled",
-        "Reservation cancelled."
-      );
+      toastSuccess(t("toastReservationCancelled"), t("toastReservationCancelledBody"));
       setIsResModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
-      toastError(
-        "Could not cancel",
-        err instanceof Error ? err.message : ""
-      );
+      toastError(t("toastCouldNotCancel"), err instanceof Error ? err.message : "");
     }
   };
 
   const handleCancelReservation = (id: string) => {
     showConfirm({
-      title: "Cancel Reservation",
-      message: "Are you sure you want to cancel this service? This action cannot be undone.",
-      confirmLabel: "Yes, Cancel",
-      cancelLabel: "Keep It",
+      title: t("cancelReservationTitle"),
+      message: t("cancelReservationBody"),
+      confirmLabel: t("cancelReservationConfirm"),
+      cancelLabel: t("cancelReservationKeep"),
       variant: "danger",
       onConfirm: () => { closeConfirm(); void doCancelReservation(id); },
     });
@@ -629,26 +635,24 @@ function ProfileContent() {
     if (!res) return;
     const confirmedItems = res.items.filter((i) => i.canCancel);
     showConfirm({
-      title: "Cancel All Services",
-      message: language === "en"
-        ? `This will cancel all ${confirmedItems.length} service(s) in this booking. No individual confirmations will be asked.`
-        : `Se cancelarán los ${confirmedItems.length} servicio(s) de esta reserva. No se pedirán confirmaciones individuales.`,
-      confirmLabel: "Cancel All",
-      cancelLabel: "Go Back",
+      title: t("cancelAllServicesTitle"),
+      message: t("cancelAllServicesBody").replace("{n}", String(confirmedItems.length)),
+      confirmLabel: t("cancelAllConfirm"),
+      cancelLabel: t("cancelAllBack"),
       variant: "danger",
       onConfirm: async () => {
         closeConfirm();
         try {
           const ids = confirmedItems.map((i) => i.id);
           await apiPost("/mobile/bookings/cancel-group", { bookingIds: ids }, "USER");
-          toastSuccess("All cancelled", `${ids.length} service(s) cancelled.`);
+          toastSuccess(t("toastAllCancelled"), t("toastAllCancelledBody").replace("{n}", String(ids.length)));
           setIsResModalOpen(false);
           setPaymentView("none");
           setRefreshTrigger((prev) => prev + 1);
         } catch (err) {
           toastError(
-            "Cancellation failed",
-            err instanceof Error ? err.message : "Could not cancel all services.",
+            t("toastCancellationFailed"),
+            err instanceof Error ? err.message : t("toastTryAgain"),
           );
         }
       },
@@ -665,8 +669,8 @@ function ProfileContent() {
 
       if (payableIds.length === 0) {
         toastWarning(
-          "Already processed",
-          "There are no services awaiting payment in this reservation.",
+          t("toastAlreadyProcessed"),
+          t("toastNoServicesAwaitingPayment"),
         );
         setPayingLoading(false);
         return;
@@ -703,8 +707,8 @@ function ProfileContent() {
       }
     } catch (err) {
       toastError(
-        "Payment failed",
-        err instanceof Error ? err.message : ""
+        t("toastPaymentFailed"),
+        err instanceof Error ? err.message : t("toastTryAgain"),
       );
     } finally {
       setPayingLoading(false);
@@ -718,11 +722,11 @@ function ProfileContent() {
       for (const item of selectedRes.items) {
         await apiPost(`/mobile/bookings/${item.id}/complete`, {}, "USER");
       }
-      toastSuccess("Appointment completed");
+      toastSuccess(t("toastAppointmentCompleted"));
       setIsResModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
-      toastError("Error", err instanceof Error ? err.message : "Failed to complete");
+      toastError(t("toastErrorGeneric"), err instanceof Error ? err.message : t("toastFailedToComplete"));
     } finally {
       setPayingLoading(false);
     }
@@ -735,11 +739,11 @@ function ProfileContent() {
       for (const item of selectedRes.items) {
         await apiPost(`/mobile/bookings/${item.id}/accept-reschedule`, {}, "USER");
       }
-      toastSuccess("New time accepted");
+      toastSuccess(t("toastNewTimeAccepted"));
       setIsResModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
     } catch (err) {
-      toastError("Error", err instanceof Error ? err.message : "Failed to accept");
+      toastError(t("toastErrorGeneric"), err instanceof Error ? err.message : t("toastFailedToAccept"));
     } finally {
       setPayingLoading(false);
     }
@@ -751,7 +755,7 @@ function ProfileContent() {
       invoiceNumber: `INV-${res.refNumber}`,
       refNumber: res.refNumber,
       date: res.date,
-      customerName: res.customerName || user?.name || "Customer",
+      customerName: res.customerName || user?.name || (language === "es" ? "Cliente" : "Customer"),
       customerEmail: user?.email,
       venueName: res.venueName,
       venueAddress: res.address,
@@ -775,14 +779,11 @@ function ProfileContent() {
     try {
       await apiDelete(`/mobile/favorites/${businessId}`, "USER");
       setFavoritesList((prev) => prev.filter((biz: any) => (biz as any).businessId !== businessId));
-      toastSuccess(
-        "Removed",
-        "Removed from favorites."
-      );
+        toastSuccess(t("toastRemoved"), t("toastRemovedFromFavorites"));
     } catch (err) {
       toastError(
-        "Could not remove",
-        err instanceof Error ? err.message : ""
+        t("toastCouldNotAddPerson"),
+        err instanceof Error ? err.message : "",
       );
     }
   };
@@ -790,24 +791,24 @@ function ProfileContent() {
   const handleDownloadInvoice = (inv: any) => {
     const rawDate = inv.issuedDate || inv.date || inv.createdAt;
     const dateStr = rawDate
-      ? new Date(rawDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-      : new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      ? new Date(rawDate).toLocaleDateString(dateLocaleFor(language === "es" ? "es" : "en"), { year: "numeric", month: "long", day: "numeric" })
+      : new Date().toLocaleDateString(dateLocaleFor(language === "es" ? "es" : "en"), { year: "numeric", month: "long", day: "numeric" });
     generateAndDownloadInvoicePDF({
       invoiceNumber: inv.number || `INV-${String(inv.id || "").slice(0,6).toUpperCase()}`,
       refNumber: String(inv.id || "").slice(0,8),
       date: dateStr,
-      customerName: user?.name || "Customer",
+      customerName: user?.name || (language === "es" ? "Cliente" : "Customer"),
       customerEmail: user?.email,
       venueName: inv.venueName || inv.business?.name || "Venue",
       venueAddress: inv.locationLine || inv.business?.address,
       items: Array.isArray(inv.lines) && inv.lines.length > 0
         ? inv.lines.map((l: any) => ({ 
-            name: l.title || "Service", 
+            name: l.title || (language === "es" ? "Servicio" : "Service"), 
             quantity: 1, 
             price: Number(l.amount || 0),
             staffName: l.professional || "—"
           }))
-        : [{ name: "Services", quantity: 1, price: Number(inv.subtotal || inv.total || 0) }],
+        : [{ name: language === "es" ? "Servicios" : "Services", quantity: 1, price: Number(inv.subtotal || inv.total || 0) }],
       subtotal: Number(inv.subtotal || 0),
       taxAmount: Number(inv.taxAmount || 0),
       taxPercentage: inv.taxPercentage ?? 7,
@@ -946,7 +947,7 @@ function ProfileContent() {
       } catch (e) {
         if (!cancelled) {
           setBookPayload({ ongoing: [], history: [] });
-          toastError("Failed to load profile", e instanceof Error ? e.message : "");
+          toastError(t("toastFailedLoadProfile"), e instanceof Error ? e.message : "");
         }
       } finally {
         if (!cancelled) setProfileDataReady(true);
@@ -1075,6 +1076,69 @@ function ProfileContent() {
       ),
   }));
 
+  const openRebookVenue = (res: Reservation) => {
+    if (!res.businessId) return;
+    const serviceIds = res.items.map((i) => i.serviceId).filter(Boolean) as string[];
+    goToVenue(res.businessId, {
+      rebook: "1",
+      ...(serviceIds.length ? { services: serviceIds.join(",") } : {}),
+    });
+  };
+
+  const openReschedule = (res: Reservation) => {
+    const serviceIds = res.items.map((i) => i.serviceId).filter(Boolean) as string[];
+    const firstDate = res.items[0]?.appointmentAt ? new Date(res.items[0].appointmentAt as string) : new Date(res.date);
+    const dateISO = Number.isNaN(firstDate.getTime())
+      ? undefined
+      : `${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, "0")}-${String(firstDate.getDate()).padStart(2, "0")}`;
+    setRescheduleTarget({
+      id: res.id,
+      businessId: res.businessId,
+      businessName: res.venueName,
+      serviceIds,
+      dateISO,
+      timeLabel: res.time?.split("·")[0]?.trim() || undefined,
+    });
+  };
+
+  const handleSaveFamilyPerson = async (person: {
+    id: string;
+    name: string;
+    relationship: string;
+    phone: string;
+    email?: string;
+    notes?: string;
+  }) => {
+    setIsSavingFamilyMember(true);
+    try {
+      const payload = {
+        name: person.name,
+        phone: person.phone,
+        email: person.email || undefined,
+        gender: person.relationship,
+      };
+      if (editingMember) {
+        await apiPatch(`/mobile/family-members/${editingMember.id}`, payload, "USER");
+      } else {
+        await apiPost("/mobile/family-members", payload, "USER");
+      }
+      setRefreshTrigger((prev) => prev + 1);
+      setIsFamilyModalOpen(false);
+      setEditingMember(null);
+      toastSuccess(
+        language === "en" ? "Saved" : "Guardado",
+        language === "en" ? "Family member saved." : "Persona guardada correctamente.",
+      );
+    } catch (err) {
+      toastError(
+        language === "en" ? "Could not save" : "No se pudo guardar",
+        err instanceof Error ? err.message : "",
+      );
+    } finally {
+      setIsSavingFamilyMember(false);
+    }
+  };
+
   const handleAddFamily = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
@@ -1084,10 +1148,7 @@ function ProfileContent() {
     const emailRaw = String(formData.get("email") || "").trim();
 
     if (!name) {
-      toastWarning(
-        "Name required",
-        "Enter a name for this family member.",
-      );
+      toastWarning(t("toastNameRequired"), t("toastNameRequiredBody"));
       return;
     }
     try {
@@ -1107,7 +1168,7 @@ function ProfileContent() {
       setRefreshTrigger(prev => prev + 1);
       setIsFamilyModalOpen(false);
       setEditingMember(null);
-      toastSuccess("Family member saved");
+      toastSuccess(t("toastFamilyMemberSaved"));
     } catch (err) {
       toastError(
         "Could not save",
@@ -1285,9 +1346,7 @@ function ProfileContent() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => {
-                                      if (res.businessId) router.push(`/venue/${res.businessId}`);
-                                    }}
+                                    onClick={() => openReschedule(res)}
                                   >
                                     {t("rescheduleAction")}
                                   </Button>
@@ -1306,9 +1365,7 @@ function ProfileContent() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                if (res.businessId) router.push(`/venue/${res.businessId}`);
-                              }}
+                              onClick={() => openRebookVenue(res)}
                             >
                               {language === "en" ? "Book again" : "Reservar de nuevo"}
                             </Button>
@@ -1381,61 +1438,34 @@ function ProfileContent() {
                ) : (
                  <div className="flex flex-col gap-3">
                     {familyMembers.map((member) => (
-                      <div key={member.id} className="bg-white px-4 py-3.5 rounded-2xl border border-[var(--border-subtle)] shadow-sm flex justify-between items-center gap-4">
-                        <div className="flex items-center gap-4 min-w-0">
-                           <div className="w-12 h-12 bg-[var(--rz-gray-100)] rounded-xl flex items-center justify-center text-[var(--rz-coral)] font-bold text-lg shrink-0">
-                             {member.name.charAt(0)}
-                           </div>
-                           <div className="min-w-0">
-                              <h4 className="font-bold text-[var(--rz-navy)] text-base truncate">{member.name}</h4>
-                              <p className="text-xs font-medium text-[var(--rz-gray-500)] mt-0.5 truncate">
-                                {member.gender || (language === "es" ? "Familiar" : "Family")}
-                                {member.email ? ` · ${member.email}` : ""}
-                                {member.age ? ` · ${member.age} ${language === "es" ? "años" : "years"}` : ""}
-                              </p>
-                           </div>
-                        </div>
-                        <div className="flex gap-2">
-                           <button 
-                            onClick={() => { setEditingMember(member); setIsFamilyModalOpen(true); }}
-                            className="p-3 text-[var(--rz-gray-500)] hover:text-[#ff5757] hover:bg-[#ff5757]/5 rounded-2xl transition-all"
-                           >
-                              <Edit2 size={18} />
-                           </button>
-                           <button 
-                            type="button"
-                            onClick={() => {
-                              void (async () => {
-                                try {
-                                  await apiDelete(`/mobile/family-members/${member.id}`, "USER");
-                                  setRefreshTrigger(prev => prev + 1);
-                                  toastSuccess(
-                                    "Removed",
-                                    "Family member removed.",
-                                  );
-                                } catch (err) {
-                                  toastError(
-                                    "Could not remove",
-                                    err instanceof Error ? err.message : "",
-                                  );
-                                }
-                              })();
-                            }}
-                            className="p-3 text-[var(--rz-gray-500)] hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
-                           >
-                              <Trash2 size={18} />
-                           </button>
-                        </div>
-                      </div>
+                      <PersonCard
+                        key={member.id}
+                        name={member.name}
+                        relationship={member.relationship || member.gender || (language === "es" ? "Familiar" : "Family")}
+                        phone={member.phone}
+                        email={member.email || undefined}
+                        note={member.notes}
+                        onEdit={() => { setEditingMember(member); setIsFamilyModalOpen(true); }}
+                        onRemove={async () => {
+                          try {
+                            await apiDelete(`/mobile/family-members/${member.id}`, "USER");
+                            setRefreshTrigger((prev) => prev + 1);
+                            toastSuccess(language === "en" ? "Removed" : "Eliminado", language === "en" ? "Person removed." : "Persona eliminada.");
+                          } catch (err) {
+                            toastError(language === "en" ? "Could not remove" : "No se pudo eliminar", err instanceof Error ? err.message : "");
+                          }
+                        }}
+                      />
                     ))}
                  </div>
                )}
                {familyMembers.length > 0 && (
-                 <p className="mt-4 text-xs text-[var(--rz-gray-500)]">
+                 <div className="flex items-center gap-2 mt-4 text-xs text-[var(--rz-gray-400)]">
+                   <Glyph name="lock" size={13} />
                    {language === "en"
-                     ? "Only you can see this list."
-                     : "Solo tú puedes ver esta lista."}
-                 </p>
+                     ? "Only you can see this list. The other person does not need an account."
+                     : "Solo tú ves esta lista. No es necesario que la otra persona tenga una cuenta."}
+                 </div>
                )}
             </div>
           )}
@@ -1668,8 +1698,8 @@ function ProfileContent() {
                         services={biz.services || []}
                         favorite
                         onFavorite={() => bId && handleRemoveFavorite(bId)}
-                        onClick={() => bId && router.push(`/venue/${bId}`)}
-                        onReserve={() => bId && router.push(`/venue/${bId}`)}
+                        onClick={() => bId && goToVenue(bId)}
+                        onReserve={() => bId && goToVenue(bId)}
                         ctaLabel={language === "en" ? "Book" : "Reservar"}
                       />
                     );
@@ -1998,7 +2028,7 @@ function ProfileContent() {
                                      <div>
                                         <h5 className="font-black text-[var(--rz-navy)] text-sm">{item.name}</h5>
                                         <p className="text-[9px] font-bold text-[var(--rz-gray-500)] uppercase tracking-widest mt-1">
-                                           {item.customerName || selectedRes.customerName || "Customer"} • {item.staffName || "Staff"}
+                                           {item.customerName || selectedRes.customerName || (language === "es" ? "Cliente" : "Customer")} • {item.staffName || (language === "es" ? "Personal" : "Staff")}
                                         </p>
                                      </div>
                                   </div>
@@ -2326,79 +2356,26 @@ function ProfileContent() {
          onCancel={closeConfirm}
        />
 
-      {/* Family Member Modal */}
-      {isFamilyModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-[rgba(2,48,71,0.8)] backdrop-blur-md animate-in fade-in duration-500" onClick={() => setIsFamilyModalOpen(false)} />
-          <div className="relative w-full max-w-lg bg-white rounded-[40px] p-10 shadow-2xl animate-in zoom-in-95 duration-500">
-             <div className="flex justify-between items-center mb-10">
-                <h3 className="text-2xl font-black text-[var(--rz-navy)]">{editingMember ? (language === "en" ? "Edit Member" : "Editar miembro") : (language === "en" ? "New Member" : "Nuevo miembro")}</h3>
-                <button onClick={() => setIsFamilyModalOpen(false)} className="p-3 text-[var(--rz-gray-500)] hover:text-[var(--rz-navy)] bg-[var(--rz-gray-050)] rounded-2xl transition"><X size={20} /></button>
-             </div>
-             
-             <form onSubmit={handleAddFamily} className="space-y-8">
-               <div className="space-y-2">
-                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Full Name" : "Nombre completo"}</label>
-                  <div className="relative group">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--rz-gray-300)] group-focus-within:text-[#ff5757] transition-colors">
-                      <UserIcon size={18} />
-                    </div>
-                    <input name="name" type="text" defaultValue={editingMember?.name} required placeholder="e.g. John Doe" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 pl-12 pr-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
-                  </div>
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Age" : "Edad"}</label>
-                    <input name="age" type="number" defaultValue={editingMember?.age} required placeholder={language === "en" ? "Years" : "Años"} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
-                 </div>
-                 <div className="space-y-2">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Gender" : "Género"}</label>
-                    <select name="gender" defaultValue={editingMember?.gender || "Male"} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all appearance-none cursor-pointer">
-                       <option value="Male">{language === "en" ? "Male" : "Masculino"}</option>
-                       <option value="Female">{language === "en" ? "Female" : "Femenino"}</option>
-                       <option value="Other">{language === "en" ? "Other" : "Otro"}</option>
-                    </select>
-                 </div>
-               </div>
-               <div className="space-y-2">
-                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Relationship" : "Relación"}</label>
-                  <select name="relationship" defaultValue={(editingMember as any)?.relationship || ""} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all appearance-none cursor-pointer">
-                    <option value="">{language === "en" ? "Select relationship" : "Seleccionar relación"}</option>
-                    <option value="spouse">{language === "en" ? "Spouse / Partner" : "Cónyuge / Pareja"}</option>
-                    <option value="child">{language === "en" ? "Child" : "Hijo/a"}</option>
-                    <option value="parent">{language === "en" ? "Parent" : "Padre / Madre"}</option>
-                    <option value="sibling">{language === "en" ? "Sibling" : "Hermano/a"}</option>
-                    <option value="friend">{language === "en" ? "Friend" : "Amigo/a"}</option>
-                    <option value="other">{language === "en" ? "Other" : "Otro"}</option>
-                  </select>
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Phone" : "Teléfono"}</label>
-                    <input name="phone" type="tel" defaultValue={(editingMember as any)?.phone ?? ""} placeholder="+507 6000 0000" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
-                 </div>
-                 <div className="space-y-2">
-                    <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Email (optional)" : "Email (opcional)"}</label>
-                    <input name="email" type="email" defaultValue={editingMember?.email ?? ""} placeholder="email@example.com" className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)]" />
-                 </div>
-               </div>
-               <div className="space-y-2">
-                  <label className="text-[11px] font-black text-[var(--rz-gray-500)] uppercase tracking-wide ml-1">{language === "en" ? "Notes (optional)" : "Notas (opcional)"}</label>
-                  <textarea name="notes" defaultValue={(editingMember as any)?.notes ?? ""} rows={2} placeholder={language === "en" ? "Allergies, preferences, etc." : "Alergias, preferencias, etc."} className="w-full bg-[var(--rz-gray-050)] border border-[var(--border-default)] rounded-xl py-3 px-4 font-bold text-[var(--rz-navy)] text-sm focus:outline-none focus:border-[#ff5757] focus:bg-white transition-all placeholder:text-[var(--rz-gray-500)] resize-none" />
-               </div>
-              <div className="flex gap-3">
-               <button type="button" onClick={() => setIsFamilyModalOpen(false)} className="flex-1 bg-[var(--rz-gray-050)] text-[var(--rz-gray-600)] font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-[var(--rz-gray-100)] transition-all border border-[var(--border-default)]">
-                 {language === "en" ? "Cancel" : "Cancelar"}
-               </button>
-               <button type="submit" disabled={isSavingFamilyMember} className="flex-1 bg-[#ff5757] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#ff5757]/25 hover:bg-[#d83b3b] transition-all text-xs uppercase tracking-widest disabled:opacity-60 flex items-center justify-center gap-2">
-                  {isSavingFamilyMember ? <Loader2 className="animate-spin" size={16} /> : null}
-                  {isSavingFamilyMember ? (language === "en" ? "Saving..." : "Guardando...") : (editingMember ? (language === "en" ? "Save Changes" : "Guardar cambios") : (language === "en" ? "Add Member" : "Agregar persona"))}
-               </button>
-              </div>
-             </form>
-          </div>
-        </div>
-      )}
+      <AddPersonModal
+        open={isFamilyModalOpen}
+        person={editingMember ? {
+          id: editingMember.id,
+          name: editingMember.name,
+          relationship: editingMember.relationship || editingMember.gender || "",
+          phone: editingMember.phone || "",
+          email: editingMember.email || "",
+          notes: editingMember.notes || "",
+        } : null}
+        relationships={RELATIONSHIPS}
+        onClose={() => { setIsFamilyModalOpen(false); setEditingMember(null); }}
+        onSave={handleSaveFamilyPerson}
+      />
+
+      <RescheduleModal
+        open={!!rescheduleTarget}
+        reservation={rescheduleTarget}
+        onClose={() => setRescheduleTarget(null)}
+      />
       
       {isReviewModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(2,48,71,0.6)] p-4 backdrop-blur-md animate-in fade-in duration-300">

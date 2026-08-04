@@ -3875,7 +3875,7 @@ export class AppController {
     });
     if (!b) {
       console.log('[GET /business/:id] Not found in DB:', id);
-      return null;
+      throw new NotFoundException('Business not found');
     }
     const visible = await isBusinessPubliclyVisible(this.prisma, b, authorization);
     console.log('[GET /business/:id] visible=', visible, 'status=', b.status);
