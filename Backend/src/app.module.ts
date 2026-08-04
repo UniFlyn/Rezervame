@@ -9,9 +9,10 @@ import { YappyWebhookController } from './payments/yappy/yappy-webhook.controlle
 import { EmailModule } from './email/email.module';
 
 import { StorageModule } from './storage/storage.module';
+import { SeedModule } from './seed/seed.module';
 
 @Module({
-  imports: [PrismaModule, EmailModule, StorageModule, BusinessPanelModule],
+  imports: [PrismaModule, EmailModule, StorageModule, BusinessPanelModule, SeedModule],
   controllers: [
     HealthController,
     AppController,

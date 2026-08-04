@@ -23,6 +23,7 @@ import { BookingModal, type BookingModalVenueData } from "../../../components/Bo
 import { formatCancellationPolicyMessage, normalizeCancellationPolicy } from "@/lib/cancellationPolicy";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { resolveVenueBusinessId } from "@/lib/resolveVenueBusinessId";
+import { useStaticExportRouteReady } from "@/lib/useStaticExportRouteReady";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { amenityLucideIcon } from "@/lib/amenityIcons";
 import { AppLoader } from "@/components/ui/AppLoader";
@@ -50,15 +51,21 @@ import type { VenueDetailSection } from "@/components/venue/VenueDetailSections"
 function inferServiceAudienceTag(name: string, category: string): string {
   const text = `${name} ${category}`.toLowerCase();
   const parts: string[] = ["all"];
-  if (/\b(niño|niña|nino|nina|kid|kids|child|children|infantil)\b/.test(text)) {
-    parts.push("niño", "kid", "children");
+  const isKids = /\b(niño|niña|nino|nina|kid|kids|child|children|infantil)\b/.test(text);
+  const isMen = /\b(hombre|hombres|man|men|male|masculin|barber|barba|barbería|barberia|afeitado|beard|fade)\b/.test(text);
+  const isWomen =
+    /\b(mujer|mujeres|woman|women|female|femenin|ladies|lady|uñas|manicur|pedicur|cejas|pestañas|balayage|highlights|keratin|tinte|color|peinado|blow|secado|beauty)\b/.test(text) ||
+    category.toLowerCase().includes("beauty");
+
+  if (isKids) parts.push("niño", "kid", "children");
+  if (isMen) parts.push("hombre", "men", "barber");
+  if (isWomen) parts.push("mujer", "women", "female");
+
+  // Unisex cuts/styles appear in both men and women filters when not kid-specific.
+  if (!isKids && !isMen && !isWomen && /\b(haircut|cut|corte|style|estilo|hair)\b/.test(text)) {
+    parts.push("hombre", "men", "mujer", "women");
   }
-  if (/\b(hombre|hombres|man|men|male|masculin|barber|barba|barbería|barberia)\b/.test(text)) {
-    parts.push("hombre", "men", "barber");
-  }
-  if (/\b(mujer|mujeres|woman|women|female|femenin|uñas|manicur|pedicur|cejas|pestañas)\b/.test(text)) {
-    parts.push("mujer", "women", "female");
-  }
+
   return parts.join(" ");
 }
 
@@ -223,10 +230,11 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const venueId = resolveVenueBusinessId(pathname, businessId);
+  const routeReady = useStaticExportRouteReady();
+  const [venueId, setVenueId] = useState("");
   const venueLoadGenRef = useRef(0);
   const { isLoggedIn, isHydrated, setIsLoginModalOpen, setPendingAfterLogin, openFavoritePrompt, whenHydrated } = useAuth();
-  const [venueData, setVenueData] = useState<VenueState>(() => emptyVenue(venueId || businessId));
+  const [venueData, setVenueData] = useState<VenueState>(() => emptyVenue(""));
   const [reviewRows, setReviewRows] = useState<
     Array<{
       id: string;
@@ -266,6 +274,11 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   const titleRef = React.useRef<HTMLDivElement | null>(null);
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   const toastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!routeReady) return;
+    setVenueId(resolveVenueBusinessId(pathname, businessId));
+  }, [routeReady, pathname, businessId]);
 
   useEffect(() => {
     setVw(window.innerWidth);
@@ -444,6 +457,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
   }, []);
 
   useEffect(() => {
+    if (!routeReady) return;
     let cancelled = false;
     const loadGen = ++venueLoadGenRef.current;
     const load = async () => {
@@ -754,7 +768,7 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
     return () => {
       cancelled = true;
     };
-  }, [venueId, language]);
+  }, [venueId, language, routeReady]);
 
   useEffect(() => {
     if (!isLoggedIn || !venueId) return;
@@ -959,6 +973,22 @@ export default function VenueDetailsPage({ businessId }: { businessId: string })
       {sub && <p style={{ fontSize: 15, color: "var(--rz-gray-500)", marginTop: 10, lineHeight: 1.5 }}>{sub}</p>}
     </div>
   );
+
+  if (!routeReady) {
+    return (
+      <div
+        style={{
+          background: "var(--surface-card)",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <AppLoader label={t("venueLoading")} variant="section" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "var(--surface-card)", position: "relative", minHeight: "100vh" }}>
