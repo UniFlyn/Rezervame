@@ -17,9 +17,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
-      # Set AWS RDS URL manually in Render dashboard (sync: false — do not overwrite).
+      # Use Render Postgres (same account) — replaces unreachable AWS RDS.
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: rezervame-db
+          property: connectionString
       - key: JWT_SECRET
         sync: false
       - key: SESSION_SECRET
