@@ -1,6 +1,6 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ||
-  'https://rezervame.onrender.com/api';
+  'https://rezervame-kjba.onrender.com/api';
 
 export class ApiUnauthorizedError extends Error {
   constructor() {
@@ -29,6 +29,39 @@ function adminHeaders(): Record<string, string> {
   return h;
 }
 
+const ADMIN_FETCH_TIMEOUT_MS = 60_000;
+
+async function adminFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ADMIN_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { ...adminHeaders(), ...(init.headers || {}) },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+  } catch (err: unknown) {
+    const aborted =
+      typeof err === 'object' &&
+      err !== null &&
+      'name' in err &&
+      (err as { name: string }).name === 'AbortError';
+    if (aborted) {
+      throw new Error('Request timed out. The API may be waking up — try again in a few seconds.');
+    }
+    throw new Error(
+      err instanceof Error
+        ? err.message === 'Failed to fetch'
+          ? `Cannot reach API (${API_BASE}). Check that the backend is online.`
+          : err.message
+        : 'Network error',
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function clearAdminSessionAndRedirect(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem('admin_token');
@@ -49,16 +82,13 @@ async function assertOk(res: Response, method: string, path: string): Promise<vo
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: adminHeaders(),
-    cache: 'no-store',
-  });
+  const res = await adminFetch(path);
   await assertOk(res, 'GET', path);
   return res.json() as Promise<T>;
 }
 
 export async function apiPostOptional<T>(path: string, body: unknown): Promise<T | null> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await adminFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -68,9 +98,9 @@ export async function apiPostOptional<T>(path: string, body: unknown): Promise<T
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await adminFetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   await assertOk(res, 'POST', path);
@@ -78,17 +108,14 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function apiDelete(path: string): Promise<void> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'DELETE',
-    headers: adminHeaders(),
-  });
+  const res = await adminFetch(path, { method: 'DELETE' });
   await assertOk(res, 'DELETE', path);
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await adminFetch(path, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   await assertOk(res, 'PATCH', path);
@@ -96,9 +123,9 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await adminFetch(path, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   await assertOk(res, 'PUT', path);

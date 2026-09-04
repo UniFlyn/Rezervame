@@ -2089,7 +2089,37 @@ export class AppController {
       this.prisma.business.count({ where }),
       this.prisma.business.findMany({
         where,
-        include: { bookings: true, statusHistory: true },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          description: true,
+          merchantNumber: true,
+          taxId: true,
+          owner: true,
+          email: true,
+          phone: true,
+          categoryKeys: true,
+          status: true,
+          listingVisible: true,
+          profileSetupComplete: true,
+          balance: true,
+          joinedDate: true,
+          rejectionReason: true,
+          idDocumentImage: true,
+          licenseDocumentImage: true,
+          insuranceDocumentImage: true,
+          idVerified: true,
+          licenseVerified: true,
+          insuranceVerified: true,
+          registrationDetails: true,
+          workingHours: true,
+          statusHistory: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+          },
+          _count: { select: { bookings: true } },
+        },
         orderBy: { joinedDate: 'desc' },
         skip: (p - 1) * l,
         take: l,
@@ -2111,7 +2141,8 @@ export class AppController {
         status: b.status,
         listingVisible: Boolean(b.listingVisible),
         profileSetupComplete: Boolean(b.profileSetupComplete),
-        revenue: b.balance, // Using balance as a proxy or if there's a totalRevenue field
+        revenue: b.balance,
+        bookingsCount: b._count.bookings,
         joinedDate: b.joinedDate,
         rejectionReason: b.rejectionReason,
         idDocumentImage: safeImageUrl(b.idDocumentImage),
@@ -2466,7 +2497,17 @@ export class AppController {
       this.prisma.booking.count({ where }),
       this.prisma.booking.findMany({
         where,
-        include: { user: true, business: true, service: true },
+        select: {
+          id: true,
+          date: true,
+          price: true,
+          status: true,
+          customerName: true,
+          businessId: true,
+          user: { select: { name: true, email: true } },
+          business: { select: { name: true } },
+          service: { select: { name: true } },
+        },
         orderBy: { date: 'desc' },
         skip: (p - 1) * l,
         take: l,
@@ -2728,7 +2769,7 @@ export class AppController {
   ) {
     await requireUser(this.prisma, authorization, [Role.ADMIN]);
     const p = Math.max(1, parseInt(page));
-    const l = Math.max(1, parseInt(limit));
+    const l = Math.min(50, Math.max(1, parseInt(limit)));
     
     const where: any = { role: Role.USER };
     if (status && status !== 'all') {
@@ -2741,27 +2782,25 @@ export class AppController {
       ];
     }
 
+    // List payload must stay light: do NOT embed full bookings/reviews/favorites
+    // (that previously OOM'd / 502'd Render and broke Admin with "Failed to fetch").
     const [total, users] = await Promise.all([
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
         where,
-        include: { 
-          bookings: {
-            include: {
-              business: true,
-              service: true,
-              staff: true,
-            },
-          },
-          reviews: {
-            include: {
-              business: true,
-            },
-          },
-          favorites: {
-            include: {
-              business: true,
-            },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          avatar: true,
+          address: true,
+          gender: true,
+          age: true,
+          status: true,
+          createdAt: true,
+          _count: {
+            select: { bookings: true, reviews: true, favorites: true },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -2771,42 +2810,31 @@ export class AppController {
     ]);
 
     return {
-      data: users.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        phone: u.phone,
-        avatar: u.avatar,
-        address: u.address,
-        gender: u.gender,
-        age: u.age,
-        status: u.status,
-        joinedDate: u.createdAt,
-        bookingsCount: u.bookings.length,
-        bookings: u.bookings.map((b) => ({
-          id: b.id,
-          date: b.date,
-          status: b.status,
-          price: b.price,
-          taxAmount: b.taxAmount,
-          serviceName: b.service?.name || 'Service',
-          businessName: b.business?.name || 'Business',
-          staffName: b.staff?.name || 'Any Staff',
-        })),
-        reviews: u.reviews.map((r) => ({
-          id: r.id,
-          rating: r.rating,
-          comment: r.comment,
-          date: r.date,
-          serviceName: r.serviceName,
-          staffName: r.staffName,
-          businessName: r.business?.name || 'Business',
-        })),
-        favorites: u.favorites.map((f) => ({
-          id: f.id,
-          businessName: f.business?.name || 'Business',
-        })),
-      })),
+      data: users.map((u) => {
+        const avatar = safeImageUrl(u.avatar);
+        return {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          // Drop huge data: URIs from list responses (detail views can load later).
+          avatar:
+            avatar && avatar.startsWith('data:') && avatar.length > 4096
+              ? null
+              : avatar,
+          address: u.address,
+          gender: u.gender,
+          age: u.age,
+          status: u.status,
+          joinedDate: u.createdAt,
+          bookingsCount: u._count.bookings,
+          bookings: [],
+          reviews: [],
+          favorites: [],
+          reviewsCount: u._count.reviews,
+          favoritesCount: u._count.favorites,
+        };
+      }),
       total,
       page: p,
       limit: l,
